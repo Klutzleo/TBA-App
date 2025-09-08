@@ -1,0 +1,47 @@
+{
+  "session_id": "session_001",
+  "campaign_name": "Echoes of the Forge",
+  "scene_id": "sid_0001",
+  "scene_title": "Campfire at the Canyon",
+  "timestamp": "2025-09-08T16:30:00Z",
+  "participants": ["GM_Jason", "Thorne", "Spectator_01"],
+  "events": [
+    {
+      "type": "dialogue",
+      "character": "Thorne",
+      "content": "I never thought I'd see the stars again.",
+      "ic": true,
+      "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
+      "visibility": "public"
+    },
+    {
+      "type": "emote",
+      "character": "Thorne",
+      "content": "stares into the fire, jaw clenched",
+      "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
+      "visibility": "public"
+    },
+    {
+      "type": "roll",
+      "character": "Thorne",
+      "roll_type": "resolve",
+      "dice": "1d6+2",
+      "result": 5,
+      "reaction": "The fire flickers, but Thorne holds steady.",
+      "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
+      "visibility": "public"
+    },
+    {
+      "type": "ai_prompt",
+      "role": "oracle",
+      "content": "What memory haunts him most tonight?",
+      "response": "The sound of his brother’s last breath.",
+      "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
+      "visibility": "public"
+    }
+  ],
+  "tags": ["emotional", "campfire", "memory"],
+  "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
+  "memory_markers": ["Thorne's brother mentioned", "resolve check passed"],
+  "visibility": "public"
+}
