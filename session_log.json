@@ -7,6 +7,7 @@
   "participants": ["GM_Jason", "Thorne", "Spectator_01"],
   "events": [
     {
+      "event_id": "evt_0001",
       "type": "dialogue",
       "character": "Thorne",
       "content": "I never thought I'd see the stars again.",
@@ -15,6 +16,7 @@
       "visibility": "public"
     },
     {
+      "event_id": "evt_0002",
       "type": "emote",
       "character": "Thorne",
       "content": "stares into the fire, jaw clenched",
@@ -22,6 +24,7 @@
       "visibility": "public"
     },
     {
+      "event_id": "evt_0003",
       "type": "roll",
       "character": "Thorne",
       "roll_type": "resolve",
@@ -32,6 +35,7 @@
       "visibility": "public"
     },
     {
+      "event_id": "evt_0004",
       "type": "ai_prompt",
       "role": "oracle",
       "content": "What memory haunts him most tonight?",
@@ -43,5 +47,25 @@
   "tags": ["emotional", "campfire", "memory"],
   "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
   "memory_markers": ["Thorne's brother mentioned", "resolve check passed"],
-  "visibility": "public"
+  "visibility": "public",
+  "spectator_engagement": [
+    {
+      "user": "Spectator_01",
+      "type": "reaction",
+      "emoji": "🔥",
+      "event_id": "evt_0003"
+    },
+    {
+      "user": "Spectator_02",
+      "type": "comment",
+      "content": "That roll was clutch—Thorne’s resolve is unreal.",
+      "event_id": "evt_0003"
+    },
+    {
+      "user": "Spectator_03",
+      "type": "question",
+      "content": "Is Bone Hound tied to the Forge lore?",
+      "event_id": "evt_0004"
+    }
+  ]
 }
