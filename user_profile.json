@@ -1,0 +1,86 @@
+{
+  "user_id": "jason001",
+  "user_name": {
+    "value": "GM_Jason",
+    "visibility": "public"
+  },
+  "locality": {
+    "value": "United States",
+    "visibility": "public"
+  },
+  "date_created": {
+    "value": "2025-09-01T10:00:00Z",
+    "visibility": "private"
+  },
+  "preferred_role": {
+    "value": "GM",
+    "visibility": "public"
+  },
+  "preferred_play_style": {
+    "value": "emotional",
+    "visibility": "public"
+  },
+  "most_active": {
+    "value": "Pacific / afternoon",
+    "visibility": "public"
+  },
+  "characters_managed": {
+    "value": ["char_thorne", "char_lyra"],
+    "visibility": "private"
+  },
+  "campaigns": {
+    "value": ["camp_echoes", "camp_bone_hollow"],
+    "visibility": "private"
+  },
+  "active_campaigns": {
+    "value": ["camp_echoes"],
+    "visibility": "public"
+  },
+  "authored_lore": {
+    "value": ["spell_firebrand", "npc_bone_hound"],
+    "visibility": "mixed"
+  },
+  "session_history": {
+    "value": ["session_001", "session_003"],
+    "visibility": "private"
+  },
+  "social_links": {
+    "value": {
+      "discord": "@GMJason",
+      "website": "https://forgechronicles.net"
+    },
+    "visibility": "public"
+  },
+  "peer_feedback": {
+    "value": {
+      "average_rating": 4.8,
+      "reviews": 12
+    },
+    "visibility": "private"
+  },
+  "flags": {
+    "value": ["collaborative", "rules-light", "emotional storyteller"],
+    "visibility": "public"
+  },
+  "achievements": {
+    "value": ["First Lore Entry", "Critical Moment Author"],
+    "visibility": "public"
+  },
+  "emotional_flags": {
+    "value": ["grief", "hope", "resolve"],
+    "visibility": "private"
+  },
+  "favorite_moments": {
+    "value": [
+      {
+        "quote": "I never thought I'd see the stars again.",
+        "scene_id": "sid_0001"
+      }
+    ],
+    "visibility": "private"
+  },
+  "bio": {
+    "value": "Narrative-first GM who builds systems that remember, react, and invite emotional play.",
+    "visibility": "public"
+  }
+}
