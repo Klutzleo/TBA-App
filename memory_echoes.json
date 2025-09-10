@@ -1,0 +1,18 @@
+{
+  "echoes": [
+    {
+      "source_character": "Thorne",
+      "trigger": "resolve check passed",
+      "effect": "+1 Edge when defending near firelight",
+      "location": "Canyon Campfire",
+      "session_id": "session_001"
+    },
+    {
+      "source_character": "Lyra",
+      "trigger": "name spoken aloud",
+      "effect": "NPCs pause and listen",
+      "location": "Bone Hollow",
+      "session_id": "session_003"
+    }
+  ]
+}

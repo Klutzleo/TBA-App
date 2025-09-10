@@ -1,0 +1,22 @@
+{
+  "scene_id": "sid_0001",
+  "campaign": "camp_echoes",
+  "environment": {
+    "location": "Canyon Campfire",
+    "weather": "clear",
+    "lighting": "firelight",
+    "mood": "tense"
+  },
+  "npc_states": [
+    {
+      "npc_id": "npc_bone_hound",
+      "status": "lurking",
+      "reaction_to_marked": "agitated",
+      "tether_triggered": false
+    }
+  ],
+  "active_flags": ["emotional trigger", "memory echo zone"],
+  "calling_ready": true,
+  "scene_tags": ["campfire", "memory", "threshold"],
+  "visibility": "private"
+}

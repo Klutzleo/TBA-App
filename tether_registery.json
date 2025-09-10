@@ -1,0 +1,20 @@
+{
+  "tethers": [
+    {
+      "character_id": "char_thorne",
+      "description": "Protect the innocent",
+      "trigger": "Shielding a non-combatant",
+      "bonus": "1d8",
+      "origin_event": "evt_0006",
+      "session_id": "session_001"
+    },
+    {
+      "character_id": "char_lyra",
+      "description": "Never be forgotten",
+      "trigger": "Speaking her name aloud",
+      "bonus": "reroll",
+      "origin_event": "evt_0012",
+      "session_id": "session_003"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "bap_events": [
+    {
+      "character_id": "char_thorne",
+      "trigger": "Emotional monologue before defending",
+      "bonus": "+1d6",
+      "session_id": "session_001",
+      "scene_id": "sid_0001"
+    }
+  ]
+}

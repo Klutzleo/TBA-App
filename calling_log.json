@@ -1,0 +1,13 @@
+{
+  "callings": [
+    {
+      "character_id": "char_thorne",
+      "question": "What promise have you yet to keep?",
+      "response": "To protect Emberfall’s last child.",
+      "result": "success",
+      "marked_by_death": true,
+      "new_tether": "Protect the innocent",
+      "session_id": "session_001"
+    }
+  ]
+}

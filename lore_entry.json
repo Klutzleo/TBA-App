@@ -1,0 +1,12 @@
+{
+  "entry_id": "lore_001",
+  "title": "Bone Hound",
+  "type": "npc",
+  "author": "GM_Jason",
+  "campaign": "camp_echoes",
+  "description": "A spectral beast that reacts violently to those Marked by Death.",
+  "mechanical_tags": ["npc", "marked_reactive", "threshold_guardian"],
+  "emotional_tags": ["grief", "fear", "memory"],
+  "linked_sessions": ["session_001"],
+  "visibility": "mixed"
+}

@@ -1,0 +1,12 @@
+{
+  "instance_id": "game_001",
+  "campaign": "camp_echoes",
+  "created_by": "GM_Jason",
+  "start_timestamp": "2025-09-01T10:00:00Z",
+  "active_scene": "sid_0001",
+  "characters": ["char_thorne", "char_lyra"],
+  "session_ids": ["session_001", "session_003"],
+  "status": "active",
+  "visibility": "private",
+  "tags": ["emotional", "threshold", "memory-driven"]
+}
