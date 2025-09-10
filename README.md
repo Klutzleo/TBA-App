@@ -42,7 +42,7 @@ This project is in active development. The core system is being shaped through s
 
 ## 👤 Author
 
-Created and maintained by **Jason**, a designer and storyteller passionate about expressive digital spaces, cinematic RPG systems, and empowering creative communities.
+Created and maintained by **Jason Germino**, a beginner designer and storyteller passionate about expressive digital spaces, cinematic RPG systems, and empowering creative communities. Also owner, head editior, and mastermind of GameOctane.com
 
 ---
 
