@@ -114,3 +114,8 @@ __snapshots__/
 # MacOS System Files
 .AppleDouble
 .LSOverride
+
+# Flask backend
+backend/.env
+backend/__pycache__/
+backend/venv/
