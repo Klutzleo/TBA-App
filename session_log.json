@@ -42,11 +42,48 @@
       "response": "The sound of his brother’s last breath.",
       "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
       "visibility": "public"
+    },
+    {
+      "event_id": "evt_0005",
+      "type": "memory_echo",
+      "source": "Thorne",
+      "trigger": "resolve check passed",
+      "effect": "+1 Edge when defending near firelight",
+      "visibility": "public"
+    },
+    {
+      "event_id": "evt_0006",
+      "type": "calling",
+      "character": "Thorne",
+      "question": "What promise have you yet to keep?",
+      "response": "To protect Emberfall’s last child.",
+      "roll": {
+        "player_die": "1d12",
+        "weaver_die": "1d10",
+        "result": "success"
+      },
+      "outcome": "Marked by Death",
+      "new_tether": "Protect the innocent",
+      "visibility": "public"
+    },
+    {
+      "event_id": "evt_0007",
+      "type": "tether_created",
+      "character": "Thorne",
+      "description": "Protect the innocent",
+      "origin_event": "evt_0006",
+      "visibility": "public"
     }
   ],
-  "tags": ["emotional", "campfire", "memory"],
+  "tags": ["emotional", "campfire", "memory", "calling", "tether", "echo"],
   "gm_notes": "Thorne is nearing a breaking point—watch for emotional trigger next scene.",
-  "memory_markers": ["Thorne's brother mentioned", "resolve check passed"],
+  "memory_markers": [
+    "Thorne's brother mentioned",
+    "resolve check passed",
+    "memory echo created",
+    "The Calling triggered",
+    "tether formed"
+  ],
   "visibility": "public",
   "spectator_engagement": [
     {
@@ -66,6 +103,18 @@
       "type": "question",
       "content": "Is Bone Hound tied to the Forge lore?",
       "event_id": "evt_0004"
+    },
+    {
+      "user": "Spectator_04",
+      "type": "reaction",
+      "emoji": "🕯️",
+      "event_id": "evt_0006"
+    },
+    {
+      "user": "Spectator_05",
+      "type": "comment",
+      "content": "That Calling moment gave me chills.",
+      "event_id": "evt_0006"
     }
   ]
 }
