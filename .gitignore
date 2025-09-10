@@ -1,3 +1,9 @@
+# ┌────────────────────────────────────────────────────────────┐
+# │ TBA .gitignore — Modular, Multi-Stack Hygiene              │
+# │ Covers Python, Node, AI models, Discord bots, and frontend│
+# │ Keeps secrets, clutter, and build artifacts out of Git.   │
+# └────────────────────────────────────────────────────────────┘
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -85,3 +91,26 @@ node_modules/
 dist/
 .cache/
 *.tsbuildinfo
+
+# Optional: Ignore lockfiles if not committing them
+package-lock.json
+yarn.lock
+poetry.lock
+Pipfile.lock
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.old
+
+# Coverage tools
+coverage/
+
+# Snapshot Testing
+__snapshots__/
+
+# MacOS System Files
+.AppleDouble
+.LSOverride

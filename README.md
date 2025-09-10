@@ -37,6 +37,7 @@ TBA is built on three pillars:
 
 This project is in active development. The core system is being shaped through structured schemas, playtest feedback, and iterative design. UI and hosting layers will be added once the emotional and mechanical foundations are solid.
 
+> ⚠️ TBA is currently in an early development phase. While the repository is public for visibility and deployment purposes, contributions are paused while foundational systems are refined. Feel free to follow progress or reach out with questions.
 ---
 
 ## 👤 Author
