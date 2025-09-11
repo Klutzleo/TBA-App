@@ -8,10 +8,10 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from flask import Flask, jsonify
-from schemas import schemas_bp  # ✅ Correct import
+from routes.schemas import schemas_bp  # ✅ Direct import
 
-app = Flask(__name__)  # Create the Flask app first
-app.register_blueprint(schemas_bp)    # Register your blueprint
+app = Flask(__name__)
+app.register_blueprint(schemas_bp)
 
 @app.route("/")
 def home():
