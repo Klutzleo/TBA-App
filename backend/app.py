@@ -1,7 +1,7 @@
 # backend/app.py - This is like main.py but for Flask
 
 from flask import Flask, jsonify
-from routes.schemas import schemas_bp
+from backend.routes.schemas import schemas_bp
 
 app = Flask(__name__)  # Create the Flask app first
 app.register_blueprint(schemas_bp)  # Then register your blueprint
