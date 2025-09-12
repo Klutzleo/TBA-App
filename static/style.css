@@ -18,3 +18,43 @@ button {
     margin-top: 1rem;
     padding: 0.5rem 1rem;
 }
+hr {
+    margin: 2rem 0;
+}
+h2, h3 {
+    margin-top: 1.5rem;
+}
+ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+li {
+    padding: 0.25rem 0;
+}
+.reaction {
+    font-size: 2rem;
+    text-align: center;
+    margin-top: 2rem;
+    animation: pulse 0.6s ease-in-out;
+}
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+.dashboard {
+    background: #ffffff;
+    border: 1px solid #ccc;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.dashboard h2 {
+    margin-top: 0;
+}
+footer {
+    margin-top: 3rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #666;
+}

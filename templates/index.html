@@ -7,20 +7,62 @@
 <body>
     <h1>🧠 Memory Echoes Validator</h1>
     <form method="POST">
+
+    <div>
         <label>Timestamp:</label>
-        <input type="text" name="timestamp" required><br>
+        <input type="text" name="timestamp" value="{{ request.form.timestamp or current_time }}" required><br>
+    </div>
 
+    <div>
         <label>Emotion:</label>
-        <input type="text" name="emotion" required><br>
+        <select name="emotion" required>
+            <option value="">--Select Emotion--</option>
+            <option value="hope">Hope 🌅</option>
+            <option value="grief">Grief 🌧️</option>
+            <option value="joy">Joy 🎉</option>
+            <option value="anger">Anger 🔥</option>
+            <option value="confusion">Confusion 🌫️</option>
+            <option value="relief">Relief 💨</option>
+            <option value="nostalgia">Nostalgia 📼</option>
+        </select><br>
+    </div>   
 
+    <div>
         <label>Summary:</label>
         <input type="text" name="summary" required><br>
+    </div>
 
         <button type="submit">Validate</button>
     </form>
 
+    {% if reflect %}
+        <div class="dashboard">
+            <hr>
+            <h2>🪞 Emotional Reflection</h2>
+            <p><strong>Total Validations:</strong> {{ reflect.total_validations }}</p>
+            <p><strong>Success Rate:</strong> {{ reflect.validation_success_rate }}</p>
+            <p><strong>Suggestion Rate:</strong> {{ reflect.suggestion_rate }}</p>
+            <p><strong>Most Common Emotion:</strong> {{ reflect.most_common_emotion }}</p>
+            <p><strong>Last Emotion:</strong> {{ reflect.last_emotion }}</p>
+
+            <h3>Emotional Breakdown:</h3>
+            <ul>
+                {% for emotion, count in reflect.emotional_breakdown.items() %}
+                    <li>{{ emotion }}: {{ count }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
     {% if reaction %}
-        <h2>Reaction: {{ reaction }}</h2>
+        <div class="reaction">
+            <h2>Reaction: {{ reaction }}</h2>
+        </div>
     {% endif %}
 </body>
+
+<footer>
+    <p>Built with empathy by TBA</p>
+</footer>
+
 </html>
