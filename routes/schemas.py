@@ -5,6 +5,8 @@ from schemas.loader import SCHEMAS
 from jsonschema import validate, ValidationError
 from collections import Counter
 from backend.db import SessionLocal
+from backend.models import Echo
+from backend.utils.storage import store_echo
 
 schemas_bp = Blueprint("schemas", __name__)
 

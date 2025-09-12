@@ -2,9 +2,8 @@ from flask import Flask, jsonify
 from routes.schemas import schemas_bp
 import os
 from dotenv import load_dotenv
-from db import Base, engine
-from models import Echo
-
+from backend.db import Base, engine
+from backend.models import Echo
 
 load_dotenv()
 
