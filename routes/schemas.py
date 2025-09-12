@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 from schemas.loader import SCHEMAS
 from jsonschema import validate, ValidationError
 from collections import Counter
+from backend.db import SessionLocal
 
 schemas_bp = Blueprint("schemas", __name__)
 
