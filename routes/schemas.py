@@ -11,7 +11,7 @@ schemas_bp = Blueprint("schemas", __name__)
 LOG_HISTORY = []
 
 # 🧠 Logger: Tracks schema, validity, IP, and duration
-def log_validation(schema_name, valid, client_ip, duration=None, request_id=None):
+def log_validation(schema_name, valid, client_ip, duration=None, request_id=None, emotion=None):
     timestamp = datetime.datetime.utcnow().isoformat()
     log_entry = {
         "timestamp": timestamp,
@@ -19,7 +19,8 @@ def log_validation(schema_name, valid, client_ip, duration=None, request_id=None
         "valid": valid,
         "ip": client_ip,
         "duration": duration,
-        "request_id": request_id
+        "request_id": request_id,
+        "emotion": emotion
     }
     LOG_HISTORY.append(log_entry)
 
@@ -81,7 +82,8 @@ def validate_schema(schema_name):
         validate(instance=payload, schema=schema)
         duration = round((time.time() - start) * 1000)  # in ms
         reaction = get_reaction(schema_name, payload)
-        log_validation(schema_name, True, client_ip, duration, request_id)
+        emotion = payload.get("emotion") if schema_name == "memory_echoes" else None
+        log_validation(schema_name, True, client_ip, duration, request_id, emotion)
         return jsonify({
             "valid": True,
             "message": f"Payload matches schema '{schema_name}'.",
@@ -98,7 +100,8 @@ def validate_schema(schema_name):
         elif "timestamp" in str(e.message):
             suggestion = "Use ISO format like '2025-09-11T21:00:00Z'."
 
-        log_validation(schema_name, False, client_ip, duration, request_id)
+        emotion = payload.get("emotion") if payload else None
+        log_validation(schema_name, False, client_ip, duration, request_id, emotion)
         return jsonify({
             "valid": False,
             "error": str(e.message),
