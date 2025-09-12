@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Memory Echoes</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>🧠 Memory Echoes Validator</h1>
+    <form method="POST">
+        <label>Timestamp:</label>
+        <input type="text" name="timestamp" required><br>
+
+        <label>Emotion:</label>
+        <input type="text" name="emotion" required><br>
+
+        <label>Summary:</label>
+        <input type="text" name="summary" required><br>
+
+        <button type="submit">Validate</button>
+    </form>
+
+    {% if reaction %}
+        <h2>Reaction: {{ reaction }}</h2>
+    {% endif %}
+</body>
+</html>
