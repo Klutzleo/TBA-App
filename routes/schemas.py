@@ -6,9 +6,22 @@ from jsonschema import validate, ValidationError
 
 schemas_bp = Blueprint("schemas", __name__)
 
+# 🧾 In-memory log store
+LOG_HISTORY = []
+
 # 🧠 Logger: Tracks schema, validity, IP, and duration
 def log_validation(schema_name, valid, client_ip, duration=None, request_id=None):
     timestamp = datetime.datetime.utcnow().isoformat()
+    log_entry = {
+        "timestamp": timestamp,
+        "schema": schema_name,
+        "valid": valid,
+        "ip": client_ip,
+        "duration": duration,
+        "request_id": request_id
+    }
+    LOG_HISTORY.append(log_entry)
+
     log_parts = [
         f"[{timestamp}]",
         f"Schema: {schema_name}",
@@ -102,4 +115,16 @@ def playground(schema_name):
             "summary": "Reboot succeeded"
         }
         return jsonify(sample)
-    return jsonify({ "error": "No playground available for this schema." }), 404
+    return jsonify({ "error": f"No playground available for schema '{schema_name}'." }), 404
+
+# 📜 Route: Return recent validation logs
+@schemas_bp.route("/logs", methods=["GET"])
+def get_logs():
+    try:
+        limit = int(request.args.get("limit", 50))
+        limit = max(1, min(limit, 100))  # Clamp between 1 and 100
+    except ValueError:
+        limit = 50
+
+    recent_logs = LOG_HISTORY[-limit:]
+    return jsonify({ "logs": recent_logs })
