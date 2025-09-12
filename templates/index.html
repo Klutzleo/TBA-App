@@ -45,12 +45,14 @@
             <p><strong>Most Common Emotion:</strong> {{ reflect.most_common_emotion }}</p>
             <p><strong>Last Emotion:</strong> {{ reflect.last_emotion }}</p>
 
-            <h3>Emotional Breakdown:</h3>
-            <ul>
-                {% for emotion, count in reflect.emotional_breakdown.items() %}
-                    <li>{{ emotion }}: {{ count }}</li>
-                {% endfor %}
-            </ul>
+            {% if reflect.emotional_breakdown %}
+                <h3>Emotional Breakdown:</h3>
+                <ul>
+                    {% for emotion, count in reflect.emotional_breakdown.items() %}
+                        <li>{{ emotion }}: {{ count }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
         </div>
     {% endif %}
 
