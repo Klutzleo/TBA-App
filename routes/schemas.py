@@ -55,11 +55,20 @@ def validate_schema(schema_name):
             "message": f"Payload matches schema '{schema_name}'.",
             "reaction": "✅"
         }), 200
+    
     except ValidationError as e:
-        duration = round((time.time() - start) * 1000)
-        log_validation(schema_name, False, client_ip, duration, request_id)
-        return jsonify({
-            "valid": False,
-            "error": str(e.message),
-            "reaction": "⚠️"
-        }), 422
+        suggestion = None
+    if "summary" in str(e.message):
+        suggestion = "Try including a 'summary' field with a brief reflection."
+    elif "emotion" in str(e.message):
+        suggestion = "Make sure 'emotion' is a string like 'hope' or 'grief'."
+    elif "timestamp" in str(e.message):
+        suggestion = "Use ISO format like '2025-09-11T21:00:00Z'."
+
+    log_validation(schema_name, False, client_ip, duration, request_id)
+    return jsonify({
+        "valid": False,
+        "error": str(e.message),
+        "reaction": "⚠️",
+        "suggestion": suggestion
+    }), 422
