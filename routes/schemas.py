@@ -21,6 +21,23 @@ def log_validation(schema_name, valid, client_ip, duration=None, request_id=None
         log_parts.append(f"RequestID: {request_id}")
     print(" | ".join(log_parts))
 
+# 🎭 Reaction helper based on schema and emotion
+def get_reaction(schema_name, payload):
+    if schema_name == "memory_echoes":
+        emotion = payload.get("emotion", "").lower()
+        emoji = {
+            "hope": "🌅",
+            "grief": "🌧️",
+            "joy": "🎉",
+            "anger": "🔥",
+            "confusion": "🌫️",
+            "relief": "💨",
+            "nostalgia": "📼"
+        }.get(emotion, "🪞")  # Default: mirror emoji
+        print(f"DEBUG: Emotion = {emotion}, Reaction = {emoji}")
+        return emoji
+    return "✅"
+
 # ✅ Route: Validate a payload against a schema
 @schemas_bp.route("/validate/<schema_name>", methods=["POST"])
 def validate_schema(schema_name):
@@ -49,26 +66,40 @@ def validate_schema(schema_name):
         start = time.time()
         validate(instance=payload, schema=schema)
         duration = round((time.time() - start) * 1000)  # in ms
+        reaction = get_reaction(schema_name, payload)
         log_validation(schema_name, True, client_ip, duration, request_id)
         return jsonify({
             "valid": True,
             "message": f"Payload matches schema '{schema_name}'.",
-            "reaction": "✅"
+            "reaction": reaction
         }), 200
-    
-    except ValidationError as e:
-        suggestion = None
-    if "summary" in str(e.message):
-        suggestion = "Try including a 'summary' field with a brief reflection."
-    elif "emotion" in str(e.message):
-        suggestion = "Make sure 'emotion' is a string like 'hope' or 'grief'."
-    elif "timestamp" in str(e.message):
-        suggestion = "Use ISO format like '2025-09-11T21:00:00Z'."
 
-    log_validation(schema_name, False, client_ip, duration, request_id)
-    return jsonify({
-        "valid": False,
-        "error": str(e.message),
-        "reaction": "⚠️",
-        "suggestion": suggestion
-    }), 422
+    except ValidationError as e:
+        duration = round((time.time() - start) * 1000)
+        suggestion = None
+        if "summary" in str(e.message):
+            suggestion = "Try including a 'summary' field with a brief reflection."
+        elif "emotion" in str(e.message):
+            suggestion = "Make sure 'emotion' is a string like 'hope' or 'grief'."
+        elif "timestamp" in str(e.message):
+            suggestion = "Use ISO format like '2025-09-11T21:00:00Z'."
+
+        log_validation(schema_name, False, client_ip, duration, request_id)
+        return jsonify({
+            "valid": False,
+            "error": str(e.message),
+            "reaction": "⚠️",
+            "suggestion": suggestion
+        }), 422
+
+# 🧪 Route: Sample payload for testing
+@schemas_bp.route("/playground/<schema_name>", methods=["GET"])
+def playground(schema_name):
+    if schema_name == "memory_echoes":
+        sample = {
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "emotion": "hope",
+            "summary": "Reboot succeeded"
+        }
+        return jsonify(sample)
+    return jsonify({ "error": "No playground available for this schema." }), 404
