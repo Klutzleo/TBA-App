@@ -1,5 +1,5 @@
 from backend.db import SessionLocal  # ✅
-from models import Echo
+from backend.models import Echo
 
 def store_echo(schema_type, payload):
     session = SessionLocal()
