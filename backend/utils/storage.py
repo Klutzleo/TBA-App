@@ -1,4 +1,4 @@
-from db import SessionLocal
+from backend.db import SessionLocal  # ✅
 from models import Echo
 
 def store_echo(schema_type, payload):
