@@ -2,7 +2,7 @@
 from sqlalchemy import Column, String, DateTime, JSON
 import uuid
 from datetime import datetime
-from db import Base
+from backend.db import Base  # ✅ This works from project root
 
 class Echo(Base):
     __tablename__ = "echoes"
