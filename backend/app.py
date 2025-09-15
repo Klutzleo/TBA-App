@@ -56,7 +56,7 @@ def health():
     # ✅ Check DB connectivity
     try:
         with engine.connect() as conn:
-            conn.execute("SELECT 1")  # Simple query to confirm DB is reachable
+            conn.execute(text("SELECT 1"))  # Simple query to confirm DB is reachable
         checks["database"] = "ok"
     except Exception as e:
         app.logger.error("Database health check failed", exc_info=e)
