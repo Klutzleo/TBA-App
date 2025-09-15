@@ -1,5 +1,9 @@
 # backend/app.py
 
+from backend.health_checks import check_database, check_env, get_app_metadata
+from backend.error_handlers import register_error_handlers
+from backend.metrics import increment_request, get_metrics
+
 import time
 start_time = time.time()  # Track app start time for uptime reporting
 
@@ -29,6 +33,8 @@ setup_logging()
 app = Flask(__name__)
 app.register_blueprint(schemas_bp)
 
+register_error_handlers(app)
+
 # Inject a unique request ID into each incoming request for traceable logs
 import uuid
 
@@ -41,6 +47,9 @@ def assign_request_id():
     # Attach request_id to all log records for this request
     for handler in app.logger.handlers:
         handler.addFilter(lambda record: setattr(record, "request_id", rid) or True)
+
+    # Count incoming requests for metrics
+    increment_request()
 
 # Basic health-check route for external probes or browser hits
 @app.route("/")
