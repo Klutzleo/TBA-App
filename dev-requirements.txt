@@ -22,8 +22,8 @@ jsonschema-specifications==2025.9.1
 Kivy==2.3.1; sys_platform == "win32"
 Kivy-Garden==0.1.5; sys_platform == "win32"
 kivy_deps.angle==0.4.0; sys_platform == "win32"
-kivy_deps.glew==0.3.4; sys_platform == "win32"
-kivy_deps.sdl2==0.4.5; sys_platform == "win32"
+kivy_deps.glew==0.3.1; sys_platform == "win32"
+kivy_deps.sdl2>=0.8.0; sys_platform == "win32"
 MarkupSafe==3.0.2
 packaging==25.0
 pefile==2023.2.7
