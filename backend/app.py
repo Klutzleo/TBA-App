@@ -8,9 +8,6 @@ from backend.models import Echo
 # Load environment variables from .env
 load_dotenv()
 
-# Get the database URL (already used in db.py to create engine)
-DATABASE_URL = os.getenv("DATABASE_URL")
-
 # Initialize Flask app
 app = Flask(__name__)
 app.register_blueprint(schemas_bp)
@@ -19,9 +16,9 @@ app.register_blueprint(schemas_bp)
 def home():
     return jsonify({"message": "TBA backend is alive!"})
 
-# Ensure tables are created before first request
-@app.before_first_request
-def initialize():
+# Ensure tables are created once, right before the server starts handling requests
+@app.before_serving
+def initialize_db():
     Base.metadata.create_all(bind=engine)
 
 if __name__ == "__main__":
