@@ -19,6 +19,8 @@ from flask import Flask, jsonify, g, request
 from routes.schemas import schemas_bp
 from backend.models import Echo
 from backend.logging_config import setup_logging
+from sqlalchemy import text
+
 
 # Set up structured JSON logging (includes request_id injection)
 setup_logging()
