@@ -9,6 +9,8 @@ load_dotenv()  # Load environment variables from .env before anything else
 
 from flask import Flask, jsonify, g, request
 import uuid
+from flasgger import Swagger
+
 
 from backend.db import Base, engine
 from backend.models import Echo
@@ -26,6 +28,12 @@ setup_logging()
 
 # Initialize Flask app and register blueprints
 app = Flask(__name__)
+app.config["SWAGGER"] = {
+    "title": "TBA API",
+    "uiversion": 3
+}
+Swagger(app, template={"info": {"title": "TBA API", "version": "dev"}})
+
 app.register_blueprint(schemas_bp)
 
 # Register global error handlers
@@ -46,12 +54,43 @@ def assign_request_id():
 # Basic health-check route
 @app.route("/")
 def home():
+    """
+    Basic Health Check
+    ---
+    get:
+      summary: Confirm backend is running
+      responses:
+        200:
+          description: Alive message
+          content:
+            application/json:
+              example:
+                message: "TBA backend is alive!"
+    """
     app.logger.info("Health check hit")
     return jsonify({"message": "TBA backend is alive!"})
 
 # Full-spectrum health diagnostics
 @app.route("/health")
 def health():
+    """
+    Full Health Diagnostics
+    ---
+    get:
+      summary: Check database, environment, and uptime
+      responses:
+        200:
+          description: Health status
+          content:
+            application/json:
+              example:
+                database: "ok"
+                env: "ok"
+                app:
+                  status: "running"
+                  version: "dev"
+                  uptime: "42s"
+    """
     checks = {
         "database": check_database(),
         "env": check_env(),
@@ -60,9 +99,24 @@ def health():
     status_code = 200 if all(v == "ok" or isinstance(v, dict) for v in checks.values()) else 500
     return jsonify(checks), status_code
 
+
 # Lightweight metrics endpoint
 @app.route("/metrics")
 def metrics_route():
+    """
+    Request Metrics
+    ---
+    get:
+      summary: View request and error counts
+      responses:
+        200:
+          description: Metrics snapshot
+          content:
+            application/json:
+              example:
+                requests: 42
+                errors: 0
+    """
     return jsonify(get_metrics())
 
 # Local-only entry point for development
