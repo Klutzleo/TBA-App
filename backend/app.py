@@ -1,94 +1,69 @@
 # backend/app.py
 
-from backend.health_checks import check_database, check_env, get_app_metadata
-from backend.error_handlers import register_error_handlers
-from backend.metrics import increment_request, get_metrics
-
 import time
 start_time = time.time()  # Track app start time for uptime reporting
 
 import os
 from dotenv import load_dotenv
-
-# Load environment variables from .env before anything else
-load_dotenv()
-
-from backend.db import Base, engine
-
-# Create all tables immediately upon module import.
-# This guarantees the schema is initialized regardless of which Flask hooks exist
-Base.metadata.create_all(bind=engine)
+load_dotenv()  # Load environment variables from .env before anything else
 
 from flask import Flask, jsonify, g, request
-from routes.schemas import schemas_bp
+import uuid
+
+from backend.db import Base, engine
 from backend.models import Echo
 from backend.logging_config import setup_logging
-from sqlalchemy import text
+from backend.health_checks import check_database, check_env, get_app_metadata
+from backend.error_handlers import register_error_handlers
+from backend.metrics import increment_request, get_metrics
+from routes.schemas import schemas_bp
 
+# Initialize database schema immediately
+Base.metadata.create_all(bind=engine)
 
-# Set up structured JSON logging (includes request_id injection)
+# Set up structured JSON logging
 setup_logging()
 
-# Initialize Flask app and register your blueprints
+# Initialize Flask app and register blueprints
 app = Flask(__name__)
 app.register_blueprint(schemas_bp)
 
+# Register global error handlers
 register_error_handlers(app)
 
-# Inject a unique request ID into each incoming request for traceable logs
-import uuid
-
+# Inject a unique request ID and count requests
 @app.before_request
 def assign_request_id():
-    rid = str(uuid.uuid4())  # Generate a unique ID for this request
-    g.request_id = rid       # Store in Flask's global context
-    request.environ["request_id"] = rid  # Make it accessible to log filters
+    rid = str(uuid.uuid4())
+    g.request_id = rid
+    request.environ["request_id"] = rid
 
-    # Attach request_id to all log records for this request
     for handler in app.logger.handlers:
         handler.addFilter(lambda record: setattr(record, "request_id", rid) or True)
 
-    # Count incoming requests for metrics
     increment_request()
 
-# Basic health-check route for external probes or browser hits
+# Basic health-check route
 @app.route("/")
 def home():
     app.logger.info("Health check hit")
     return jsonify({"message": "TBA backend is alive!"})
 
-# Full-spectrum health diagnostics route
+# Full-spectrum health diagnostics
 @app.route("/health")
 def health():
-    checks = {}
-
-    # ✅ Check DB connectivity
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))  # Simple query to confirm DB is reachable
-        checks["database"] = "ok"
-    except Exception as e:
-        app.logger.error("Database health check failed", exc_info=e)
-        checks["database"] = f"error: {str(e)}"
-
-    # ✅ Check required environment variables
-    required_env = ["DATABASE_URL", "FLASK_ENV"]
-    missing = [var for var in required_env if not os.getenv(var)]
-    checks["env"] = "ok" if not missing else f"missing: {missing}"
-
-    # ✅ Calculate uptime since app start
-    uptime_seconds = int(time.time() - start_time)
-
-    # ✅ Include app metadata
-    checks["app"] = {
-        "status": "running",
-        "version": os.getenv("APP_VERSION", "dev"),
-        "uptime": f"{uptime_seconds}s"
+    checks = {
+        "database": check_database(),
+        "env": check_env(),
+        "app": get_app_metadata(start_time)
     }
-
-    # ✅ Determine overall health status
     status_code = 200 if all(v == "ok" or isinstance(v, dict) for v in checks.values()) else 500
     return jsonify(checks), status_code
+
+# Lightweight metrics endpoint
+@app.route("/metrics")
+def metrics_route():
+    return jsonify(get_metrics())
 
 # Local-only entry point for development
 if __name__ == "__main__":
