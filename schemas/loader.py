@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from jsonschema import validate, ValidationError
+from schemas.loader import CORE_RULESET
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -37,3 +38,4 @@ def validate_data(data, schema_name):
 
 # Load schemas on import
 load_schemas()
+CORE_RULESET = SCHEMAS.get("core_ruleset", {})
