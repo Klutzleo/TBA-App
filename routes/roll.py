@@ -10,6 +10,7 @@ def roll_skill():
     ---
     tags:
       - Skill Rolls
+    parameters: []
     requestBody:
       required: true
       content:
