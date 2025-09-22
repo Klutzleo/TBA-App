@@ -19,6 +19,8 @@ from backend.health_checks import check_database, check_env, get_app_metadata
 from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
 from routes.schemas import schemas_bp
+from routes.roll import roll_bp
+app.register_blueprint(roll_bp, url_prefix="/api")
 
 # Initialize database schema immediately
 Base.metadata.create_all(bind=engine)
