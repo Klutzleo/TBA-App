@@ -29,7 +29,7 @@ def roll_skill():
                   SP: 2
               difficulty_die:
                 type: string
-                description: Optional difficulty die (e.g. "1d4")
+                description: Optional difficulty die
                 example: "1d4"
               bap:
                 type: boolean
