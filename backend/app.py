@@ -18,9 +18,6 @@ from backend.logging_config import setup_logging
 from backend.health_checks import check_database, check_env, get_app_metadata
 from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
-from routes.schemas import schemas_bp
-from routes.roll import roll_bp
-app.register_blueprint(roll_bp, url_prefix="/api")
 
 # Initialize database schema immediately
 Base.metadata.create_all(bind=engine)
@@ -36,7 +33,10 @@ app.config["SWAGGER"] = {
 }
 Swagger(app, template={"info": {"title": "TBA API", "version": "dev"}})
 
+from routes.schemas import schemas_bp
+from routes.roll import roll_bp
 app.register_blueprint(schemas_bp)
+app.register_blueprint(roll_bp, url_prefix="/api")
 
 # Register global error handlers
 register_error_handlers(app)
