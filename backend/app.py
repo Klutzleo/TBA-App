@@ -4,9 +4,10 @@ import time
 import os
 import uuid
 import traceback
+import logging                            # ← for debug logging
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, g, request
+from flask import Flask, jsonify, g, request, current_app  # ← added current_app
 from flasgger import Swagger
 
 from backend.db import Base, engine
@@ -34,6 +35,13 @@ Base.metadata.create_all(bind=engine)
 
 # Set up logging
 setup_logging()
+
+# ——————————————————————————————————————————————————————————————
+# Enable Flask’s built-in logger at DEBUG level
+logging.basicConfig(level=logging.DEBUG)
+# Ensure the Flask app.logger actually inherits this level
+# (you may already have handlers via `setup_logging`, but this guarantees debug output)
+# ——————————————————————————————————————————————————————————————
 
 # Create Flask app
 app = Flask(__name__)
@@ -123,8 +131,26 @@ def metrics_route():
     """Request Metrics"""
     return jsonify(get_metrics())
 
-# Local-only dev server
+# ——————————————————————————————————————————————————————————————
+# Debug endpoint: list every registered route
+@app.route("/__routes__")
+def list_routes():
+    """
+    Returns all URL rules and allowed methods.
+    Use this to verify that /apidocs and its JSON spec are actually registered.
+    """
+    rules = []
+    for rule in sorted(current_app.url_map.iter_rules(), key=lambda r: r.rule):
+        rules.append({
+            "rule": rule.rule,
+            "methods": sorted(rule.methods)
+        })
+    return jsonify(rules)
+# ——————————————————————————————————————————————————————————————
+
+# Local-only dev server (commented out for production)
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=8080, debug=True)
 
+# WSGI entrypoint
 application = app
