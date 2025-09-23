@@ -1,16 +1,13 @@
 # backend/app.py
 
 import time
-start_time = time.time()  # Track app start time for uptime reporting
-
 import os
-from dotenv import load_dotenv
-load_dotenv()  # Load environment variables from .env before anything else
-
-from flask import Flask, jsonify, g, request
 import uuid
-from flasgger import Swagger
+import traceback
 
+from dotenv import load_dotenv
+from flask import Flask, jsonify, g, request
+from flasgger import Swagger
 
 from backend.db import Base, engine
 from backend.models import Echo
@@ -19,66 +16,72 @@ from backend.health_checks import check_database, check_env, get_app_metadata
 from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
 
-# Debugging to see if routes/docs to yml working
+# Track app start time
+start_time = time.time()
+
+# Load environment variables
+load_dotenv()
+
+# Debug: show current working directory and list files in routes/docs
 print("📂 Working directory:", os.getcwd())
 try:
     print("📄 Files in routes/docs:", os.listdir("routes/docs"))
 except Exception as e:
-    print("⚠️ Could not list routes/docs:", str(e))
+    print("⚠️ Could not list routes/docs:", e)
 
-# Initialize database schema immediately
+# Initialize database schema
 Base.metadata.create_all(bind=engine)
 
 # Set up structured JSON logging
 setup_logging()
 
-# Initialize Flask app
+# Create Flask app
 app = Flask(__name__)
+app.config["SWAGGER"] = {"title": "TBA API", "uiversion": 3}
 
 # Configure Flasgger with explicit spec and UI routes
-#swagger = Swagger(
- #   app,
-  #  config={
-   #     "headers": [],
-    #    "specs": [
-     #       {
-      #          "endpoint": "apispec_1",
-       #         "route": "/apispec_1.json",
-        #        "rule_filter": lambda rule: True,
-         #       "model_filter": lambda tag: True,
-          #  }
-#        ],
- #       "static_url_path": "/flasgger_static",
-  #      "swagger_ui": True,
-   #     "specs_route": "/apidocs",
-    #},
-#    template={
- #       "info": {
-  #          "title": "TBA API",
-#            "version": "dev"
- #       }
-#    }
-#)
-swagger = Swagger(app)
+try:
+    swagger = Swagger(
+        app,
+        config={
+            "headers": [],
+            "specs": [
+                {
+                    "endpoint": "apispec_1",
+                    "route": "/apispec_1.json",
+                    "rule_filter": lambda rule: True,
+                    "model_filter": lambda tag: True,
+                }
+            ],
+            "static_url_path": "/flasgger_static",
+            "swagger_ui": True,
+            "specs_route": "/apidocs",
+        },
+        template={"info": {"title": "TBA API", "version": "dev"}},
+    )
+    print("✅ Swagger initialized successfully")
+except Exception:
+    print("❌ Swagger initialization failed:")
+    traceback.print_exc()
+    raise
 
+# Register blueprints
 from routes.schemas import schemas_bp
 from routes.roll import roll_bp
+
 app.register_blueprint(schemas_bp)
 app.register_blueprint(roll_bp, url_prefix="/api")
 
 # Register global error handlers
 register_error_handlers(app)
 
-# Inject a unique request ID and count requests
 @app.before_request
 def assign_request_id():
     rid = str(uuid.uuid4())
     g.request_id = rid
     request.environ["request_id"] = rid
-
     for handler in app.logger.handlers:
         handler.addFilter(lambda record: setattr(record, "request_id", rid) or True)
-
     increment_request()
 
 # Basic health-check route
@@ -124,11 +127,10 @@ def health():
     checks = {
         "database": check_database(),
         "env": check_env(),
-        "app": get_app_metadata(start_time)
+        "app": get_app_metadata(start_time),
     }
     status_code = 200 if all(v == "ok" or isinstance(v, dict) for v in checks.values()) else 500
     return jsonify(checks), status_code
-
 
 # Lightweight metrics endpoint
 @app.route("/metrics")
@@ -150,7 +152,7 @@ def metrics_route():
     return jsonify(get_metrics())
 
 # Local-only entry point for development
-#if __name__ == "__main__":
-    # app.run(host="0.0.0.0", port=8080, debug=True)
+# if __name__ == "__main__":
+#     app.run(host="0.0.0.0", port=8080, debug=True)
 
 application = app
