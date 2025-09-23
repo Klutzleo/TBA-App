@@ -16,4 +16,4 @@ HEALTHCHECK --start-period=5s --interval=10s --retries=3 \
   CMD curl --fail http://localhost:8080/health || exit 1
 
 # 6. Launch Gunicorn via sh -c so $PORT expands at runtime
-CMD ["sh", "-c", "gunicorn backend.app:application --bind 0.0.0.0:$PORT --workers 1 --threads 4"]
+CMD ["sh","-c","echo \"▶ PORT is $PORT\"; gunicorn backend.app:application --bind 0.0.0.0:$PORT --workers 1 --threads 4"]
