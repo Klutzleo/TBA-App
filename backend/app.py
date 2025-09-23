@@ -31,7 +31,7 @@ app.config["SWAGGER"] = {
     "title": "TBA API",
     "uiversion": 3
 }
-Swagger(app, template={"info": {"title": "TBA API", "version": "dev"}})
+swagger = Swagger(app, template={"info": {"title": "TBA API", "version": "dev"}})
 
 from routes.schemas import schemas_bp
 from routes.roll import roll_bp
