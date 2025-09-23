@@ -16,6 +16,8 @@ from backend.logging_config import setup_logging
 from backend.health_checks import check_database, check_env, get_app_metadata
 from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
+from werkzeug.exceptions import HTTPException
+
 
 # Track app uptime
 start_time = time.time()
@@ -147,6 +149,21 @@ def debug_exception(e):
     app.logger.exception(f"Exception on {request.method} {request.path}")
     return jsonify({
         "error": "Internal server error",
+        "exception": str(e)
+    }), 500
+
+@app.errorhandler(Exception)
+def debug_exception(e):
+    # Always log the full stack
+    app.logger.exception(f"Exception on {request.method} {request.path}")
+
+    # If this is an HTTP error (404, 400, etc.), re-raise it so Flask returns the proper code
+    if isinstance(e, HTTPException):
+        raise
+
+    # Otherwise send JSON for unexpected errors
+    return jsonify({
+        "error": "Internal Server Error",
         "exception": str(e)
     }), 500
 
