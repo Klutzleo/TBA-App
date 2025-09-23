@@ -19,6 +19,15 @@ from backend.health_checks import check_database, check_env, get_app_metadata
 from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
 
+# Debugging to see if routes/docs to yml working
+import os
+
+print("📂 Working directory:", os.getcwd())
+try:
+    print("📄 Files in routes/docs:", os.listdir("routes/docs"))
+except Exception as e:
+    print("⚠️ Could not list routes/docs:", str(e))
+
 # Initialize database schema immediately
 Base.metadata.create_all(bind=engine)
 
