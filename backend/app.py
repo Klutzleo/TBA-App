@@ -4,10 +4,10 @@ import time
 import os
 import uuid
 import traceback
-import logging                            # ← for debug logging
+import logging
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, g, request, current_app  # ← added current_app
+from flask import Flask, jsonify, g, request, current_app
 from flasgger import Swagger
 
 from backend.db import Base, engine
@@ -20,7 +20,7 @@ from backend.metrics import increment_request, get_metrics
 # Track app uptime
 start_time = time.time()
 
-# Load environment variables
+# Load environment variables from .env
 load_dotenv()
 
 # Debug: show CWD and specs folder
@@ -33,23 +33,20 @@ except Exception as e:
 # Initialize database
 Base.metadata.create_all(bind=engine)
 
-# Set up logging
+# Set up custom logging
 setup_logging()
 
-# ——————————————————————————————————————————————————————————————
-# Enable Flask’s built-in logger at DEBUG level
+# Ensure Flask’s built-in logger shows DEBUG messages
 logging.basicConfig(level=logging.DEBUG)
-# Ensure the Flask app.logger actually inherits this level
-# (you may already have handlers via `setup_logging`, but this guarantees debug output)
-# ——————————————————————————————————————————————————————————————
 
 # Create Flask app
 app = Flask(__name__)
 app.config["SWAGGER"] = {"title": "TBA API", "uiversion": 3}
+app.logger.setLevel(logging.DEBUG)
 
 # Configure Flasgger
 try:
-    swagger = Swagger(
+    Swagger(
         app,
         config={
             "headers": [],
@@ -73,7 +70,7 @@ except Exception:
     traceback.print_exc()
     raise
 
-# Register blueprints with error wrappers
+# Register blueprints
 print("🔄 Registering blueprints…")
 try:
     from routes.schemas import schemas_bp
@@ -106,14 +103,14 @@ def assign_request_id():
         handler.addFilter(lambda record: setattr(record, "request_id", rid) or True)
     increment_request()
 
-# Health check
+# Basic health check
 @app.route("/")
 def home():
     """Basic Health Check"""
     app.logger.info("Health check hit")
     return jsonify({"message": "TBA backend is alive!"})
 
-# Detailed health
+# Detailed health diagnostics
 @app.route("/health")
 def health():
     """Full Health Diagnostics"""
@@ -131,26 +128,31 @@ def metrics_route():
     """Request Metrics"""
     return jsonify(get_metrics())
 
-# ——————————————————————————————————————————————————————————————
-# Debug endpoint: list every registered route
+# Debug endpoint: list all registered routes
 @app.route("/__routes__")
 def list_routes():
-    """
-    Returns all URL rules and allowed methods.
-    Use this to verify that /apidocs and its JSON spec are actually registered.
-    """
-    rules = []
+    """Returns every rule and its methods"""
+    routes = []
     for rule in sorted(current_app.url_map.iter_rules(), key=lambda r: r.rule):
-        rules.append({
+        routes.append({
             "rule": rule.rule,
             "methods": sorted(rule.methods)
         })
-    return jsonify(rules)
-# ——————————————————————————————————————————————————————————————
+    return jsonify(routes)
 
-# Local-only dev server (commented out for production)
-# if __name__ == "__main__":
-#     app.run(host="0.0.0.0", port=8080, debug=True)
+# Debug catch-all exception handler
+@app.errorhandler(Exception)
+def debug_exception(e):
+    """Log full traceback and return exception message in JSON"""
+    app.logger.exception(f"Exception on {request.method} {request.path}")
+    return jsonify({
+        "error": "Internal server error",
+        "exception": str(e)
+    }), 500
 
 # WSGI entrypoint
 application = app
+
+# Local-only dev server
+# if __name__ == "__main__":
+#     app.run(host="0.0.0.0", port=8080, debug=True)
