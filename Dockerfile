@@ -8,12 +8,12 @@ COPY . .
 # 3. Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4. Expose any default port (optional)
+# 4. Expose the fixed port
 EXPOSE 8080
 
-# 5. Healthcheck against your Flask /health
+# 5. Healthcheck against your Flask /health on 8080
 HEALTHCHECK --start-period=5s --interval=10s --retries=3 \
   CMD curl --fail http://localhost:8080/health || exit 1
 
-# 6. Launch Gunicorn via sh -c so $PORT expands at runtime
-CMD ["sh","-c","echo \"▶ PORT is $PORT\"; gunicorn backend.app:application --bind 0.0.0.0:$PORT --workers 1 --threads 4"]
+# 6. Launch Gunicorn binding to 0.0.0.0:8080
+CMD ["sh", "-c", "echo \"▶ Binding to port 8080\"; exec gunicorn backend.app:application --bind 0.0.0.0:8080 --workers 1 --threads 4"]
