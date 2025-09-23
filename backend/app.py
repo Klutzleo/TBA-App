@@ -131,7 +131,7 @@ def metrics_route():
     return jsonify(get_metrics())
 
 # Local-only entry point for development
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True)
+#if __name__ == "__main__":
+    # app.run(host="0.0.0.0", port=8080, debug=True)
 
 application = app
