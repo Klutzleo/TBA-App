@@ -20,8 +20,6 @@ from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
 
 # Debugging to see if routes/docs to yml working
-import os
-
 print("📂 Working directory:", os.getcwd())
 try:
     print("📄 Files in routes/docs:", os.listdir("routes/docs"))
@@ -34,13 +32,33 @@ Base.metadata.create_all(bind=engine)
 # Set up structured JSON logging
 setup_logging()
 
-# Initialize Flask app and register blueprints
+# Initialize Flask app
 app = Flask(__name__)
-app.config["SWAGGER"] = {
-    "title": "TBA API",
-    "uiversion": 3
-}
-swagger = Swagger(app, template={"info": {"title": "TBA API", "version": "dev"}})
+
+# Configure Flasgger with explicit spec and UI routes
+swagger = Swagger(
+    app,
+    config={
+        "headers": [],
+        "specs": [
+            {
+                "endpoint": "apispec_1",
+                "route": "/apispec_1.json",
+                "rule_filter": lambda rule: True,
+                "model_filter": lambda tag: True,
+            }
+        ],
+        "static_url_path": "/flasgger_static",
+        "swagger_ui": True,
+        "specs_route": "/apidocs",
+    },
+    template={
+        "info": {
+            "title": "TBA API",
+            "version": "dev"
+        }
+    }
+)
 
 from routes.schemas import schemas_bp
 from routes.roll import roll_bp
