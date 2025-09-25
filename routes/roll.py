@@ -1,11 +1,14 @@
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from backend.roll_logic import resolve_skill_roll
+import os
 
 roll_bp = Blueprint("roll", __name__)
 
+ROLL_SPEC = os.path.join(os.getcwd(), "routes", "docs", "roll_skill.yml")
+
 @roll_bp.route("/roll/skill", methods=["POST"])
-@swag_from("routes/docs/roll_skill.yml")
+@swag_from(ROLL_SPEC)
 def roll_skill():
     try:
         data = request.get_json(force=True)
