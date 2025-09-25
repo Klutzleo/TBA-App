@@ -74,12 +74,15 @@ swagger = Swagger(
         "specs_route": "/apidocs",
     },
     template={
-        "swagger": "2.0",
+        "swagger": "2.0",  # ✅ Required for Swagger UI
         "info": {
             "title": "TBA API",
-            "version": "dev"
+            "version": "dev",
+            "description": "Modular backend for skill rolls and narrative systems"
         },
-        "basePath": "/"
+        "basePath": "/",  # Optional but helpful
+        "schemes": ["https"],  # Helps Swagger UI resolve endpoints
+        "paths": {}  # ✅ Prevents Flasgger from crashing on empty paths
     }
 )
 
