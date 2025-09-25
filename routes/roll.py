@@ -8,7 +8,7 @@ roll_bp = Blueprint("roll", __name__)
 ROLL_SPEC = os.path.join(os.getcwd(), "routes", "docs", "roll_skill.yml")
 
 @roll_bp.route("/roll/skill", methods=["POST"])
-#@swag_from(ROLL_SPEC)
+@swag_from(ROLL_SPEC)
 def roll_skill():
     try:
         data = request.get_json(force=True)
