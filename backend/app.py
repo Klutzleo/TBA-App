@@ -7,7 +7,8 @@ import traceback
 import logging
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, g, request, current_app
+from flask import Flask, jsonify, g, request, current_app, redirect
+
 from flasgger import Swagger
 
 from backend.db import Base, engine
@@ -163,6 +164,10 @@ def debug_exception(e):
 @app.route("/favicon.ico")
 def favicon():
     return "", 204
+
+@app.route("/apidocs/")
+def redirect_apidocs_slash():
+    return redirect("/apidocs", code=301)
 
 # WSGI entrypoint
 application = app
