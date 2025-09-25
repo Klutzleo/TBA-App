@@ -1,4 +1,6 @@
 post:
+  tags:
+    - Combat
   summary: Resolve a combat roll between attacker and defender
   description: Compares weapon and defense dice to determine hit, miss, or critical outcome.
   consumes:
