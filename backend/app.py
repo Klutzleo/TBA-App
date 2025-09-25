@@ -47,7 +47,6 @@ app.logger.setLevel(logging.DEBUG)
 app.config["SWAGGER"] = {
     "title": "TBA API",
     "uiversion": 3,
-    "openapi": "2.0",  # Flasgger uses Swagger 2.0
 }
 
 # Prepare absolute paths
