@@ -37,14 +37,14 @@ post:
       schema:
         type: object
         properties:
-          type: { type: string }
-          attacker_roll: { type: integer }
-          defender_roll: { type: integer }
-          outcome: { type: string }
-          narrative: { type: string }
+          type: { type: string, example: "combat" }
+          attacker_roll: { type: integer, example: 7 }
+          defender_roll: { type: integer, example: 3 }
+          outcome: { type: string, example: "hit" }
+          narrative: { type: string, example: "Rook strikes true, bypassing Shade's defenses." }
           details:
             type: object
             properties:
-              margin: { type: integer }
-              critical: { type: boolean }
-              bap_triggered: { type: boolean }
+              margin: { type: integer, example: 4 }
+              critical: { type: boolean, example: false }
+              bap_triggered: { type: boolean, example: false }
