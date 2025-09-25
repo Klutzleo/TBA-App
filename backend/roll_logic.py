@@ -3,6 +3,8 @@
 import random
 import re
 from schemas.loader import CORE_RULESET
+from backend.utils import roll_die, max_possible
+
 
 ### 🎲 Dice Utilities ###
 def parse_die(die_str):
@@ -71,3 +73,42 @@ def resolve_skill_roll(actor, difficulty_die=None, bap_triggered=False):
     except Exception as e:
         print("Skill roll error:", str(e))
         raise
+
+# Combat rolls
+
+def resolve_combat_roll(attacker, defender, weapon_die, defense_die, bap_triggered=False):
+    atk_roll = roll_die(weapon_die)
+    def_roll = roll_die(defense_die)
+    margin = atk_roll - def_roll
+
+    outcome = "miss" if margin <= 0 else "hit"
+    critical = atk_roll == max_possible(weapon_die)
+
+    narrative = generate_combat_narrative(attacker, defender, outcome, margin, critical)
+
+    return {
+        "type": "combat",
+        "attacker_roll": atk_roll,
+        "defender_roll": def_roll,
+        "outcome": outcome,
+        "narrative": narrative,
+        "details": {
+            "margin": margin,
+            "critical": critical,
+            "bap_triggered": bap_triggered
+        }
+    }
+
+#Fun narrative
+
+def generate_combat_narrative(attacker, defender, outcome, margin, critical):
+    name_a = attacker.get("name", "Attacker")
+    name_d = defender.get("name", "Defender")
+
+    if outcome == "miss":
+        return f"{name_d} deflects the blow from {name_a} with ease."
+    if critical:
+        return f"{name_a} lands a devastating strike—{name_d} staggers!"
+    if margin >= 5:
+        return f"{name_a} overwhelms {name_d} with brutal precision."
+    return f"{name_a} strikes true, bypassing {name_d}'s defenses."

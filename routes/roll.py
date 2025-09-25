@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from backend.roll_logic import resolve_skill_roll
+from backend.roll_logic import resolve_combat_roll
 import os
 
 roll_bp = Blueprint("roll", __name__)
@@ -41,3 +42,34 @@ def roll_skill():
             "error": "Internal server error",
             "exception": str(e)
         }), 500
+    
+@roll_bp.route("/roll/combat", methods=["POST"])
+def roll_combat():
+    try:
+        data = request.get_json(force=True)
+        print("✅ Received combat payload:", data)
+
+        attacker = data.get("attacker")
+        defender = data.get("defender")
+        weapon_die = data.get("weapon_die")
+        defense_die = data.get("defense_die")
+        bap = data.get("bap", False)
+
+        if not attacker or not defender:
+            return jsonify({"error": "Missing attacker or defender"}), 400
+        if not weapon_die or not defense_die:
+            return jsonify({"error": "Missing weapon_die or defense_die"}), 400
+
+        result = resolve_combat_roll(
+            attacker=attacker,
+            defender=defender,
+            weapon_die=weapon_die,
+            defense_die=defense_die,
+            bap_triggered=bap
+        )
+        print("✅ Combat roll result:", result)
+        return jsonify(result)
+
+    except Exception as e:
+        print("🔥 Combat roll crashed:", str(e))
+        return jsonify({"error": "Internal server error", "exception": str(e)}), 500
