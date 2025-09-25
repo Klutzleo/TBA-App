@@ -50,27 +50,30 @@ FLASGGER_ROOT = os.path.dirname(__import__("flasgger").__file__)
 FLASGGER_STATIC = os.path.join(FLASGGER_ROOT, "static")
 
 # Configure Flasgger with an absolute spec file
-Swagger(
+swagger = Swagger(
     app,
-    # Serve UI at /apidocs
     config={
         "headers": [],
         "specs": [
             {
                 "endpoint": "apispec_1",
                 "route": "/apispec_1.json",
-                # Absolute file path so no more “Not a directory” errors
-                "file_path": os.path.join(DOCS_DIR, "roll_skill.yml"),
+                "rule_filter": lambda rule: True,
+                "model_filter": lambda tag: True,
             }
         ],
         "static_url_path": "/flasgger_static",
         "swagger_ui": True,
         "specs_route": "/apidocs",
     },
-    # Tell Flask where Flasgger’s bundled UI assets live
-    static_folder=FLASGGER_STATIC,
-    template=None
+    template={
+        "info": {
+            "title": "TBA API",
+            "version": "dev"
+        }
+    }
 )
+
 print("✅ Swagger initialized successfully")
 
 # Register your blueprints
