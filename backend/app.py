@@ -43,6 +43,13 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
 
+# ✅ Required for Flasgger to register /apidocs
+app.config["SWAGGER"] = {
+    "title": "TBA API",
+    "uiversion": 3,
+    "openapi": "2.0",  # Flasgger uses Swagger 2.0
+}
+
 # Prepare absolute paths
 PROJECT_ROOT = os.getcwd()                # => /app in container
 DOCS_DIR     = os.path.join(PROJECT_ROOT, "routes", "docs")
@@ -148,6 +155,10 @@ def debug_exception(e):
         # re‐raise so Flask returns the correct 404/400/etc.
         raise
     return jsonify({"error": "Internal server error", "exception": str(e)}), 500
+
+@app.route("/favicon.ico")
+def favicon():
+    return "", 204
 
 # WSGI entrypoint
 application = app
