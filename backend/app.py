@@ -74,10 +74,12 @@ swagger = Swagger(
         "specs_route": "/apidocs",
     },
     template={
+        "swagger": "2.0",
         "info": {
             "title": "TBA API",
             "version": "dev"
-        }
+        },
+        "basePath": "/"
     }
 )
 
