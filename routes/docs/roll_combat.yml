@@ -1,0 +1,48 @@
+post:
+  summary: Resolve a combat roll between attacker and defender
+  description: Compares weapon and defense dice to determine hit, miss, or critical outcome.
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  parameters:
+    - in: body
+      name: combat
+      required: true
+      schema:
+        type: object
+        properties:
+          attacker:
+            type: object
+            properties:
+              name: { type: string }
+              stat: { type: string }
+              PP: { type: integer }
+              level: { type: integer }
+          defender:
+            type: object
+            properties:
+              name: { type: string }
+              stat: { type: string }
+              SP: { type: integer }
+              level: { type: integer }
+          weapon_die: { type: string, example: "1d8" }
+          defense_die: { type: string, example: "1d6" }
+          bap: { type: boolean }
+  responses:
+    200:
+      description: Combat roll result
+      schema:
+        type: object
+        properties:
+          type: { type: string }
+          attacker_roll: { type: integer }
+          defender_roll: { type: integer }
+          outcome: { type: string }
+          narrative: { type: string }
+          details:
+            type: object
+            properties:
+              margin: { type: integer }
+              critical: { type: boolean }
+              bap_triggered: { type: boolean }

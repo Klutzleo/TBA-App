@@ -42,8 +42,11 @@ def roll_skill():
             "error": "Internal server error",
             "exception": str(e)
         }), 500
-    
+# COMBAT
+ROLL_COMBAT_SPEC = os.path.join(os.getcwd(), "routes", "docs", "roll_combat.yml")
+
 @roll_bp.route("/roll/combat", methods=["POST"])
+@swag_from(ROLL_COMBAT_SPEC)
 def roll_combat():
     try:
         data = request.get_json(force=True)
