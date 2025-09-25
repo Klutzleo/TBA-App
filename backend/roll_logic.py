@@ -3,8 +3,6 @@
 import random
 import re
 from schemas.loader import CORE_RULESET
-from backend.utils import roll_die, max_possible
-
 
 ### 🎲 Dice Utilities ###
 def parse_die(die_str):
@@ -16,6 +14,19 @@ def parse_die(die_str):
 def roll_dice(die_str):
     count, sides = parse_die(die_str)
     return [random.randint(1, sides) for _ in range(count)]
+
+def roll_die(die_str):
+    """
+    Rolls a single die string like '1d8' and returns the total.
+    """
+    return sum(roll_dice(die_str))
+
+def max_possible(die_str):
+    """
+    Returns the maximum possible roll for a given die string.
+    """
+    count, sides = parse_die(die_str)
+    return count * sides
 
 ### 🧠 Skill Roll Resolver ###
 def resolve_skill_roll(actor, difficulty_die=None, bap_triggered=False):
