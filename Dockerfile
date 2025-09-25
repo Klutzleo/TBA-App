@@ -7,6 +7,7 @@ COPY . .
 
 # 3. Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir flasgger
 
 # 4. Expose the fixed port
 EXPOSE 8080
