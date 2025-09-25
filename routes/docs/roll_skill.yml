@@ -1,44 +1,56 @@
-post:
-  tags:
-    - Skill Rolls
-  summary: Perform a skill check using actor stats and level
-  requestBody:
+tags:
+  - Skill Rolls
+summary: Perform a skill check using actor stats and level
+consumes:
+  - application/json
+parameters:
+  - in: body
+    name: body
     required: true
-    content:
-      application/json:
-        schema:
+    schema:
+      type: object
+      properties:
+        actor:
+          type: object
+          description: Actor stats and level
+          example:
+            level: 3
+            stat: "PP"
+            IP: 1
+            PP: 3
+            SP: 2
+        difficulty_die:
+          type: string
+          description: Optional difficulty die
+          example: "1d4"
+        bap:
+          type: boolean
+          description: Whether BAP is triggered
+          example: true
+responses:
+  200:
+    description: Skill roll result
+    schema:
+      type: object
+      properties:
+        type:
+          type: string
+        actor_roll:
+          type: integer
+        opponent_roll:
+          type: integer
+        outcome:
+          type: string
+        narrative:
+          type: string
+        details:
           type: object
           properties:
-            actor:
-              type: object
-              description: Actor stats and level
-              example:
-                level: 3
-                stat: "PP"
-                IP: 1
-                PP: 3
-                SP: 2
-            difficulty_die:
-              type: string
-              description: Optional difficulty die
-              example: "1d4"
+            die:
+              type: integer
+            stat:
+              type: integer
+            edge:
+              type: integer
             bap:
-              type: boolean
-              description: Whether BAP is triggered
-              example: true
-  responses:
-    200:
-      description: Skill roll result
-      content:
-        application/json:
-          example:
-            type: "skill"
-            actor_roll: 11
-            opponent_roll: 3
-            outcome: "critical success"
-            narrative: "You ace it with flair."
-            details:
-              die: 6
-              stat: 3
-              edge: 1
-              bap: 2
+              type: integer
