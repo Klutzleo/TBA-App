@@ -31,20 +31,22 @@ post:
           weapon_die: { type: string, example: "1d8" }
           defense_die: { type: string, example: "1d6" }
           bap: { type: boolean }
-  responses:
-    200:
-      description: Combat roll result
-      schema:
-        type: object
-        properties:
-          type: { type: string, example: "combat" }
-          attacker_roll: { type: integer, example: 7 }
-          defender_roll: { type: integer, example: 3 }
-          outcome: { type: string, example: "hit" }
-          narrative: { type: string, example: "Rook strikes true, bypassing Shade's defenses." }
-          details:
-            type: object
-            properties:
-              margin: { type: integer, example: 4 }
-              critical: { type: boolean, example: false }
-              bap_triggered: { type: boolean, example: false }
+responses:
+  200:
+    description: Combat roll result
+    produces:
+      - application/json
+    schema:
+      type: object
+      properties:
+        type: { type: string, example: "combat" }
+        attacker_roll: { type: integer, example: 7 }
+        defender_roll: { type: integer, example: 3 }
+        outcome: { type: string, example: "hit" }
+        narrative: { type: string, example: "Rook strikes true, bypassing Shade's defenses." }
+        details:
+          type: object
+          properties:
+            margin: { type: integer, example: 4 }
+            critical: { type: boolean, example: false }
+            bap_triggered: { type: boolean, example: false }
