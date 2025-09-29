@@ -15,42 +15,110 @@ parameters:
       properties:
         attacker:
           type: object
+          required:
+            - name
+            - level
+            - stats
+            - current_dp
+            - weapon
+            - armor
           properties:
             name:
               type: string
             stat:
               type: string
-              enum:
-                - PP
-                - SP
-                - IP
-            PP:
-              type: integer
-            SP:
-              type: integer
-            IP:
-              type: integer
+              enum: [PP, SP, IP]
             level:
               type: integer
+            stats:
+              type: object
+              properties:
+                PP: { type: integer }
+                SP: { type: integer }
+                IP: { type: integer }
+            current_dp:
+              type: integer
+            weapon:
+              type: object
+              properties:
+                die: { type: string }
+                modifier: { type: integer }
+            armor:
+              type: object
+              properties:
+                die: { type: string }
+                modifier: { type: integer }
+            race:
+              type: string
+            sex:
+              type: string
+            preferred_stat:
+              type: string
+            traits:
+              type: array
+              items: { type: string }
+            conditions:
+              type: array
+              items: { type: string }
+            techniques:
+              type: array
+              items: { type: string }
+            magic:
+              type: array
+              items: { type: string }
         defender:
           type: object
+          required:
+            - name
+            - level
+            - stats
+            - current_dp
+            - weapon
+            - armor
           properties:
             name:
               type: string
             stat:
               type: string
-              enum:
-                - PP
-                - SP
-                - IP
-            PP:
-              type: integer
-            SP:
-              type: integer
-            IP:
-              type: integer
+              enum: [PP, SP, IP]
             level:
               type: integer
+            stats:
+              type: object
+              properties:
+                PP: { type: integer }
+                SP: { type: integer }
+                IP: { type: integer }
+            current_dp:
+              type: integer
+            weapon:
+              type: object
+              properties:
+                die: { type: string }
+                modifier: { type: integer }
+            armor:
+              type: object
+              properties:
+                die: { type: string }
+                modifier: { type: integer }
+            race:
+              type: string
+            sex:
+              type: string
+            preferred_stat:
+              type: string
+            traits:
+              type: array
+              items: { type: string }
+            conditions:
+              type: array
+              items: { type: string }
+            techniques:
+              type: array
+              items: { type: string }
+            magic:
+              type: array
+              items: { type: string }
         weapon_die:
           type: string
           example: "1d8"
@@ -65,8 +133,6 @@ parameters:
 responses:
   200:
     description: Combat simulation result
-    produces:
-      - application/json
     schema:
       type: object
       properties:
