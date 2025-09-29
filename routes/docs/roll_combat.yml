@@ -1,3 +1,4 @@
+---
 tags:
   - Combat
 summary: Resolve a combat roll between attacker and defender
@@ -7,49 +8,90 @@ consumes:
 produces:
   - application/json
 parameters:
-- in: body
-  name: combat
-  required: true
-  schema:
-    type: object
-    properties:
-      attacker:
-        type: object
-        properties:
-          name: { type: string }
-          stat: { type: string, enum: ["PP", "SP", "IP"] }
-          PP: { type: integer }
-          SP: { type: integer }
-          IP: { type: integer }
-          level: { type: integer }
-      defender:
-        type: object
-        properties:
-          name: { type: string }
-          stat: { type: string, enum: ["PP", "SP", "IP"] }
-          PP: { type: integer }
-          SP: { type: integer }
-          IP: { type: integer }
-          level: { type: integer }
-      weapon_die: { type: string, example: "1d8" }
-      defense_die: { type: string, example: "1d6" }
-      bap: { type: boolean }
+  - in: body
+    name: combat
+    required: true
+    schema:
+      type: object
+      properties:
+        attacker:
+          type: object
+          properties:
+            name:
+              type: string
+            stat:
+              type: string
+              enum:
+                - PP
+                - SP
+                - IP
+            PP:
+              type: integer
+            SP:
+              type: integer
+            IP:
+              type: integer
+            level:
+              type: integer
+        defender:
+          type: object
+          properties:
+            name:
+              type: string
+            stat:
+              type: string
+              enum:
+                - PP
+                - SP
+                - IP
+            PP:
+              type: integer
+            SP:
+              type: integer
+            IP:
+              type: integer
+            level:
+              type: integer
+        weapon_die:
+          type: string
+          example: "1d8"
+        defense_die:
+          type: string
+          example: "1d6"
+        bap:
+          type: boolean
 responses:
-200:
-  description: Combat roll result
-  produces:
-    - application/json
-  schema:
-    type: object
-    properties:
-      type: { type: string, example: "combat" }
-      attacker_roll: { type: integer, example: 8 }
-      defender_roll: { type: integer, example: 3 }
-      outcome: { type: string, example: "hit" }
-      narrative: { type: string, example: "Jason lands a devastating strike—Chump staggers!" }
-      details:
-        type: object
-        properties:
-          margin: { type: integer, example: 5 }
-          critical: { type: boolean, example: true }
-          bap_triggered: { type: boolean, example: true }
+  200:
+    description: Combat roll result
+    produces:
+      - application/json
+    schema:
+      type: object
+      properties:
+        type:
+          type: string
+          example: "combat"
+        attacker_roll:
+          type: integer
+          example: 8
+        defender_roll:
+          type: integer
+          example: 3
+        outcome:
+          type: string
+          example: "hit"
+        narrative:
+          type: string
+          example: "Jason lands a devastating strike—Chump staggers!"
+        details:
+          type: object
+          properties:
+            margin:
+              type: integer
+              example: 5
+            critical:
+              type: boolean
+              example: true
+            bap_triggered:
+              type: boolean
+              example: true

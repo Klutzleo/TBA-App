@@ -1,7 +1,11 @@
+---
 tags:
   - Skill Rolls
 summary: Perform a skill check using actor stats and level
+description: Executes a skill roll using actor stats, level, and optional difficulty die. Supports BAP trigger logic.
 consumes:
+  - application/json
+produces:
   - application/json
 parameters:
   - in: body
@@ -13,12 +17,22 @@ parameters:
         actor:
           type: object
           description: Actor stats and level
-          example:
-            level: 3
-            stat: "PP"
-            IP: 1
-            PP: 3
-            SP: 2
+          properties:
+            level:
+              type: integer
+              example: 3
+            stat:
+              type: string
+              example: "PP"
+            IP:
+              type: integer
+              example: 1
+            PP:
+              type: integer
+              example: 3
+            SP:
+              type: integer
+              example: 2
         difficulty_die:
           type: string
           description: Optional difficulty die
@@ -30,27 +44,38 @@ parameters:
 responses:
   200:
     description: Skill roll result
+    produces:
+      - application/json
     schema:
       type: object
       properties:
         type:
           type: string
+          example: "skill"
         actor_roll:
           type: integer
+          example: 7
         opponent_roll:
           type: integer
+          example: 4
         outcome:
           type: string
+          example: "success"
         narrative:
           type: string
+          example: "Jason channels pure PP—his edge overwhelms the challenge!"
         details:
           type: object
           properties:
             die:
               type: integer
+              example: 4
             stat:
               type: integer
+              example: 3
             edge:
               type: integer
+              example: 2
             bap:
               type: integer
+              example: 1
