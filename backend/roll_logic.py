@@ -123,3 +123,25 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
     if margin >= 5:
         return f"{name_a} overwhelms {name_d} with brutal precision."
     return f"{name_a} strikes true, bypassing {name_d}'s defenses."
+
+def simulate_combat(attacker, defender, weapon_die, defense_die, bap, max_rounds=5):
+    log = []
+    for i in range(1, max_rounds + 1):
+        result = resolve_combat_roll(attacker, defender, weapon_die, defense_die, bap)
+        result["round"] = i
+        log.append(result)
+        if result["details"]["critical"] or result["details"]["margin"] >= 5:
+            break
+    summary = generate_summary(log, attacker, defender)
+    return {
+        "type": "combat_simulation",
+        "rounds": log,
+        "final_outcome": "attacker wins",  # placeholder
+        "summary": summary
+    }
+
+def generate_summary(log, attacker, defender):
+    last = log[-1]
+    if last["details"]["critical"]:
+        return f"{attacker['name']} lands a decisive blow—{defender['name']} falls after {last['round']} rounds."
+    return f"{attacker['name']} outmaneuvers {defender['name']} over {last['round']} rounds."

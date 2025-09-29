@@ -1,0 +1,65 @@
+post:
+  tags:
+    - Combat
+  summary: Simulate a multi-round combat encounter
+  description: Runs repeated combat rolls between attacker and defender, returning a round-by-round combat log and final outcome.
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  parameters:
+    - in: body
+      name: simulation
+      required: true
+      schema:
+        type: object
+        properties:
+          attacker:
+            type: object
+            properties:
+              name: { type: string }
+              stat: { type: string, enum: ["PP", "SP", "IP"] }
+              PP: { type: integer }
+              SP: { type: integer }
+              IP: { type: integer }
+              level: { type: integer }
+          defender:
+            type: object
+            properties:
+              name: { type: string }
+              stat: { type: string, enum: ["PP", "SP", "IP"] }
+              PP: { type: integer }
+              SP: { type: integer }
+              IP: { type: integer }
+              level: { type: integer }
+          weapon_die: { type: string, example: "1d8" }
+          defense_die: { type: string, example: "1d6" }
+          bap: { type: boolean }
+          max_rounds: { type: integer, example: 5 }
+  responses:
+    200:
+      description: Combat simulation result
+      produces:
+        - application/json
+      schema:
+        type: object
+        properties:
+          type: { type: string, example: "combat_simulation" }
+          rounds:
+            type: array
+            items:
+              type: object
+              properties:
+                round: { type: integer }
+                attacker_roll: { type: integer }
+                defender_roll: { type: integer }
+                outcome: { type: string }
+                narrative: { type: string }
+                details:
+                  type: object
+                  properties:
+                    margin: { type: integer }
+                    critical: { type: boolean }
+                    bap_triggered: { type: boolean }
+          final_outcome: { type: string, example: "attacker wins" }
+          summary: { type: string, example: "Jason overwhelms Chump after 4 brutal rounds." }

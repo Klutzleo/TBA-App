@@ -108,6 +108,16 @@ except Exception:
     traceback.print_exc()
     raise
 
+try:
+    from routes.combat import combat_bp
+    app.register_blueprint(combat_bp, url_prefix="/api")
+    print("✅ combat_bp registered")
+except Exception:
+    print("❌ Failed to import/register combat_bp:")
+    traceback.print_exc()
+    raise
+
+
 # Global error handlers
 register_error_handlers(app)
 
