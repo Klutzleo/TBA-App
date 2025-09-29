@@ -6,9 +6,9 @@ from backend.roll_logic import resolve_combat_roll, simulate_combat
 
 combat_bp = Blueprint("combat", __name__)
 
-@combat_bp.route("/api/roll/combat", methods=["POST"])
+@combat_bp.route("/roll/combat", methods=["POST"])
 @swag_from("docs/roll_combat.yml")
-def post_api_roll_combat():
+def post_roll_combat():
     try:
         data = request.get_json()
         attacker = data.get("attacker", {})
@@ -23,9 +23,9 @@ def post_api_roll_combat():
         print("Combat roll error:", str(e))
         return jsonify({"error": "Combat roll failed"}), 500
 
-@combat_bp.route("/api/roll/combat/simulate", methods=["POST"])
+@combat_bp.route("/roll/combat/simulate", methods=["POST"])
 @swag_from("docs/simulate.yml")
-def post_api_roll_combat_simulate():
+def post_roll_combat_simulate():
     try:
         data = request.get_json()
         attacker = data.get("attacker", {})
