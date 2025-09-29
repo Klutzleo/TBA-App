@@ -1,6 +1,6 @@
 post:
   tags:
-    - Combat
+    - Simulate Combat
   summary: Simulate a multi-round combat encounter
   description: Runs repeated combat rolls between attacker and defender, returning a round-by-round combat log and final outcome.
   consumes:
