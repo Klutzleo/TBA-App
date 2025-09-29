@@ -1,3 +1,5 @@
+
+# NOTE: Swagger UI can't resolve this directly yet—used for manual reference and future bundling
 swagger: "2.0"
 info:
   title: Combat Bundle
