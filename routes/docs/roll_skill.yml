@@ -1,4 +1,3 @@
----
 tags:
   - Skill Rolls
 summary: Perform a skill check using actor stats and level
@@ -17,22 +16,57 @@ parameters:
         actor:
           type: object
           description: Actor stats and level
+          required:
+            - name
+            - level
+            - stats
+            - current_dp
+            - weapon
+            - armor
           properties:
+            name:
+              type: string
             level:
               type: integer
-              example: 3
             stat:
               type: string
-              example: "PP"
-            IP:
+              enum: [PP, SP, IP]
+            stats:
+              type: object
+              properties:
+                PP: { type: integer }
+                SP: { type: integer }
+                IP: { type: integer }
+            current_dp:
               type: integer
-              example: 1
-            PP:
-              type: integer
-              example: 3
-            SP:
-              type: integer
-              example: 2
+            weapon:
+              type: object
+              properties:
+                die: { type: string }
+                modifier: { type: integer }
+            armor:
+              type: object
+              properties:
+                die: { type: string }
+                modifier: { type: integer }
+            race:
+              type: string
+            sex:
+              type: string
+            preferred_stat:
+              type: string
+            traits:
+              type: array
+              items: { type: string }
+            conditions:
+              type: array
+              items: { type: string }
+            techniques:
+              type: array
+              items: { type: string }
+            magic:
+              type: array
+              items: { type: string }
         difficulty_die:
           type: string
           description: Optional difficulty die
@@ -44,8 +78,6 @@ parameters:
 responses:
   200:
     description: Skill roll result
-    produces:
-      - application/json
     schema:
       type: object
       properties:
