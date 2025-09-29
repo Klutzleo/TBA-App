@@ -1,42 +1,42 @@
 
 # NOTE: Swagger UI can't resolve this directly yet—used for manual reference and future bundling
-swagger: "2.0"
-info:
-  title: Combat Bundle
-  description: Shared models for combat endpoints
-  version: "1.0"
+#swagger: "2.0"
+#info:
+#  title: Combat Bundle
+ # description: Shared models for combat endpoints
+  #version: "1.0"
+#
+#definitions:
+ # CombatActor:
+  #  type: object
+   # properties:
+    #  name: { type: string }
+     # stat: { type: string, enum: ["PP", "SP", "IP"] }
+#      PP: { type: integer }
+ #     SP: { type: integer }
+  #    IP: { type: integer }
+   #   level: { type: integer }
 
-definitions:
-  CombatActor:
-    type: object
-    properties:
-      name: { type: string }
-      stat: { type: string, enum: ["PP", "SP", "IP"] }
-      PP: { type: integer }
-      SP: { type: integer }
-      IP: { type: integer }
-      level: { type: integer }
+#  CombatPayload:
+ #   type: object
+  #  properties:
+   #   attacker: { $ref: "#/definitions/CombatActor" }
+    #  defender: { $ref: "#/definitions/CombatActor" }
+     # weapon_die: { type: string, example: "1d8" }
+    #  defense_die: { type: string, example: "1d6" }
+     # bap: { type: boolean }
 
-  CombatPayload:
-    type: object
-    properties:
-      attacker: { $ref: "#/definitions/CombatActor" }
-      defender: { $ref: "#/definitions/CombatActor" }
-      weapon_die: { type: string, example: "1d8" }
-      defense_die: { type: string, example: "1d6" }
-      bap: { type: boolean }
-
-  CombatResult:
-    type: object
-    properties:
-      type: { type: string, example: "combat" }
-      attacker_roll: { type: integer, example: 8 }
-      defender_roll: { type: integer, example: 3 }
-      outcome: { type: string, example: "hit" }
-      narrative: { type: string, example: "Jason lands a devastating strike—Chump staggers!" }
-      details:
-        type: object
-        properties:
-          margin: { type: integer, example: 5 }
-          critical: { type: boolean, example: true }
-          bap_triggered: { type: boolean, example: true }
+#  CombatResult:
+#    type: object
+#    properties:
+#      type: { type: string, example: "combat" }
+#     attacker_roll: { type: integer, example: 8 }
+#      defender_roll: { type: integer, example: 3 }
+#     outcome: { type: string, example: "hit" }
+#     narrative: { type: string, example: "Jason lands a devastating strike—Chump staggers!" }
+#     details:
+#        type: object
+#        properties:
+#          margin: { type: integer, example: 5 }
+#         critical: { type: boolean, example: true }
+#          bap_triggered: { type: boolean, example: true }
