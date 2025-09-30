@@ -16,7 +16,7 @@ def load_schemas():
         if filename.endswith(".json") and filename != "loader.py":
             path = os.path.join(SCHEMA_DIR, filename)
             try:
-                with open(path, "r") as f:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
                     schema_name = filename.replace(".json", "")
                     SCHEMAS[schema_name] = json.load(f)
                     logger.info("Loaded schema: %s", schema_name)
