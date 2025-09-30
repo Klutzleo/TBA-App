@@ -319,16 +319,28 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
 
         summary = f"{attacker['name']} and {defender['name']} clash over {len(rounds)} rounds."
 
-        return {
+        battle_log = {
             "type": "combat_simulation",
+            "combatants": {
+                "players": [attacker.get("name", "Attacker")],
+                "enemies": [defender.get("name", "Defender")]
+            },
+            "start_dp": {
+                attacker.get("name", "Attacker"): attacker.get("current_dp", 10),
+                defender.get("name", "Defender"): defender.get("current_dp", 10)
+            },
             "rounds": rounds,
-            "round_count": len(rounds),  # optional
+            "round_count": len(rounds),
             "final_dp": {
                 attacker.get("name", "Attacker"): attacker_dp,
                 defender.get("name", "Defender"): defender_dp
             },
             "summary": summary,
             "final_outcome": outcome
+        }
+
+        return {
+            "battle_log": battle_log
         }
 
     except Exception as e:
