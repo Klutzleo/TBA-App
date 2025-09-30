@@ -160,17 +160,12 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
         result2.update({
             "attacker": defender.get("name", "Defender"),
             "defender": attacker.get("name", "Attacker"),
-            "details": {
-                "margin": margin,
-                "critical": critical,
-                "bap_triggered": bap_triggered,
-                "damage": max(0, margin)
-            },
+            "details": {**result2["details"], "damage": damage2},
             "dp": {
                 attacker.get("name", "Attacker"): attacker_dp,
                 defender.get("name", "Defender"): defender_dp
-            }
-        })
+    }
+})
         round_log["phases"].append(result2)
 
         rounds.append(round_log)
