@@ -125,12 +125,13 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
     return f"{name_a} strikes true, bypassing {name_d}'s defenses."
 
 # Simulates 1v1 Combat
-def simulate_combat(attacker, defender, weapon_die, defense_die, bap, max_rounds=5):
+def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     attacker_dp = attacker.get("current_dp", 10)
     defender_dp = defender.get("current_dp", 10)
-    rounds = []
 
-    for i in range(1, max_rounds + 1):
+    rounds = []
+    i = 1
+    while True:
         round_log = {"round": i, "phases": []}
 
         # Phase 1: attacker strikes
@@ -159,7 +160,12 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap, max_rounds
         result2.update({
             "attacker": defender.get("name", "Defender"),
             "defender": attacker.get("name", "Attacker"),
-            "details": {**result2["details"], "damage": damage2},
+            "details": {
+                "margin": margin,
+                "critical": critical,
+                "bap_triggered": bap_triggered,
+                "damage": max(0, margin)
+            },
             "dp": {
                 attacker.get("name", "Attacker"): attacker_dp,
                 defender.get("name", "Defender"): defender_dp
@@ -171,6 +177,8 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap, max_rounds
 
         if attacker_dp <= 0:
             break
+
+        i += 1
 
     # Final outcome
     if attacker_dp > defender_dp:

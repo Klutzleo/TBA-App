@@ -127,9 +127,6 @@ parameters:
           example: "1d6"
         bap:
           type: boolean
-        max_rounds:
-          type: integer
-          example: 5
 responses:
   200:
     description: Combat simulation result
@@ -146,26 +143,45 @@ responses:
             properties:
               round:
                 type: integer
-              attacker_roll:
-                type: integer
-              defender_roll:
-                type: integer
-              outcome:
-                type: string
-              narrative:
-                type: string
-              details:
-                type: object
-                properties:
-                  margin:
-                    type: integer
-                  critical:
-                    type: boolean
-                  bap_triggered:
-                    type: boolean
+              phases:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    attacker:
+                      type: string
+                    defender:
+                      type: string
+                    attacker_roll:
+                      type: integer
+                    defender_roll:
+                      type: integer
+                    outcome:
+                      type: string
+                    narrative:
+                      type: string
+                    details:
+                      type: object
+                      properties:
+                        margin:
+                          type: integer
+                        critical:
+                          type: boolean
+                        bap_triggered:
+                          type: boolean
+                        damage:
+                          type: integer
+                    dp:
+                      type: object
+                      additionalProperties:
+                        type: integer
+        final_dp:
+          type: object
+          additionalProperties:
+            type: integer
         final_outcome:
           type: string
-          example: "attacker wins"
+          example: "Jason wins by reducing Chump's DP to 0"
         summary:
           type: string
-          example: "Jason overwhelms Chump after 4 brutal rounds."
+          example: "Jason outlasts Chump in 2 rounds of fierce combat."
