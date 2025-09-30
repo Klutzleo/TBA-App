@@ -33,9 +33,8 @@ def post_roll_combat_simulate():
         weapon_die = data.get("weapon_die", "1d8")
         defense_die = data.get("defense_die", "1d6")
         bap = data.get("bap", False)
-        max_rounds = data.get("max_rounds", 5)
 
-        result = simulate_combat(attacker, defender, weapon_die, defense_die, bap, max_rounds)
+        result = simulate_combat(attacker, defender, weapon_die, defense_die, bap)
         return jsonify(result)
     except Exception as e:
         print("Combat simulation error:", str(e))
