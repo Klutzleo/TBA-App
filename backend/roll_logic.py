@@ -255,87 +255,83 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
 def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     print("✅ simulate_combat() was called")
     try:
-        print("Phase 1 result:", result1)
-        print("Phase 2 result:", result2)
-    
+        attacker_dp = attacker.get("current_dp", 10)
+        defender_dp = defender.get("current_dp", 10)
+
+        rounds = []
+        i = 1
+        while True:
+            round_log = {"round": i, "phases": []}
+
+            # Phase 1: attacker strikes
+            result1 = resolve_combat_roll(attacker, defender, weapon_die, defense_die, bap)
+            damage1 = max(0, result1["details"].get("margin", 0))
+            defender_dp -= damage1
+            result1.update({
+                "attacker": attacker.get("name", "Attacker"),
+                "defender": defender.get("name", "Defender"),
+                "details": {**result1["details"], "damage": damage1},
+                "dp": {
+                    attacker.get("name", "Attacker"): attacker_dp,
+                    defender.get("name", "Defender"): defender_dp
+                }
+            })
+            round_log["phases"].append(result1)
+
+            print(f"Round {i} - Phase 1: {result1['narrative']} | DP: {attacker_dp} vs {defender_dp}")
+
+            if defender_dp <= 0:
+                rounds.append(round_log)
+                break
+
+            # Phase 2: defender strikes back
+            result2 = resolve_combat_roll(defender, attacker, weapon_die, defense_die, bap)
+            damage2 = max(0, result2["details"].get("margin", 0))
+            attacker_dp -= damage2
+            result2.update({
+                "attacker": defender.get("name", "Defender"),
+                "defender": attacker.get("name", "Attacker"),
+                "details": {**result2["details"], "damage": damage2},
+                "dp": {
+                    attacker.get("name", "Attacker"): attacker_dp,
+                    defender.get("name", "Defender"): defender_dp
+                }
+            })
+            round_log["phases"].append(result2)
+
+            print(f"Round {i} - Phase 2: {result2['narrative']} | DP: {attacker_dp} vs {defender_dp}")
+
+            rounds.append(round_log)
+
+            if attacker_dp <= 0:
+                break
+
+            i += 1
+
+        # Final outcome
+        if attacker_dp > defender_dp:
+            outcome = f"{attacker['name']} wins by reducing {defender['name']}'s DP to {defender_dp}"
+        elif defender_dp > attacker_dp:
+            outcome = f"{defender['name']} wins by reducing {attacker['name']}'s DP to {attacker_dp}"
+        else:
+            outcome = "Draw"
+
+        summary = f"{attacker['name']} and {defender['name']} clash over {len(rounds)} rounds."
+
+        return {
+            "type": "combat_simulation",
+            "rounds": rounds,
+            "final_dp": {
+                attacker.get("name", "Attacker"): attacker_dp,
+                defender.get("name", "Defender"): defender_dp
+            },
+            "final_outcome": outcome,
+            "summary": summary
+        }
+
     except Exception as e:
         print("Simulation error:", str(e))
         raise
-
-    attacker_dp = attacker.get("current_dp", 10)
-    defender_dp = defender.get("current_dp", 10)
-
-    rounds = []
-    i = 1
-    while True:
-        # After attacker strikes
-        print(f"Round {i} - Phase 1: {result1['narrative']} | DP: {attacker_dp} vs {defender_dp}")
-
-        # After defender strikes back
-        print(f"Round {i} - Phase 2: {result2['narrative']} | DP: {attacker_dp} vs {defender_dp}")
-        round_log = {"round": i, "phases": []}
-
-        # Phase 1: attacker strikes
-        result1 = resolve_combat_roll(attacker, defender, weapon_die, defense_die, bap)
-        damage1 = max(0, result1["details"].get("margin", 0))
-        defender_dp -= damage1
-        result1.update({
-            "attacker": attacker.get("name", "Attacker"),
-            "defender": defender.get("name", "Defender"),
-            "details": {**result1["details"], "damage": damage1},
-            "dp": {
-                attacker.get("name", "Attacker"): attacker_dp,
-                defender.get("name", "Defender"): defender_dp
-            }
-        })
-        round_log["phases"].append(result1)
-
-        if defender_dp <= 0:
-            rounds.append(round_log)
-            break
-
-        # Phase 2: defender strikes back
-        result2 = resolve_combat_roll(defender, attacker, weapon_die, defense_die, bap)
-        damage2 = max(0, result2["details"].get("margin", 0))
-        attacker_dp -= damage2
-        result2.update({
-            "attacker": defender.get("name", "Defender"),
-            "defender": attacker.get("name", "Attacker"),
-            "details": {**result2["details"], "damage": damage2},
-            "dp": {
-                attacker.get("name", "Attacker"): attacker_dp,
-                defender.get("name", "Defender"): defender_dp
-    }
-})
-        round_log["phases"].append(result2)
-
-        rounds.append(round_log)
-
-        if attacker_dp <= 0:
-            break
-
-        i += 1
-
-    # Final outcome
-    if attacker_dp > defender_dp:
-        outcome = f"{attacker['name']} wins by reducing {defender['name']}'s DP to {defender_dp}"
-    elif defender_dp > attacker_dp:
-        outcome = f"{defender['name']} wins by reducing {attacker['name']}'s DP to {attacker_dp}"
-    else:
-        outcome = "Draw"
-
-    summary = f"{attacker['name']} and {defender['name']} clash over {len(rounds)} rounds."
-
-    return {
-        "type": "combat_simulation",
-        "rounds": rounds,
-        "final_dp": {
-            attacker.get("name", "Attacker"): attacker_dp,
-            defender.get("name", "Defender"): defender_dp
-        },
-        "final_outcome": outcome,
-        "summary": summary
-    }
 
 def generate_summary(log, attacker, defender):
     last = log[-1]
