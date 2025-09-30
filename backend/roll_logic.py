@@ -255,7 +255,6 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
 def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     print("✅ simulate_combat() was called")
     try:
-        print(f"Round {i} - Attacker DP: {attacker_dp}, Defender DP: {defender_dp}")
         print("Phase 1 result:", result1)
         print("Phase 2 result:", result2)
     
@@ -269,6 +268,11 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     rounds = []
     i = 1
     while True:
+        # After attacker strikes
+        print(f"Round {i} - Phase 1: {result1['narrative']} | DP: {attacker_dp} vs {defender_dp}")
+
+        # After defender strikes back
+        print(f"Round {i} - Phase 2: {result2['narrative']} | DP: {attacker_dp} vs {defender_dp}")
         round_log = {"round": i, "phases": []}
 
         # Phase 1: attacker strikes
