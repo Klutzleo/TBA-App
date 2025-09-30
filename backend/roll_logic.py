@@ -254,6 +254,7 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
 # Simulates 1v1 Combat
 def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     print("✅ simulate_combat() was called")
+    
     try:
         attacker_dp = attacker.get("current_dp", 10)
         defender_dp = defender.get("current_dp", 10)
