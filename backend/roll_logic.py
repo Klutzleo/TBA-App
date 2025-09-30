@@ -253,6 +253,7 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
 
 # Simulates 1v1 Combat
 def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
+    print("✅ simulate_combat() was called")
     try:
         print(f"Round {i} - Attacker DP: {attacker_dp}, Defender DP: {defender_dp}")
         print("Phase 1 result:", result1)
