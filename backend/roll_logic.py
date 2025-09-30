@@ -267,7 +267,7 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
         rounds = []
         i = 1
         while True:
-            round_log = {"round": i, "phases": []}
+            round_log = {"round": i, "actions": []}
 
             for actor_name in initiative_order:
                 actor = next(c for c in combatants if c["name"] == actor_name)
@@ -292,7 +292,7 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
                     }
                 })
 
-                round_log["phases"].append(result)
+                round_log["actions"].append(result)
 
                 print(f"Round {i} - {actor_name} strikes: {result['narrative']} | DP: {attacker_dp} vs {defender_dp}")
 
@@ -306,7 +306,7 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
                 break
 
             i += 1
-            
+
         # Final outcome
         if attacker_dp > defender_dp:
             outcome = f"{attacker['name']} wins by reducing {defender['name']}'s DP to {defender_dp}"
