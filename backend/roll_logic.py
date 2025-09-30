@@ -255,6 +255,11 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
 def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     print("✅ simulate_combat() was called")
     
+    # Roll initiative for both combatants
+    combatants = [attacker, defender]
+    initiative_rolls = roll_initiative(combatants)
+    initiative_order = [r["name"] for r in initiative_rolls]
+
     try:
         attacker_dp = attacker.get("current_dp", 10)
         defender_dp = defender.get("current_dp", 10)
@@ -264,51 +269,44 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
         while True:
             round_log = {"round": i, "phases": []}
 
-            # Phase 1: attacker strikes
-            result1 = resolve_combat_roll(attacker, defender, weapon_die, defense_die, bap)
-            damage1 = max(0, result1["details"].get("margin", 0))
-            defender_dp -= damage1
-            result1.update({
-                "attacker": attacker.get("name", "Attacker"),
-                "defender": defender.get("name", "Defender"),
-                "details": {**result1["details"], "damage": damage1},
-                "dp": {
-                    attacker.get("name", "Attacker"): attacker_dp,
-                    defender.get("name", "Defender"): defender_dp
-                }
-            })
-            round_log["phases"].append(result1)
+            for actor_name in initiative_order:
+                actor = next(c for c in combatants if c["name"] == actor_name)
+                target = defender if actor == attacker else attacker
 
-            print(f"Round {i} - Phase 1: {result1['narrative']} | DP: {attacker_dp} vs {defender_dp}")
+                result = resolve_combat_roll(actor, target, weapon_die, defense_die, bap)
+                damage = max(0, result["details"].get("margin", 0))
 
-            if defender_dp <= 0:
-                rounds.append(round_log)
-                break
+                # Apply damage
+                if target == attacker:
+                    attacker_dp -= damage
+                else:
+                    defender_dp -= damage
 
-            # Phase 2: defender strikes back
-            result2 = resolve_combat_roll(defender, attacker, weapon_die, defense_die, bap)
-            damage2 = max(0, result2["details"].get("margin", 0))
-            attacker_dp -= damage2
-            result2.update({
-                "attacker": defender.get("name", "Defender"),
-                "defender": attacker.get("name", "Attacker"),
-                "details": {**result2["details"], "damage": damage2},
-                "dp": {
-                    attacker.get("name", "Attacker"): attacker_dp,
-                    defender.get("name", "Defender"): defender_dp
-                }
-            })
-            round_log["phases"].append(result2)
+                result.update({
+                    "attacker": actor.get("name", "Attacker"),
+                    "defender": target.get("name", "Defender"),
+                    "details": {**result["details"], "damage": damage},
+                    "dp": {
+                        attacker.get("name", "Attacker"): attacker_dp,
+                        defender.get("name", "Defender"): defender_dp
+                    }
+                })
 
-            print(f"Round {i} - Phase 2: {result2['narrative']} | DP: {attacker_dp} vs {defender_dp}")
+                round_log["phases"].append(result)
+
+                print(f"Round {i} - {actor_name} strikes: {result['narrative']} | DP: {attacker_dp} vs {defender_dp}")
+
+                # Early termination
+                if attacker_dp <= 0 or defender_dp <= 0:
+                    break
 
             rounds.append(round_log)
 
-            if attacker_dp <= 0:
+            if attacker_dp <= 0 or defender_dp <= 0:
                 break
 
             i += 1
-
+            
         # Final outcome
         if attacker_dp > defender_dp:
             outcome = f"{attacker['name']} wins by reducing {defender['name']}'s DP to {defender_dp}"
@@ -323,8 +321,10 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
             "type": "combat_simulation",
             "combatants": {
                 "players": [attacker.get("name", "Attacker")],
-                "enemies": [defender.get("name", "Defender")]
+                "enemies": [defender.get("name", "Defender")],
             },
+            "initiative_order": initiative_order,
+            "initiative_rolls": initiative_rolls,
             "start_dp": {
                 attacker.get("name", "Attacker"): attacker.get("current_dp", 10),
                 defender.get("name", "Defender"): defender.get("current_dp", 10)
@@ -353,8 +353,28 @@ def generate_summary(log, attacker, defender):
         return f"{attacker['name']} lands a decisive blow—{defender['name']} falls after {last['round']} rounds."
     return f"{attacker['name']} outmaneuvers {defender['name']} over {last['round']} rounds."
 
-def generate_summary(log, attacker, defender):
-    last = log[-1]
-    if last["details"]["critical"]:
-        return f"{attacker['name']} lands a decisive blow—{defender['name']} falls after {last['round']} rounds."
-    return f"{attacker['name']} outmaneuvers {defender['name']} over {last['round']} rounds."
+def roll_initiative(combatants):
+    def score(c):
+        roll = roll_die("1d6")
+        edge = c.get("stats", {}).get("Edge", 0)
+        return {
+            "name": c["name"],
+            "roll": roll,
+            "edge": edge,
+            "total": roll + edge,
+            "physical": c["stats"].get("Physical", 0),
+            "intellect": c["stats"].get("Intellect", 0),
+            "social": c["stats"].get("Social", 0)
+        }
+
+    rolls = [score(c) for c in combatants]
+
+    # Sort with tiebreakers
+    rolls.sort(key=lambda r: (
+        -r["total"],
+        -r["physical"],
+        -r["intellect"],
+        -r["social"]
+    ))
+
+    return rolls
