@@ -322,12 +322,13 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
         return {
             "type": "combat_simulation",
             "rounds": rounds,
+            "round_count": len(rounds),  # optional
             "final_dp": {
                 attacker.get("name", "Attacker"): attacker_dp,
                 defender.get("name", "Defender"): defender_dp
             },
-            "final_outcome": outcome,
-            "summary": summary
+            "summary": summary,
+            "final_outcome": outcome
         }
 
     except Exception as e:
