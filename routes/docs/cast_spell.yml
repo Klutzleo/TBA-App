@@ -1,0 +1,18 @@
+# server/routes/docs/cast_spell.yml
+post:
+  summary: Cast a spell
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  parameters:
+    - in: body
+      name: body
+      required: true
+      schema:
+        $ref: "#/definitions/CastSpellRequest"
+  responses:
+    200:
+      description: Battle log entry
+      schema:
+        $ref: "#/definitions/CastSpellResponse"
