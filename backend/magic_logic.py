@@ -70,3 +70,29 @@ def cast_spell(
 
     caster.record_cast(slot)
     return entry
+
+def character_from_dict(data: dict) -> Character:
+    """
+    Build a Character (with spells) from a JSON‐like dict.
+    Expects:
+      data["name"], data["stats"], data["edge"],
+      data["defense_die"], data["bap"],
+      data["spells"]: { slot: { "die": "1d6" }, … }
+      data["current_dp"]  (optional)
+    """
+    spells = {
+        int(slot): Spell(int(slot), spec["die"])
+        for slot, spec in data.get("spells", {}).items()
+    }
+    char = Character(
+        name=data["name"],
+        stats=data["stats"],
+        edge=data.get("edge", 0),
+        defense_die=data.get("defense_die", "1d6"),
+        bap=data.get("bap", 0),
+        spells=spells
+    )
+    # set current DP and reset casts
+    char.current_dp = data.get("current_dp", data["stats"].get("DP", 0))
+    char.reset_casts()
+    return char
