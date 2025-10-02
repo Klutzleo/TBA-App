@@ -8,7 +8,6 @@ import logging
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, g, request, current_app, redirect
-
 from flasgger import Swagger
 
 from backend.db import Base, engine
@@ -50,46 +49,36 @@ app.config["SWAGGER"] = {
     "uiversion": 3,
 }
 
-# Prepare absolute paths
-PROJECT_ROOT = os.getcwd()                # => /app in container
-DOCS_DIR     = os.path.join(PROJECT_ROOT, "routes", "docs")
-FLASGGER_ROOT = os.path.dirname(__import__("flasgger").__file__)
-FLASGGER_STATIC = os.path.join(FLASGGER_ROOT, "static")
+# Prepare absolute paths to your Swagger bundle
+PROJECT_ROOT  = os.getcwd()                          # e.g., "/app"
+DOCS_DIR      = os.path.join(PROJECT_ROOT, "routes", "docs")
+BUNDLE_FILE   = os.path.join(DOCS_DIR, "combat_bundle.yml")
 
-# Configure Flasgger with an absolute spec file
+# Configure Flasgger to load the full Swagger 2.0 spec (paths + definitions)
 swagger = Swagger(
     app,
     config={
         "headers": [],
         "specs": [
             {
-                "endpoint": "apispec_1",
-                "route": "/apispec_1.json",
-                "rule_filter": lambda rule: True,
+                "endpoint":     "apispec_1",
+                "route":        "/apispec_1.json",
+                "rule_filter":  lambda rule: True,
                 "model_filter": lambda tag: True,
             }
         ],
         "static_url_path": "/flasgger_static",
-        "swagger_ui": True,
-        "specs_route": "/apidocs",
+        "swagger_ui":      True,
+        "specs_route":     "/apidocs",
     },
-    template={
-        "swagger": "2.0",  # ✅ Required for Swagger UI
-        "info": {
-            "title": "TBA API",
-            "version": "dev",
-            "description": "Modular backend for skill rolls and narrative systems"
-        },
-        "basePath": "/",  # Optional but helpful
-        "schemes": ["https"],  # Helps Swagger UI resolve endpoints
-        "paths": {}  # ✅ Prevents Flasgger from crashing on empty paths
-    }
+    template_file=BUNDLE_FILE
 )
 
 print("✅ Swagger initialized successfully")
 
 # Register your blueprints
 print("🔄 Registering blueprints…")
+
 try:
     from routes.schemas import schemas_bp
     app.register_blueprint(schemas_bp)
@@ -117,11 +106,10 @@ except Exception:
     traceback.print_exc()
     raise
 
-
 # Global error handlers
 register_error_handlers(app)
 
-# Assign a request ID to every request
+# Assign a request ID to every incoming request
 @app.before_request
 def assign_request_id():
     rid = str(uuid.uuid4())
@@ -131,12 +119,13 @@ def assign_request_id():
         handler.addFilter(lambda record: setattr(record, "request_id", rid) or True)
     increment_request()
 
-# Basic & detailed health checks
+# Basic health check
 @app.route("/")
 def home():
     app.logger.info("Health check hit")
     return jsonify({"message": "TBA backend is alive!"})
 
+# Detailed health check endpoint
 @app.route("/health")
 def health():
     checks = {
@@ -152,7 +141,7 @@ def health():
 def metrics_route():
     return jsonify(get_metrics())
 
-# Debug: list all registered routes
+# Debug endpoint: list all routes
 @app.route("/__routes__")
 def list_routes():
     routes = []
@@ -160,17 +149,17 @@ def list_routes():
         routes.append({"rule": rule.rule, "methods": sorted(rule.methods)})
     return jsonify(routes)
 
-# Catch‐all exception handler that lets 404s through
+# Exception handler that re-raises HTTPExceptions
 from werkzeug.exceptions import HTTPException
 
 @app.errorhandler(Exception)
 def debug_exception(e):
     app.logger.exception(f"Exception on {request.method} {request.path}")
     if isinstance(e, HTTPException):
-        # re‐raise so Flask returns the correct 404/400/etc.
         raise
     return jsonify({"error": "Internal server error", "exception": str(e)}), 500
 
+# Favicon and docs redirect
 @app.route("/favicon.ico")
 def favicon():
     return "", 204
@@ -182,6 +171,6 @@ def redirect_apidocs_slash():
 # WSGI entrypoint
 application = app
 
-# Local dev runner (comment out in prod)
+# Local dev runner (uncomment for local testing)
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=8080, debug=True)
