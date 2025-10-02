@@ -1,42 +1,214 @@
+swagger: "2.0"
+info:
+  title: TBA Combat & Magic API
+  version: "1.0"
+paths:
+  /roll/combat:
+    post:
+      summary: Perform a single attack roll
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: payload
+          required: true
+          schema:
+            $ref: "#/definitions/CombatRollRequest"
+      responses:
+        "200":
+          description: Combat roll result
+          schema:
+            $ref: "#/definitions/CombatRollResponse"
 
-# NOTE: Swagger UI can't resolve this directly yet—used for manual reference and future bundling
-#swagger: "2.0"
-#info:
-#  title: Combat Bundle
- # description: Shared models for combat endpoints
-  #version: "1.0"
-#
-#definitions:
- # CombatActor:
-  #  type: object
-   # properties:
-    #  name: { type: string }
-     # stat: { type: string, enum: ["PP", "SP", "IP"] }
-#      PP: { type: integer }
- #     SP: { type: integer }
-  #    IP: { type: integer }
-   #   level: { type: integer }
+  /roll/combat/simulate:
+    post:
+      summary: Simulate an entire combat sequence
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: payload
+          required: true
+          schema:
+            $ref: "#/definitions/CombatSimulateRequest"
+      responses:
+        "200":
+          description: Combat simulation log
+          schema:
+            $ref: "#/definitions/CombatSimulateResponse"
 
-#  CombatPayload:
- #   type: object
-  #  properties:
-   #   attacker: { $ref: "#/definitions/CombatActor" }
-    #  defender: { $ref: "#/definitions/CombatActor" }
-     # weapon_die: { type: string, example: "1d8" }
-    #  defense_die: { type: string, example: "1d6" }
-     # bap: { type: boolean }
+  /magic/cast:
+    post:
+      summary: Cast a spell against one or more targets
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: payload
+          required: true
+          schema:
+            $ref: "#/definitions/CastSpellRequest"
+      responses:
+        "200":
+          description: Battle log entry for the spell cast
+          schema:
+            $ref: "#/definitions/CastSpellResponse"
 
-#  CombatResult:
-#    type: object
-#    properties:
-#      type: { type: string, example: "combat" }
-#     attacker_roll: { type: integer, example: 8 }
-#      defender_roll: { type: integer, example: 3 }
-#     outcome: { type: string, example: "hit" }
-#     narrative: { type: string, example: "Jason lands a devastating strike—Chump staggers!" }
-#     details:
-#        type: object
-#        properties:
-#          margin: { type: integer, example: 5 }
-#         critical: { type: boolean, example: true }
-#          bap_triggered: { type: boolean, example: true }
+definitions:
+  CombatActor:
+    type: object
+    required: [name, stats]
+    properties:
+      name:
+        type: string
+      stats:
+        type: object
+        additionalProperties:
+          type: integer
+      edge:
+        type: integer
+      defense_die:
+        type: string
+      bap:
+        type: integer
+      current_dp:
+        type: integer
+
+  CombatRollRequest:
+    type: object
+    required: [attacker, defender]
+    properties:
+      attacker:
+        $ref: "#/definitions/CombatActor"
+      defender:
+        $ref: "#/definitions/CombatActor"
+      weapon_die:
+        type: string
+        example: "1d8"
+      defense_die:
+        type: string
+        example: "1d6"
+      bap:
+        type: boolean
+        default: false
+
+  CombatRollResponse:
+    type: object
+    properties:
+      attacker_roll:
+        type: integer
+      defender_roll:
+        type: integer
+      margin:
+        type: integer
+      outcome:
+        type: string
+      bap_triggered:
+        type: boolean
+      narrative:
+        type: string
+
+  CombatSimulateRequest:
+    type: object
+    required: [attacker, defender]
+    properties:
+      attacker:
+        $ref: "#/definitions/CombatActor"
+      defender:
+        $ref: "#/definitions/CombatActor"
+      weapon_die:
+        type: string
+      defense_die:
+        type: string
+      bap:
+        type: boolean
+
+  CombatSimulateResponse:
+    type: object
+    properties:
+      turns:
+        type: array
+        items:
+          $ref: "#/definitions/CombatRollResponse"
+      winner:
+        type: string
+
+  CharacterProfile:
+    type: object
+    required: [name, stats, spells]
+    properties:
+      name:
+        type: string
+      stats:
+        type: object
+        additionalProperties:
+          type: integer
+      edge:
+        type: integer
+      defense_die:
+        type: string
+      bap:
+        type: integer
+      current_dp:
+        type: integer
+      spells:
+        type: object
+        additionalProperties:
+          type: object
+          required: [die]
+          properties:
+            die:
+              type: string
+
+  CastSpellRequest:
+    type: object
+    required: [session_id, caster, targets, slot]
+    properties:
+      session_id:
+        type: string
+      caster:
+        $ref: "#/definitions/CharacterProfile"
+      targets:
+        type: array
+        items:
+          $ref: "#/definitions/CharacterProfile"
+      slot:
+        type: integer
+      bap:
+        type: boolean
+        default: false
+      new_encounter:
+        type: boolean
+        default: false
+
+  CastSpellResponse:
+    type: object
+    properties:
+      caster:
+        type: string
+      slot:
+        type: integer
+      roll:
+        type: integer
+      bap_used:
+        type: boolean
+      results:
+        type: array
+        items:
+          type: object
+          required: [target, defend_roll, damage, remaining_dp]
+          properties:
+            target:
+              type: string
+            defend_roll:
+              type: integer
+            damage:
+              type: integer
+            remaining_dp:
+              type: integer
