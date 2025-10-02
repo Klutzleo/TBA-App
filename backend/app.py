@@ -71,7 +71,7 @@ swagger = Swagger(
         "swagger_ui":      True,
         "specs_route":     "/apidocs",
     },
-    template_file=BUNDLE_FILE
+    template_file="routes/docs/combat_bundle.yml"
 )
 
 print("✅ Swagger initialized successfully")
