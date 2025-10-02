@@ -1,14 +1,33 @@
-backports.tarfile==1.2.0
-flasgger>=0.9.5
-flask==3.1.2
+# Web framework
+Flask==3.1.2
+
+# OpenAPI 3.0 support
+Flask-Smorest>=0.40.0
+apispec-webframeworks>=0.5.2
+
+# (De)serialization
+marshmallow>=3.0.0
+
+# Database
+SQLAlchemy==2.0.42
+psycopg2-binary==2.9.10
+
+# Env vars
+python-dotenv>=1.0.0
+
+# WSGI server
 gunicorn==23.0.0
+
+# Other existing deps
+backports.tarfile==1.2.0
 importlib-metadata==8.0.0
 jaraco.collections==5.1.0
 jsonschema==4.25.1
 pip-chill==1.0.3
 platformdirs==4.2.2
-psycopg2-binary==2.9.10
-python-dotenv==1.0.0
 requests==2.31.0
-sqlalchemy==2.0.42
 tomli==2.0.1
+
+# Dev tools
+pytest>=7.0
+yamllint>=1.26
