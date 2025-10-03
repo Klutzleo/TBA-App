@@ -58,7 +58,7 @@ print("✅ OpenAPI 3.0 initialized successfully")
 print("🔄 Registering blueprints…")
 
 try:
-    from routes.schemas import schemas_blp
+    from routes.schemas_blp import schemas_blp
     api.register_blueprint(schemas_blp)
     print("✅ schemas_bp registered")
 except Exception:
