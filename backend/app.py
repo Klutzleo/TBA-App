@@ -1,5 +1,3 @@
-# backend/app.py
-
 import os
 import time
 import uuid
@@ -8,7 +6,8 @@ import logging
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, g, request, current_app, redirect
-from flasgger import Swagger
+from flask_smorest import Api
+from werkzeug.exceptions import HTTPException
 
 from backend.db import Base, engine
 from backend.models import Echo
@@ -35,46 +34,25 @@ Base.metadata.create_all(bind=engine)
 
 # Setup your custom logging
 setup_logging()
-
-# Also enable Flask’s built-in logger at DEBUG
 logging.basicConfig(level=logging.DEBUG)
 
 # Create Flask app
 app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
 
-# ✅ Required for Flasgger to register /apidocs
-app.config["SWAGGER"] = {
-    "title": "TBA API",
-    "uiversion": 3,
-}
+# ✅ OpenAPI 3.0 configuration
+app.config.update({
+    "API_TITLE": "TBA Combat & Magic API",
+    "API_VERSION": "1.0",
+    "OPENAPI_VERSION": "3.0.2",
+    "OPENAPI_URL_PREFIX": "/api",
+    "OPENAPI_REDOC_PATH": "/docs",
+    "OPENAPI_REDOC_URL": "https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js",
+})
 
-# Prepare absolute paths to your Swagger bundle
-PROJECT_ROOT  = os.getcwd()                          # e.g., "/app"
-BUNDLE_PATH   = os.path.join(PROJECT_ROOT, "routes", "docs", "combat_bundle.yml")
-
-# Configure Flasgger to load the full Swagger 2.0 spec (paths + definitions)
-swagger = Swagger(
-    app,
-    config={
-        "headers": [],
-        "specs": [
-            {
-                "endpoint":     "apispec_1",
-                "route":        "/apispec_1.json",
-                "rule_filter":  lambda rule: True,
-                "model_filter": lambda tag: True,
-            }
-        ],
-        "static_url_path": "/flasgger_static",
-        "swagger_ui":      True,
-        "specs_route":     "/apidocs",
-    },
-    template_file=BUNDLE_PATH
-)
-
-print("📄 Swagger bundle path:", BUNDLE_PATH)
-print("✅ Swagger initialized successfully")
+# Initialize Flask-Smorest API
+api = Api(app)
+print("✅ OpenAPI 3.0 initialized successfully")
 
 # Register your blueprints
 print("🔄 Registering blueprints…")
@@ -89,20 +67,29 @@ except Exception:
     raise
 
 try:
-    from routes.roll import roll_bp
-    app.register_blueprint(roll_bp, url_prefix="/api")
-    print("✅ roll_bp registered")
+    from routes.roll import roll_blp
+    api.register_blueprint(roll_blp)
+    print("✅ roll_blp registered")
 except Exception:
-    print("❌ Failed to import/register roll_bp:")
+    print("❌ Failed to import/register roll_blp:")
     traceback.print_exc()
     raise
 
 try:
-    from routes.combat import combat_bp
-    app.register_blueprint(combat_bp, url_prefix="/api")
-    print("✅ combat_bp registered")
+    from routes.combat import combat_blp
+    api.register_blueprint(combat_blp)
+    print("✅ combat_blp registered")
 except Exception:
-    print("❌ Failed to import/register combat_bp:")
+    print("❌ Failed to import/register combat_blp:")
+    traceback.print_exc()
+    raise
+
+try:
+    from routes.magic import magic_blp
+    api.register_blueprint(magic_blp)
+    print("✅ magic_blp registered")
+except Exception:
+    print("❌ Failed to import/register magic_blp:")
     traceback.print_exc()
     raise
 
@@ -150,8 +137,6 @@ def list_routes():
     return jsonify(routes)
 
 # Exception handler that re-raises HTTPExceptions
-from werkzeug.exceptions import HTTPException
-
 @app.errorhandler(Exception)
 def debug_exception(e):
     app.logger.exception(f"Exception on {request.method} {request.path}")
@@ -159,14 +144,10 @@ def debug_exception(e):
         raise
     return jsonify({"error": "Internal server error", "exception": str(e)}), 500
 
-# Favicon and docs redirect
+# Favicon
 @app.route("/favicon.ico")
 def favicon():
     return "", 204
-
-@app.route("/apidocs/")
-def redirect_apidocs_slash():
-    return redirect("/apidocs", code=301)
 
 # WSGI entrypoint
 application = app
