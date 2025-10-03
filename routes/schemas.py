@@ -1,19 +1,23 @@
 import datetime
 import time
-from flask import Blueprint, jsonify, request
-from schemas.loader import SCHEMAS
+from flask import request
+from flask_smorest import Blueprint
 from jsonschema import validate, ValidationError
 from collections import Counter
+from schemas.loader import SCHEMAS
 from backend.db import SessionLocal
 from backend.models import Echo
 from backend.utils.storage import store_echo
 
-schemas_bp = Blueprint("schemas", __name__)
+schemas_blp = Blueprint(
+    "schemas",
+    "schemas",
+    url_prefix="/api/schemas",
+    description="Schema validation, playgrounds, and emotional reflection"
+)
 
-# 🧾 In-memory log store
 LOG_HISTORY = []
 
-# 🧠 Logger: Tracks schema, validity, IP, and duration
 def log_validation(schema_name, valid, client_ip, duration=None, request_id=None, emotion=None):
     timestamp = datetime.datetime.utcnow().isoformat()
     log_entry = {
@@ -39,7 +43,6 @@ def log_validation(schema_name, valid, client_ip, duration=None, request_id=None
         log_parts.append(f"RequestID: {request_id}")
     print(" | ".join(log_parts))
 
-# 🎭 Reaction helper based on schema and emotion
 def get_reaction(schema_name, payload):
     if schema_name == "memory_echoes":
         emotion = payload.get("emotion", "").lower()
@@ -51,47 +54,50 @@ def get_reaction(schema_name, payload):
             "confusion": "🌫️",
             "relief": "💨",
             "nostalgia": "📼"
-        }.get(emotion, "🪞")  # Default: mirror emoji
+        }.get(emotion, "🪞")
         print(f"DEBUG: Emotion = {emotion}, Reaction = {emoji}")
         return emoji
     return "✅"
 
-# ✅ Route: Validate a payload against a schema
-@schemas_bp.route("/validate/<schema_name>", methods=["POST"])
+@schemas_blp.route("/validate/<schema_name>", methods=["POST"])
+@schemas_blp.response(200)
+@schemas_blp.alt_response(400, description="Missing payload")
+@schemas_blp.alt_response(404, description="Schema not found")
+@schemas_blp.alt_response(422, description="Validation failed")
 def validate_schema(schema_name):
     payload = request.get_json(force=True, silent=True)
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    request_id = request.headers.get("X-Request-Id")  # Optional, if Railway passes it
+    request_id = request.headers.get("X-Request-Id")
 
     if not payload:
         log_validation(schema_name, False, client_ip, request_id=request_id)
-        return jsonify({
+        return {
             "valid": False,
             "error": "No JSON payload received.",
             "reaction": "😶"
-        }), 400
+        }, 400
 
     schema = SCHEMAS.get(schema_name)
     if not schema:
         log_validation(schema_name, False, client_ip, request_id=request_id)
-        return jsonify({
+        return {
             "valid": False,
             "error": f"Schema '{schema_name}' not found.",
             "reaction": "❓"
-        }), 404
+        }, 404
 
     try:
         start = time.time()
         validate(instance=payload, schema=schema)
-        duration = round((time.time() - start) * 1000)  # in ms
+        duration = round((time.time() - start) * 1000)
         reaction = get_reaction(schema_name, payload)
         emotion = payload.get("emotion") if schema_name == "memory_echoes" else None
         log_validation(schema_name, True, client_ip, duration, request_id, emotion)
-        return jsonify({
+        return {
             "valid": True,
             "message": f"Payload matches schema '{schema_name}'.",
             "reaction": reaction
-        }), 200
+        }, 200
 
     except ValidationError as e:
         duration = round((time.time() - start) * 1000)
@@ -105,15 +111,16 @@ def validate_schema(schema_name):
 
         emotion = payload.get("emotion") if payload else None
         log_validation(schema_name, False, client_ip, duration, request_id, emotion)
-        return jsonify({
+        return {
             "valid": False,
             "error": str(e.message),
             "reaction": "⚠️",
             "suggestion": suggestion
-        }), 422
+        }, 422
 
-# 🧪 Route: Sample payload for testing
-@schemas_bp.route("/playground/<schema_name>", methods=["GET"])
+@schemas_blp.route("/playground/<schema_name>", methods=["GET"])
+@schemas_blp.response(200)
+@schemas_blp.alt_response(404, description="No playground available")
 def playground(schema_name):
     if schema_name == "memory_echoes":
         sample = {
@@ -121,26 +128,25 @@ def playground(schema_name):
             "emotion": "hope",
             "summary": "Reboot succeeded"
         }
-        return jsonify(sample)
-    return jsonify({ "error": f"No playground available for schema '{schema_name}'." }), 404
+        return sample
+    return { "error": f"No playground available for schema '{schema_name}'." }, 404
 
-# 📜 Route: Return recent validation logs
-@schemas_bp.route("/logs", methods=["GET"])
+@schemas_blp.route("/logs", methods=["GET"])
+@schemas_blp.response(200)
 def get_logs():
     try:
         limit = int(request.args.get("limit", 50))
-        limit = max(1, min(limit, 100))  # Clamp between 1 and 100
+        limit = max(1, min(limit, 100))
     except ValueError:
         limit = 50
-
     recent_logs = LOG_HISTORY[-limit:]
-    return jsonify({ "logs": recent_logs })
+    return { "logs": recent_logs }
 
-# 🔍 Route: Reflect on validation history
-@schemas_bp.route("/reflect", methods=["GET"])
+@schemas_blp.route("/reflect", methods=["GET"])
+@schemas_blp.response(200)
 def reflect():
     if not LOG_HISTORY:
-        return jsonify({ "message": "No logs available to reflect on." }), 200
+        return { "message": "No logs available to reflect on." }
 
     total = len(LOG_HISTORY)
     valid_count = sum(1 for log in LOG_HISTORY if log["valid"])
@@ -161,4 +167,4 @@ def reflect():
         "suggestion_rate": f"{suggestion_rate:.1f}%"
     }
 
-    return jsonify(summary)
+    return summary
