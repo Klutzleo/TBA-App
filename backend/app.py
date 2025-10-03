@@ -51,8 +51,7 @@ app.config["SWAGGER"] = {
 
 # Prepare absolute paths to your Swagger bundle
 PROJECT_ROOT  = os.getcwd()                          # e.g., "/app"
-DOCS_DIR      = os.path.join(PROJECT_ROOT, "routes", "docs")
-BUNDLE_FILE   = os.path.join(DOCS_DIR, "combat_bundle.yml")
+BUNDLE_PATH   = os.path.join(PROJECT_ROOT, "routes", "docs", "combat_bundle.yml")
 
 # Configure Flasgger to load the full Swagger 2.0 spec (paths + definitions)
 swagger = Swagger(
@@ -71,9 +70,10 @@ swagger = Swagger(
         "swagger_ui":      True,
         "specs_route":     "/apidocs",
     },
-    template_file="routes/docs/combat_bundle.yml"
+    template_file=BUNDLE_PATH
 )
 
+print("📄 Swagger bundle path:", BUNDLE_PATH)
 print("✅ Swagger initialized successfully")
 
 # Register your blueprints
