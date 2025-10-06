@@ -1,38 +1,39 @@
-from flask import request
 from flask_smorest import Blueprint
-from backend.magic_logic import cast_spell, character_from_dict
+from schemas.combat import SpellCastRequest, SpellCastResponse
+from flask import request
 
-magic_blp = Blueprint(
-    "Magic",
-    "magic",
-    url_prefix="/api/magic",
-    description="Spellcasting and magical effects"
-)
+magic_blp = Blueprint("magic", "magic", url_prefix="/api", description="Magical spellcasting endpoints")
 
-@magic_blp.route("/cast", methods=["POST"])
-@magic_blp.response(200)
-@magic_blp.alt_response(400, description="Missing or invalid input")
-@magic_blp.alt_response(500, description="Internal server error")
-def post_cast_spell():
-    try:
-        payload = request.get_json()
-        caster = character_from_dict(payload["caster"])
-        targets = [character_from_dict(t) for t in payload.get("targets", [])]
-        slot = payload["slot"]
-        bap_trig = payload.get("bap", False)
-        new_enc = payload.get("new_encounter", False)
+@magic_blp.route("/cast/spell", methods=["POST"])
+@magic_blp.arguments(SpellCastRequest)
+@magic_blp.response(200, SpellCastResponse)
+def cast_spell(payload):
+    caster = payload["caster"]
+    target = payload["target"]
+    spell = payload["spell"]
+    distance = payload.get("distance", "medium")
+    log_enabled = payload.get("log", False)
 
-        if new_enc:
-            caster.reset_casts()
+    # Basic resolution logic
+    caster_power = spell.get("power", 0)
+    target_resistance = target["stats"].get("wisdom", 0)
+    margin = caster_power - target_resistance
+    outcome = "hit" if margin > 0 else "miss"
+    effects = spell.get("traits", []) if outcome == "hit" else []
 
-        entry = cast_spell(
-            caster=caster,
-            targets=targets,
-            slot=slot,
-            bap_triggered=bap_trig
-        )
+    # Narrative log
+    log = []
+    if log_enabled:
+        log.append(f"{caster['name']} casts {spell['name']} at {target['name']}...")
+        log.append(f"Spell power: {caster_power}, Target resistance: {target_resistance}")
+        log.append(f"Outcome: {outcome}")
+        if effects:
+            log.append(f"Effects triggered: {', '.join(effects)}")
 
-        return entry
-    except Exception as e:
-        print("Magic cast error:", str(e))
-        return {"error": "Magic cast failed"}, 500
+    return {
+        "outcome": outcome,
+        "damage": caster_power if outcome == "hit" else 0,
+        "effects": effects,
+        "log": log,
+        "notes": []
+    }
