@@ -118,14 +118,17 @@ def assign_request_id():
     increment_request()
 
     # 🔐 Enforce API key for protected routes
-    if request.path.startswith("/api/") and not request.path.startswith("/api/docs"):
+    if request.path.startswith("/api/") and not (
+        request.path.startswith("/api/docs") or request.path == "/api/openapi.json"
+    ):
         key = request.headers.get("X-API-Key")
         expected = os.getenv("API_KEY")
         if not key or key != expected:
             return jsonify({"error": "Unauthorized"}), 401
-    
-    if request.path.startswith("/api/docs"):
-        app.logger.info(f"Docs accessed by {request.remote_addr}")    
+
+    # Optional: log docs access
+    if request.path.startswith("/api/docs") or request.path == "/api/openapi.json":
+        app.logger.info(f"Docs or spec accessed by {request.remote_addr}")   
     
 
 
