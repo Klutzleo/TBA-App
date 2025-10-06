@@ -10,20 +10,16 @@ combat_blp = Blueprint(
     description="Combat resolution and simulation"
 )
 
+from schemas.combat import CombatRollRequest, CombatRollResponse
+
 @combat_blp.route("/roll/combat", methods=["POST"])
-@combat_blp.response(200)
+@combat_blp.arguments(CombatRollRequest)
+@combat_blp.response(200, CombatRollResponse)
 @combat_blp.alt_response(400, description="Missing or invalid input")
 @combat_blp.alt_response(500, description="Internal server error")
-def post_roll_combat():
+def post_roll_combat(payload):
     try:
-        data = request.get_json()
-        attacker = data.get("attacker", {})
-        defender = data.get("defender", {})
-        weapon_die = data.get("weapon_die", "1d8")
-        defense_die = data.get("defense_die", "1d6")
-        bap = data.get("bap", False)
-
-        result = resolve_combat_roll(attacker, defender, weapon_die, defense_die, bap)
+        result = resolve_combat_roll(**payload)
         return result
     except Exception as e:
         print("Combat roll error:", str(e))
