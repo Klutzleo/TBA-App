@@ -380,3 +380,62 @@ def roll_initiative(combatants):
     ))
 
     return rolls
+
+def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
+    initiative_order = resolve_initiative(actors)
+    combat_log = [f"Initiative order: {', '.join(initiative_order)}"]
+    round_results = []
+
+    # Initialize DP for all actors
+    for actor in actors:
+        actor["dp"] = actor.get("dp", 10)
+
+    for r in range(rounds):
+        round_log = [f"Round {r+1} begins"]
+        for name in initiative_order:
+            actor = next(a for a in actors if a["name"] == name)
+            if actor["dp"] <= -5:
+                round_log.append(f"{actor['name']} is unconscious or in The Calling.")
+                continue
+
+            # Choose a target (round-robin or random)
+            targets = [a for a in actors if a["name"] != name and a["dp"] > -5]
+            if not targets:
+                round_log.append(f"{actor['name']} has no valid targets.")
+                continue
+            target = random.choice(targets)
+
+            # Resolve combat (PP + Edge vs PP + Edge)
+            atk_total = actor["stats"].get("PP", 0) + actor.get("edge", 0)
+            def_total = target["stats"].get("PP", 0) + target.get("edge", 0)
+            margin = atk_total - def_total
+
+            if margin > 0:
+                target["dp"] -= margin
+                round_log.append(f"{actor['name']} hits {target['name']} for {margin} damage.")
+            else:
+                round_log.append(f"{actor['name']} misses {target['name']}.")
+
+            # Death threshold check
+            if target["dp"] <= -5:
+                round_log.append(f"{target['name']} enters The Calling...")
+
+        round_results.append({"round": r+1, "log": round_log})
+
+        # Early termination if only one actor remains conscious
+        alive = [a for a in actors if a["dp"] > -5]
+        if len(alive) <= 1:
+            break
+
+    summary = {
+        "actors": [{ "name": a["name"], "dp": a["dp"] } for a in actors],
+        "survivors": [a["name"] for a in actors if a["dp"] > -5],
+        "fallen": [a["name"] for a in actors if a["dp"] <= -5]
+    }
+
+    return {
+        "rounds": round_results,
+        "outcome": "simulation complete",
+        "log": combat_log,
+        "summary": summary
+    }
