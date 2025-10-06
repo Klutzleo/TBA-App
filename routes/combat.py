@@ -2,6 +2,7 @@ from flask import request
 from flask_smorest import Blueprint
 from backend.roll_logic import resolve_combat_roll, simulate_combat
 from backend.magic_logic import cast_spell, character_from_dict
+import traceback
 
 combat_blp = Blueprint(
     "Combat",
@@ -10,11 +11,12 @@ combat_blp = Blueprint(
     description="Combat resolution and simulation"
 )
 
-from schemas.combat import CombatRollRequest, CombatRollResponse
+from schemas.combat import CombatRollRequest, CombatRollResponse, SimulatedCombatResponse
 
 @combat_blp.route("/roll/combat", methods=["POST"])
 @combat_blp.arguments(CombatRollRequest)
 @combat_blp.response(200, CombatRollResponse)
+@combat_blp.doc(tags=["Combat"], summary="Resolve a single combat roll")
 @combat_blp.alt_response(400, description="Missing or invalid input")
 @combat_blp.alt_response(500, description="Internal server error")
 def post_roll_combat(payload):
@@ -23,13 +25,13 @@ def post_roll_combat(payload):
         return result
     except Exception as e:
         print("Combat roll error:", str(e))
+        traceback.print_exc()
         return {"error": "Combat roll failed"}, 500
-
-from schemas.combat import CombatRollRequest, CombatRollResponse  # already imported
 
 @combat_blp.route("/roll/combat/simulate", methods=["POST"])
 @combat_blp.arguments(CombatRollRequest)
-@combat_blp.response(200, CombatRollResponse)  # or a new SimulatedCombatResponse
+@combat_blp.response(200, SimulatedCombatResponse)
+@combat_blp.doc(tags=["Combat"], summary="Simulate a multi-round combat encounter")
 @combat_blp.alt_response(400, description="Missing or invalid input")
 @combat_blp.alt_response(500, description="Internal server error")
 def post_roll_combat_simulate(payload):
@@ -38,5 +40,5 @@ def post_roll_combat_simulate(payload):
         return result
     except Exception as e:
         print("Combat simulation error:", str(e))
+        traceback.print_exc()
         return {"error": "Simulation failed"}, 500
-
