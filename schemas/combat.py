@@ -5,7 +5,7 @@ class CombatRollRequest(Schema):
     defender = fields.Dict(required=True)
     weapon_die = fields.String(required=True)
     defense_die = fields.String(required=True)
-    bap = fields.Boolean(missing=False)
+    bap = fields.Boolean(load_default=False)
 
 class CombatRollResponse(Schema):
     value = fields.Integer()
