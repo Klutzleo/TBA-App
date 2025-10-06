@@ -3,6 +3,8 @@
 import random
 import re
 from schemas.loader import CORE_RULESET
+from backend.combat_utils import resolve_initiative
+
 
 ### 🎲 Dice Utilities ###
 def parse_die(die_str):
@@ -261,8 +263,8 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     initiative_order = [r["name"] for r in initiative_rolls]
 
     try:
-        attacker_dp = attacker.get("current_dp", 10)
-        defender_dp = defender.get("current_dp", 10)
+        attacker_dp = attacker.get("DP", 10)
+        defender_dp = defender.get("DP", 10)
 
         rounds = []
         i = 1
@@ -362,9 +364,9 @@ def roll_initiative(combatants):
             "roll": roll,
             "edge": edge,
             "total": roll + edge,
-            "physical": c["stats"].get("Physical", 0),
-            "intellect": c["stats"].get("Intellect", 0),
-            "social": c["stats"].get("Social", 0)
+            "physical": c["stats"].get("PP", 0),
+            "intellect": c["stats"].get("IP", 0),
+            "social": c["stats"].get("SP", 0)
         }
 
     rolls = [score(c) for c in combatants]
