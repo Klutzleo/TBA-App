@@ -420,6 +420,10 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
             if target["dp"] <= -5:
                 round_log.append(f"{target['name']} enters The Calling...")
 
+            if target["dp"] <= -5 and not target.get("marked_by_death"):
+                calling_result = resolve_calling(target)
+                round_log.append(calling_result)
+
         round_results.append({"round": r+1, "log": round_log})
 
         # Early termination if only one actor remains conscious
@@ -439,3 +443,20 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
         "log": combat_log,
         "summary": summary
     }
+
+def resolve_calling(actor):
+    ip = actor["stats"].get("IP", 0)
+    sp = actor["stats"].get("SP", 0)
+    sw_roll = roll_die("1d6")
+
+    ip_success = ip >= sw_roll
+    sp_success = sp >= sw_roll
+
+    if ip_success or sp_success:
+        actor["dp"] = -4
+        actor["marked_by_death"] = True
+        return f"{actor['name']} resists The Calling—marked, but not gone."
+    else:
+        actor["dp"] = -6
+        actor["echoes"] = actor.get("echoes", []) + [f"{actor['name']} fell in round memory."]
+        return f"{actor['name']} fails The Calling—memory echoes in the aftermath."
