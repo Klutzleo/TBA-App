@@ -1,19 +1,13 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 
 class CharacterSchema(Schema):
-    """Defines a combatant with stats and traits."""
-    name = fields.String(required=True, metadata={"description": "Character name"})
+    name = fields.String(required=True)
     stats = fields.Dict(
-        keys=fields.String(),
+        keys=fields.String(validate=validate.OneOf(["IP", "PP", "SP"])),
         values=fields.Integer(),
-        required=True,
-        metadata={"description": "Stat block with named attributes (e.g., strength, dexterity)"}
+        required=True
     )
-    traits = fields.List(
-        fields.String(),
-        load_default=[],
-        metadata={"description": "List of passive or active traits"}
-    )
+    traits = fields.List(fields.String(), load_default=[])
 
 class EquipmentSchema(Schema):
     """Defines a piece of equipment used in combat."""

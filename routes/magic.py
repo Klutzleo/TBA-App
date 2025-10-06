@@ -14,10 +14,18 @@ def cast_spell(payload):
     distance = payload.get("distance", "medium")
     log_enabled = payload.get("log", False)
 
-    # Basic resolution logic
-    caster_power = spell.get("power", 0)
-    target_resistance = target["stats"].get("wisdom", 0)
-    margin = caster_power - target_resistance
+    # Canonical stat resolution
+    caster_ip = caster["stats"].get("IP", 0)
+    target_ip = target["stats"].get("IP", 0)
+    caster_edge = caster.get("edge", 0)
+    target_edge = target.get("edge", 0)
+
+    # Total roll values
+    caster_roll = caster_ip + caster_edge
+    target_roll = target_ip + target_edge
+    margin = caster_roll - target_roll
+
+    # Outcome logic
     outcome = "hit" if margin > 0 else "miss"
     effects = spell.get("traits", []) if outcome == "hit" else []
 
@@ -25,14 +33,15 @@ def cast_spell(payload):
     log = []
     if log_enabled:
         log.append(f"{caster['name']} casts {spell['name']} at {target['name']}...")
-        log.append(f"Spell power: {caster_power}, Target resistance: {target_resistance}")
+        log.append(f"Caster IP + Edge: {caster_ip} + {caster_edge} = {caster_roll}")
+        log.append(f"Target IP + Edge: {target_ip} + {target_edge} = {target_roll}")
         log.append(f"Outcome: {outcome}")
         if effects:
             log.append(f"Effects triggered: {', '.join(effects)}")
 
     return {
         "outcome": outcome,
-        "damage": caster_power if outcome == "hit" else 0,
+        "damage": margin if outcome.startswith("hit") else 0,
         "effects": effects,
         "log": log,
         "notes": []
