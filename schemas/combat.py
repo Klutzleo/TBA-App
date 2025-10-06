@@ -67,3 +67,31 @@ class SimulatedCombatResponse(Schema):
     outcome = fields.String(required=True, metadata={"example": "attacker wins", "description": "Final outcome of the simulation"})
     log = fields.List(fields.String(), required=False, metadata={"description": "Verbose log of all combat actions"})
     summary = fields.Dict(required=False, metadata={"description": "Summary of damage, turns, and effects"})
+
+class SpellCastRequest(Schema):
+    """Request payload for casting a spell in combat."""
+    caster = fields.Nested(CharacterSchema, required=True, metadata={"description": "Character casting the spell"})
+    target = fields.Nested(CharacterSchema, required=True, metadata={"description": "Target of the spell"})
+    spell = fields.Dict(
+        required=True,
+        metadata={
+            "description": "Spell details including name, traits, power, and range",
+            "example": {
+                "name": "Fireball",
+                "traits": ["burn", "area"],
+                "power": 7,
+                "range": "medium"
+            }
+        }
+    )
+    distance = fields.String(load_default="medium", metadata={"description": "Distance between caster and target"})
+    log = fields.Boolean(load_default=False, metadata={"description": "Whether to return detailed spellcasting log"})
+    encounter_id = fields.String(required=False, metadata={"description": "Optional encounter identifier for tracking"})
+
+class SpellCastResponse(Schema):
+    """Response payload for a resolved spellcast."""
+    outcome = fields.String(required=True, metadata={"example": "hit", "description": "Result of the spellcast"})
+    damage = fields.Integer(required=False, metadata={"description": "Damage dealt to target, if any"})
+    effects = fields.List(fields.String(), required=False, metadata={"description": "List of triggered spell effects"})
+    log = fields.List(fields.String(), required=False, metadata={"description": "Narrative log of spellcasting events"})
+    notes = fields.List(fields.String(), required=False, metadata={"description": "Additional notes or trait effects"})
