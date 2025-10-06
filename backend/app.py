@@ -16,6 +16,7 @@ from backend.health_checks import check_database, check_env, get_app_metadata
 from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
 
+
 # Track uptime
 start_time = time.time()
 
@@ -53,6 +54,16 @@ app.config.update({
 # Initialize Flask-Smorest API
 api = Api(app)
 print("✅ OpenAPI 3.0 initialized successfully")
+
+# Define API key security scheme
+api.spec.components.security_scheme(
+    "ApiKeyAuth",
+    {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+    }
+)
 
 # Register your blueprints
 print("🔄 Registering blueprints…")
@@ -105,6 +116,14 @@ def assign_request_id():
     for handler in app.logger.handlers:
         handler.addFilter(lambda record: setattr(record, "request_id", rid) or True)
     increment_request()
+
+    # 🔐 Enforce API key for protected routes
+    if request.path.startswith("/api/"):
+        key = request.headers.get("X-API-Key")
+        expected = os.getenv("API_KEY")
+        if not key or key != expected:
+            return jsonify({"error": "Unauthorized"}), 401
+
 
 # Basic health check
 @app.route("/")
