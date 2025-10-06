@@ -89,3 +89,9 @@ class SpellCastResponse(Schema):
     effects = fields.List(fields.String(), required=False, metadata={"description": "List of triggered spell effects"})
     log = fields.List(fields.String(), required=False, metadata={"description": "Narrative log of spellcasting events"})
     notes = fields.List(fields.String(), required=False, metadata={"description": "Additional notes or trait effects"})
+
+class EncounterRequestSchema(Schema):
+    actors = fields.List(fields.Nested(CharacterSchema), required=True)
+    rounds = fields.Integer(load_default=3)
+    log = fields.Boolean(load_default=True)
+    encounter_id = fields.String(required=False)

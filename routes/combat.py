@@ -2,6 +2,10 @@ from flask import request
 from flask_smorest import Blueprint
 from backend.roll_logic import resolve_combat_roll, simulate_combat
 from backend.magic_logic import cast_spell, character_from_dict
+from backend.combat_utils import resolve_initiative
+from schemas.combat import EncounterRequestSchema
+
+
 import traceback
 
 combat_blp = Blueprint(
@@ -42,3 +46,16 @@ def post_roll_combat_simulate(payload):
         print("Combat simulation error:", str(e))
         traceback.print_exc()
         return {"error": "Simulation failed"}, 500
+    
+@combat_blp.route("/simulate/encounter", methods=["POST"])
+@combat_blp.arguments(EncounterRequestSchema)
+@combat_blp.response(200, SimulatedCombatResponse)
+@combat_blp.doc(tags=["Combat"], summary="Simulate a multi-round encounter with initiative")
+def post_simulate_encounter(payload):
+    try:
+        result = simulate_combat(**payload)
+        return result
+    except Exception as e:
+        print("Encounter simulation error:", str(e))
+        traceback.print_exc()
+        return {"error": "Encounter simulation failed"}, 500
