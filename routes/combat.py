@@ -11,6 +11,8 @@ from pydantic import ValidationError
 from schemas.encounter import Encounter
 from schemas.lore_entry import LoreEntry
 from backend.lore_log import add_lore_entry, get_lore_by_actor, get_lore_by_round, get_all_lore
+from schemas.actor import ActorResponseSchema
+
 
 
 import traceback
@@ -69,10 +71,10 @@ def post_simulate_encounter(payload):
 
 @combat_blp.route("/actor", methods=["POST"])
 @combat_blp.arguments(Actor)
-@combat_blp.response(201, Actor)
+@combat_blp.response(201, ActorResponseSchema)
 def register_actor(payload):
     saved = add_actor(payload)
-    return {"message": "Actor registered", "actor": saved}
+    return saved  # ✅ Just return the dict, no wrapping
 
 @combat_blp.route("/actor/list", methods=["GET"])
 @combat_blp.response(200, list[Actor])
