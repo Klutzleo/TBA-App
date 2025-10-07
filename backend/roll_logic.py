@@ -257,6 +257,12 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
 # Simulates 1v1 Combat
 def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     print("✅ simulate_combat() was called")
+
+    import uuid
+    from backend.encounter_memory import set_encounter_id
+
+    encounter_id = str(uuid.uuid4())
+    set_encounter_id(encounter_id)
     
     # Roll initiative for both combatants
     combatants = [attacker, defender]
@@ -301,7 +307,8 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
                     "actor": actor.get("name", "Unknown"),
                     "round": i,
                     "tag": actor.get("status", "combat"),
-                    "message": result.get("narrative", f"{actor_name} acted in round {i}")
+                    "message": result.get("narrative", f"{actor_name} acted in round {i}"),
+                    "encounter_id": encounter_id
                 }
                 add_lore_entry(echo)
 
@@ -354,7 +361,8 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
             },
             "summary": summary,
             "final_outcome": outcome,
-            "lore": lore_summary
+            "lore": lore_summary,
+            "encounter_id": encounter_id
         }
             
         return {
