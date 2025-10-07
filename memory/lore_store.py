@@ -20,11 +20,10 @@ def search_lore(actor=None, location=None, moment=None, encounter_id=None, min_r
     if max_round:
         results = [entry for entry in results if entry["round"] <= max_round]
 
+    return results  # ✅ Move this here
+
 from difflib import get_close_matches
 
 def fuzzy_match(value, options):
     matches = get_close_matches(value, options, n=1, cutoff=0.6)
     return matches[0] if matches else None
-
-
-    return results
