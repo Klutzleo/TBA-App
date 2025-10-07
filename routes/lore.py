@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
+from memory.lore_store import add_lore_entry, search_lore
 
 app = Flask(__name__)
-lore_log = []
 
 @app.route("/lore/entry", methods=["POST"])
 def lore_entry():
@@ -11,9 +11,15 @@ def lore_entry():
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields"}), 400
 
-    lore_log.append(data)
-    return jsonify({"message": "Lore entry saved", "entry": data}), 201
+    entry = add_lore_entry(data)
+    return jsonify({"message": "Lore entry saved", "entry": entry}), 201
 
-def add_lore_entry(entry):
-    lore_log.append(entry)
-    return entry
+@app.route("/lore/search", methods=["GET"])
+def lore_search():
+    actor = request.args.get("actor")
+    location = request.args.get("location")
+    moment = request.args.get("moment")
+    encounter_id = request.args.get("encounter_id")
+
+    results = search_lore(actor, location, moment, encounter_id)
+    return jsonify({"results": results})
