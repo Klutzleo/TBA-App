@@ -395,7 +395,9 @@ def trigger_echo(actor, context):
             bonuses.append(echo["effect"])
     return bonuses
 
-def resolve_calling(actor, round_num=None):
+from routes.lore import add_lore_entry  # make sure this is imported
+
+def resolve_calling(actor, round_num=None, encounter_id=None):
     ip = actor["stats"].get("IP", 0)
     sp = actor["stats"].get("SP", 0)
     sw_roll = roll_die("1d6")
@@ -418,7 +420,22 @@ def resolve_calling(actor, round_num=None):
             "location": actor.get("location", "Unknown")
         }
         actor["echoes"] = actor.get("echoes", []) + [echo]
+
+        # ✅ Log to lore before returning
+        lore_entry = {
+            "actor": actor["name"],
+            "moment": "The Calling",
+            "description": echo["description"],
+            "effect": echo["effect"],
+            "location": echo["location"],
+            "round": round_num,
+            "encounter_id": encounter_id
+        }
+        add_lore_entry(lore_entry)
+
         return f"{actor['name']} fails The Calling—memory echoes in the aftermath."
+    
+    
 
 def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
     initiative_order = resolve_initiative(actors)
@@ -480,7 +497,7 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
                 round_log.append(f"{target['name']} enters The Calling...")
 
             if target["dp"] <= -5 and not target.get("marked_by_death"):
-                calling_result = resolve_calling(target, round_num=r+1)
+                calling_result = resolve_calling(target, round_num=r+1, encounter_id=encounter_id)
                 round_log.append(calling_result)
 
         round_results.append({"round": r+1, "log": round_log})
