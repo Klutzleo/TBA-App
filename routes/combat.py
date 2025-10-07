@@ -10,7 +10,7 @@ from schemas.actor import Actor
 from pydantic import ValidationError
 from schemas.encounter import Encounter
 from schemas.lore_entry import LoreEntry
-from backend.lore_log import add_lore_entry
+from backend.lore_log import add_lore_entry, get_lore_by_actor, get_lore_by_round, get_all_lore
 
 
 import traceback
@@ -126,3 +126,18 @@ def post_lore_entry(payload):
 def post_lore_entry(payload):
     saved = add_lore_entry(payload)
     return {"message": "Lore entry recorded", "entry": saved}
+
+@combat_blp.route("/lore/actor/<string:actor_name>", methods=["GET"])
+@combat_blp.response(200, list[LoreEntry])
+def get_lore_for_actor(actor_name):
+    return get_lore_by_actor(actor_name)
+
+@combat_blp.route("/lore/round/<int:round_number>", methods=["GET"])
+@combat_blp.response(200, list[LoreEntry])
+def get_lore_for_round(round_number):
+    return get_lore_by_round(round_number)
+
+@combat_blp.route("/lore/all", methods=["GET"])
+@combat_blp.response(200, list[LoreEntry])
+def get_all_lore_entries():
+    return get_all_lore()
