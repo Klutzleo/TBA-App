@@ -27,6 +27,7 @@ pip-chill==1.0.3
 platformdirs==4.2.2
 requests==2.31.0
 tomli==2.0.1
+pydantic>=1.10
 
 # Dev tools
 pytest>=7.0
