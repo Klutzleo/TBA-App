@@ -134,3 +134,8 @@ def get_lore_for_round(round_number):
 @combat_blp.response(200, list[LoreEntry])
 def get_all_lore_entries():
     return get_all_lore()
+
+@combat_blp.route("/lore/encounter/<string:encounter_id>", methods=["GET"])
+@combat_blp.response(200, list[LoreEntry])
+def get_lore_for_encounter(encounter_id):
+    return [entry for entry in get_all_lore() if entry.get("encounter_id") == encounter_id]
