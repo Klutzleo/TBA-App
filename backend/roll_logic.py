@@ -441,7 +441,7 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
                 round_log.append(f"{target['name']} enters The Calling...")
 
             if target["dp"] <= -5 and not target.get("marked_by_death"):
-                calling_result = resolve_calling(target)
+                calling_result = resolve_calling(target, round_num=r+1)
                 round_log.append(calling_result)
 
         round_results.append({"round": r+1, "log": round_log})
@@ -464,7 +464,7 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
         "summary": summary
     }
 
-def resolve_calling(actor):
+def resolve_calling(actor, round_num=None):
     ip = actor["stats"].get("IP", 0)
     sp = actor["stats"].get("SP", 0)
     sw_roll = roll_die("1d6")
@@ -478,5 +478,13 @@ def resolve_calling(actor):
         return f"{actor['name']} resists The Calling—marked, but not gone."
     else:
         actor["dp"] = -6
-        actor["echoes"] = actor.get("echoes", []) + [f"{actor['name']} fell in round memory."]
+        echo = {
+            "moment": "The Calling",
+            "round": round_num,
+            "description": f"{actor['name']} fell in round memory.",
+            "effect": "+1d6 to allies when avenging",
+            "trigger": "avenging",
+            "location": actor.get("location", "Unknown")
+        }
+        actor["echoes"] = actor.get("echoes", []) + [echo]
         return f"{actor['name']} fails The Calling—memory echoes in the aftermath."
