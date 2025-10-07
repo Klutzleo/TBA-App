@@ -381,6 +381,13 @@ def roll_initiative(combatants):
 
     return rolls
 
+def check_tether(actor, context):
+    active_mods = []
+    for tether in actor.get("tethers", []):
+        if tether["condition"] in context:
+            active_mods.append(tether["modifier"])
+    return active_mods
+
 def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
     initiative_order = resolve_initiative(actors)
     combat_log = [f"Initiative order: {', '.join(initiative_order)}"]
@@ -405,8 +412,21 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
                 continue
             target = random.choice(targets)
 
-            # Resolve combat (PP + Edge vs PP + Edge)
+            # 🧷 Check for tether activation
+            context = f"{actor['name']} vs {target['name']}"
+            modifiers = check_tether(actor, context)
+
+            # Base attack total
             atk_total = actor["stats"].get("PP", 0) + actor.get("edge", 0)
+
+            # Apply tether modifiers
+            for mod in modifiers:
+                atk_total += roll_die(mod)
+
+            if modifiers:
+                round_log.append(f"{actor['name']}'s tether activates: {', '.join(modifiers)}")
+
+            # Resolve combat (PP + Edge vs PP + Edge)
             def_total = target["stats"].get("PP", 0) + target.get("edge", 0)
             margin = atk_total - def_total
 
