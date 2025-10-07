@@ -4,6 +4,7 @@ import random
 import re
 from schemas.loader import CORE_RULESET
 from backend.combat_utils import resolve_initiative
+from backend.lore_log import add_lore_entry, get_lore_by_round
 
 
 ### 🎲 Dice Utilities ###
@@ -296,6 +297,15 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
 
                 round_log["actions"].append(result)
 
+                echo = {
+                    "actor": actor.get("name", "Unknown"),
+                    "round": i,
+                    "tag": actor.get("status", "combat"),
+                    "message": result.get("narrative", f"{actor_name} acted in round {i}")
+                }
+                add_lore_entry(echo)
+
+
                 print(f"Round {i} - {actor_name} strikes: {result['narrative']} | DP: {attacker_dp} vs {defender_dp}")
 
                 # Early termination
@@ -319,6 +329,11 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
 
         summary = f"{attacker['name']} and {defender['name']} clash over {len(rounds)} rounds."
 
+        # Gather lore echoes for each round
+        lore_summary = []
+        for r in range(1, len(rounds) + 1):
+            lore_summary.extend(get_lore_by_round(r))
+
         battle_log = {
             "type": "combat_simulation",
             "combatants": {
@@ -338,9 +353,10 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
                 defender.get("name", "Defender"): defender_dp
             },
             "summary": summary,
-            "final_outcome": outcome
+            "final_outcome": outcome,
+            "lore": lore_summary
         }
-
+            
         return {
             "battle_log": battle_log
         }
