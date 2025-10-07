@@ -111,3 +111,10 @@ def post_simulate_encounter(payload):
         traceback.print_exc()
         return {"error": "Encounter simulation failed"}, 500
 
+@combat_blp.route("/lore/entry", methods=["POST"])
+@combat_blp.arguments(LoreEntry)
+@combat_blp.response(201, dict)
+def post_lore_entry(payload):
+    # Persist to memory, database, or log
+    return {"message": "Lore entry recorded", "entry": payload}
+
