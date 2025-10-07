@@ -12,8 +12,7 @@ from schemas.encounter import Encounter
 from schemas.lore_entry import LoreEntry
 from backend.lore_log import add_lore_entry, get_lore_by_actor, get_lore_by_round, get_all_lore
 from schemas.actor import ActorResponseSchema
-
-
+from schemas.echo import Echo
 
 import traceback
 
@@ -164,3 +163,10 @@ def get_encounter_summary(encounter_id):
 def get_current_encounter():
     from backend.encounter_memory import encounter_state
     return encounter_state
+
+@combat_blp.route("/echo/apply", methods=["POST"])
+@combat_blp.arguments(Echo)
+@combat_blp.response(201, dict)
+def apply_echo(payload):
+    saved = add_lore_entry(payload)
+    return {"message": "Echo applied", "entry": saved}

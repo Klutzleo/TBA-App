@@ -5,7 +5,8 @@ encounter_state = {
     "round": 1,
     "location": None,
     "initiative_order": [],
-    "encounter_id": None
+    "encounter_id": None,
+    "effects": []
 }
 
 def add_actor(actor: dict):
@@ -34,9 +35,20 @@ def set_encounter_id(encounter_id: str):
 def get_encounter_id():
     return encounter_state["encounter_id"]
 
+def add_effect(effect: dict):
+    encounter_state["effects"].append(effect)
+    return effect
+
+def get_effects():
+    return encounter_state["effects"]
+
+def clear_effects():
+    encounter_state["effects"] = []
+
 def reset_encounter():
     encounter_state["actors"] = []
     encounter_state["round"] = 1
     encounter_state["location"] = None
     encounter_state["initiative_order"] = []
     encounter_state["encounter_id"] = None  # ✅ Reset here
+    encounter_state["effects"] = []  # ✅ Reset effects
