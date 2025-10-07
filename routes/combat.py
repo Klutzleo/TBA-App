@@ -139,3 +139,26 @@ def get_all_lore_entries():
 @combat_blp.response(200, list[LoreEntry])
 def get_lore_for_encounter(encounter_id):
     return [entry for entry in get_all_lore() if entry.get("encounter_id") == encounter_id]
+
+@combat_blp.route("/lore/tag/<string:tag>", methods=["GET"])
+@combat_blp.response(200, list[LoreEntry])
+def get_lore_by_tag(tag):
+    from backend.lore_log import get_all_lore
+    return [entry for entry in get_all_lore() if entry.get("tag") == tag]
+
+@combat_blp.route("/encounter/<string:encounter_id>/summary", methods=["GET"])
+@combat_blp.response(200, dict)
+def get_encounter_summary(encounter_id):
+    from backend.lore_log import get_all_lore
+    echoes = [e for e in get_all_lore() if e.get("encounter_id") == encounter_id]
+    return {
+        "encounter_id": encounter_id,
+        "echo_count": len(echoes),
+        "lore": echoes
+    }
+
+@combat_blp.route("/encounter/current", methods=["GET"])
+@combat_blp.response(200, dict)
+def get_current_encounter():
+    from backend.encounter_memory import encounter_state
+    return encounter_state
