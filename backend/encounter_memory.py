@@ -4,7 +4,8 @@ encounter_state = {
     "actors": [],
     "round": 1,
     "location": None,
-    "initiative_order": []
+    "initiative_order": [],
+    "encounter_id": None
 }
 
 def add_actor(actor: dict):
@@ -27,8 +28,15 @@ def resolve_initiative():
     encounter_state["initiative_order"] = [a["name"] for a in sorted_actors]
     return encounter_state["initiative_order"]
 
+def set_encounter_id(encounter_id: str):
+    encounter_state["encounter_id"] = encounter_id
+
+def get_encounter_id():
+    return encounter_state["encounter_id"]
+
 def reset_encounter():
     encounter_state["actors"] = []
     encounter_state["round"] = 1
     encounter_state["location"] = None
     encounter_state["initiative_order"] = []
+    encounter_state["encounter_id"] = None  # ✅ Reset here
