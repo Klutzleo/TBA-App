@@ -9,6 +9,8 @@ from schemas.combat import EncounterRequestSchema
 from schemas.actor import Actor
 from pydantic import ValidationError
 from schemas.encounter import Encounter
+from schemas.lore_entry import LoreEntry
+from backend.lore_log import add_lore_entry
 
 
 import traceback
@@ -118,3 +120,9 @@ def post_lore_entry(payload):
     # Persist to memory, database, or log
     return {"message": "Lore entry recorded", "entry": payload}
 
+@combat_blp.route("/lore/entry", methods=["POST"])
+@combat_blp.arguments(LoreEntry)
+@combat_blp.response(201, dict)
+def post_lore_entry(payload):
+    saved = add_lore_entry(payload)
+    return {"message": "Lore entry recorded", "entry": saved}
