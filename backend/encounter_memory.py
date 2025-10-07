@@ -1,0 +1,34 @@
+# backend/encounter_memory.py
+
+encounter_state = {
+    "actors": [],
+    "round": 1,
+    "location": None,
+    "initiative_order": []
+}
+
+def add_actor(actor: dict):
+    encounter_state["actors"].append(actor)
+    return actor
+
+def get_actors():
+    return encounter_state["actors"]
+
+def set_location(location: str):
+    encounter_state["location"] = location
+
+def advance_round():
+    encounter_state["round"] += 1
+    return encounter_state["round"]
+
+def resolve_initiative():
+    # Sort actors by initiative descending
+    sorted_actors = sorted(encounter_state["actors"], key=lambda a: a.get("initiative", 0), reverse=True)
+    encounter_state["initiative_order"] = [a["name"] for a in sorted_actors]
+    return encounter_state["initiative_order"]
+
+def reset_encounter():
+    encounter_state["actors"] = []
+    encounter_state["round"] = 1
+    encounter_state["location"] = None
+    encounter_state["initiative_order"] = []
