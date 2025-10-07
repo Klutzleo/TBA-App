@@ -388,6 +388,38 @@ def check_tether(actor, context):
             active_mods.append(tether["modifier"])
     return active_mods
 
+def trigger_echo(actor, context):
+    bonuses = []
+    for echo in actor.get("echoes", []):
+        if echo["trigger"] in context:
+            bonuses.append(echo["effect"])
+    return bonuses
+
+def resolve_calling(actor, round_num=None):
+    ip = actor["stats"].get("IP", 0)
+    sp = actor["stats"].get("SP", 0)
+    sw_roll = roll_die("1d6")
+
+    ip_success = ip >= sw_roll
+    sp_success = sp >= sw_roll
+
+    if ip_success or sp_success:
+        actor["dp"] = -4
+        actor["marked_by_death"] = True
+        return f"{actor['name']} resists The Calling—marked, but not gone."
+    else:
+        actor["dp"] = -6
+        echo = {
+            "moment": "The Calling",
+            "round": round_num,
+            "description": f"{actor['name']} fell in round memory.",
+            "effect": "+1d6 to allies when avenging",
+            "trigger": "avenging",
+            "location": actor.get("location", "Unknown")
+        }
+        actor["echoes"] = actor.get("echoes", []) + [echo]
+        return f"{actor['name']} fails The Calling—memory echoes in the aftermath."
+
 def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
     initiative_order = resolve_initiative(actors)
     combat_log = [f"Initiative order: {', '.join(initiative_order)}"]
@@ -426,6 +458,13 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
             if modifiers:
                 round_log.append(f"{actor['name']}'s tether activates: {', '.join(modifiers)}")
 
+            # Apply echo bonuses
+            echo_bonuses = trigger_echo(actor, context)
+            for bonus in echo_bonuses:
+                atk_total += roll_die(bonus)
+            if echo_bonuses:
+                round_log.append(f"{actor['name']} is moved by memory: {', '.join(echo_bonuses)}")
+
             # Resolve combat (PP + Edge vs PP + Edge)
             def_total = target["stats"].get("PP", 0) + target.get("edge", 0)
             margin = atk_total - def_total
@@ -463,28 +502,3 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
         "log": combat_log,
         "summary": summary
     }
-
-def resolve_calling(actor, round_num=None):
-    ip = actor["stats"].get("IP", 0)
-    sp = actor["stats"].get("SP", 0)
-    sw_roll = roll_die("1d6")
-
-    ip_success = ip >= sw_roll
-    sp_success = sp >= sw_roll
-
-    if ip_success or sp_success:
-        actor["dp"] = -4
-        actor["marked_by_death"] = True
-        return f"{actor['name']} resists The Calling—marked, but not gone."
-    else:
-        actor["dp"] = -6
-        echo = {
-            "moment": "The Calling",
-            "round": round_num,
-            "description": f"{actor['name']} fell in round memory.",
-            "effect": "+1d6 to allies when avenging",
-            "trigger": "avenging",
-            "location": actor.get("location", "Unknown")
-        }
-        actor["echoes"] = actor.get("echoes", []) + [echo]
-        return f"{actor['name']} fails The Calling—memory echoes in the aftermath."
