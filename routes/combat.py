@@ -16,12 +16,7 @@ from schemas.echo import Echo
 
 import traceback
 
-combat_blp = Blueprint(
-    "Combat",
-    "combat",
-    url_prefix="/api/combat",
-    description="Combat resolution and simulation"
-)
+combat_blp = Blueprint("combat", "combat", url_prefix="/api/combat", description="Combat endpoints")
 
 from schemas.combat import CombatRollRequest, CombatRollResponse, SimulatedCombatResponse
 
