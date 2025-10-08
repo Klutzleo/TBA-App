@@ -1,4 +1,5 @@
 # backend/encounter_memory.py
+from typing import Optional
 
 encounter_state = {
     "actors": [],
