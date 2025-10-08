@@ -88,7 +88,7 @@ except Exception:
 
 try:
     from routes.combat import combat_blp
-    api.register_blueprint(combat_blp)
+    app.register_blueprint(combat_blp, url_prefix="/api/combat")
     print("✅ combat_blp registered")
 except Exception:
     print("❌ Failed to import/register combat_blp:")
