@@ -168,5 +168,5 @@ def get_current_encounter():
 @combat_blp.arguments(Echo)
 @combat_blp.response(201, dict)
 def apply_echo(payload):
-    saved = add_lore_entry(payload)
-    return {"message": "Echo applied", "entry": saved}
+    saved = add_effect(payload.dict())
+    return {"message": "Echo applied", "effect": saved}
