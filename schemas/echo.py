@@ -1,10 +1,9 @@
-from pydantic import BaseModel
-from typing import Optional
+from marshmallow import Schema, fields
 
-class Echo(BaseModel):
-    actor: str
-    round: Optional[int]
-    tag: Optional[str]
-    effect: Optional[str]
-    duration: Optional[int]
-    encounter_id: Optional[str]
+class EchoSchema(Schema):
+    actor = fields.Str(required=True)
+    round = fields.Int()
+    tag = fields.Str()
+    effect = fields.Str()
+    duration = fields.Int()
+    encounter_id = fields.Str()
