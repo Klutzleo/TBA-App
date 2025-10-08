@@ -45,6 +45,15 @@ def get_effects():
 def clear_effects():
     encounter_state["effects"] = []
 
+def remove_effect(actor_name: str, tag: Optional[str] = None):
+    encounter_state["effects"] = [
+        e for e in encounter_state["effects"]
+        if not (e["actor"] == actor_name and (tag is None or e.get("tag") == tag))
+    ]
+
+def resolve_effects(round: int):
+    return [e for e in encounter_state["effects"] if e.get("round") == round]
+
 def reset_encounter():
     encounter_state["actors"] = []
     encounter_state["round"] = 1
