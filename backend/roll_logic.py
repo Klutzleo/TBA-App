@@ -7,6 +7,7 @@ from backend.combat_utils import resolve_initiative
 from backend.lore_log import add_lore_entry, get_lore_by_round
 
 
+
 ### 🎲 Dice Utilities ###
 def parse_die(die_str):
     match = re.fullmatch(r"(\d+)d(\d+)", die_str)
@@ -259,8 +260,9 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
     print("✅ simulate_combat() was called")
 
     import uuid
-    from backend.encounter_memory import set_encounter_id
-
+    from backend.encounter_memory import set_encounter_id, resolve_effects, get_effects, remove_effect
+    from backend.lore_log import add_lore_entry
+    
     encounter_id = str(uuid.uuid4())
     set_encounter_id(encounter_id)
     
@@ -276,7 +278,42 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
         rounds = []
         i = 1
         while True:
+            round_log["effects"] = effects
             round_log = {"round": i, "actions": []}
+            
+            effects = resolve_effects(i)
+            for effect in effects:
+                echo = {
+                    "actor": effect["actor"],
+                    "round": i,
+                    "tag": effect.get("tag", "effect"),
+                    "message": f"{effect['actor']} is affected by {effect['effect']}",
+                    "encounter_id": encounter_id
+                }
+                if effect["tag"] == "poison":
+                    if effect["actor"] == attacker["name"]:
+                        attacker_dp -= 1
+                    elif effect["actor"] == defender["name"]:
+                        defender_dp -= 1
+                add_lore_entry(echo)
+                print(f"🔮 {echo['message']}")
+
+                if effect["duration"] <= 0:
+                    remove_effect(effect["actor"], effect.get("tag"))
+                    add_lore_entry({
+                        "actor": effect["actor"],
+                        "round": i,
+                        "tag": "expired",
+                        "message": f"{effect['tag']} effect on {effect['actor']} has expired.",
+                        "encounter_id": encounter_id
+                    })
+
+            for effect in get_effects():
+                if effect.get("duration"):
+                    effect["duration"] -= 1
+                    if effect["duration"] <= 0:
+                        remove_effect(effect["actor"], effect.get("tag"))
+
 
             for actor_name in initiative_order:
                 actor = next(c for c in combatants if c["name"] == actor_name)
