@@ -14,3 +14,12 @@ class ActorResponseSchema(Schema):
     name = fields.Str(required=True)
     dp = fields.Int(required=True)
     max_dp = fields.Int(required=True)
+
+class ActorRequestSchema(Schema):
+    name = fields.Str(required=True)
+    dp = fields.Int(required=True)
+    max_dp = fields.Int(required=True)
+    initiative = fields.Int()
+    status = fields.Str()
+    tags = fields.List(fields.Str())
+
