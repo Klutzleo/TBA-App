@@ -110,7 +110,7 @@ def post_simulate_encounter(payload):
         return {"error": "Encounter simulation failed"}, 500
 
 @combat_blp.route("/lore/entry", methods=["POST"])
-@combat_blp.arguments(LoreEntry)
+@combat_blp.arguments(LoreEntrySchema)
 @combat_blp.response(201, dict)
 def post_lore_entry(payload):
     saved = add_lore_entry(payload)
@@ -123,22 +123,22 @@ def get_lore_by_actor(actor_name):
     return get_lore_by_actor(actor_name)
 
 @combat_blp.route("/lore/round/<int:round_number>", methods=["GET"])
-@combat_blp.response(200, list[LoreEntry])
+@combat_blp.response(200, list[LoreEntrySchema])
 def get_lore_for_round(round_number):
     return get_lore_by_round(round_number)
 
 @combat_blp.route("/lore/all", methods=["GET"])
-@combat_blp.response(200, list[LoreEntry])
+@combat_blp.response(200, list[LoreEntrySchema])
 def get_all_lore_entries():
     return get_all_lore()
 
 @combat_blp.route("/lore/encounter/<string:encounter_id>", methods=["GET"])
-@combat_blp.response(200, list[LoreEntry])
+@combat_blp.response(200, list[LoreEntrySchema])
 def get_lore_for_encounter(encounter_id):
     return [entry for entry in get_all_lore() if entry.get("encounter_id") == encounter_id]
 
 @combat_blp.route("/lore/tag/<string:tag>", methods=["GET"])
-@combat_blp.response(200, list[LoreEntry])
+@combat_blp.response(200, list[LoreEntrySchema])
 def get_lore_by_tag(tag):
     from backend.lore_log import get_all_lore
     return [entry for entry in get_all_lore() if entry.get("tag") == tag]
