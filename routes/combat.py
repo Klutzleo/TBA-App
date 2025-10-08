@@ -1,4 +1,3 @@
-from flask import request, jsonify
 from flask_smorest import Blueprint
 from marshmallow import Schema, fields
 
@@ -99,11 +98,11 @@ def get_encounter_state():
 # 🧬 Apply Echo
 @combat_blp.route("/echo/apply", methods=["POST"])
 @combat_blp.arguments(EchoSchema)
-@combat_blp.response(201, dict)
+@combat_blp.response(201, EchoSchema)
 @combat_blp.doc(tags=["Echo"], summary="Apply a persistent effect to an actor")
 def apply_echo(payload):
     saved = add_effect(payload)
-    return {"message": "Echo applied", "effect": saved}
+    return saved
 
 # 📖 Lore Entry
 @combat_blp.route("/lore/entry", methods=["POST"])

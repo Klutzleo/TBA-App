@@ -37,6 +37,8 @@ def get_encounter_id():
     return encounter_state["encounter_id"]
 
 def add_effect(effect: dict):
+    if "effects" not in encounter_state:
+        encounter_state["effects"] = []
     encounter_state["effects"].append(effect)
     return effect
 
