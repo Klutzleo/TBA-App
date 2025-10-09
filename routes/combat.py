@@ -102,6 +102,7 @@ def get_encounter_state():
 @combat_blp.doc(tags=["Echo"], summary="Apply a persistent effect to an actor")
 def apply_echo(payload):
     saved = add_effect(payload)
+    add_lore_entry(payload)  # 🪶 Narrate it!
     return saved
 
 # 📖 Lore Entry
