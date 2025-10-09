@@ -176,3 +176,36 @@ def get_encounter_summary(encounter_id):
 @combat_blp.doc(tags=["Encounter"], summary="Get current encounter snapshot")
 def get_current_encounter():
     return encounter_state
+
+# Expire and cleans up effects so they dont continue or overlap
+@combat_blp.route("/effect/expire", methods=["POST"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Echo"], summary="Expire and clean up effects")
+def expire_effects():
+    expired = []
+    active = []
+
+    for effect in encounter_state.get("effects", []):
+        effect["duration"] -= 1
+        if effect["duration"] <= 0:
+            expired.append(effect)
+        else:
+            active.append(effect)
+
+    encounter_state["effects"] = active
+
+    # 🪶 Optionally log expired effects
+    for e in expired:
+        add_lore_entry({
+            "actor": e["actor"],
+            "round": e["round"] + e["duration"],  # approximate expiration round
+            "tag": e["tag"],
+            "effect": f"{e['tag']} effect expired",
+            "duration": 0,
+            "encounter_id": e["encounter_id"]
+        })
+
+    return {
+        "expired_count": len(expired),
+        "expired_effects": expired
+    }
