@@ -105,6 +105,21 @@ def apply_echo(payload):
     add_lore_entry(payload)  # 🪶 Narrate it!
     return saved
 
+# Resolves the Echo
+@combat_blp.route("/echo/resolve", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Echo"], summary="Resolve and narrate active effects")
+def resolve_echoes():
+    active = []
+    for effect in encounter_state.get("effects", []):
+        if effect.get("duration", 0) > 0:
+            actor = effect["actor"]
+            tag = effect["tag"]
+            desc = effect["effect"]
+            rounds = effect["duration"]
+            active.append(f"{actor} is affected by {tag}: {desc} ({rounds} rounds remaining)")
+    return {"active_effects": active}
+
 # 📖 Lore Entry
 @combat_blp.route("/lore/entry", methods=["POST"])
 @combat_blp.arguments(LoreEntrySchema)
