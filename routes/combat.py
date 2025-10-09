@@ -81,12 +81,39 @@ def post_reset_encounter():
     reset_encounter()
     return {"message": "Encounter reset"}
 
-# ⏭️ Advance Round
 @combat_blp.route("/encounter/round/advance", methods=["POST"])
 @combat_blp.response(200, dict)
-@combat_blp.doc(tags=["Encounter"], summary="Advance to the next round")
+@combat_blp.doc(tags=["Encounter"], summary="Advance round and expire effects")
 def post_advance_round():
-    return {"round": advance_round()}
+    new_round = advance_round()
+
+    expired = []
+    active = []
+
+    for effect in encounter_state.get("effects", []):
+        effect["duration"] -= 1
+        if effect["duration"] <= 0:
+            expired.append(effect)
+        else:
+            active.append(effect)
+
+    encounter_state["effects"] = active
+
+    for e in expired:
+        add_lore_entry({
+            "actor": e["actor"],
+            "round": new_round,
+            "tag": e["tag"],
+            "effect": f"{e['tag']} effect expired",
+            "duration": 0,
+            "encounter_id": e["encounter_id"]
+        })
+
+    return {
+        "round": new_round,
+        "expired_count": len(expired),
+        "expired_effects": expired
+    }
 
 # 📊 Encounter State
 @combat_blp.route("/encounter/state", methods=["GET"])
