@@ -155,6 +155,46 @@ def get_actor_summary(actor_name):
         "timeline": timeline
     }
 
+@combat_blp.route("/actor/compare/<string:actor_a>/<string:actor_b>", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Actor"], summary="Compare two actors' effects and lore")
+def compare_actors(actor_a, actor_b):
+    def get_effects(actor):
+        return [
+            {
+                "round": e["round"],
+                "tag": e["tag"],
+                "effect": e["effect"],
+                "duration": e["duration"]
+            }
+            for e in encounter_state.get("effects", [])
+            if e.get("actor") == actor
+        ]
+
+    def get_lore(actor):
+        return [
+            {
+                "round": entry["round"],
+                "tag": entry["tag"],
+                "effect": entry["effect"]
+            }
+            for entry in get_all_lore()
+            if entry.get("actor") == actor
+        ]
+
+    return {
+        "actor_a": {
+            "name": actor_a,
+            "effects": get_effects(actor_a),
+            "lore": get_lore(actor_a)
+        },
+        "actor_b": {
+            "name": actor_b,
+            "effects": get_effects(actor_b),
+            "lore": get_lore(actor_b)
+        }
+    }
+
 # 🧠 Initiative
 @combat_blp.route("/encounter/initiative", methods=["POST"])
 @combat_blp.response(200, StringListSchema)
