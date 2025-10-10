@@ -283,6 +283,14 @@ def validate_encounter():
         "effect_count": len(encounter_state.get("effects", []))
     }
 
+@combat_blp.route("/encounter/export", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Encounter"], summary="Export full encounter state")
+def export_encounter():
+    return {
+        "encounter_state": encounter_state
+    }
+
 # 🧬 Apply Echo
 @combat_blp.route("/echo/apply", methods=["POST"])
 @combat_blp.arguments(EchoSchema)
