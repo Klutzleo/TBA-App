@@ -293,3 +293,34 @@ def expire_effects():
         "expired_count": len(expired),
         "expired_effects": expired
     }
+
+@combat_blp.route("/round/summary", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Encounter"], summary="Narrate the current round summary")
+def get_round_summary():
+    round_number = encounter_state.get("round", 0)
+    initiative = encounter_state.get("initiative", [])
+    effects = encounter_state.get("effects", [])
+    lore = [entry for entry in get_all_lore() if entry.get("round") == round_number]
+
+    summary = []
+
+    for actor in initiative:
+        actor_effects = [
+            f"{e['tag']}: {e['effect']} ({e['duration']} rounds remaining)"
+            for e in effects
+            if e.get("actor") == actor and e.get("duration", 0) > 0
+        ]
+        if actor_effects:
+            summary.append(f"{actor} is affected by: " + "; ".join(actor_effects))
+        else:
+            summary.append(f"{actor} is ready with no active effects.")
+
+    for entry in lore:
+        summary.append(f"{entry['actor']} - {entry['tag']}: {entry['effect']}")
+
+    return {
+        "round": round_number,
+        "initiative_order": initiative,
+        "summary": summary
+    }
