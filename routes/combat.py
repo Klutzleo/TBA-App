@@ -123,6 +123,38 @@ def get_all_actor_status():
         "status": status
     }
 
+@combat_blp.route("/actor/summary/<string:actor_name>", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Actor"], summary="Get full round-by-round summary for an actor")
+def get_actor_summary(actor_name):
+    effects = [
+        {
+            "round": e["round"],
+            "tag": e["tag"],
+            "effect": e["effect"],
+            "duration": e["duration"]
+        }
+        for e in encounter_state.get("effects", [])
+        if e.get("actor") == actor_name
+    ]
+
+    lore = [
+        {
+            "round": entry["round"],
+            "tag": entry["tag"],
+            "effect": entry["effect"]
+        }
+        for entry in get_all_lore()
+        if entry.get("actor") == actor_name
+    ]
+
+    timeline = sorted(effects + lore, key=lambda x: x["round"])
+
+    return {
+        "actor": actor_name,
+        "timeline": timeline
+    }
+
 # 🧠 Initiative
 @combat_blp.route("/encounter/initiative", methods=["POST"])
 @combat_blp.response(200, StringListSchema)
