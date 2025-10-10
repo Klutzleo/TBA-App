@@ -291,6 +291,25 @@ def export_encounter():
         "encounter_state": encounter_state
     }
 
+@combat_blp.route("/encounter/import", methods=["POST"])
+@combat_blp.arguments(dict)
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Encounter"], summary="Import a full encounter state")
+def import_encounter(data):
+    global encounter_state
+
+    if "encounter_state" not in data or not isinstance(data["encounter_state"], dict):
+        return {"success": False, "error": "Missing or invalid encounter_state payload"}
+
+    encounter_state = data["encounter_state"]
+    return {
+        "success": True,
+        "message": "Encounter state imported successfully",
+        "round": encounter_state.get("round"),
+        "initiative_count": len(encounter_state.get("initiative", [])),
+        "effect_count": len(encounter_state.get("effects", []))
+    }
+
 # 🧬 Apply Echo
 @combat_blp.route("/echo/apply", methods=["POST"])
 @combat_blp.arguments(EchoSchema)
