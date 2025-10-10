@@ -66,6 +66,63 @@ def register_actor(payload):
 def list_actors():
     return get_actors()
 
+# Actor status should allow visuals of what is effecting all characters.
+@combat_blp.route("/actor/status", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Actor"], summary="Get current status of all actors")
+def get_actor_status():
+    status = {}
+
+    for effect in encounter_state.get("effects", []):
+        actor = effect["actor"]
+        tag = effect["tag"]
+        desc = effect["effect"]
+        rounds = effect["duration"]
+
+        if actor not in status:
+            status[actor] = []
+
+        status[actor].append(f"{tag}: {desc} ({rounds} rounds remaining)")
+
+    return {"status": status}
+
+# Same as status, but for a single character instead of all.
+@combat_blp.route("/actor/status/<string:actor_name>", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Actor"], summary="Get current status of a specific actor")
+def get_actor_status_for_actor(actor_name):
+    effects = [
+        f"{e['tag']}: {e['effect']} ({e['duration']} rounds remaining)"
+        for e in encounter_state.get("effects", [])
+        if e.get("actor") == actor_name and e.get("duration", 0) > 0
+    ]
+
+    return {
+        "actor": actor_name,
+        "active_effects": effects
+    }
+
+
+@combat_blp.route("/actor/status/all", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Actor"], summary="Get status of all actors in initiative order")
+def get_all_actor_status():
+    status = {}
+    initiative_order = encounter_state.get("initiative", [])
+
+    for actor in initiative_order:
+        effects = [
+            f"{e['tag']}: {e['effect']} ({e['duration']} rounds remaining)"
+            for e in encounter_state.get("effects", [])
+            if e.get("actor") == actor and e.get("duration", 0) > 0
+        ]
+        status[actor] = effects
+
+    return {
+        "initiative_order": initiative_order,
+        "status": status
+    }
+
 # 🧠 Initiative
 @combat_blp.route("/encounter/initiative", methods=["POST"])
 @combat_blp.response(200, StringListSchema)
