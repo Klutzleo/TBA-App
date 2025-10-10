@@ -211,6 +211,38 @@ def post_advance_round():
 def get_encounter_state():
     return encounter_state
 
+@combat_blp.route("/encounter/validate", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Encounter"], summary="Validate encounter state integrity")
+def validate_encounter():
+    errors = []
+
+    # Round check
+    round_number = encounter_state.get("round")
+    if not isinstance(round_number, int) or round_number < 0:
+        errors.append("Invalid round number")
+
+    # Initiative check
+    initiative = encounter_state.get("initiative", [])
+    if not isinstance(initiative, list) or not all(isinstance(i, str) for i in initiative):
+        errors.append("Initiative must be a list of actor names")
+
+    # Effects check
+    for idx, effect in enumerate(encounter_state.get("effects", [])):
+        for field in ["actor", "tag", "effect", "duration", "round", "encounter_id"]:
+            if field not in effect:
+                errors.append(f"Effect {idx} missing field: {field}")
+            elif field == "duration" and not isinstance(effect["duration"], int):
+                errors.append(f"Effect {idx} has non-integer duration")
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "round": round_number,
+        "initiative_count": len(initiative),
+        "effect_count": len(encounter_state.get("effects", []))
+    }
+
 # 🧬 Apply Echo
 @combat_blp.route("/echo/apply", methods=["POST"])
 @combat_blp.arguments(EchoSchema)
