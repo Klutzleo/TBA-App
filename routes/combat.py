@@ -195,6 +195,28 @@ def compare_actors(actor_a, actor_b):
         }
     }
 
+@combat_blp.route("/actor/echoes/<string:actor_name>", methods=["GET"])
+@combat_blp.response(200, dict)
+@combat_blp.doc(tags=["Actor"], summary="Get all echoes applied to an actor")
+def get_actor_echoes(actor_name):
+    echoes = [
+        {
+            "tag": e["tag"],
+            "effect": e["effect"],
+            "duration": e["duration"],
+            "round": e["round"],
+            "encounter_id": e["encounter_id"]
+        }
+        for e in encounter_state.get("effects", [])
+        if e.get("actor") == actor_name
+    ]
+
+    return {
+        "actor": actor_name,
+        "echoes": echoes,
+        "count": len(echoes)
+    }
+
 # 🧠 Initiative
 @combat_blp.route("/encounter/initiative", methods=["POST"])
 @combat_blp.response(200, StringListSchema)
