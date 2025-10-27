@@ -183,3 +183,11 @@ class ActorRequestSchema(Schema):
         required=True
     )
     traits = fields.List(fields.String(), load_default=[])
+
+class ActorResponseSchema(Schema):
+    name = fields.String()
+    stats = fields.Dict(
+        keys=fields.String(validate=validate.OneOf(["IP", "PP", "SP"])),
+        values=fields.Integer()
+    )
+    traits = fields.List(fields.String())
