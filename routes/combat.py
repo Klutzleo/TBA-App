@@ -26,7 +26,7 @@ from schemas.combat import (
     ActorCompareSchema, EchoesSchema, EncounterResetSchema,
     RoundAdvanceSchema, EncounterStateSchema, EncounterValidationSchema,
     EncounterExportSchema, EncounterImportSchema, EchoResolveSchema, LoreEntryResponseSchema, EncounterSummarySchema,
-    EncounterSnapshotSchema, EffectExpireSchema, RoundSummarySchema
+    EncounterSnapshotSchema, EffectExpireSchema, RoundSummarySchema, SpellCastRequest, SpellCastResponse
 )
 
 combat_blp = Blueprint("combat", "combat", url_prefix="/api/combat", description="Combat endpoints")
