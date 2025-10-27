@@ -96,3 +96,54 @@ def character_from_dict(data: dict) -> Character:
     char.current_dp = data.get("current_dp", data["stats"].get("DP", 0))
     char.reset_casts()
     return char
+
+def resolve_spellcast(caster_data, target_data, spell_data, distance="medium", log=False, encounter_id=None):
+    # Convert dicts to Character objects
+    caster = character_from_dict(caster_data)
+    target = character_from_dict(target_data)
+
+    # Inject spell into caster's spellbook as slot 0
+    caster.spellbook[0] = Spell(slot=0, die=f"{spell_data.get('power', 1)}d6")
+    caster._casts[0] = 0  # reset cast count
+    spell_traits = spell_data.get("traits", [])
+
+    # Cast spell using slot 0
+    result = cast_spell(caster, [target], slot=0)
+
+    # Trait-based narration
+    effects = []
+    notes = []
+    log_lines = result.get("results", [])
+
+    for trait in spell_traits:
+        if trait == "burn" and result["results"][0]["damage"] > 0:
+            effects.append("burn")
+            notes.append(f"{target.name} is scorched by flames!")
+        elif trait == "stun" and result["results"][0]["damage"] > 0:
+            effects.append("stun")
+            notes.append(f"{target.name} is momentarily stunned!")
+        elif trait == "area":
+            notes.append("The spell affects a wide area.")
+        else:
+            notes.append(f"Trait '{trait}' has no defined effect yet.")
+
+    # Optional lore logging
+    if encounter_id:
+        from backend.encounter_memory import add_lore_entry
+        for effect in effects:
+            add_lore_entry(
+                actor=target.name,
+                round=None,
+                tag="spell",
+                effect=effect,
+                duration=2,
+                encounter_id=encounter_id
+            )
+
+    return {
+        "outcome": "hit" if result["results"][0]["damage"] > 0 else "miss",
+        "damage": result["results"][0]["damage"],
+        "effects": effects,
+        "log": log_lines if log else [],
+        "notes": notes
+    }

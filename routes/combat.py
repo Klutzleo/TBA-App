@@ -3,7 +3,7 @@ from marshmallow import fields
 
 # Backend logic
 from backend.roll_logic import resolve_combat_roll, simulate_combat
-from backend.magic_logic import cast_spell, character_from_dict
+from backend.magic_logic import cast_spell, character_from_dict, resolve_spellcast
 from backend.combat_utils import resolve_initiative
 from backend.encounter_memory import (
     add_actor, add_effect, get_actors,
@@ -423,7 +423,5 @@ def get_round_summary():
 @combat_blp.route("/spell/cast", methods=["POST"])
 @combat_blp.arguments(SpellCastRequest)
 @combat_blp.response(200, SpellCastResponse)
-@combat_blp.doc(tags=["Spellcasting"], summary="Cast a spell and resolve effects")
 def cast_spell_route(payload):
-    result = cast_spell(**payload)
-    return result
+    return resolve_spellcast(**payload)
