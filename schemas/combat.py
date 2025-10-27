@@ -95,3 +95,82 @@ class EncounterRequestSchema(Schema):
     rounds = fields.Integer(load_default=3)
     log = fields.Boolean(load_default=True)
     encounter_id = fields.String(required=False)
+
+class ActorStatusSchema(Schema):
+    status = fields.Dict(keys=fields.String(), values=fields.List(fields.String()))
+
+class ActorStatusForActorSchema(Schema):
+    actor = fields.String()
+    active_effects = fields.List(fields.String())
+
+class AllActorStatusSchema(Schema):
+    initiative_order = fields.List(fields.String())
+    status = fields.Dict(keys=fields.String(), values=fields.List(fields.String()))
+
+class ActorSummarySchema(Schema):
+    actor = fields.String()
+    timeline = fields.List(fields.Dict())
+
+class ActorCompareSchema(Schema):
+    actor_a = fields.Dict()
+    actor_b = fields.Dict()
+
+class EchoesSchema(Schema):
+    actor = fields.String()
+    echoes = fields.List(fields.Dict())
+    count = fields.Integer()
+
+class EncounterResetSchema(Schema):
+    message = fields.String()
+    success = fields.Boolean(load_default=True)
+
+class RoundAdvanceSchema(Schema):
+    round = fields.Integer()
+    expired_count = fields.Integer()
+    expired_effects = fields.List(fields.Dict())
+
+class EncounterStateSchema(Schema):
+    round = fields.Integer()
+    initiative = fields.List(fields.String())
+    effects = fields.List(fields.Dict())
+    actors = fields.List(fields.Dict())
+
+class EncounterValidationSchema(Schema):
+    valid = fields.Boolean()
+    errors = fields.List(fields.String())
+    round = fields.Integer()
+    initiative_count = fields.Integer()
+    effect_count = fields.Integer()
+
+class EncounterExportSchema(Schema):
+    encounter_state = fields.Dict()
+
+class EncounterImportSchema(Schema):
+    encounter_state = fields.Dict(required=True)
+
+class EchoResolveSchema(Schema):
+    active_effects = fields.List(fields.String())
+
+class LoreEntryResponseSchema(Schema):
+    message = fields.String()
+    entry = fields.Dict()
+
+class EncounterSummarySchema(Schema):
+    encounter_id = fields.String()
+    echo_count = fields.Integer()
+    lore = fields.List(fields.Dict())
+
+class EncounterSnapshotSchema(Schema):
+    round = fields.Integer()
+    initiative = fields.List(fields.String())
+    effects = fields.List(fields.Dict())
+    actors = fields.List(fields.Dict())
+
+class EffectExpireSchema(Schema):
+    expired_count = fields.Integer()
+    expired_effects = fields.List(fields.Dict())
+
+class RoundSummarySchema(Schema):
+    round = fields.Integer()
+    initiative_order = fields.List(fields.String())
+    summary = fields.List(fields.String())
