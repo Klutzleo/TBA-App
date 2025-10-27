@@ -174,3 +174,12 @@ class RoundSummarySchema(Schema):
     round = fields.Integer()
     initiative_order = fields.List(fields.String())
     summary = fields.List(fields.String())
+
+class ActorRequestSchema(Schema):
+    name = fields.String(required=True)
+    stats = fields.Dict(
+        keys=fields.String(validate=validate.OneOf(["IP", "PP", "SP"])),
+        values=fields.Integer(),
+        required=True
+    )
+    traits = fields.List(fields.String(), load_default=[])

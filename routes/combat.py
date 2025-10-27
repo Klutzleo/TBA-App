@@ -418,3 +418,11 @@ def get_round_summary():
         "initiative_order": initiative,
         "summary": summary
     }
+
+@combat_blp.route("/spell/cast", methods=["POST"])
+@combat_blp.arguments(SpellCastRequest)
+@combat_blp.response(200, SpellCastResponse)
+@combat_blp.doc(tags=["Spellcasting"], summary="Cast a spell and resolve effects")
+def cast_spell_route(payload):
+    result = cast_spell(**payload)
+    return result
