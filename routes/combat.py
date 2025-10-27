@@ -14,6 +14,8 @@ from backend.lore_log import (
     get_lore_by_round, get_all_lore
 )
 
+from schemas.lore_entry import LoreEntrySchema
+
 # Schemas
 from schemas.combat import (
     CombatRollRequest, CombatRollResponse,
