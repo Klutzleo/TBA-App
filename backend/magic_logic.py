@@ -99,13 +99,13 @@ def character_from_dict(data: dict) -> Character:
 
 def resolve_spellcast(caster, target, spell, distance="medium", log=False, encounter_id=None):
     # Convert dicts to Character objects
-    caster = character_from_dict(caster_data)
-    target = character_from_dict(target_data)
+    caster = character_from_dict(caster)
+    target = character_from_dict(target)
 
     # Inject spell into caster's spellbook as slot 0
-    caster.spellbook[0] = Spell(slot=0, die=f"{spell_data.get('power', 1)}d6")
+    caster.spellbook[0] = Spell(slot=0, die=f"{spell.get('power', 1)}d6")
     caster._casts[0] = 0  # reset cast count
-    spell_traits = spell_data.get("traits", [])
+    spell_traits = spell.get("traits", [])
 
     # Cast spell using slot 0
     result = cast_spell(caster, [target], slot=0)
