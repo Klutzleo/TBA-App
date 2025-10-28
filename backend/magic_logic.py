@@ -3,6 +3,20 @@
 import random
 from typing import List, Dict
 
+def get_spell_die(level, slot):
+    spell_table = {
+        1: ["1d6", None, None, None, None],
+        3: ["1d8", "1d6", None, None, None],
+        5: ["1d10", "1d8", "1d6", None, None],
+        7: ["1d12", "1d10", "1d8", "1d8", None],
+        9: ["2d8", "1d12", "1d10", "1d10", "1d10"],
+        10: ["2d8", "1d12", "2d6", "1d10", "1d12"]
+    }
+    for lvl in sorted(spell_table.keys(), reverse=True):
+        if level >= lvl:
+            return spell_table[lvl][slot]
+    return "1d6"  # fallback
+
 def roll_die(die: str) -> int:
     count, faces = map(int, die.lower().split("d"))
     return sum(random.randint(1, faces) for _ in range(count))
@@ -17,6 +31,7 @@ class Character:
     def __init__(self, name: str, stats: Dict[str, int], edge: int,
                  defense_die: str, bap: int, spells: Dict[int, Spell]):
         self.name = name
+        self.level = stats.get("level", 1)
         self.stats = stats
         self.edge = edge
         self.defense_die = defense_die
@@ -104,13 +119,11 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
 
     # Determine spell die from level and slot
     spell_slot = 0  # assuming slot 0 for now
-    spell_die = get_spell_die(caster.level, slot=spell_slot)  # e.g., "1d8"
+    spell_die = get_spell_die(caster.level, spell_slot)  # e.g., "1d8"
 
-    # Roll spell attack
-    spell_roll = roll_die(spell_die) + caster.IP + caster.edge
-
-    # Roll target defense
-    defense_roll = roll_die(target.defense_die) + target.PP + target.edge
+    spell_roll = roll_die(spell_die) + caster.stats["IP"] + caster.edge
+    defense_roll = roll_die(target.defense_die) + target.stats["PP"] + target.edge
+    bap_triggered = spell.get("bap_triggered", False)
 
     # Calculate damage
     damage = max(spell_roll - defense_roll, 0)
