@@ -8,7 +8,12 @@ class CharacterSchema(Schema):
         required=True
     )
     traits = fields.List(fields.String(), load_default=[])
-
+    bap = fields.Integer()
+    edge = fields.Integer()
+    defense_die = fields.String()
+    spells = fields.Dict()
+    current_dp = fields.Integer()
+    
 class EquipmentSchema(Schema):
     """Defines a piece of equipment used in combat."""
     name = fields.String(required=True, metadata={"description": "Equipment name"})
