@@ -1,4 +1,5 @@
 from flask_smorest import Blueprint
+from flask.views import MethodView
 from marshmallow import fields
 
 # Backend logic
@@ -26,7 +27,7 @@ from schemas.combat import (
     ActorCompareSchema, EchoesSchema, EncounterResetSchema,
     RoundAdvanceSchema, EncounterStateSchema, EncounterValidationSchema,
     EncounterExportSchema, EncounterImportSchema, EchoResolveSchema, LoreEntryResponseSchema, EncounterSummarySchema,
-    EncounterSnapshotSchema, EffectExpireSchema, RoundSummarySchema, SpellCastRequest, SpellCastResponse
+    EncounterSnapshotSchema, EffectExpireSchema, RoundSummarySchema, SpellCastRequest, SpellCastResponse, resolve_spellcast
 )
 
 combat_blp = Blueprint("combat", "combat", url_prefix="/api/combat", description="Combat endpoints")
@@ -421,7 +422,26 @@ def get_round_summary():
     }
 
 @combat_blp.route("/spell/cast", methods=["POST"])
-@combat_blp.arguments(SpellCastRequest)
-@combat_blp.response(200, SpellCastResponse)
-def cast_spell_route(payload):
-    return resolve_spellcast(**payload)
+class CastSpell(MethodView):
+    @combat_blp.arguments(SpellCastRequest)
+    @combat_blp.response(200, SpellCastResponse)
+    def post(self, payload):
+        result = resolve_spellcast(
+            caster=payload["caster"],
+            target=payload["target"],
+            spell=payload["spell"],
+            distance=payload.get("distance", "medium"),
+            log=payload.get("log", False),
+            encounter_id=payload.get("encounter_id")
+        )
+        return result
+
+@combat_blp.route("/round/resolve", methods=["POST"])
+class ResolveRound(MethodView):
+    def post(self):
+        from backend.encounter_memory import advance_round
+        from backend.magic_logic import resolve_effects
+
+        round_num = advance_round()
+        effects = resolve_effects(round_num)
+        return { "round": round_num, "effects": effects }

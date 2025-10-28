@@ -102,32 +102,41 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
     caster = character_from_dict(caster)
     target = character_from_dict(target)
 
-    # Inject spell into caster's spellbook as slot 0
-    caster.spellbook[0] = Spell(slot=0, die=f"{spell.get('power', 1)}d6")
-    caster._casts[0] = 0  # reset cast count
-    spell_traits = spell.get("traits", [])
+    # Determine spell die from level and slot
+    spell_slot = 0  # assuming slot 0 for now
+    spell_die = get_spell_die(caster.level, slot=spell_slot)  # e.g., "1d8"
 
-    # Cast spell using slot 0
-    result = cast_spell(caster, [target], slot=0)
+    # Roll spell attack
+    spell_roll = roll_die(spell_die) + caster.IP + caster.edge
 
-    # Trait-based narration
+    # Roll target defense
+    defense_roll = roll_die(target.defense_die) + target.PP + target.edge
+
+    # Calculate damage
+    damage = max(spell_roll - defense_roll, 0)
+    target.current_dp -= damage
+
+    # Trait narration
     effects = []
     notes = []
-    log_lines = result.get("results", [])
+    if "burn" in spell.get("traits", []) and damage > 0:
+        effects.append("burn")
+        notes.append(f"{target.name} is scorched by flames!")
+    if "stun" in spell.get("traits", []) and damage > 0:
+        effects.append("stun")
+        notes.append(f"{target.name} is momentarily stunned!")
+    if "area" in spell.get("traits", []):
+        notes.append("The spell affects a wide area.")
 
-    for trait in spell_traits:
-        if trait == "burn" and result["results"][0]["damage"] > 0:
-            effects.append("burn")
-            notes.append(f"{target.name} is scorched by flames!")
-        elif trait == "stun" and result["results"][0]["damage"] > 0:
-            effects.append("stun")
-            notes.append(f"{target.name} is momentarily stunned!")
-        elif trait == "area":
-            notes.append("The spell affects a wide area.")
-        else:
-            notes.append(f"Trait '{trait}' has no defined effect yet.")
+    # DP thresholds
+    if target.current_dp <= -5:
+        notes.append(f"{target.name} has entered The Calling.")
+    elif target.current_dp <= -3:
+        notes.append(f"{target.name} is severely wounded.")
+    elif target.current_dp <= -1:
+        notes.append(f"{target.name} is moderately wounded.")
 
-    # Optional lore logging
+    # Lore logging
     if encounter_id:
         from backend.encounter_memory import add_lore_entry
         for effect in effects:
@@ -141,9 +150,15 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
             )
 
     return {
-        "outcome": "hit" if result["results"][0]["damage"] > 0 else "miss",
-        "damage": result["results"][0]["damage"],
+        "outcome": "hit" if damage > 0 else "miss",
+        "damage": damage,
         "effects": effects,
-        "log": log_lines if log else [],
+        "log": [{
+            "target": target.name,
+            "spell_roll": spell_roll,
+            "defense_roll": defense_roll,
+            "damage": damage,
+            "remaining_dp": target.current_dp
+        }] if log else [],
         "notes": notes
     }
