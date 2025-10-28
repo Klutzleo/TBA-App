@@ -97,7 +97,7 @@ def character_from_dict(data: dict) -> Character:
     char.reset_casts()
     return char
 
-def resolve_spellcast(caster_data, target_data, spell_data, distance="medium", log=False, encounter_id=None):
+def resolve_spellcast(caster, target, spell, distance="medium", log=False, encounter_id=None):
     # Convert dicts to Character objects
     caster = character_from_dict(caster_data)
     target = character_from_dict(target_data)
