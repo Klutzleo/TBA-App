@@ -64,3 +64,14 @@ def reset_encounter():
     encounter_state["initiative_order"] = []
     encounter_state["encounter_id"] = None  # ✅ Reset here
     encounter_state["effects"] = []  # ✅ Reset effects
+
+def add_lore_entry(actor: str, round: Optional[int], tag: str, effect: str, duration: int, encounter_id: Optional[str]):
+    entry = {
+        "actor": actor,
+        "round": round if round is not None else encounter_state["round"],
+        "tag": tag,
+        "effect": effect,
+        "duration": duration,
+        "encounter_id": encounter_id or encounter_state["encounter_id"]
+    }
+    return add_effect(entry)
