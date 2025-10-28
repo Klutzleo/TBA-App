@@ -439,9 +439,23 @@ class CastSpell(MethodView):
 @combat_blp.route("/round/resolve", methods=["POST"])
 class ResolveRound(MethodView):
     def post(self):
-        from backend.encounter_memory import advance_round
+        from backend.encounter_memory import advance_round, get_actors
         from backend.magic_logic import resolve_effects
 
         round_num = advance_round()
         effects = resolve_effects(round_num)
-        return { "round": round_num, "effects": effects }
+
+        status = []
+        for actor in get_actors():
+            status.append({
+                "name": actor["name"],
+                "DP": actor.get("current_dp", actor.get("DP", 0)),
+                "MarkedByDeath": actor.get("marked_by_death", False)
+            })
+
+        return {
+            "round": round_num,
+            "effects": effects,
+            "notes": [e["note"] for e in effects],
+            "status": status  # ← optional part now included
+        }

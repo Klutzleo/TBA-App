@@ -2,6 +2,7 @@
 
 import random
 from typing import List, Dict
+from backend.encounter_memory import get_effects, remove_effect
 
 def get_spell_die(level, slot):
     spell_table = {
@@ -22,9 +23,10 @@ def roll_die(die: str) -> int:
     return sum(random.randint(1, faces) for _ in range(count))
 
 class Spell:
-    def __init__(self, slot: int, die: str):
+    def __init__(self, slot: int, die: str, name: str = None):
         self.slot = slot
         self.die = die
+        self.name = name or f"Spell {slot}"
         self.is_aoe = slot in (2, 4)
 
 class Character:
@@ -38,6 +40,7 @@ class Character:
         self.bap = bap
         self.spellbook = spells
         self._casts = {slot: 0 for slot in spells}
+        self.marked_by_death = False
 
     def can_cast(self, slot: int) -> bool:
         return self._casts.get(slot, 0) < 3
@@ -121,6 +124,11 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
     spell_slot = 0  # assuming slot 0 for now
     spell_die = get_spell_die(caster.level, spell_slot)  # e.g., "1d8"
 
+    buff_table = {
+    "1d6": 1, "1d8": 2, "1d10": 3, "1d12": 4, "2d6": 5, "2d8": 6
+    }
+    modifier = buff_table.get(spell_die, 0)
+
     spell_roll = roll_die(spell_die) + caster.stats["IP"] + caster.edge
     defense_roll = roll_die(target.defense_die) + target.stats["PP"] + target.edge
     bap_triggered = spell.get("bap_triggered", False)
@@ -132,6 +140,7 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
     # Trait narration
     effects = []
     notes = []
+    notes.append(f"{caster.name} casts {spell.name}!")
     if "burn" in spell.get("traits", []) and damage > 0:
         effects.append("burn")
         notes.append(f"{target.name} is scorched by flames!")
@@ -148,6 +157,15 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
         notes.append(f"{target.name} is severely wounded.")
     elif target.current_dp <= -1:
         notes.append(f"{target.name} is moderately wounded.")
+
+    if target.current_dp <= -5:
+        calling_result = resolve_calling(target)
+        notes.append(calling_result["note"])
+
+    if hasattr(caster, "tethers"):
+        for tether in caster.tethers:
+            if tether == "Protect the innocent" and target.role == "noncombatant":
+                notes.append(f"{caster.name}'s tether activates: +1d8 to shielding roll.")
 
     # Lore logging
     if encounter_id:
@@ -175,3 +193,60 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
         }] if log else [],
         "notes": notes
     }
+
+def resolve_calling(character):
+    from random import randint
+
+    stat = character.stats.get("IP", 0) or character.stats.get("SP", 0)
+    player_roll = randint(1, 6) + stat + character.edge
+    sw_roll = randint(1, 6) + 3
+    character.marked_by_death = True
+
+    if player_roll >= sw_roll:
+        character.current_dp = -4
+        return {
+            "status": "survived",
+            "note": f"{character.name} stabilizes in The Calling and is Marked by Death.",
+            "marked_by_death": True
+        }
+    else:
+        return {
+            "status": "failed",
+            "note": f"{character.name} fades in The Calling. Allies may gain a memory echo.",
+            "memory_echo": True
+        }
+
+# backend/magic_logic.py
+
+def resolve_effects(round: int):
+    active = get_effects()
+    results = []
+
+    for effect in active:
+        if effect.get("round") == round:
+            actor = effect["actor"]
+            effect_type = effect["effect"]
+            duration = effect["duration"]
+
+            if effect_type == "burn":
+                dmg = roll_die("1d4")
+                results.append({
+                    "actor": actor,
+                    "effect": "burn",
+                    "damage": dmg,
+                    "note": f"{actor} takes {dmg} burn damage at start of round {round}."
+                })
+            elif effect_type == "buff":
+                results.append({
+                    "actor": actor,
+                    "effect": "buff",
+                    "note": f"{actor} gains a temporary bonus from {effect.get('tag')}."
+                })
+
+            # Decrement or remove
+            if duration <= 1:
+                remove_effect(actor, tag=effect.get("tag"))
+            else:
+                effect["duration"] -= 1
+
+    return results
