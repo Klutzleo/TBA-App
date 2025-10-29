@@ -1,8 +1,10 @@
 from flask import Flask, render_template, request
 import requests
 from datetime import datetime
+from routes.chat import chat_blp  # ← NEW
 
 app = Flask(__name__)
+app.register_blueprint(chat_blp)  # ← NEW
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -22,7 +24,6 @@ def index():
         )
         reaction = response.json().get("reaction")
 
-    # Always fetch reflect data
     reflect_response = requests.get("https://tba-app-production.up.railway.app/reflect")
     if reflect_response.ok:
         reflect_data = reflect_response.json()
