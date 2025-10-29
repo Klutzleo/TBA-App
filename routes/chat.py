@@ -1,23 +1,33 @@
-from flask_smorest import Blueprint
-from flask.views import MethodView
-from flask import request
+from fastapi import APIRouter, Request, Form
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+import json
 from backend.magic_logic import resolve_spellcast
 
-chat_blp = Blueprint("chat", "chat", url_prefix="/api/chat", description="Chat-driven actions")
+chat_blp = APIRouter()
+templates = Jinja2Templates(directory="templates")
 
-@chat_blp.route("/submit", methods=["POST"])
-class ChatSubmit(MethodView):
-    def post(self):
-        payload = request.get_json()
+@chat_blp.get("/chat", response_class=HTMLResponse)
+async def chat_get(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request, "response": None})
+
+@chat_blp.post("/chat", response_class=HTMLResponse)
+async def chat_post(request: Request, payload: str = Form(...)):
+    try:
+        data = json.loads(payload)
         result = resolve_spellcast(
-            caster=payload["caster"],
-            target=payload["target"],
-            spell=payload["spell"],
-            encounter_id=payload.get("encounter_id"),
+            caster=data["caster"],
+            target=data["target"],
+            spell=data["spell"],
+            encounter_id=data.get("encounter_id"),
             log=True
         )
-        return {
+        response = {
             "narration": result["notes"],
             "effects": result["effects"],
             "log": result["log"]
         }
+    except Exception as e:
+        response = { "narration": [f"Error: {str(e)}"], "effects": [], "log": [] }
+
+    return templates.TemplateResponse("chat.html", {"request": request, "response": response})
