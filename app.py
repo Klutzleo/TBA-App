@@ -30,6 +30,24 @@ def index():
 
     return render_template("index.html", reaction=reaction, current_time=current_time, reflect=reflect_data)
 
+@app.route("/chat", methods=["GET", "POST"])
+def chat():
+    response = None
+    if request.method == "POST":
+        import json
+        from requests import post
+
+        try:
+            payload = json.loads(request.form["payload"])
+            api_url = request.url_root.rstrip("/") + "/api/chat/submit"
+            res = post(api_url, json=payload)
+            if res.ok:
+                response = res.json()
+        except Exception as e:
+            response = { "narration": [f"Error: {str(e)}"], "effects": [], "log": [] }
+
+    return render_template("chat.html", response=response)
+
 if __name__ == "__main__":
     app.run(debug=True)
 

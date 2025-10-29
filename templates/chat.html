@@ -16,7 +16,29 @@
     <h2>Spellcasting Chat</h2>
     <form method="POST">
       <label>Action JSON:</label><br>
-      <textarea name="payload" rows="10" cols="70" placeholder='Paste JSON here...'></textarea><br><br>
+      <textarea name="payload" rows="12" cols="70">{
+  "caster": {
+    "name": "Alice",
+    "stats": { "IP": 3, "DP": 10, "level": 5 },
+    "edge": 1,
+    "defense_die": "1d6",
+    "bap": 2,
+    "spells": {
+      "0": { "die": "1d8" }
+    }
+  },
+  "target": {
+    "name": "Bob",
+    "stats": { "PP": 2, "DP": 8 },
+    "edge": 0,
+    "defense_die": "1d6"
+  },
+  "spell": {
+    "slot": 0,
+    "traits": ["burn"],
+    "bap_triggered": false
+  }
+}</textarea>
       <button type="submit">Submit Action</button>
     </form>
 
