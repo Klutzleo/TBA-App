@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TBA Chat Interface</title>
+  <style>
+    body { font-family: sans-serif; padding: 2em; background: #f4f4f4; }
+    #chat-box { border: 1px solid #ccc; padding: 1em; background: #fff; max-width: 600px; margin: auto; }
+    .message { margin-bottom: 1em; }
+    .narration { color: #333; font-style: italic; }
+    .log { font-size: 0.9em; color: #666; }
+  </style>
+</head>
+<body>
+  <div id="chat-box">
+    <h2>Spellcasting Chat</h2>
+    <form method="POST">
+      <label>Action JSON:</label><br>
+      <textarea name="payload" rows="10" cols="70" placeholder='Paste JSON here...'></textarea><br><br>
+      <button type="submit">Submit Action</button>
+    </form>
+
+    {% if response %}
+      <hr>
+      <div class="message">
+        <strong>Narration:</strong>
+        <div class="narration">
+          {% for line in response.narration %}
+            <div>{{ line }}</div>
+          {% endfor %}
+        </div>
+        <strong>Effects:</strong> {{ response.effects }}
+        <div class="log">
+          <strong>Log:</strong>
+          <pre>{{ response.log | tojson(indent=2) }}</pre>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
