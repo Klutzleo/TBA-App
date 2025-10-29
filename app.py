@@ -35,14 +35,22 @@ def chat():
     response = None
     if request.method == "POST":
         import json
-        from requests import post
+        from backend.magic_logic import resolve_spellcast  # ← Call directly
 
         try:
             payload = json.loads(request.form["payload"])
-            api_url = request.url_root.rstrip("/") + "/api/chat/submit"
-            res = post(api_url, json=payload)
-            if res.ok:
-                response = res.json()
+            result = resolve_spellcast(
+                caster=payload["caster"],
+                target=payload["target"],
+                spell=payload["spell"],
+                encounter_id=payload.get("encounter_id"),
+                log=True
+            )
+            response = {
+                "narration": result["notes"],
+                "effects": result["effects"],
+                "log": result["log"]
+            }
         except Exception as e:
             response = { "narration": [f"Error: {str(e)}"], "effects": [], "log": [] }
 
