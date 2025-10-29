@@ -1,7 +1,7 @@
 # Web framework
 Flask==3.1.2
 fastapi
-jinja
+jinja2
 uvicorn
 
 # OpenAPI 3.0 support
