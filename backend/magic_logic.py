@@ -115,23 +115,37 @@ def character_from_dict(data: dict) -> Character:
     char.reset_casts()
     return char
 
+class Spell:
+    def __init__(self, slot, traits=None, bap_triggered=False, name=None):
+        self.slot = slot
+        self.traits = traits or []
+        self.bap_triggered = bap_triggered
+        self.name = name or "Unnamed Spell"
+
+def spell_from_dict(data):
+    return Spell(
+        slot=data["slot"],
+        traits=data.get("traits", []),
+        bap_triggered=data.get("bap_triggered", False),
+        name=data.get("name", "Unnamed Spell")
+    )
+
 def resolve_spellcast(caster, target, spell, distance="medium", log=False, encounter_id=None):
     # Convert dicts to Character objects
     caster = character_from_dict(caster)
     target = character_from_dict(target)
+    spell = spell_from_dict(spell)
 
     # Determine spell die from level and slot
-    spell_slot = 0  # assuming slot 0 for now
-    spell_die = get_spell_die(caster.level, spell_slot)  # e.g., "1d8"
+    spell_die = get_spell_die(caster.level, spell.slot)  # e.g., "1d8"
 
     buff_table = {
     "1d6": 1, "1d8": 2, "1d10": 3, "1d12": 4, "2d6": 5, "2d8": 6
     }
-    modifier = buff_table.get(spell_die, 0)
-
-    spell_roll = roll_die(spell_die) + caster.stats["IP"] + caster.edge
+    
+    spell_roll = roll_die(spell_die) + caster.stats["IP"] + caster.edge + modifier
     defense_roll = roll_die(target.defense_die) + target.stats["PP"] + target.edge
-    bap_triggered = spell.get("bap_triggered", False)
+    bap_triggered = spell.bap_triggered
 
     # Calculate damage
     damage = max(spell_roll - defense_roll, 0)
@@ -141,13 +155,13 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
     effects = []
     notes = []
     notes.append(f"{caster.name} casts {spell.name}!")
-    if "burn" in spell.get("traits", []) and damage > 0:
+    if "burn" in spell.traits and damage > 0:
         effects.append("burn")
         notes.append(f"{target.name} is scorched by flames!")
-    if "stun" in spell.get("traits", []) and damage > 0:
+    if "stun" in spell.traits and damage > 0:
         effects.append("stun")
         notes.append(f"{target.name} is momentarily stunned!")
-    if "area" in spell.get("traits", []):
+    if "area" in spell.traits:
         notes.append("The spell affects a wide area.")
 
     # DP thresholds
@@ -164,7 +178,7 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
 
     if hasattr(caster, "tethers"):
         for tether in caster.tethers:
-            if tether == "Protect the innocent" and target.role == "noncombatant":
+            if tether == "Protect the innocent" and getattr(target, "role", None) == "noncombatant":
                 notes.append(f"{caster.name}'s tether activates: +1d8 to shielding roll.")
 
     # Lore logging
