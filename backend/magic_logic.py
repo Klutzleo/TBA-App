@@ -143,6 +143,7 @@ def resolve_spellcast(caster, target, spell, distance="medium", log=False, encou
     "1d6": 1, "1d8": 2, "1d10": 3, "1d12": 4, "2d6": 5, "2d8": 6
     }
     
+    modifier = buff_table.get(spell_die, 0)
     spell_roll = roll_die(spell_die) + caster.stats["IP"] + caster.edge + modifier
     defense_roll = roll_die(target.defense_die) + target.stats["PP"] + target.edge
     bap_triggered = spell.bap_triggered
