@@ -1,196 +1,86 @@
-# 🧠 Combat Engine Roadmap
+# TBA — Tools for the Bad Ass / Tools for Being Awesome
 
-This document outlines the development roadmap for the narratable, modular combat engine built by Jason. Each sprint represents a tactical and narrative milestone, moving from backend persistence to expressive storytelling and campaign-grade orchestration.
+TBA is a modular, cinematic RPG engine designed for expressive storytelling, tactical clarity, and emotional connection. Whether you're a seasoned GM running gritty cyberpunk heists or a parent guiding your kids through whimsical adventures, TBA adapts to your table—and your players.
 
----
-
-## 🧱 Sprint 1: Core Schema & Engine Bootstrapping
-**Goal**: Define foundational schema and initialize combat engine  
-**Status**: Complete  
-**Key Features**:
-- Actor, effect, and encounter schemas
-- Modular endpoint scaffolding
-- Initial Flask app with persistent state
-- `/actor/create`, `/encounter/start`, `/effect/apply`
+Built from the ground up with modular endpoints, narratable mechanics, and dual-mode accessibility, TBA empowers families, friends, and communities to tell unforgettable stories together—even when they’re apart.
 
 ---
 
-## 🧪 Sprint 2: Validation & Debugging
-**Goal**: Ensure schema integrity and cross-platform reliability  
-**Status**: Complete  
-**Key Features**:
-- JSON parsing fixes across PowerShell, curl, and VS Code
-- Expressive error handling and debug logs
-- `/validate/schema`, `/log/error`, `/debug/trace`
+## 🎭 Dual-System Design
+
+TBA is two systems in one:
+
+- **Tools for the Bad Ass**: Mature, tactical, and gritty. Designed for adult players who want expressive combat, branching timelines, and cinematic narration.
+- **Tools for Being Awesome**: Kid-friendly, emotionally safe, and easy to learn. The same mechanics, reworded and softened for younger players and families.
+
+An age gate toggles between these modes, adjusting language, narration tone, and content filters—so everyone can play, learn, and grow together.
 
 ---
 
-## 🧠 Sprint 3: Narration & Replayability
-**Goal**: Add narrative hooks and replayable state  
-**Status**: Complete  
-**Key Features**:
-- `/lore/entry` for narrating effects
-- `/encounter/save` and `/encounter/load`
-- `/effect/narrate` for expressive storytelling
+## 🔧 Core Features (In Development)
+
+| Feature | Description |
+|---------|-------------|
+| **Narration Engine** | Every effect, roll, and action generates expressive, replayable story beats. |
+| **Modular API** | Endpoints for actors, effects, encounters, and chat-based resolution. |
+| **Session Manager** | Tracks scenes, rolls, emotional beats, and memory markers across campaigns. |
+| **Lore & Asset Library** | Taggable, reusable homebrew content—spells, NPCs, vehicles, and more. |
+| **Cross-Platform Spectator Mode** | View-only access from web, mobile, or Discord. |
+| **AI Assistant (Optional)** | Prompt-based support for NPC generation, scene narration, and lore expansion. |
+| **Age-Gated Experience** | Switch between adult and kid-friendly modes with filtered narration and UI. |
 
 ---
 
-## ✅ Sprint 4: Persistent Effects
-**Goal**: Apply, expire, narrate, and validate persistent effects  
-**Status**: Complete  
-**Key Endpoints**:
-- `/effect/apply`
-- `/effect/expire`
-- `/effect/narrate`
-- `/encounter/save`
-- `/encounter/load`
+## 🧠 Design Philosophy
+
+TBA is built on three pillars:
+
+- **Cinematic Play**: Every roll, reaction, and scene should feel like part of a story worth telling.
+- **Modular Simplicity**: Tools should be powerful, but never overwhelming.
+- **Emotional Resonance**: Digital spaces should feel like home—personal, persistent, and expressive.
 
 ---
 
-## 🧠 Sprint 5: Tactical Expansion
-**Goal**: Resolve effects, preview outcomes, fork timelines  
-**Status**: In Progress  
-**Key Endpoints**:
-- `/effect/resolve/{id}`
-- `/actor/resolve/{name}`
-- `/encounter/resolve/all`
-- `/effect/preview`
-- `/effect/branch`
-- `/encounter/fork`
-- `/actor/plan/{name}`
-- `/effect/stack`
-- `/effect/undo/{id}`
+## 🛠️ Development Status
+
+TBA is in active development. The backend engine is functional and modular, with narration, effect resolution, and encounter persistence already implemented. Upcoming sprints will focus on tactical coordination, reactive storytelling, and multiplayer session management.
+
+The UI and hosting layers will follow once the emotional and mechanical foundations are solid.
 
 ---
 
-## 🧩 Sprint 6: Multi-Actor Coordination
-**Goal**: Tactical coordination, squad-level planning  
-**Status**: Planned  
-**Key Endpoints**:
-- `/team/assign`
-- `/team/status`
-- `/team/resolve`
-- `/encounter/initiative/adjust`
+## 🧭 Roadmap Highlights
+
+- ✅ Sprint 1–4: Core schema, narration, and persistent effects complete
+- 🧠 Sprint 5: Tactical resolution, preview, and branching (in progress)
+- 🧩 Sprint 6–8: Squad coordination, conditionals, and deep lore replayability
+- 💬 Sprint 11–12: Conversational interface and dice-based reactions
+- 🧍 Sprint 14–16: Character builder, UI, and player management
+
+Full roadmap: `docs/roadmap.md`
 
 ---
 
-## 🧬 Sprint 7: Conditionals and Triggers
-**Goal**: Reactive combat logic, status-based storytelling  
-**Status**: Planned  
-**Key Endpoints**:
-- `/effect/trigger`
-- `/actor/condition/{name}`
-- `/effect/chain`
+## 👨‍👧 Origin Story
+
+TBA was born while watching his kids soccer practice. Getting older and devoting time to family makes things hard to continue to play TTRPGs. I wanted something more simple, less math, more eventful, and more benefits for thinking outside of the box. Though playtesting hasn't been performed as systems like this should be, I playtested with the my son at age 7. That moment—of shared imagination, laughter, and connection—sparked the vision for a system that could bridge generations. Whether you're a parent, a GM, or a player looking for something more expressive, TBA is for you.
 
 ---
 
-## 📜 Sprint 8: Lore Engine Expansion
-**Goal**: Deep narrative replayability and expressive storytelling  
-**Status**: Planned  
-**Key Endpoints**:
-- `/lore/branch`
-- `/lore/compare`
-- `/lore/echoes`
+## 👤 Author
+
+Created and maintained by **Jason Germino**, a designer, service desk manager, and narrative systems architect. Jason is passionate about expressive digital spaces, cinematic RPGs, and building tools that bring families and communities together through play.
+
+Also founder and editor-in-chief of [GameOctane.com](https://gameoctane.com).
 
 ---
 
-## 🧪 Sprint 9: Testing & Validation Suite
-**Goal**: MSP-grade reliability, automated validation  
-**Status**: Planned  
-**Key Endpoints**:
-- `/test/encounter`
-- `/validate/branch`
-- `/log/errors`
+## 📜 License
+
+This project is licensed under the **AGPL-3.0**. All hosted versions and derivatives must remain open-source to preserve community-driven development.
 
 ---
 
-## 🌐 Sprint 10: Multiplayer & Session Management
-**Goal**: Collaborative play, persistent sessions  
-**Status**: Future  
-**Key Endpoints**:
-- `/session/create`
-- `/session/join`
-- `/session/log`
+## 💌 Want to Follow or Contribute?
 
----
-
-## 💬 Sprint 11: Conversational Interface
-**Goal**: Natural-language interaction with the engine  
-**Status**: Future  
-**Key Endpoints**:
-- `/chat/parse`
-- `/chat/respond`
-- `/chat/context`
-- `/chat/actor/{name}`
-- `/chat/resolve`
-- `/chat/plan`
-- `/chat/branch`
-
----
-
-## 🎲 Sprint 12: Rolls, Reactions, and Randomness
-**Goal**: Dice rolls, modifiers, and reactive outcomes via chat  
-**Status**: Future  
-**Key Endpoints**:
-- `/roll/dice`
-- `/roll/custom`
-- `/roll/chat`
-- `/roll/resolve`
-- `/roll/actor/{name}`
-- `/roll/session/{id}`
-- `/roll/log`
-
----
-
-## 🧱 Sprint 13: Database & Persistence
-**Goal**: Durable backend, multi-session campaigns  
-**Status**: Future  
-**Key Endpoints**:
-- `/db/init`
-- `/db/save/{entity}`
-- `/db/load/{id}`
-- `/db/query`
-
----
-
-## 🧍‍♂️ Sprint 14: Character Builder
-**Goal**: Personalized actors with persistent identity  
-**Status**: Future  
-**Key Endpoints**:
-- `/character/create`
-- `/character/edit`
-- `/character/load`
-- `/character/preview`
-
----
-
-## 🖼️ Sprint 15: UI & Frontend
-**Goal**: Visual interface for players and GMs  
-**Status**: Future  
-**Features**:
-- Encounter dashboard
-- Actor cards
-- Lore timeline
-- Chat + roll interface
-
----
-
-## 🧑‍🤝‍🧑 Sprint 16: Player Management
-**Goal**: Collaborative play with persistent user identity  
-**Status**: Future  
-**Key Endpoints**:
-- `/user/create`
-- `/session/join`
-- `/session/permissions`
-- `/session/history`
-
----
-
-## 🧭 Next Steps
-- Finalize Sprint 5 endpoints
-- Begin scaffolding Sprint 6 and 7 logic
-- Prototype `/chat/parse` and `/roll/chat`
-- Draft schema for `/character/create`
-- Explore frontend wireframes for Sprint 15
-
----
+TBA is currently in private development. Contributions are paused while foundational systems are refined. Feel free to follow progress, fork for personal use, or reach out with questions or encouragement.
