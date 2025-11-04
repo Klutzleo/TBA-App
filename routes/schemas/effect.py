@@ -43,3 +43,11 @@ class EffectUndoResponseSchema(Schema):
     undone_effect = fields.Str()
     rollback_successful = fields.Bool()
     narration = fields.Str(allow_none=True)
+
+class CustomEffectSchema(Schema):
+    name = fields.Str(required=True)
+    type = fields.Str(required=True)  # e.g. damage, healing, control
+    base = fields.Int(required=True)
+    status = fields.Str(required=False)
+    area = fields.Bool(required=False)
+    narration = fields.Str(required=False)

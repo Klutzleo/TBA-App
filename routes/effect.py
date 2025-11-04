@@ -1,4 +1,9 @@
 from backend.effect_engine import simulate_effect, resolve_effect, undo_effect
+from routes.schemas.effect import CustomEffectSchema
+from flask import current_app
+
+custom_effects = {}  # Temporary in-memory store
+
 
 @effects_blp.route("/preview", methods=["POST"])
 @effects_blp.arguments(EffectPreviewSchema)
@@ -31,3 +36,11 @@ def undo_effect_route(data):
         "status": "success",
         **result
     }
+
+@effects_blp.route("/custom", methods=["POST"])
+@effects_blp.arguments(CustomEffectSchema)
+def create_custom_effect(data):
+    name = data["name"]
+    custom_effects[name] = data
+    current_app.logger.info(f"Custom effect registered: {name}")
+    return {"status": "registered", "effect": name}
