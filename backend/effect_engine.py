@@ -1,19 +1,31 @@
-from backend.effect_registry import EFFECTS
-from routes.effects import custom_effects
+from backend.models.effect_log import EffectLog
+from backend.db import SessionLocal
+import uuid
 
-def simulate_effect(actor, effect, modifiers=None, context=None):
-    definition = custom_effects.get(effect) or EFFECTS.get(effect)
-    if not definition:
-        return {"error": f"Unknown effect: {effect}"}, None
+def resolve_effect(actor, effect, source=None, modifiers=None, context=None):
+    outcome, narration = simulate_effect(actor, effect, modifiers, context)
+    effect_id = str(uuid.uuid4())
 
-    mod_bonus = sum(modifiers.values()) if modifiers else 0
-    damage = definition["base"] + mod_bonus
+    log = EffectLog(
+        id=effect_id,
+        actor=actor,
+        effect=effect,
+        source=source,
+        hp_change=outcome["HP_change"],
+        status=outcome["status"],
+        area_damage=outcome["area_damage"],
+        narration=narration
+    )
 
-    outcome = {
-        "HP_change": -damage if definition["type"] == "damage" else damage,
-        "status": definition["status"],
-        "area_damage": definition["area"]
+    db = SessionLocal()
+    db.add(log)
+    db.commit()
+    db.close()
+
+    return {
+        "actor": actor,
+        "applied_effect": effect,
+        "outcome": outcome,
+        "effect_id": effect_id,
+        "narration": narration
     }
-
-    narration = definition["narration"].format(actor=actor, damage=abs(damage))
-    return outcome, narration

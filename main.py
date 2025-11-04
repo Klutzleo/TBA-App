@@ -2,6 +2,8 @@
 
 import os
 import json
+from dotenv import load_dotenv
+from backend.db import init_db
 
 SCHEMA_DIR = "schemas"
 
@@ -16,5 +18,13 @@ def load_schemas():
 
 if __name__ == "__main__":
     print("🚀 TBA is booting up...")
+
+    # ✅ Load environment variables
+    load_dotenv()
+
+    # ✅ Initialize database tables
+    init_db()
+
+    # ✅ Load schemas
     schemas = load_schemas()
     print(f"Loaded {len(schemas)} schema files.")
