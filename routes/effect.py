@@ -1,6 +1,9 @@
 from backend.effect_engine import simulate_effect, resolve_effect, undo_effect
 from routes.schemas.effect import CustomEffectSchema
 from flask import current_app
+from fastapi import APIRouter
+
+effects_blp = APIRouter()
 
 custom_effects = {}  # Temporary in-memory store
 
