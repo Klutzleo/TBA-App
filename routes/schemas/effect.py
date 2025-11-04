@@ -31,3 +31,15 @@ class EffectResolveResponseSchema(Schema):
     applied_effect = fields.Str()
     outcome = fields.Dict()
     narration = fields.Str(allow_none=True)
+
+class EffectUndoSchema(Schema):
+    actor = fields.Str(required=True)
+    effect_id = fields.Str(required=True)
+    reason = fields.Str(required=False)
+
+class EffectUndoResponseSchema(Schema):
+    status = fields.Str()
+    actor = fields.Str()
+    undone_effect = fields.Str()
+    rollback_successful = fields.Bool()
+    narration = fields.Str(allow_none=True)

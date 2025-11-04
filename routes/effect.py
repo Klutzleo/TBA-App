@@ -1,20 +1,33 @@
-from routes.schemas.effect import EffectResolveSchema, EffectResolveResponseSchema
+from backend.effect_engine import simulate_effect, resolve_effect, undo_effect
+
+@effects_blp.route("/preview", methods=["POST"])
+@effects_blp.arguments(EffectPreviewSchema)
+@effects_blp.response(200, EffectPreviewResponseSchema)
+def preview_effect(data):
+    outcome, narration = simulate_effect(**data)
+    return {
+        "status": "success",
+        "actor": data["actor"],
+        "simulated_outcome": outcome,
+        "narration": narration if data.get("narrate") else None
+    }
 
 @effects_blp.route("/resolve", methods=["POST"])
 @effects_blp.arguments(EffectResolveSchema)
 @effects_blp.response(200, EffectResolveResponseSchema)
-def resolve_effect(data):
-    # TODO: Apply effect logic and update actor state
-    outcome = {
-        "HP_change": -10,
-        "status": "burned",
-        "area_damage": True
-    }
-    narration = f"{data['actor']} is engulfed in flames, suffering damage and igniting nearby terrain."
+def resolve_effect_route(data):
+    result = resolve_effect(**data)
     return {
         "status": "success",
-        "actor": data["actor"],
-        "applied_effect": data["effect"],
-        "outcome": outcome,
-        "narration": narration
+        **result
+    }
+
+@effects_blp.route("/undo", methods=["POST"])
+@effects_blp.arguments(EffectUndoSchema)
+@effects_blp.response(200, EffectUndoResponseSchema)
+def undo_effect_route(data):
+    result = undo_effect(**data)
+    return {
+        "status": "success",
+        **result
     }
