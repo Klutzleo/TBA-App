@@ -1,21 +1,20 @@
-from flask_smorest import Blueprint
-from routes.schemas.effect import EffectPreviewSchema, EffectPreviewResponseSchema
+from routes.schemas.effect import EffectResolveSchema, EffectResolveResponseSchema
 
-effects_blp = Blueprint("effects", "effects", url_prefix="/api/effect")
-
-@effects_blp.route("/preview", methods=["POST"])
-@effects_blp.arguments(EffectPreviewSchema)
-@effects_blp.response(200, EffectPreviewResponseSchema)
-def preview_effect(data):
-    simulated_outcome = {
-        "HP_change": -8,
+@effects_blp.route("/resolve", methods=["POST"])
+@effects_blp.arguments(EffectResolveSchema)
+@effects_blp.response(200, EffectResolveResponseSchema)
+def resolve_effect(data):
+    # TODO: Apply effect logic and update actor state
+    outcome = {
+        "HP_change": -10,
         "status": "burned",
         "area_damage": True
     }
-    narration = "Thorne hurls a fireball into the trees, scorching goblins and igniting the underbrush."
+    narration = f"{data['actor']} is engulfed in flames, suffering damage and igniting nearby terrain."
     return {
         "status": "success",
         "actor": data["actor"],
-        "simulated_outcome": simulated_outcome,
-        "narration": narration if data.get("narrate") else None
+        "applied_effect": data["effect"],
+        "outcome": outcome,
+        "narration": narration
     }

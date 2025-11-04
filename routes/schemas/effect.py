@@ -17,3 +17,17 @@ class EffectPreviewResponseSchema(Schema):
     actor = fields.Str()
     simulated_outcome = fields.Nested(SimulatedOutcomeSchema)
     narration = fields.Str(allow_none=True)
+
+class EffectResolveSchema(Schema):
+    actor = fields.Str(required=True)
+    effect = fields.Str(required=True)
+    source = fields.Str(required=False)
+    modifiers = fields.Dict(keys=fields.Str(), values=fields.Int(), required=False)
+    context = fields.Str(required=False)
+
+class EffectResolveResponseSchema(Schema):
+    status = fields.Str()
+    actor = fields.Str()
+    applied_effect = fields.Str()
+    outcome = fields.Dict()
+    narration = fields.Str(allow_none=True)
