@@ -1,11 +1,15 @@
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
+from flask_smorest import Blueprint
 
-effects_bp = Blueprint('effects', __name__)
+effects_blp = Blueprint(
+    "effects", "effects",
+    url_prefix="/api/effect",
+    description="Endpoints for effect simulation, resolution, and rollback"
+)
 
-@effects_bp.route('/effect/preview', methods=['POST'])
+@effects_blp.route("/preview", methods=["POST"])
 def preview_effect():
     data = request.get_json()
-    # TODO: Simulate effect outcome without applying it
     simulated_outcome = {
         "HP_change": -8,
         "status": "burned",

@@ -181,3 +181,12 @@ application = app
 # Local dev runner (uncomment for local testing)
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=8080, debug=True)
+
+try:
+    from routes.effects import effects_blp
+    api.register_blueprint(effects_blp)
+    print("✅ effects_blp registered")
+except Exception:
+    print("❌ Failed to import/register effects_blp:")
+    traceback.print_exc()
+    raise
