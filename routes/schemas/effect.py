@@ -8,7 +8,7 @@ class EffectPreviewSchema(Schema):
     narrate = fields.Bool(required=False)
 
 class SimulatedOutcomeSchema(Schema):
-    HP_change = fields.Int()
+    DP_change = fields.Int()
     status = fields.Str()
     area_damage = fields.Bool()
 
