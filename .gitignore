@@ -82,9 +82,11 @@ config.json
 token.txt
 
 # AI model files (if local)
-models/
 checkpoints/
 *.bin
+
+# Ignore AI model binaries only
+models/'*.bin
 
 # Optional frontend (React/Svelte)
 node_modules/
