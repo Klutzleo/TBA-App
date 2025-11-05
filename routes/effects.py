@@ -3,7 +3,7 @@ from fastapi import Body
 from typing import Dict
 
 from backend.effect_engine import resolve_effect, undo_effect, simulate_effect
-from schemas.effect import (
+from routes.schemas.effect import (
     EffectPreviewSchema,
     EffectPreviewResponseSchema,
     EffectResolveSchema,
