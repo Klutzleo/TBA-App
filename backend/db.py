@@ -13,5 +13,5 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 def init_db():
-    from backend.models.effect_log import EffectLog
+    from models.effect_log import EffectLog
     Base.metadata.create_all(bind=engine)

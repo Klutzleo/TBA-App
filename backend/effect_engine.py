@@ -1,4 +1,4 @@
-from backend.models.effect_log import EffectLog
+from models.effect_log import EffectLog
 from backend.db import SessionLocal
 import uuid
 
