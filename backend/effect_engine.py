@@ -29,3 +29,12 @@ def resolve_effect(actor, effect, source=None, modifiers=None, context=None):
         "effect_id": effect_id,
         "narration": narration
     }
+
+def simulate_effect(actor, effect, modifiers=None, context=None):
+    return {
+        "actor": actor,
+        "effect": effect,
+        "modifiers": modifiers or {},
+        "context": context,
+        "outcome": "simulated"
+    }

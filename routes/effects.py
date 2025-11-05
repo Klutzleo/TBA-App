@@ -1,7 +1,16 @@
-from backend.effect_engine import simulate_effect, resolve_effect, undo_effect
+from backend.effect_engine import resolve_effect, undo_effect
 from routes.schemas.effect import CustomEffectSchema
 from flask import current_app
 from fastapi import APIRouter
+from routes.effect import (
+    EffectPreviewSchema,
+    EffectPreviewResponseSchema,
+    EffectResolveSchema,
+    EffectResolveResponseSchema,
+    EffectUndoSchema,
+    EffectUndoResponseSchema,
+    CustomEffectSchema
+)
 
 effects_blp = APIRouter()
 
