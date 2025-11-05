@@ -1,7 +1,7 @@
 from backend.effect_engine import resolve_effect, undo_effect, simulate_effect
 from flask import current_app
 from fastapi import APIRouter
-from schemas.effect import (
+from routes.schemas.effect import (
     EffectPreviewSchema,
     EffectPreviewResponseSchema,
     EffectResolveSchema,
