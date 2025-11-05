@@ -38,3 +38,13 @@ def simulate_effect(actor, effect, modifiers=None, context=None):
         "context": context,
         "outcome": "simulated"
     }
+
+def undo_effect(actor, effect_id, reason=None):
+    # Placeholder logic
+    return {
+        "status": "success",
+        "actor": actor,
+        "undone_effect": effect_id,
+        "rollback_successful": True,
+        "narration": f"{actor} reversed the effect due to {reason or 'unspecified reason'}"
+    }
