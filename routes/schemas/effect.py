@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 
 class EffectPreviewSchema(BaseModel):
@@ -35,7 +35,7 @@ class EffectResolveResponseSchema(BaseModel):
     status: str
     actor: str
     applied_effect: str
-    outcome: Dict[str, any]
+    outcome: Dict[str, Any]
     narration: Optional[str] = None
 
 
