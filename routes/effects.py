@@ -19,7 +19,9 @@ custom_effects: Dict[str, Dict] = {}  # Temporary in-memory store
 
 @effects_blp.post("/preview", response_model=EffectPreviewResponseSchema)
 async def preview_effect(data: EffectPreviewSchema = Body(...)):
-    outcome, narration = simulate_effect(**data.dict())
+    payload = data.dict()
+    narrate = payload.pop("narrate", False)
+    outcome, narration = simulate_effect(**payload)
     return {
         "status": "success",
         "actor": data.actor,
