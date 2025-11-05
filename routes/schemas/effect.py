@@ -1,53 +1,62 @@
-from marshmallow import Schema, fields
+from pydantic import BaseModel
+from typing import Optional, Dict
 
-class EffectPreviewSchema(Schema):
-    actor = fields.Str(required=True)
-    effect = fields.Str(required=True)
-    modifiers = fields.Dict(keys=fields.Str(), values=fields.Int(), required=False)
-    context = fields.Str(required=False)
-    narrate = fields.Bool(required=False)
 
-class SimulatedOutcomeSchema(Schema):
-    DP_change = fields.Int()
-    status = fields.Str()
-    area_damage = fields.Bool()
+class EffectPreviewSchema(BaseModel):
+    actor: str
+    effect: str
+    modifiers: Optional[Dict[str, int]] = None
+    context: Optional[str] = None
+    narrate: Optional[bool] = False
 
-class EffectPreviewResponseSchema(Schema):
-    status = fields.Str()
-    actor = fields.Str()
-    simulated_outcome = fields.Nested(SimulatedOutcomeSchema)
-    narration = fields.Str(allow_none=True)
 
-class EffectResolveSchema(Schema):
-    actor = fields.Str(required=True)
-    effect = fields.Str(required=True)
-    source = fields.Str(required=False)
-    modifiers = fields.Dict(keys=fields.Str(), values=fields.Int(), required=False)
-    context = fields.Str(required=False)
+class SimulatedOutcomeSchema(BaseModel):
+    DP_change: int
+    status: str
+    area_damage: bool
 
-class EffectResolveResponseSchema(Schema):
-    status = fields.Str()
-    actor = fields.Str()
-    applied_effect = fields.Str()
-    outcome = fields.Dict()
-    narration = fields.Str(allow_none=True)
 
-class EffectUndoSchema(Schema):
-    actor = fields.Str(required=True)
-    effect_id = fields.Str(required=True)
-    reason = fields.Str(required=False)
+class EffectPreviewResponseSchema(BaseModel):
+    status: str
+    actor: str
+    simulated_outcome: SimulatedOutcomeSchema
+    narration: Optional[str] = None
 
-class EffectUndoResponseSchema(Schema):
-    status = fields.Str()
-    actor = fields.Str()
-    undone_effect = fields.Str()
-    rollback_successful = fields.Bool()
-    narration = fields.Str(allow_none=True)
 
-class CustomEffectSchema(Schema):
-    name = fields.Str(required=True)
-    type = fields.Str(required=True)  # e.g. damage, healing, control
-    base = fields.Int(required=True)
-    status = fields.Str(required=False)
-    area = fields.Bool(required=False)
-    narration = fields.Str(required=False)
+class EffectResolveSchema(BaseModel):
+    actor: str
+    effect: str
+    source: Optional[str] = None
+    modifiers: Optional[Dict[str, int]] = None
+    context: Optional[str] = None
+
+
+class EffectResolveResponseSchema(BaseModel):
+    status: str
+    actor: str
+    applied_effect: str
+    outcome: Dict[str, any]
+    narration: Optional[str] = None
+
+
+class EffectUndoSchema(BaseModel):
+    actor: str
+    effect_id: str
+    reason: Optional[str] = None
+
+
+class EffectUndoResponseSchema(BaseModel):
+    status: str
+    actor: str
+    undone_effect: str
+    rollback_successful: bool
+    narration: Optional[str] = None
+
+
+class CustomEffectSchema(BaseModel):
+    name: str
+    type: str  # e.g. damage, healing, control
+    base: int
+    status: Optional[str] = None
+    area: Optional[bool] = False
+    narration: Optional[str] = None
