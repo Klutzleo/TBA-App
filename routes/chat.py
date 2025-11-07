@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Request, Form, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
+from routes.schemas.chat import ChatMessageSchema
+from typing import Dict, Any
 import json
 import logging
 
@@ -39,3 +41,43 @@ async def chat_post(request: Request, payload: str = Form(...)):
         }
 
     return templates.TemplateResponse("chat.html", {"request": request, "response": response})
+
+@chat_blp.post("/chat/api", response_model=Dict[str, Any])
+async def chat_api(data: ChatMessageSchema = Body(...)):
+    response = {
+        "actor": data.actor,
+        "triggered_by": data.triggered_by or data.actor,
+        "message": data.message,
+        "context": data.context,
+        "timestamp": data.timestamp
+    }
+
+    # Handle action logic
+    if data.action:
+        if data.action.type in ["spell", "technique"]:
+            response["narration"] = f"{data.actor} uses {data.action.name} ({data.action.type})!"
+            response["simulated_outcome"] = {
+                "traits": data.action.traits,
+                "tags": data.action.tags
+            }
+
+        elif data.action.type == "custom":
+            response["narration"] = f"{data.actor} performs a custom move: {data.action.name}. {data.action.description or ''}"
+
+        elif data.action.type in ["buff", "debuff"]:
+            response["narration"] = f"{data.actor} applies a {data.action.type}: {data.action.name}."
+
+        elif data.action.type == "summon":
+            response["narration"] = f"{data.actor} summons: {data.action.name}. {data.action.description or ''}"
+
+    # Handle tethers
+    if data.tethers:
+        response["tether_echoes"] = [
+            f"Tether '{t}' may trigger a bonus or memory echo." for t in data.tethers
+        ]
+
+    # Handle roll metadata
+    if data.roll:
+        response["roll_metadata"] = data.roll
+
+    return response
