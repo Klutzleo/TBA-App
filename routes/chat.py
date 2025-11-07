@@ -10,6 +10,9 @@ import json
 import logging
 import random
 import httpx  # For making async HTTP requests
+import os
+
+COMBAT_LOG_URL = os.getenv("COMBAT_LOG_URL", "https://tba-app-production.up.railway.app/api/combat/log")
 
 chat_blp = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -18,7 +21,7 @@ logger = logging.getLogger("uvicorn")
 async def log_combat_event(entry: Dict[str, Any]):
     try:
         async with httpx.AsyncClient() as client:
-            await client.post("https://tba-app-production.up.railway.app//api/combat/log", json=entry)
+            await client.post(COMBAT_LOG_URL, json=entry)
     except Exception as e:
         logger.warning(f"Combat log failed: {e}")
 
