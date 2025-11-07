@@ -36,3 +36,5 @@ python-multipart
 # Dev tools
 pytest>=7.0
 yamllint>=1.26
+
+httpx
