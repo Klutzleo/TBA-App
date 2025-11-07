@@ -1,11 +1,14 @@
+from urllib import response
 from fastapi import APIRouter, Request, Form, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
 from routes.schemas.chat import ChatMessageSchema
+from routes.schemas.resolve import ResolveRollSchema
 from typing import Dict, Any
 import json
 import logging
+import random
 
 chat_blp = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -87,6 +90,42 @@ async def chat_api(data: ChatMessageSchema = Body(...)):
     if data.roll:
         response["roll_metadata"] = data.roll
 
+    # Handle roll mode logic
+    target = data.actor
+    roll_mode = actor_roll_modes.get(target, "manual")
+
+    if roll_mode == "manual":
+        response["roll_request"] = {
+            "target": target,
+            "type": "defense",
+            "reason": f"Incoming action: {data.action.name}",
+            "expected_die": "1d10 + PP + Edge"
+        }
+
+    elif roll_mode == "prompt":
+        response["roll_request"] = {
+            "target": target,
+            "type": "defense",
+            "reason": f"Incoming action: {data.action.name}",
+            "expected_die": "1d10 + PP + Edge",
+            "fallback_time": "5 minutes"
+        }
+
+    elif roll_mode == "auto":
+        modifiers = {"PP": 2, "Edge": 1}  # Stubbed for now
+        result = simulate_roll("1d10", modifiers)
+        response["auto_roll"] = {
+            "target": target,
+            "type": "defense",
+            "die": "1d10",
+            **result
+        }
+        response.setdefault("log", []).append({
+            "event": "auto_roll",
+            "actor": target,
+            "details": result
+        })
+
     return response
 
 @chat_blp.get("/chat/schema", response_model=Dict[str, Any])
@@ -111,4 +150,46 @@ async def chat_schema():
             "result": 9
         },
         "timestamp": "2025-11-07T11:30:00"
+    }
+
+def simulate_roll(die: str, modifiers: Dict[str, int]) -> Dict[str, Any]:
+    """
+    Simulates a roll like '1d10' and adds modifiers.
+    Returns the breakdown and total.
+    """
+    num, sides = map(int, die.lower().split("d"))
+    rolls = [random.randint(1, sides) for _ in range(num)]
+    mod_total = sum(modifiers.values())
+    total = sum(rolls) + mod_total
+
+    return {
+        "rolls": rolls,
+        "modifiers": modifiers,
+        "total": total
+    }
+
+@chat_blp.post("/resolve_roll", response_model=Dict[str, Any])
+async def resolve_roll(data: ResolveRollSchema = Body(...)):
+    narration = f"{data.actor} resolves a {data.roll_type} roll with {data.result} using {data.die}."
+    
+    # Stubbed logic — later compare against incoming threat
+    outcome = "success" if data.result >= 10 else "failure"
+
+    return {
+        "actor": data.actor,
+        "triggered_by": data.triggered_by or data.actor,
+        "roll_type": data.roll_type,
+        "result": data.result,
+        "outcome": outcome,
+        "narration": narration,
+        "log": [{
+            "event": "resolve_roll",
+            "actor": data.actor,
+            "roll": {
+                "die": data.die,
+                "modifiers": data.modifiers,
+                "result": data.result
+            },
+            "outcome": outcome
+        }]
     }
