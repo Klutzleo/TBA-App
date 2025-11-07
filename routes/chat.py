@@ -18,7 +18,7 @@ logger = logging.getLogger("uvicorn")
 async def log_combat_event(entry: Dict[str, Any]):
     try:
         async with httpx.AsyncClient() as client:
-            await client.post("http://localhost:8000/api/combat/log", json=entry)
+            await client.post("https://tba-app-production.up.railway.app//api/combat/log", json=entry)
     except Exception as e:
         logger.warning(f"Combat log failed: {e}")
 
