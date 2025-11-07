@@ -81,3 +81,27 @@ async def chat_api(data: ChatMessageSchema = Body(...)):
         response["roll_metadata"] = data.roll
 
     return response
+
+@chat_blp.get("/chat/schema", response_model=Dict[str, Any])
+async def chat_schema():
+    return {
+        "actor": "Kai",
+        "triggered_by": "Story Weaver",
+        "message": "Kai casts Ember Veil!",
+        "context": "Volcanic battlefield",
+        "action": {
+            "name": "Ember Veil",
+            "type": "spell",
+            "target": "aoe",
+            "traits": {"IP": 3, "Edge": 2},
+            "tags": ["fire", "protective"],
+            "description": "A veil of flame shields allies and scorches nearby foes."
+        },
+        "tethers": ["Protect the innocent"],
+        "roll": {
+            "die": "1d10",
+            "modifiers": {"IP": 3, "Edge": 2},
+            "result": 9
+        },
+        "timestamp": "2025-11-07T11:30:00"
+    }
