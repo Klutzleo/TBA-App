@@ -11,6 +11,13 @@ chat_blp = APIRouter()
 templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger("uvicorn")
 
+actor_roll_modes = {
+    "Kai": "manual",
+    "Aria": "auto",
+    "NPC Guard": "auto",
+    "Bill": "prompt"
+}
+
 @chat_blp.get("/chat", response_class=HTMLResponse)
 async def chat_get(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request, "response": None})
