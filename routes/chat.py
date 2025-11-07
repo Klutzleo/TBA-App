@@ -94,23 +94,26 @@ async def chat_api(data: ChatMessageSchema = Body(...)):
     target = data.actor
     roll_mode = actor_roll_modes.get(target, "manual")
 
-    if roll_mode == "manual":
-        response["roll_request"] = {
-            "target": target,
-            "type": "defense",
-            "reason": f"Incoming action: {data.action.name}",
-            "expected_die": "1d10 + PP + Edge"
-        }
-
-    elif roll_mode == "prompt":
+    if roll_mode in ["manual", "prompt"]:
         response["roll_request"] = {
             "target": target,
             "type": "defense",
             "reason": f"Incoming action: {data.action.name}",
             "expected_die": "1d10 + PP + Edge",
-            "fallback_time": "5 minutes"
-        }
-
+            "submit_to": "/resolve_roll",
+            "example_payload": {
+                "actor": target,
+                "roll_type": "defense",
+                "die": "1d10",
+                "modifiers": {"PP": 2, "Edge": 1},
+                "result": 11,
+                "context": data.context,
+                "triggered_by": data.triggered_by or target
+                        }
+                    }   
+    
+    if roll_mode == "prompt":
+        response["roll_request"]["fallback_time"] = "5 minutes"
     elif roll_mode == "auto":
         modifiers = {"PP": 2, "Edge": 1}  # Stubbed for now
         result = simulate_roll("1d10", modifiers)
