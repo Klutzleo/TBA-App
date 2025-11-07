@@ -9,10 +9,18 @@ from typing import Dict, Any
 import json
 import logging
 import random
+import httpx  # For making async HTTP requests
 
 chat_blp = APIRouter()
 templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger("uvicorn")
+
+async def log_combat_event(entry: Dict[str, Any]):
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post("http://localhost:8000/api/combat/log", json=entry)
+    except Exception as e:
+        logger.warning(f"Combat log failed: {e}")
 
 actor_roll_modes = {
     "Kai": "manual",
@@ -129,6 +137,18 @@ async def chat_api(data: ChatMessageSchema = Body(...)):
             "details": result
         })
 
+    await log_combat_event({
+    "actor": data.actor,
+    "timestamp": data.timestamp,
+    "context": data.context,
+    "triggered_by": data.triggered_by or data.actor,
+    "narration": response.get("narration"),
+    "action": data.action.dict() if data.action else None,
+    "roll": data.roll,
+    "tethers": data.tethers,
+    "log": response.get("log")
+})
+
     return response
 
 @chat_blp.get("/chat/schema", response_model=Dict[str, Any])
@@ -177,6 +197,26 @@ async def resolve_roll(data: ResolveRollSchema = Body(...)):
     
     # Stubbed logic — later compare against incoming threat
     outcome = "success" if data.result >= 10 else "failure"
+
+    await log_combat_event({
+    "actor": data.actor,
+    "timestamp": getattr(data, "timestamp", "unknown"),
+    "context": data.context,
+    "triggered_by": data.triggered_by or data.actor,
+    "narration": narration,
+    "roll": {
+        "die": data.die,
+        "modifiers": data.modifiers,
+        "result": data.result
+    },
+    "outcome": outcome,
+    "log": [{
+        "event": "resolve_roll",
+        "actor": data.actor,
+        "result": data.result,
+        "outcome": outcome
+    }]
+})
 
     return {
         "actor": data.actor,
