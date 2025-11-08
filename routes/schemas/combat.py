@@ -12,3 +12,8 @@ class CombatLogEntrySchema(BaseModel):
     outcome: Optional[str] = None
     tethers: Optional[List[str]] = None
     log: Optional[List[Dict[str, any]]] = None
+
+class CombatReplayRequest(BaseModel):
+    actor: Optional[str] = None
+    encounter_id: Optional[str] = None
+    since: Optional[str] = None  # ISO timestamp

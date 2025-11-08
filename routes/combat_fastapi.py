@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Body
 from typing import Dict, Any, List
 from pydantic import BaseModel
+from routes.schemas.combat import CombatReplayRequest
+
 
 combat_blp_fastapi = APIRouter(prefix="/api/combat", tags=["Combat"])
 
@@ -35,4 +37,27 @@ async def post_combat_log(entry: CombatLogEntry = Body(...)):
 async def get_recent_combat_logs():
     return {
         "entries": combat_log_store[-10:]
+    }
+
+@combat_blp_fastapi.post("/replay", response_model=Dict[str, Any])
+async def replay_combat(data: CombatReplayRequest = Body(...)):
+    filtered = []
+
+    for entry in combat_log_store:
+        if data.actor and entry.get("actor") != data.actor:
+            continue
+        if data.encounter_id and entry.get("context") != data.encounter_id:
+            continue
+        if data.since and entry.get("timestamp") < data.since:
+            continue
+        filtered.append(entry)
+
+    narration = []
+    for e in filtered:
+        narration.append(e.get("narration") or f"{e['actor']} acted at {e['timestamp']}.")
+
+    return {
+        "count": len(filtered),
+        "narration": narration,
+        "entries": filtered
     }
