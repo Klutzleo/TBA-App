@@ -70,8 +70,8 @@ async def chat_api(data: ChatMessageSchema = Body(...)):
         "triggered_by": data.triggered_by or data.actor,
         "message": data.message,
         "context": data.context,
-        "timestamp": data.timestamp
-    }
+        "timestamp": data.timestamp,
+        }
 
     # Handle action logic
     if data.action:
@@ -144,13 +144,14 @@ async def chat_api(data: ChatMessageSchema = Body(...)):
     "actor": data.actor,
     "timestamp": data.timestamp,
     "context": data.context,
+    "encounter_id": data.context,
     "triggered_by": data.triggered_by or data.actor,
     "narration": response.get("narration"),
     "action": data.action.dict() if data.action else None,
     "roll": data.roll,
     "tethers": data.tethers,
     "log": response.get("log")
-})
+    })
 
     return response
 
@@ -202,24 +203,25 @@ async def resolve_roll(data: ResolveRollSchema = Body(...)):
     outcome = "success" if data.result >= 10 else "failure"
 
     await log_combat_event({
-    "actor": data.actor,
-    "timestamp": getattr(data, "timestamp", "unknown"),
-    "context": data.context,
-    "triggered_by": data.triggered_by or data.actor,
-    "narration": narration,
-    "roll": {
-        "die": data.die,
-        "modifiers": data.modifiers,
-        "result": data.result
-    },
-    "outcome": outcome,
-    "log": [{
-        "event": "resolve_roll",
         "actor": data.actor,
-        "result": data.result,
-        "outcome": outcome
-    }]
-})
+        "timestamp": getattr(data, "timestamp", "unknown"),
+        "context": data.context,
+        "encounter_id": data.encounter_id,
+        "triggered_by": data.triggered_by or data.actor,
+        "narration": narration,
+        "roll": {
+            "die": data.die,
+            "modifiers": data.modifiers,
+            "result": data.result
+        },
+        "outcome": outcome,
+        "log": [{
+            "event": "resolve_roll",
+            "actor": data.actor,
+            "result": data.result,
+            "outcome": outcome
+        }]
+    })
 
     return {
         "actor": data.actor,
