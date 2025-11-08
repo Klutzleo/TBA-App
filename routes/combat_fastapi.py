@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body
 from typing import Dict, Any, List
 from pydantic import BaseModel
-from routes.schemas.combat import CombatReplayRequest
+from routes.schemas.combat import CombatReplayRequest, CombatEchoRequest
 
 
 combat_blp_fastapi = APIRouter(prefix="/api/combat", tags=["Combat"])
