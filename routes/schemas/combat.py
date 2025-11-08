@@ -7,11 +7,11 @@ class CombatLogEntrySchema(BaseModel):
     context: Optional[str] = None
     triggered_by: Optional[str] = None
     narration: Optional[str] = None
-    action: Optional[Dict[str, any]] = None
-    roll: Optional[Dict[str, any]] = None
+    action: Optional[Dict[str, Any]] = None
+    roll: Optional[Dict[str, Any]] = None
     outcome: Optional[str] = None
     tethers: Optional[List[str]] = None
-    log: Optional[List[Dict[str, any]]] = None
+    log: Optional[List[Dict[str, Any]]] = None
 
 class CombatReplayRequest(BaseModel):
     actor: Optional[str] = None
