@@ -61,3 +61,30 @@ async def replay_combat(data: CombatReplayRequest = Body(...)):
         "narration": narration,
         "entries": filtered
     }
+
+@combat_blp_fastapi.post("/echoes", response_model=Dict[str, Any])
+async def combat_echoes(data: CombatEchoRequest = Body(...)):
+    echoes = []
+
+    for entry in combat_log_store:
+        if data.actor and entry.get("actor") != data.actor:
+            continue
+        if data.encounter_id and entry.get("encounter_id") != data.encounter_id:
+            continue
+        if data.since and entry.get("timestamp") < data.since:
+            continue
+        if data.tether and data.tether not in (entry.get("tethers") or []):
+            continue
+
+        echoes.append({
+            "source": entry.get("timestamp"),
+            "actor": entry.get("actor"),
+            "tether": data.tether,
+            "narration": entry.get("narration"),
+            "bonus_hint": f"Echo from '{data.tether}' may grant advantage or emotional surge."
+        })
+
+    return {
+        "count": len(echoes),
+        "echoes": echoes
+    }

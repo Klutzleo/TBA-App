@@ -17,3 +17,9 @@ class CombatReplayRequest(BaseModel):
     actor: Optional[str] = None
     encounter_id: Optional[str] = None
     since: Optional[str] = None  # ISO timestamp
+
+class CombatEchoRequest(BaseModel):
+    actor: Optional[str] = None
+    encounter_id: Optional[str] = None
+    tether: Optional[str] = None
+    since: Optional[str] = None
