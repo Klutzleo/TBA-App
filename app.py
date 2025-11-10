@@ -15,7 +15,7 @@ app = FastAPI()
 app.include_router(chat_blp)
 app.include_router(effects_blp, prefix="/api/effect")
 app.include_router(combat_blp_fastapi)
-app.include_router(character_blp_fastapi, prefix="/api/character")  # ✅ Mount character sheet router
+app.include_router(character_blp_fastapi)  # ✅ Mount character sheet router
 
 # 🎨 Template engine
 templates = Jinja2Templates(directory="templates")
