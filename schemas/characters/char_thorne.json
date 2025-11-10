@@ -66,4 +66,7 @@
       "session_id": "session_001"
     }
   ],
-  "emotional_flags
+  "emotional_flags": ["grief", "resolve", "duty"],
+  "backstory": "Thorne once led the Emberfall Guard before the fall. Haunted by loss, he now protects others to atone for what he couldn’t save.",
+  "visibility": "public"
+}
