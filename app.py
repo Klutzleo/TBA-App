@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from backend.db import init_db
+init_db()  # ✅ This is what Railway will run
 
 # 🧩 Route imports
 from routes.chat import chat_blp
