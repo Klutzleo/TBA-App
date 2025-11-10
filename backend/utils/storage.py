@@ -1,7 +1,7 @@
 import os
 import json
 from backend.db import SessionLocal  # ✅
-from backend.models import Echo
+from backend.models import Echo, RollLog
 
 ### 🧠 Echo Storage (Database) ###
 def store_echo(schema_type, payload):
@@ -32,3 +32,20 @@ def save_character(character_id, data):
     path = os.path.join(CHARACTER_DIR, f"{character_id}.json")
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
+
+def store_roll(actor, target, roll_type, roll_mode, triggered_by, result, modifiers, session_id=None, encounter_id=None):
+    session = SessionLocal()
+    log = RollLog(
+        actor=actor,
+        target=target,
+        roll_type=roll_type,
+        roll_mode=roll_mode,
+        triggered_by=triggered_by,
+        result=result,
+        modifiers=modifiers,
+        session_id=session_id,
+        encounter_id=encounter_id
+    )
+    session.add(log)
+    session.commit()
+    session.close()
