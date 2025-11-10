@@ -5,6 +5,7 @@ import re
 from schemas.loader import CORE_RULESET
 from backend.combat_utils import resolve_initiative
 from backend.lore_log import add_lore_entry, get_lore_by_round
+from backend.utils.storage import store_roll  # adjust path if needed
 
 
 
@@ -255,8 +256,8 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
         return f"{name_a} overwhelms {name_d} with brutal precision."
     return f"{name_a} strikes true, bypassing {name_d}'s defenses."
 
-# Simulates 1v1 Combat
-def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
+# Simulates encounter-based combat with effects, echoes, and lore
+def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
     print("✅ simulate_combat() was called")
 
     import uuid
@@ -337,6 +338,25 @@ def simulate_combat(attacker, defender, weapon_die, defense_die, bap):
                         defender.get("name", "Defender"): defender_dp
                     }
                 })
+
+                    # Store roll in DB
+                store_roll(
+                    actor=actor.get("name"),
+                    target=target.get("name"),
+                    roll_type="combat",
+                    roll_mode=actor.get("roll_mode", "auto"),
+                    triggered_by=actor.get("triggered_by", "unknown"),
+                    result=result,
+                    modifiers={
+                        "edge": actor.get("edge", 0),
+                        "bap": actor.get("bap", 0),
+                        "emotional_flags": actor.get("emotional_flags", []),
+                        "tethers": actor.get("tethers", []),
+                        "echoes": actor.get("echoes", [])
+                    },
+                    session_id=actor.get("session_id"),
+                    encounter_id=encounter_id
+                )
 
                 round_log["actions"].append(result)
 
