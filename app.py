@@ -1,8 +1,19 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from backend.db import init_db
-init_db()  # ✅ This is what Railway will run
+import time
+from sqlalchemy.exc import OperationalError
+from backend.db import init_db, engine
+
+for attempt in range(5):
+    try:
+        with engine.connect() as conn:
+            print("✅ DB connection successful")
+            init_db()
+            break
+    except OperationalError as e:
+        print(f"⏳ DB not ready (attempt {attempt + 1}/5): {e}")
+        time.sleep(5)
 
 # 🧩 Route imports
 from routes.chat import chat_blp
