@@ -15,3 +15,13 @@ Base = declarative_base()
 def init_db():
     from models.effect_log import EffectLog
     Base.metadata.create_all(bind=engine)
+
+
+from sqlalchemy.orm import Session
+
+def get_db():
+    db: Session = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
