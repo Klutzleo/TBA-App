@@ -399,61 +399,36 @@ def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
             lore_summary.extend(get_lore_by_round(r))
 
 
-    # Compatibility wrapper expected by routes: previously code imported `simulate_combat`.
-    def simulate_combat(*args, **kwargs):
-        """Backwards-compatible wrapper.
-
-        Accepts either positional (attacker, defender, weapon_die, defense_die, bap)
-        or keyword args containing at least `attacker` and `defender`.
-        For other payload shapes raise a clear error.
-        """
-        # If caller passed positional args, map them directly
-        if len(args) >= 2:
-            attacker = args[0]
-            defender = args[1]
-            weapon_die = args[2] if len(args) > 2 else kwargs.get("weapon_die")
-            defense_die = args[3] if len(args) > 3 else kwargs.get("defense_die")
-            bap = args[4] if len(args) > 4 else kwargs.get("bap", False)
-            return simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap)
-
-        # Keyword form
-        if "attacker" in kwargs and "defender" in kwargs:
-            attacker = kwargs.get("attacker")
-            defender = kwargs.get("defender")
-            weapon_die = kwargs.get("weapon_die")
-            defense_die = kwargs.get("defense_die")
-            bap = kwargs.get("bap", False)
-            return simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap)
-
-        raise ValueError("simulate_combat requires at least 'attacker' and 'defender' arguments")
-
-        battle_log = {
-            "type": "combat_simulation",
-            "combatants": {
-                "players": [attacker.get("name", "Attacker")],
-                "enemies": [defender.get("name", "Defender")],
-            },
-            "initiative_order": initiative_order,
-            "initiative_rolls": initiative_rolls,
-            "start_dp": {
-                attacker.get("name", "Attacker"): attacker.get("current_dp", 10),
-                defender.get("name", "Defender"): defender.get("current_dp", 10)
-            },
-            "rounds": rounds,
-            "round_count": len(rounds),
-            "final_dp": {
-                attacker.get("name", "Attacker"): attacker_dp,
-                defender.get("name", "Defender"): defender_dp
-            },
-            "summary": summary,
-            "final_outcome": outcome,
-            "lore": lore_summary,
-            "encounter_id": encounter_id
-        }
+            battle_log = {
+                "type": "combat_simulation",
+                "combatants": {
+                    "players": [attacker.get("name", "Attacker")],
+                    "enemies": [defender.get("name", "Defender")],
+                },
+                "initiative_order": initiative_order,
+                "initiative_rolls": initiative_rolls,
+                "start_dp": {
+                    attacker.get("name", "Attacker"): attacker.get("current_dp", 10),
+                    defender.get("name", "Defender"): defender.get("current_dp", 10)
+                },
+                "rounds": rounds,
+                "round_count": len(rounds),
+                "final_dp": {
+                    attacker.get("name", "Attacker"): attacker_dp,
+                    defender.get("name", "Defender"): defender_dp
+                },
+                "summary": summary,
+                "final_outcome": outcome,
+                "lore": lore_summary,
+                "encounter_id": encounter_id
+            }
             
-        return {
-            "battle_log": battle_log
-        }
+            return {
+                "battle_log": battle_log
+            }
+
+
+    
 
     except Exception as e:
         print("Simulation error:", str(e))
@@ -629,3 +604,34 @@ def simulate_encounter(actors, rounds=3, log=True, encounter_id=None):
         "log": combat_log,
         "summary": summary
     }
+
+
+# Backwards-compatible wrapper expected by some routes
+def simulate_combat(*args, **kwargs):
+    """Compatibility shim: delegates to `simulate_encounter` or
+    `simulate_encounter_combat` depending on provided args.
+    """
+    # If caller provided a list of actors, delegate to simulate_encounter
+    if len(args) == 1 and isinstance(args[0], (list, tuple)):
+        actors = args[0]
+        rounds = kwargs.get("rounds", 3)
+        return simulate_encounter(actors, rounds=rounds, encounter_id=kwargs.get("encounter_id"))
+
+    # If called with attacker/defender, delegate to single-encounter sim
+    if len(args) >= 2 or ("attacker" in kwargs and "defender" in kwargs):
+        # normalize positional or kw form
+        if len(args) >= 2:
+            attacker = args[0]
+            defender = args[1]
+            weapon_die = args[2] if len(args) > 2 else kwargs.get("weapon_die")
+            defense_die = args[3] if len(args) > 3 else kwargs.get("defense_die")
+            bap = args[4] if len(args) > 4 else kwargs.get("bap", False)
+        else:
+            attacker = kwargs.get("attacker")
+            defender = kwargs.get("defender")
+            weapon_die = kwargs.get("weapon_die")
+            defense_die = kwargs.get("defense_die")
+            bap = kwargs.get("bap", False)
+        return simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap)
+
+    raise ValueError("simulate_combat requires either an actors list or attacker and defender")

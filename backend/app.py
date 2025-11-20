@@ -202,9 +202,16 @@ application = app
 
 try:
     from routes.effects import effects_blp
-    api.register_blueprint(effects_blp)
-    print("✅ effects_blp registered")
+    # `effects_blp` in this repo is a FastAPI `APIRouter` (used by top-level
+    # FastAPI `app.py`). Flask-Smorest `Api.register_blueprint` expects a
+    # `flask_smorest.Blueprint` with a `name` attribute. If the imported
+    # object does not match, skip registering it for the Flask app.
+    if hasattr(effects_blp, "name"):
+        api.register_blueprint(effects_blp)
+        print("effects_blp registered (Flask blueprint)")
+    else:
+        print("Skipping effects_blp: not a Flask-Smorest Blueprint (likely FastAPI router)")
 except Exception:
-    print("❌ Failed to import/register effects_blp:")
+    print("Failed to import/register effects_blp:")
     traceback.print_exc()
-    raise
+    # continue without raising so the app can start even if this blueprint fails
