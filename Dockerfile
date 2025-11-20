@@ -13,8 +13,13 @@ RUN pip install --no-cache-dir flasgger
 EXPOSE 8080
 
 # 5. Healthcheck against your Flask /health on 8080
-HEALTHCHECK --start-period=5s --interval=10s --retries=3 \
+# Give the container a longer startup window; some platforms run healthchecks
+# very quickly after container start. Increase start-period and retries so
+# transient import/DB waits don't mark the container unhealthy immediately.
+HEALTHCHECK --start-period=30s --interval=10s --retries=5 \
   CMD curl --fail http://localhost:8080/health || exit 1
 
-# 6. Launch Gunicorn binding to 0.0.0.0:8080
-CMD ["sh", "-c", "echo \"▶ Binding to port 8080\"; exec gunicorn backend.app:application --bind 0.0.0.0:8080 --workers 1 --threads 4"]
+# 6. Use an entrypoint script that prints diagnostics and attempts an import
+# before launching Gunicorn. This surfaces import-time errors to container logs.
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+CMD ["/app/scripts/docker-entrypoint.sh"]
