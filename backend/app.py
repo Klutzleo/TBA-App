@@ -24,11 +24,11 @@ start_time = time.time()
 load_dotenv()
 
 # Show current working dir and docs folder
-print("📂 Working directory:", os.getcwd())
+print("Working directory:", os.getcwd())
 try:
-    print("📄 Files in routes/docs:", os.listdir("routes/docs"))
+    print("Files in routes/docs:", os.listdir("routes/docs"))
 except Exception as e:
-    print("⚠️ Could not list routes/docs:", e)
+    print("Could not list routes/docs:", e)
 
 # Initialize DB
 Base.metadata.create_all(bind=engine)
@@ -53,7 +53,7 @@ app.config.update({
 
 # Initialize Flask-Smorest API
 api = Api(app)
-print("✅ OpenAPI 3.0 initialized successfully")
+print("OpenAPI 3.0 initialized successfully")
 
 # Define API key security scheme
 api.spec.components.security_scheme(
@@ -66,41 +66,41 @@ api.spec.components.security_scheme(
 )
 
 # Register your blueprints
-print("🔄 Registering blueprints…")
+print("Registering blueprints...")
 
 try:
     from routes.schemas.blp import schemas_blp
     api.register_blueprint(schemas_blp)
-    print("✅ schemas_bp registered")
+    print("schemas_bp registered")
 except Exception:
-    print("❌ Failed to import/register schemas_bp:")
+    print("Failed to import/register schemas_bp:")
     traceback.print_exc()
     raise
 
 try:
     from routes.roll import roll_blp
     api.register_blueprint(roll_blp)
-    print("✅ roll_blp registered")
+    print("roll_blp registered")
 except Exception:
-    print("❌ Failed to import/register roll_blp:")
+    print("Failed to import/register roll_blp:")
     traceback.print_exc()
     raise
 
 try:
     from routes.combat import combat_blp
     api.register_blueprint(combat_blp)
-    print("✅ combat_blp registered")
+    print("combat_blp registered")
 except Exception:
-    print("❌ Failed to import/register combat_blp:")
+    print("Failed to import/register combat_blp:")
     traceback.print_exc()
     raise
 
 try:
     from routes.magic import magic_blp
     api.register_blueprint(magic_blp)
-    print("✅ magic_blp registered")
+    print("magic_blp registered")
 except Exception:
-    print("❌ Failed to import/register magic_blp:")
+    print("Failed to import/register magic_blp:")
     traceback.print_exc()
     raise
 
