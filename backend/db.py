@@ -3,10 +3,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
+import os as _os
 
-load_dotenv()
+# When running inside a container (Docker, Railway), avoid loading the
+# repository `.env` file. Loading it at import-time can override platform
+# provided env vars or point the app at remote DB hosts that are not
+# reachable from the local environment. Only load `.env` when not running
+# inside a container (no `/.dockerenv`).
+if not _os.path.exists("/.dockerenv"):
+    load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///local.db")
+DATABASE_URL = _os.getenv("DATABASE_URL", "sqlite:///local.db")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)

@@ -31,7 +31,17 @@ except Exception as e:
     print("Could not list routes/docs:", e)
 
 # Initialize DB
-Base.metadata.create_all(bind=engine)
+# Only auto-create schema at import time when using a local SQLite database
+# (convenient for local dev) or when explicitly enabled via
+# `ENABLE_DB_INIT=1`. This avoids accidental import-time connections to
+# production databases (which can fail or cause unwanted side-effects).
+try:
+    driver = engine.url.get_dialect().name
+except Exception:
+    driver = getattr(engine.url, "drivername", "")
+
+if driver.startswith("sqlite") or os.getenv("ENABLE_DB_INIT") == "1":
+    Base.metadata.create_all(bind=engine)
 
 # Setup your custom logging
 setup_logging()
