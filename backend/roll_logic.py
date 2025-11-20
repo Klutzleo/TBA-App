@@ -398,6 +398,35 @@ def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
         for r in range(1, len(rounds) + 1):
             lore_summary.extend(get_lore_by_round(r))
 
+
+    # Compatibility wrapper expected by routes: previously code imported `simulate_combat`.
+    def simulate_combat(*args, **kwargs):
+        """Backwards-compatible wrapper.
+
+        Accepts either positional (attacker, defender, weapon_die, defense_die, bap)
+        or keyword args containing at least `attacker` and `defender`.
+        For other payload shapes raise a clear error.
+        """
+        # If caller passed positional args, map them directly
+        if len(args) >= 2:
+            attacker = args[0]
+            defender = args[1]
+            weapon_die = args[2] if len(args) > 2 else kwargs.get("weapon_die")
+            defense_die = args[3] if len(args) > 3 else kwargs.get("defense_die")
+            bap = args[4] if len(args) > 4 else kwargs.get("bap", False)
+            return simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap)
+
+        # Keyword form
+        if "attacker" in kwargs and "defender" in kwargs:
+            attacker = kwargs.get("attacker")
+            defender = kwargs.get("defender")
+            weapon_die = kwargs.get("weapon_die")
+            defense_die = kwargs.get("defense_die")
+            bap = kwargs.get("bap", False)
+            return simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap)
+
+        raise ValueError("simulate_combat requires at least 'attacker' and 'defender' arguments")
+
         battle_log = {
             "type": "combat_simulation",
             "combatants": {

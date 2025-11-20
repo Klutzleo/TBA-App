@@ -1,6 +1,33 @@
+Working directory: C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App
+Files in routes/docs: ['cast_spell.yml', 'combat_bundle.yml', 'roll_combat.yml', 'roll_skill.yml', 'simulate.yml', 'threader.yml', '__init__.py']
+OpenAPI 3.0 initialized successfully
+Registering blueprints...
+schemas_bp registered
+{"timestamp": "2025-11-19 22:13:21,173", "level": "INFO", "logger": "schemas.loader", "message": "Loading schemas from C:\\Users\\klutz\\OneDrive\\Documents\\Programming Files\\TBA-App\\schemas", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,174", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: bap_registry", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,174", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: calling_log", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,174", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: character_profile", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,175", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: core_ruleset", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,175", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: game_instance", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,175", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: lore_entry", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,176", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: memory_echoes", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,176", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: session_log", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,177", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: storyweaver_state", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,177", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: tether_registery", "module": "loader"}
+{"timestamp": "2025-11-19 22:13:21,177", "level": "INFO", "logger": "schemas.loader", "message": "Loaded schema: user_profile", "module": "loader"}
+Traceback (most recent call last):
+  File "C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\backend\app.py", line 90, in <module>
+    from routes.combat import combat_blp
+  File "C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\routes\combat.py", line 6, in <module>
+    from backend.roll_logic import resolve_combat_roll, simulate_combat
+ImportError: cannot import name 'simulate_combat' from 'backend.roll_logic' (C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\backend\roll_logic.py)
 Traceback (most recent call last):
   File "C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\import_debug.py", line 2, in <module>
     import backend.app
-  File "C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\backend\app.py", line 28
-    try:
-IndentationError: unexpected indent
+  File "C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\backend\app.py", line 90, in <module>
+    from routes.combat import combat_blp
+  File "C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\routes\combat.py", line 6, in <module>
+    from backend.roll_logic import resolve_combat_roll, simulate_combat
+ImportError: cannot import name 'simulate_combat' from 'backend.roll_logic' (C:\Users\klutz\OneDrive\Documents\Programming Files\TBA-App\backend\roll_logic.py)
+roll_blp registered
+Failed to import/register combat_blp:
