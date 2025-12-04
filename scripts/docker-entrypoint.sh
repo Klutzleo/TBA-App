@@ -29,5 +29,5 @@ except Exception as e:
     sys.exit(1)
 PY
 
-echo "▶ Launching Gunicorn"
-exec gunicorn backend.app:application --bind 0.0.0.0:8080 --workers 1 --threads 4 --log-level info
+echo "▶ Launching Uvicorn"
+exec uvicorn backend.app:application --host 0.0.0.0 --port 8000 --workers 1
