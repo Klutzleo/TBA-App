@@ -27,19 +27,16 @@ start_time = time.time()
 API_KEY = os.getenv("API_KEY", "default-dev-key")
 
 
-# Initialize DB on startup
-try:
-    init_db()
-    logger.info("✅ Database initialized")
-except Exception as e:
-    logger.warning(f"⚠️ DB init warning: {e}")
-
-
 # Lifespan context for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup — DB init happens HERE
     logger.info("🚀 FastAPI TBA-App starting")
+    try:
+        init_db()
+        logger.info("✅ Database initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ DB init warning: {e}")
     yield
     # Shutdown
     logger.info("🛑 FastAPI TBA-App shutting down")
