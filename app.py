@@ -5,6 +5,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import OperationalError
+from flask_socketio import SocketIO, emit, join_room, leave_room
+from backend.db import db
+from models.chat import ChatMessage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,20 +40,14 @@ async def init_db_on_startup():
 
 # 🧩 Route imports
 from routes.chat import chat_blp
-from routes.effects import effects_blp
-from routes.combat_fastapi import combat_blp_fastapi
-from routes.character_fastapi import character_blp_fastapi
-from routes.roll_blp_fastapi import roll_blp_fastapi
+# from routes.effects import effects_blp  # ⚠️ COMMENT OUT — this breaks FastAPI startup due to DB import at module level
+# from routes.combat_fastapi import combat_blp_fastapi
+# from routes.character_fastapi import character_blp_fastapi
+# from routes.roll_blp_fastapi import roll_blp_fastapi
+# from routes.chat_socket import init_socketio
 
-# 🚀 Create FastAPI app
+# 🚀 Create FastAPI app (UI only)
 app = FastAPI()
-
-# 🔌 Register routers
-app.include_router(chat_blp)
-app.include_router(effects_blp, prefix="/api/effect")
-app.include_router(combat_blp_fastapi)
-app.include_router(character_blp_fastapi)
-app.include_router(roll_blp_fastapi)
 
 # 🎨 Template engine
 templates = Jinja2Templates(directory="templates")
@@ -58,10 +55,9 @@ templates = Jinja2Templates(directory="templates")
 # 🏠 Root route
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    await init_db_on_startup()
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/health")
 async def health():
-    """Health check — returns 200 immediately even if DB is initializing."""
-    return {"status": "ok", "db_ready": db_ready, "db_error": db_error}
+    """Simple FastAPI health check — does NOT check DB."""
+    return {"status": "ok", "runtime": "fastapi-ui-only"}
