@@ -65,6 +65,7 @@ application.add_middleware(
 @application.get("/health", tags=["Health"])
 async def health_check():
     """Minimal health check for Railway — no auth required."""
+    logger.info("🏥 Health check hit")
     return JSONResponse(
         status_code=200,
         content={"status": "ok", "service": "TBA-App"},
