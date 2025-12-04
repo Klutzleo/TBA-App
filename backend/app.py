@@ -64,6 +64,38 @@ application.add_middleware(
 )
 
 
+# ✅ HEALTH CHECK FIRST — before middleware
+@application.get("/health", tags=["Health"])
+async def health_check():
+    """Minimal health check for Railway — no auth required."""
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "service": "TBA-App"},
+    )
+
+
+@application.get("/api/health", tags=["Health"])
+async def api_health_check(request: Request):
+    """Detailed health check with DB status."""
+    try:
+        from backend.db import engine
+
+        with engine.connect() as conn:
+            db_ok = True
+            db_msg = "Connected"
+    except Exception as e:
+        db_ok = False
+        db_msg = str(e)
+
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "uptime_seconds": time.time() - start_time,
+        "database": {"status": "ok" if db_ok else "error", "message": db_msg},
+        "timestamp": time.time(),
+        "request_id": getattr(request.state, "request_id", "N/A"),
+    }
+
+
 # Middleware: Attach request_id and enforce API key
 @application.middleware("http")
 async def attach_request_id_and_auth(request: Request, call_next):
@@ -94,36 +126,6 @@ async def attach_request_id_and_auth(request: Request, call_next):
     return response
 
 
-# Health check (no auth required)
-@application.get("/health")
-async def health_check():
-    """Health check endpoint for Railway and load balancers."""
-    return {"status": "ok", "service": "TBA-App"}
-
-
-# API health check (no auth required)
-@application.get("/api/health")
-async def api_health_check(request: Request):
-    """Detailed health check with DB status."""
-    try:
-        from backend.db import engine
-
-        with engine.connect() as conn:
-            db_ok = True
-            db_msg = "Connected"
-    except Exception as e:
-        db_ok = False
-        db_msg = str(e)
-
-    return {
-        "status": "ok" if db_ok else "degraded",
-        "uptime_seconds": time.time() - start_time,
-        "database": {"status": "ok" if db_ok else "error", "message": db_msg},
-        "timestamp": time.time(),
-        "request_id": request.state.request_id,
-    }
-
-
 # Root endpoint
 @application.get("/")
 async def root(request: Request):
@@ -134,7 +136,7 @@ async def root(request: Request):
         "openapi": "/openapi.json",
         "health": "/health",
         "api_health": "/api/health",
-        "request_id": request.state.request_id,
+        "request_id": getattr(request.state, "request_id", "N/A"),
     }
 
 
