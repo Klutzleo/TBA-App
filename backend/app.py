@@ -97,12 +97,8 @@ async def attach_request_id_and_auth(request: Request, call_next):
 # Health check (no auth required)
 @application.get("/health")
 async def health_check():
-    """Simple health check — always returns 200."""
-    return {
-        "status": "ok",
-        "uptime_seconds": time.time() - start_time,
-        "timestamp": time.time(),
-    }
+    """Health check endpoint for Railway and load balancers."""
+    return {"status": "ok", "service": "TBA-App"}
 
 
 # API health check (no auth required)
