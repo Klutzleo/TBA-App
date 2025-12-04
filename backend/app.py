@@ -96,27 +96,19 @@ async def api_health_check(request: Request):
 # Middleware: Attach request_id and enforce API key
 @application.middleware("http")
 async def attach_request_id_and_auth(request: Request, call_next):
-    """Attach request_id to all requests. Enforce X-API-Key for /api/ routes (except docs/health)."""
+    """Attach request_id. Enforce X-API-Key for /api/ routes only."""
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
 
-    # Exempt routes from API key check
-    exempt_paths = ["/docs", "/openapi.json", "/health", "/api/health", "/"]
+    # Exempt these paths from API key check
+    exempt_paths = {"/health", "/docs", "/openapi.json", "/", "/redoc"}
 
-    # Enforce API key for /api/ routes
+    # Only enforce API key on /api/ routes (and not on exempt paths)
     if request.url.path.startswith("/api/") and request.url.path not in exempt_paths:
         provided_key = request.headers.get("X-API-Key")
         if not provided_key or provided_key != API_KEY:
-            logger.warning(
-                f"[{request_id}] Unauthorized API key attempt: {request.method} {request.url.path}"
-            )
-            return JSONResponse(
-                status_code=403,
-                content={"error": "Invalid or missing X-API-Key", "request_id": request_id},
-            )
-
-    # Log request
-    logger.info(f"[{request_id}] {request.method} {request.url.path}")
+            logger.warning(f"[{request_id}] Unauthorized: {request.method} {request.url.path}")
+            return JSONResponse(status_code=403, content={"error": "Invalid X-API-Key"})
 
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
