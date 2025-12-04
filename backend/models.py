@@ -6,6 +6,7 @@ from backend.db import Base  # ✅ This works from project root
 
 class Echo(Base):
     __tablename__ = "echoes"
+    __table_args__ = {'extend_existing': True}
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     timestamp = Column(DateTime, default=datetime.utcnow)
     schema_type = Column(String)
@@ -13,7 +14,7 @@ class Echo(Base):
 
 class RollLog(Base):
     __tablename__ = "roll_logs"
-
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     actor = Column(String)
     target = Column(String)
