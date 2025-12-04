@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from backend.utils.storage import load_character, save_character
-from sqlalchemy import Base, Column, Integer, String, Text, DateTime
-from sqlalchemy.ext.declarative import declarative_base
+from backend.db import Base  # ✅ Import Base from backend.db, NOT sqlalchemy
+import logging
 
-character_blp_fastapi = APIRouter(prefix="/api/character", tags=["Character"])
+logger = logging.getLogger(__name__)
+
+character_blp_fastapi = APIRouter(prefix="/character", tags=["Character"])
 
 class RollLog(Base):
     __tablename__ = 'roll_logs'
