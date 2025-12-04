@@ -1,1 +1,1 @@
-web: gunicorn backend.app:application --bind 0.0.0.0:$PORT
+web: gunicorn backend.app:application --bind 0.0.0.0:${PORT:-8000}
