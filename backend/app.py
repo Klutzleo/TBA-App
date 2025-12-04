@@ -1,227 +1,207 @@
+import logging
 import os
 import time
-import uuid
-import traceback
-import logging
-
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from flask import Flask, jsonify, g, request, current_app, redirect
-from flask_smorest import Api
-from werkzeug.exceptions import HTTPException
+from fastapi import FastAPI, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 
-from backend.db import Base, engine
-from backend.models import Echo
+from backend.db import Base, engine, init_db
 from backend.logging_config import setup_logging
 from backend.health_checks import check_database, check_env, get_app_metadata
 from backend.error_handlers import register_error_handlers
 from backend.metrics import increment_request, get_metrics
 
 
-# Track uptime
-start_time = time.time()
-
 # Load .env vars
 load_dotenv()
 
-# Show current working dir and docs folder
+# Show current working dir
 print("Working directory:", os.getcwd())
-try:
-    print("Files in routes/docs:", os.listdir("routes/docs"))
-except Exception as e:
-    print("Could not list routes/docs:", e)
 
 # Initialize DB
-# Only auto-create schema at import time when using a local SQLite database
-# (convenient for local dev) or when explicitly enabled via
-# `ENABLE_DB_INIT=1`. This avoids accidental import-time connections to
-# production databases (which can fail or cause unwanted side-effects).
 try:
-    driver = engine.url.get_dialect().name
-except Exception:
-    driver = getattr(engine.url, "drivername", "")
+    init_db()
+    print("✅ Database initialized")
+except Exception as e:
+    print(f"⚠️ DB init warning: {e}")
 
-if driver.startswith("sqlite") or os.getenv("ENABLE_DB_INIT") == "1":
-    Base.metadata.create_all(bind=engine)
-
-# Setup your custom logging
+# Setup logging
 setup_logging()
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
-# Create Flask app
-app = Flask(__name__)
-app.logger.setLevel(logging.DEBUG)
+# Track uptime
+start_time = time.time()
 
-# ✅ OpenAPI 3.0 configuration
-app.config.update({
-    "API_TITLE": "TBA Combat & Magic API",
-    "API_VERSION": "1.0",
-    "OPENAPI_VERSION": "3.0.2",
-    "OPENAPI_URL_PREFIX": "/api",
-    "OPENAPI_REDOC_PATH": "/docs",
-    "OPENAPI_REDOC_URL": "https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js",
-})
+# Get API key from env
+API_KEY = os.getenv("API_KEY", "default-dev-key")
 
-# Initialize Flask-Smorest API
-api = Api(app)
-print("OpenAPI 3.0 initialized successfully")
 
-# Define API key security scheme
-api.spec.components.security_scheme(
-    "ApiKeyAuth",
-    {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-API-Key"
-    }
+# Lifespan context for startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("🚀 FastAPI app starting")
+    yield
+    # Shutdown
+    logger.info("🛑 FastAPI app shutting down")
+
+
+# Create FastAPI app
+application = FastAPI(
+    title="TBA-App API",
+    description="TTRPG system API server",
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
-# Register your blueprints
-print("Registering blueprints...")
 
-try:
-    from routes.schemas.blp import schemas_blp
-    api.register_blueprint(schemas_blp)
-    print("schemas_bp registered")
-except Exception:
-    print("Failed to import/register schemas_bp:")
-    traceback.print_exc()
-    raise
+# Add CORS middleware
+application.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-try:
-    from routes.roll import roll_blp
-    api.register_blueprint(roll_blp)
-    print("roll_blp registered")
-except Exception:
-    print("Failed to import/register roll_blp:")
-    traceback.print_exc()
-    raise
 
-try:
-    from routes.combat import combat_blp
-    api.register_blueprint(combat_blp)
-    print("combat_blp registered")
-except Exception:
-    print("Failed to import/register combat_blp:")
-    traceback.print_exc()
-    raise
+# API Key dependency
+async def verify_api_key(request: Request) -> None:
+    """Verify X-API-Key header for /api/ routes (except docs)."""
+    if request.url.path.startswith("/api/") and not request.url.path.startswith(
+        "/api/docs"
+    ) and not request.url.path.startswith("/api/openapi"):
+        provided_key = request.headers.get("X-API-Key")
+        if not provided_key or provided_key != API_KEY:
+            from fastapi.responses import JSONResponse
 
-try:
-    from routes.magic import magic_blp
-    api.register_blueprint(magic_blp)
-    print("magic_blp registered")
-except Exception:
-    print("Failed to import/register magic_blp:")
-    traceback.print_exc()
-    raise
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Invalid or missing X-API-Key"},
+            )
 
-# Global error handlers
-register_error_handlers(app)
 
-# Assign a request ID to every incoming request
-@app.before_request
-def assign_request_id():
-    rid = str(uuid.uuid4())
-    g.request_id = rid
-    request.environ["request_id"] = rid
-    for handler in app.logger.handlers:
-        handler.addFilter(lambda record: setattr(record, "request_id", rid) or True)
-    increment_request()
+# Middleware to attach request_id and check auth
+@application.middleware("http")
+async def add_request_id_and_auth(request: Request, call_next):
+    import uuid
+    from contextvars import ContextVar
 
-    # 🔐 Enforce API key for protected routes
-    if request.path.startswith("/api/") and not (
-        request.path.startswith("/api/docs") or request.path == "/api/openapi.json"
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    # Check auth
+    if request.url.path.startswith("/api/") and not any(
+        x in request.url.path for x in ["/api/docs", "/api/openapi", "/api/health"]
     ):
-        key = request.headers.get("X-API-Key")
-        expected = os.getenv("API_KEY")
-        if not key or key != expected:
-            return jsonify({"error": "Unauthorized"}), 401
+        provided_key = request.headers.get("X-API-Key")
+        if not provided_key or provided_key != API_KEY:
+            from fastapi.responses import JSONResponse
 
-    # Optional: log docs access
-    if request.path.startswith("/api/docs") or request.path == "/api/openapi.json":
-        app.logger.info(f"Docs or spec accessed by {request.remote_addr}")   
-    
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Invalid or missing X-API-Key", "request_id": request_id},
+            )
+
+    # Log request
+    logger.info(f"[{request_id}] {request.method} {request.url.path}")
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
-# Basic health check
-@app.route("/")
-def home():
-    app.logger.info("Health check hit")
-    return jsonify({"message": "TBA backend is alive!"})
-
-# Detailed health check endpoint
-@app.route("/health")
-def health():
-    # Run checks but be tolerant: return 200 with details so hosted platforms
-    # relying on a quick health probe (Railway, Heroku) don't block deploys
-    # for transient DB or env issues. Errors are surfaced in the JSON body.
-    db_check = check_database()
-    env_check = check_env()
-    app_meta = get_app_metadata(start_time)
-
-    checks = {
-        "database": db_check,
-        "env": env_check,
-        "app": app_meta,
+# Health check
+@application.get("/health")
+async def health_check():
+    """Simple health check."""
+    return {
+        "status": "ok",
+        "uptime_seconds": time.time() - start_time,
+        "timestamp": time.time(),
     }
 
-    # Normalize check statuses into a succinct summary
-    summary = {
-        "database_ok": db_check == "ok",
-        "env_ok": env_check == "ok" or isinstance(env_check, dict) and not env_check.get("missing"),
-        "app": app_meta,
+
+# Health check with DB status
+@application.get("/api/health")
+async def api_health_check():
+    """Detailed health check with DB and env checks."""
+    db_status = check_database()
+    env_status = check_env()
+    metadata = get_app_metadata()
+
+    return {
+        "status": "ok",
+        "uptime_seconds": time.time() - start_time,
+        "database": db_status,
+        "environment": env_status,
+        "metadata": metadata,
+        "timestamp": time.time(),
     }
 
-    # Always return 200 to avoid deployment health-probe failures; include
-    # a `healthy` flag for callers that want strict checks.
-    healthy = summary["database_ok"] and summary["env_ok"]
-    response = {"healthy": healthy, "summary": summary, "checks": checks}
-    return jsonify(response), 200
 
 # Metrics endpoint
-@app.route("/metrics")
-def metrics_route():
-    return jsonify(get_metrics())
+@application.get("/api/metrics")
+async def metrics():
+    """Get app metrics."""
+    return get_metrics()
 
-# Debug endpoint: list all routes
-@app.route("/__routes__")
-def list_routes():
-    routes = []
-    for rule in sorted(current_app.url_map.iter_rules(), key=lambda r: r.rule):
-        routes.append({"rule": rule.rule, "methods": sorted(rule.methods)})
-    return jsonify(routes)
 
-# Exception handler that re-raises HTTPExceptions
-@app.errorhandler(Exception)
-def debug_exception(e):
-    app.logger.exception(f"Exception on {request.method} {request.path}")
-    if isinstance(e, HTTPException):
-        raise
-    return jsonify({"error": "Internal server error", "exception": str(e)}), 500
+# OpenAPI schema customization
+def custom_openapi():
+    if application.openapi_schema:
+        return application.openapi_schema
 
-# Favicon
-@app.route("/favicon.ico")
-def favicon():
-    return "", 204
+    openapi_schema = get_openapi(
+        title="TBA-App API",
+        version="1.0.0",
+        description="TTRPG system API server",
+        routes=application.routes,
+    )
 
-# WSGI entrypoint
-application = app
+    openapi_schema["info"]["x-logo"] = {
+        "url": "https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png"
+    }
+    application.openapi_schema = openapi_schema
+    return application.openapi_schema
 
-# Local dev runner (uncomment for local testing)
-# if __name__ == "__main__":
-#     app.run(host="0.0.0.0", port=8080, debug=True)
 
-try:
-    from routes.effects import effects_blp
-    # `effects_blp` in this repo is a FastAPI `APIRouter` (used by top-level
-    # FastAPI `app.py`). Flask-Smorest `Api.register_blueprint` expects a
-    # `flask_smorest.Blueprint` with a `name` attribute. If the imported
-    # object does not match, skip registering it for the Flask app.
-    if hasattr(effects_blp, "name"):
-        api.register_blueprint(effects_blp)
-        print("effects_blp registered (Flask blueprint)")
-    else:
-        print("Skipping effects_blp: not a Flask-Smorest Blueprint (likely FastAPI router)")
-except Exception:
-    print("Failed to import/register effects_blp:")
-    traceback.print_exc()
-    # continue without raising so the app can start even if this blueprint fails
+application.openapi = custom_openapi
+
+# ✅ Register routers (import after app creation to avoid circular imports)
+from routes.chat import chat_blp
+from routes.combat_fastapi import combat_blp_fastapi
+from routes.character_fastapi import character_blp_fastapi
+from routes.roll_blp_fastapi import roll_blp_fastapi
+from routes.effects import effects_blp
+
+application.include_router(chat_blp, prefix="/api", tags=["Chat"])
+application.include_router(combat_blp_fastapi, prefix="/api", tags=["Combat"])
+application.include_router(character_blp_fastapi, prefix="/api", tags=["Character"])
+application.include_router(roll_blp_fastapi, prefix="/api", tags=["Roll"])
+application.include_router(effects_blp, prefix="/api", tags=["Effects"])
+
+
+# Root endpoint
+@application.get("/")
+async def root():
+    """API root."""
+    return {
+        "message": "TBA-App API",
+        "docs": "/docs",
+        "openapi": "/openapi.json",
+        "health": "/health",
+        "api_health": "/api/health",
+    }
+
+
+# Error handlers (if needed)
+register_error_handlers(application)
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(application, host="0.0.0.0", port=8000)
