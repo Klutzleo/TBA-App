@@ -7,63 +7,91 @@ Short, focused guidance so an AI coding agent can be productive immediately.
 - **Single FastAPI runtime:** `backend/app.py` (FastAPI + uvicorn) is the canonical API server and entrypoint used by the `Procfile` (`uvicorn backend.app:application --host 0.0.0.0 --port 8000`). FastAPI is chosen for native async/await support, built-in WebSocket capability, and better concurrency handling — essential for a multiplayer online TTRPG with real-time chat and simultaneous player actions.
 - The top-level `app.py` (FastAPI) is used for dev convenience (hot-reload) and can serve the template-based UI if needed.
 - Core domain logic lives in `backend/` (e.g., `combat_utils.py`, `effect_engine.py`, `magic_logic.py`, `roll_logic.py`, `encounter_memory.py`). Routes glue HTTP endpoints to backend logic in `routes/`.
+- **TBA RPG v1.5 System:** Multiplayer tabletop RPG with 3 core stats (Intellect, Physical, Social), die-vs-die contested rolls, spells/techniques, multiplayer parties, real-time WebSocket chat, and social integrations (Discord/Twitch spectating + emote reactions).
 
 2) Where to look first
 - `backend/app.py` — FastAPI API server configuration, router registration, request middleware (request id assignment, API key enforcement), OpenAPI setup, WebSocket handlers.
 - `app.py` (project root) — Dev entry point; imports `backend/app.py` for hot-reload testing.
-- `routes/` — HTTP/WebSocket endpoints. Use FastAPI routers (e.g., `routes/chat.py`, `routes/combat_fastapi.py`). Older Flask-Smorest blueprints (if any) are deprecated in favor of FastAPI equivalents.
-- `schemas/` and `routes/schemas/` — Pydantic models (preferred) and any legacy marshmallow schemas. Use Pydantic for FastAPI validation.
+- `routes/` — HTTP/WebSocket endpoints. Use FastAPI routers (e.g., `routes/chat.py`, `routes/combat_fastapi.py`, `routes/social_integrations.py`).
+- `routes/schemas/` — Pydantic models (preferred). Use Pydantic for FastAPI validation.
 - `backend/db.py` — SQLAlchemy engine, `DATABASE_URL` default (`sqlite:///local.db`). Production expects Postgres via env `DATABASE_URL`.
+- `backend/integrations/` — Discord bot, Twitch API client, emote reaction handlers (see section 3c below).
 
 3) Important runtime & env patterns
-- API key: `backend/app.py` middleware enforces `X-API-Key` header against `API_KEY` env var for `/api/` routes (docs/openapi endpoints are exempt). To exercise protected endpoints set `$env:API_KEY = 'yourkey'` in PowerShell.
-- Request correlation: `backend/app.py` attaches a `request_id` to each incoming request. When adding log statements, preserve or propagate `request.state.request_id` so logs remain traceable.
-- DB init: call `init_db()` (imported from `backend/db.py`) before using models. `backend/app.py` calls it on startup — keep that ordering when changing startup code.
-- Stateful memory: `backend/encounter_memory.py` and `memory/lore_store.py` use in-memory globals for encounter state and lore — these are intentionally stateful for quick prototyping. Be cautious with gunicorn `--workers > 1` (workers do not share memory); use `--workers 1` or move to persistent DB storage for multi-worker deployments.
-- WebSocket support: FastAPI's native WebSocket support is used for real-time multiplayer chat. See `routes/chat.py` for WebSocket endpoint examples.
+
+**3a) API Key & Auth:**
+- API key: `backend/app.py` middleware enforces `X-API-Key` header against `API_KEY` env var for `/api/` routes (docs/openapi endpoints are exempt).
+- Request correlation: `backend/app.py` attaches a `request_id` to each incoming request. Preserve in logs via `request.state.request_id`.
+
+**3b) Database & State:**
+- DB init: call `init_db()` (from `backend/db.py`) on startup. `backend/app.py` calls it — keep that ordering.
+- Stateful memory: `backend/encounter_memory.py` uses in-memory globals for current encounter state.
+- Use `--workers 1` or migrate to persistent DB for multi-worker deployments.
+
+**3c) WebSocket & Social Integrations:**
+- **WebSocket parties:** Real-time multiplayer chat + combat. See `routes/chat.py` for examples.
+- **Discord bot:** Listens for campaign events via webhook from FastAPI. Posts roll outcomes, initiative, DP changes to Discord channel. Handles Discord emote reactions (e.g., 👍, 🔥) → forwards to in-game spectator system.
+  - Env vars: `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_CHANNEL_ID`
+  - Endpoint: `POST /api/integrations/discord/webhook` receives campaign events
+- **Twitch integration:** Streams campaign via Twitch Chat or EventSub API. Spectators react with emotes; forwarded to FastAPI WebSocket.
+  - Env vars: `TWITCH_CLIENT_ID`, `TWITCH_ACCESS_TOKEN`, `TWITCH_CHANNEL_ID`
+  - Endpoint: `GET /api/integrations/twitch/subscribe` (setup EventSub subscription)
+- **Spectator reactions:** Discord/Twitch emotes mapped to in-game reactions (e.g., 🔥 = "epic moment", 👍 = "approve"). Aggregated and broadcast to all players/party.
 
 4) How to run locally (PowerShell examples)
 - Run FastAPI backend (prod-like with uvicorn):
 ```powershell
 $env:API_KEY = 'devkey'
-# install requirements first (recommended in a venv)
-# pip install -r requirements.txt
+$env:DISCORD_BOT_TOKEN = 'your-discord-token'
+$env:TWITCH_CLIENT_ID = 'your-twitch-client-id'
+$env:TWITCH_ACCESS_TOKEN = 'your-twitch-token'
 uvicorn backend.app:application --host 0.0.0.0 --port 8000
 ```
 - Run FastAPI backend (dev with hot-reload):
 ```powershell
 $env:API_KEY = 'devkey'
 python app.py
-# or: uvicorn backend.app:application --reload --host 0.0.0.0 --port 8000
 ```
-- Notes: `Procfile` uses `uvicorn backend.app:application --host 0.0.0.0 --port 8000` for deployment. FastAPI enables async route handlers and WebSocket connections for real-time multiplayer features.
+- Notes: `Procfile` uses `uvicorn backend.app:application --host 0.0.0.0 --port 8000`. FastAPI enables async handlers, WebSocket, and Discord/Twitch integrations.
 
 5) Common codebase conventions & gotchas
-- Pydantic models drive request/response schemas. When you change a JSON contract, update the corresponding Pydantic class in `routes/schemas/` and register it with its router.
+- Pydantic models drive all request/response schemas. Update `routes/schemas/` when changing API contracts.
 - When adding public endpoints, register the router in `backend/app.py` via `application.include_router()`.
-- Global state: `encounter_state` (in `backend/encounter_memory.py`) and other in-memory stores are used heavily — prefer returning pure data from `backend/*` helpers and keep mutation centralized in `encounter_memory` to avoid inconsistent state.
-- Logging: `backend/logging_config.py` configures handlers/formatters. Do not assume default logger behavior; new handlers should respect the `request_id` filter.
-- WebSocket handlers: Use `@router.websocket()` decorator for real-time connections. See `routes/chat.py` for multiplayer chat example.
+- Global state: `encounter_state` (in `backend/encounter_memory.py`) is intentionally stateful. Keep mutations centralized.
+- Logging: Preserve `request.state.request_id` in all logs.
+- WebSocket handlers: Use `@router.websocket()` decorator. Broadcast to all connected clients + Discord/Twitch spectators.
+- **Discord/Twitch spectators:** Treat as read-only observers. Forward emote reactions to WebSocket broadcast but do NOT let them affect rolls/combat directly.
 
 6) Integration points & external deps
-- DB: `DATABASE_URL` (default `sqlite:///local.db`; production typically uses Postgres — `psycopg2-binary` is in `requirements.txt`).
-- OpenAPI: FastAPI auto-generates OpenAPI spec and serves docs at `/docs` and `/openapi.json`.
-- Deployment: `gunicorn` with `--worker-class uvicorn.workers.UvicornWorker` or direct `uvicorn` serve the FastAPI app (see `Procfile`). Use `--workers 1` for stateful in-memory stores.
+- DB: `DATABASE_URL` (default `sqlite:///local.db`; production = Postgres).
+- OpenAPI: FastAPI auto-generates at `/docs` and `/openapi.json`.
+- **Discord.py:** `discord.py` library for bot. Listens for emote reactions on campaign posts. Posts roll outcomes to Discord channel.
+- **Twitch API:** `python-twitch-client` or direct HTTP calls to EventSub for real-time events. Parse chat messages for emote reactions.
+- Deployment: Direct `uvicorn` serve (see `Procfile`). Use `--workers 1` for in-memory state.
 
 7) Tests & dev tools
-- `requirements.txt` includes `pytest`. Run `pytest` after adding tests. Use `yamllint`/`ruff` locally as desired.
+- `requirements.txt` includes `pytest`. Run `pytest` after adding tests.
 
 8) Quick examples to reference
-- Add a new combat endpoint: create or modify `routes/combat_fastapi.py` (router `combat_blp_fastapi`) and register it in `backend/app.py`; domain logic lives in `backend/roll_logic.py` or `backend/combat_utils.py`.
-- Inspect auth behavior: check `backend/app.py` middleware — endpoints under `/api/` require `X-API-Key` (except docs/openapi/health).
-- Add WebSocket chat: see `routes/chat.py` for `@router.websocket()` example. Handlers receive async connections and can emit/receive messages for real-time multiplayer.
-- Schema files: use Pydantic models in `routes/schemas/` — they auto-validate and generate OpenAPI docs.
+- **Discord live feed:** Create `backend/integrations/discord_bot.py` with bot that listens to FastAPI webhook events. Post rolls/outcomes to Discord channel. Handle reaction_add events.
+- **Twitch spectators:** Create `backend/integrations/twitch_client.py` to subscribe to Twitch EventSub. Parse chat for emotes (e.g., `KappaHD`, `VoHiYo`) → convert to reaction → broadcast.
+- **Emote mapping:** Define in `backend/integrations/reactions.py` (e.g., `{ "fire": ["🔥", "KappaHD"], "epic": ["😱", "VoHiYo"] }`). Forward to WebSocket as `{ "emote": "fire", "count": 5, "source": "discord" }`.
+- **Spectator broadcast:** When roll outcome posted, broadcast to all connected WebSocket clients + emit Discord message + Twitch chat message.
 
-9) When editing code — checklist for PRs
+9) File Organization (Social Integration additions)
+- `backend/integrations/discord_bot.py` — Discord bot listener, event handlers, post-to-channel logic
+- `backend/integrations/twitch_client.py` — Twitch EventSub subscription, chat parsing, emote handling
+- `backend/integrations/reactions.py` — Emote-to-reaction mapping, aggregation logic
+- `routes/social_integrations.py` — Webhook endpoints for Discord/Twitch events, emote broadcast
+- `routes/schemas/integrations.py` — Pydantic models (DiscordEvent, TwitchEvent, EmoteReaction, SpectatorReaction)
+
+10) When editing code — checklist for PRs
 - Update or add Pydantic schemas in `routes/schemas/` if changing API contracts.
 - Update router registration in `backend/app.py` if adding new endpoints.
-- Make state changes through `backend/encounter_memory.py` helpers rather than mutating globals directly.
-- Preserve `request.state.request_id` usage when adding logs or middleware.
-- Use async/await for all route handlers to leverage FastAPI's concurrency.
+- Preserve `request.state.request_id` usage in all logs.
+- Use async/await for all route handlers.
+- **For Discord/Twitch:** Validate webhook signatures (Discord: X-Signature-Ed25519; Twitch: HMAC-SHA256) before processing events.
+- Forward emote reactions to WebSocket + in-game spectator system, do NOT mutate game state from spectator actions.
+- Test multiplayer scenarios with Discord/Twitch spectators (concurrent broadcasts, emote aggregation, rate limiting).
 
-If anything above is unclear or you want more examples (specific route, schema, or a small runnable example), tell me which area to expand and I will iterate.
+If anything above is unclear or you want more examples, tell me which area to expand and I will iterate.
