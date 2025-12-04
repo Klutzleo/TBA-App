@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import Column, Integer, String, Text, DateTime  # ← ADD THIS LINE
+from backend.db import Base
 from backend.utils.storage import load_character, save_character
-from backend.db import Base  # ✅ Import Base from backend.db, NOT sqlalchemy
 import logging
 
 logger = logging.getLogger(__name__)

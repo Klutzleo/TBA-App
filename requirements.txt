@@ -19,9 +19,6 @@ psycopg2-binary==2.9.10
 # Env vars
 python-dotenv>=1.0.0
 
-# WSGI server
-gunicorn==23.0.0
-
 # Other existing deps
 backports.tarfile==1.2.0
 importlib-metadata==8.0.0
