@@ -5,7 +5,6 @@ from marshmallow import fields
 # Backend logic
 from backend.roll_logic import resolve_combat_roll, simulate_combat
 from backend.magic_logic import cast_spell, character_from_dict, resolve_spellcast
-from backend.combat_utils import resolve_initiative
 from backend.encounter_memory import (
     add_actor, add_effect, get_actors,
     reset_encounter, advance_round, encounter_state
