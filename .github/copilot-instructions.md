@@ -16,9 +16,12 @@ Short, focused guidance so an AI coding agent can be productive immediately.
 - `routes/schemas/` — Pydantic models (preferred). Use Pydantic for FastAPI validation.
 - `backend/db.py` — SQLAlchemy engine, `DATABASE_URL` default (`sqlite:///local.db`). Production expects Postgres via env `DATABASE_URL`.
 - `backend/integrations/` — Discord bot, Twitch API client, emote reaction handlers (see section 3c below).
-- `backend/roll_logic.py` — TBA v1.5 dice utilities, `resolve_multi_die_attack()` 
-  (multi-die attack resolution with per-die damage calcs), `roll_initiative()` (with stat tiebreakers), 
-  `simulate_encounter()` (full battle), character stat/level lookups.
+- `backend/roll_logic.py` — TBA v1.5 dice utilities:
+  - `resolve_multi_die_attack()` — Multi-die attack resolution (Phase 1 MVP ✅)
+  - `roll_die()` / `roll_dice()` — Individual die rolling
+  - `resolve_combat_roll()` — Legacy single-die rolls (backward compatibility)
+  - `roll_initiative()` — Initiative rolling with stat tiebreakers
+  - `simulate_encounter()` — Full multi-round battle simulation
 
 ## TBA v1.5 Combat System (Multi-Die Attack Resolution)
 
@@ -105,6 +108,7 @@ Total Damage = 0 + 2 + 3 = 5 damage
   - Response: `{ individual_rolls, total_damage, narrative, defender_new_dp }`
 - `POST /api/combat/roll-initiative` → rolls initiative for multiple combatants
 - `POST /api/combat/encounter-1v1` → full battle simulation (multi-round)
+- Legacy endpoints: `/log`, `/replay`, `/echoes` (combat history)
 
 ### Testing Guidelines (Phase 1 MVP)
 - Character stats: PP/IP/SP 1-3 each, total = 6
@@ -114,6 +118,26 @@ Total Damage = 0 + 2 + 3 = 5 damage
 - Initiative: 1d6 + Edge, tiebreak by PP → IP → SP
 - WebSocket: test multiplayer broadcast with concurrent clients
 - Armor/Weapons: accept in schema, store, but don't apply bonuses yet
+
+## Phase 1 MVP Implementation Status (✅ Complete)
+
+### Completed
+- ✅ `backend/roll_logic.py` — `resolve_multi_die_attack()` function
+- ✅ `routes/schemas/combat.py` — Pydantic models (Character, Attack, Initiative, Encounter1v1)
+- ✅ `routes/combat_fastapi.py` — HTTP endpoints (attack, initiative, encounter-1v1)
+- ✅ `backend/app.py` — Router registration with error handling
+- ✅ Logging — Request ID preservation across all combat endpoints
+- ✅ Async/await — All handlers support concurrent multiplayer requests
+
+### Testing
+- Run: `pytest tests/test_combat.py` (coming next)
+- Manual: POST requests via `/docs` (FastAPI Swagger UI)
+
+### Next Phase (Phase 2)
+- Weapon/Armor bonus application
+- WebSocket broadcast for multiplayer combat events
+- Discord/Twitch spectator reactions
+- Persistent combat log storage (DB)
 
 3) Important runtime & env patterns
 
@@ -155,6 +179,7 @@ python app.py
 5) Common codebase conventions & gotchas
 - Pydantic models drive all request/response schemas. Update `routes/schemas/` when changing API contracts.
 - When adding public endpoints, register the router in `backend/app.py` via `application.include_router()`.
+- Router naming: Use `router = APIRouter(...)` for consistency in `backend/app.py` registration
 - Global state: `encounter_state` (in `backend/encounter_memory.py`) is intentionally stateful. Keep mutations centralized.
 - Logging: Preserve `request.state.request_id` in all logs.
 - WebSocket handlers: Use `@router.websocket()` decorator. Broadcast to all connected clients + Discord/Twitch spectators.
