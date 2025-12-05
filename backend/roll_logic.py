@@ -635,3 +635,159 @@ def simulate_combat(*args, **kwargs):
         return simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap)
 
     raise ValueError("simulate_combat requires either an actors list or attacker and defender")
+
+# ...existing code...
+
+def resolve_multi_die_attack(
+    attacker,
+    attacker_die_str,
+    attacker_stat_value,
+    defender,
+    defense_die_str,
+    defender_stat_value,
+    edge,
+    bap_triggered=False,
+    weapon_bonus=0
+):
+    """
+    TBA v1.5 Multi-Die Attack Resolution.
+    
+    Attacker rolls each die individually against defender's single defense die.
+    Each roll generates its own margin and damage.
+    
+    Args:
+        attacker: dict with "name" key
+        attacker_die_str: e.g., "3d4", "2d6", "1d8"
+        attacker_stat_value: PP/IP/SP (1-3)
+        defender: dict with "name" key
+        defense_die_str: e.g., "1d8"
+        defender_stat_value: PP/IP/SP (1-3)
+        edge: bonus from level (0-5)
+        bap_triggered: bool, adds BAP bonus to each roll
+        weapon_bonus: bonus to damage per roll (Phase 2, default 0)
+    
+    Returns:
+        {
+            "type": "multi_die_attack",
+            "attacker_name": str,
+            "defender_name": str,
+            "individual_rolls": [
+                {"attacker_roll": int, "defense_roll": int, "margin": int, "damage": int},
+                ...
+            ],
+            "total_damage": int,
+            "outcome": "hit" | "miss" | "partial_hit",
+            "narrative": str,
+            "details": {
+                "attacker_die_str": str,
+                "defense_die_str": str,
+                "attacker_stat": int,
+                "defender_stat": int,
+                "edge": int,
+                "bap_triggered": bool,
+                "weapon_bonus": int,
+                "hit_count": int,
+                "total_rolls": int
+            }
+        }
+    """
+    attacker_name = attacker.get("name", "Attacker")
+    defender_name = defender.get("name", "Defender")
+    
+    # Parse attacker die string (e.g., "3d4" → count=3, sides=4)
+    attacker_count, attacker_sides = parse_die(attacker_die_str)
+    
+    # Roll each attacker die separately
+    attacker_rolls = roll_dice(attacker_die_str)  # Returns list of individual rolls
+    
+    # Roll defense die once (same for all attacker rolls)
+    defense_roll = roll_die(defense_die_str)
+    
+    # Calculate individual results
+    individual_rolls = []
+    total_damage = 0
+    hit_count = 0
+    
+    for atk_die_roll in attacker_rolls:
+        # Margin = attacker die - defense die
+        margin = atk_die_roll - defense_roll
+        
+        # Damage: margin if positive, else 0
+        # Phase 2: weapon_bonus would apply here
+        damage = max(0, margin) + weapon_bonus
+        
+        if margin > 0:
+            hit_count += 1
+        
+        total_damage += damage
+        
+        individual_rolls.append({
+            "attacker_roll": atk_die_roll,
+            "defense_roll": defense_roll,
+            "margin": margin,
+            "damage": damage
+        })
+    
+    # Determine outcome
+    if hit_count == 0:
+        outcome = "miss"
+    elif hit_count == len(attacker_rolls):
+        outcome = "hit"
+    else:
+        outcome = "partial_hit"
+    
+    # Generate narrative
+    narrative = generate_multi_die_narrative(
+        attacker_name,
+        defender_name,
+        outcome,
+        hit_count,
+        len(attacker_rolls),
+        total_damage
+    )
+    
+    return {
+        "type": "multi_die_attack",
+        "attacker_name": attacker_name,
+        "defender_name": defender_name,
+        "individual_rolls": individual_rolls,
+        "total_damage": total_damage,
+        "outcome": outcome,
+        "narrative": narrative,
+        "details": {
+            "attacker_die_str": attacker_die_str,
+            "defense_die_str": defense_die_str,
+            "attacker_stat": attacker_stat_value,
+            "defender_stat": defender_stat_value,
+            "edge": edge,
+            "bap_triggered": bap_triggered,
+            "weapon_bonus": weapon_bonus,
+            "hit_count": hit_count,
+            "total_rolls": len(attacker_rolls)
+        }
+    }
+
+
+def generate_multi_die_narrative(attacker_name, defender_name, outcome, hits, total_rolls, total_damage):
+    """
+    Generate narrative for multi-die attack.
+    
+    Args:
+        attacker_name: str
+        defender_name: str
+        outcome: "hit" | "miss" | "partial_hit"
+        hits: number of successful rolls
+        total_rolls: total number of rolls
+        total_damage: total damage dealt
+    
+    Returns:
+        str: narrative description
+    """
+    hit_rate = f"{hits}/{total_rolls}"
+    
+    if outcome == "miss":
+        return f"{defender_name} expertly deflects all {total_rolls} strikes from {attacker_name}!"
+    elif outcome == "hit":
+        return f"{attacker_name} lands all {total_rolls} hits on {defender_name}—{total_damage} damage!"
+    else:  # partial_hit
+        return f"{attacker_name} connects with {hit_rate} strikes on {defender_name}—{total_damage} damage total."
