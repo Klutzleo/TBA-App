@@ -24,7 +24,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-combat_blp_fastapi = APIRouter(prefix="/api/combat", tags=["Combat"])
+router = APIRouter(prefix="/api/combat", tags=["Combat"])
 
 # Temporary in-memory store for combat logs
 combat_log_store: List[Dict[str, Any]] = []
