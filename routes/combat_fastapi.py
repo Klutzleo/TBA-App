@@ -43,7 +43,7 @@ class CombatLogEntry(BaseModel):
     log: List[Dict[str, Any]] | None = None
 
 # POST endpoint to record a combat log entry
-@combat_blp_fastapi.post("/log", response_model=Dict[str, Any])
+@router.post("/log", response_model=Dict[str, Any])
 async def post_combat_log(entry: CombatLogEntry = Body(...)):
     combat_log_store.append(entry.dict())
     return {
@@ -53,13 +53,13 @@ async def post_combat_log(entry: CombatLogEntry = Body(...)):
     }
 
 # GET endpoint to retrieve the most recent combat logs
-@combat_blp_fastapi.get("/log/recent", response_model=Dict[str, Any])
+@router.get("/log/recent", response_model=Dict[str, Any])
 async def get_recent_combat_logs():
     return {
         "entries": combat_log_store[-10:]
     }
 
-@combat_blp_fastapi.post("/replay", response_model=Dict[str, Any])
+@router.post("/replay", response_model=Dict[str, Any])
 async def replay_combat(data: CombatReplayRequest = Body(...)):
     filtered = []
 
@@ -82,7 +82,7 @@ async def replay_combat(data: CombatReplayRequest = Body(...)):
         "entries": filtered
     }
 
-@combat_blp_fastapi.post("/echoes", response_model=Dict[str, Any])
+@router.post("/echoes", response_model=Dict[str, Any])
 async def combat_echoes(data: CombatEchoRequest = Body(...)):
     echoes = []
 
@@ -110,7 +110,7 @@ async def combat_echoes(data: CombatEchoRequest = Body(...)):
     }
 
 
-@combat_blp_fastapi.post("/attack", response_model=AttackResult)
+@router.post("/attack", response_model=AttackResult)
 async def attack(request: Request, req: AttackRequest):
     """
     Resolve multi-die attack (TBA v1.5).
@@ -177,7 +177,7 @@ async def attack(request: Request, req: AttackRequest):
         raise HTTPException(status_code=500, detail=f"Attack resolution failed: {str(e)}")
 
 
-@combat_blp_fastapi.post("/roll-initiative", response_model=InitiativeResult)
+@router.post("/roll-initiative", response_model=InitiativeResult)
 async def roll_initiative_endpoint(request: Request, req: InitiativeRequest):
     """
     Roll initiative for multiple combatants (TBA v1.5).
@@ -226,7 +226,7 @@ async def roll_initiative_endpoint(request: Request, req: InitiativeRequest):
         raise HTTPException(status_code=500, detail=f"Initiative roll failed: {str(e)}")
 
 
-@combat_blp_fastapi.post("/encounter-1v1", response_model=Encounter1v1Result)
+@router.post("/encounter-1v1", response_model=Encounter1v1Result)
 async def encounter_1v1(request: Request, req: Encounter1v1Request):
     """
     Simulate full 1v1 encounter (multi-round combat).
