@@ -16,6 +16,104 @@ Short, focused guidance so an AI coding agent can be productive immediately.
 - `routes/schemas/` — Pydantic models (preferred). Use Pydantic for FastAPI validation.
 - `backend/db.py` — SQLAlchemy engine, `DATABASE_URL` default (`sqlite:///local.db`). Production expects Postgres via env `DATABASE_URL`.
 - `backend/integrations/` — Discord bot, Twitch API client, emote reaction handlers (see section 3c below).
+- `backend/roll_logic.py` — TBA v1.5 dice utilities, `resolve_multi_die_attack()` 
+  (multi-die attack resolution with per-die damage calcs), `roll_initiative()` (with stat tiebreakers), 
+  `simulate_encounter()` (full battle), character stat/level lookups.
+
+## TBA v1.5 Combat System (Multi-Die Attack Resolution)
+
+### Character Stats (Fixed Distribution)
+- **PP (Physical Power):** 1-3 (chosen at character creation)
+- **IP (Intellect Power):** 1-3 (chosen at character creation)
+- **SP (Social Power):** 1-3 (chosen at character creation)
+- **Total always = 6** (no reuse, no changes after creation)
+
+### Level-Based Stats (Fixed by Level, from leveling table)
+- **DP (Damage Points):** 10-55 (scales with level: 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
+- **Edge:** 0-5 (adds to attack rolls, initiative, and combat totals; scales every 2 levels)
+- **BAP (Bonus Action Points):** 1-5 (adds to rolls when triggered; scales every 2 levels)
+- **Max Weapon Die (WD):** Level determines available options
+  - Level 1-2: `1d4`
+  - Level 3-4: `2d4` OR `1d6`
+  - Level 5-6: `3d4` OR `2d6` OR `1d8`
+  - Level 7-8: `4d4` OR `3d6` OR `2d8` OR `1d10`
+  - Level 9-10: `5d4` OR `4d6` OR `3d8` OR `2d10` OR `1d12`
+- **Max Defense Die (DD):** Fixed per level
+  - Levels 1-2: `1d4` | Levels 3-4: `1d6` | Levels 5-6: `1d8` | Levels 7-8: `1d10` | Levels 9-10: `1d12`
+
+### Attack Style (Player Choice at Character Creation)
+- Player chooses **one attack style** from level's max weapon die options (e.g., `3d4`, `2d6`, or `1d8` for Level 5)
+- Represents character's preferred combat approach
+- Risk/reward trade-off: more dice = more rolls but lower per-die ceiling; fewer dice = higher potential damage per die but lower consistency
+
+### Multi-Die Combat Resolution (TBA v1.5 Core)
+**Attacker rolls their chosen attack die SEPARATELY against defender's single defense die:**
+
+Each individual attacker die rolls independently vs the same defense die:
+
+```
+Example: Attacker chooses 3d4 | Defender has 1d8
+
+Roll 1: 1d4 (rolled 2) vs 1d8 (rolled 7) → margin = 2 - 7 = -5 → 0 damage
+Roll 2: 1d4 (rolled 4) vs 1d8 (rolled 2) → margin = 4 - 2 = +2 → 2 damage
+Roll 3: 1d4 (rolled 4) vs 1d8 (rolled 1) → margin = 4 - 1 = +3 → 3 damage
+
+Total Damage = 0 + 2 + 3 = 5 damage
+```
+
+**Damage Calculation (per individual die):**
+- `margin = attacker_die_roll - defense_die_roll`
+- If `margin > 0` → damage = margin
+- If `margin ≤ 0` → damage = 0 (no negative damage)
+- Sum all individual damages from all attacker die rolls
+
+**Attack Total Calculation:**
+- `attack_total = (chosen attack die) + stat_value + edge + (bap if triggered) + (weapon bonus if applicable)`
+- BUT: Each die is compared individually against defense die (not totals added first)
+
+### Technique/Spell System
+- **Base Attacks (PP-based):** Use PP stat + weapon die (e.g., "Slash")
+- **Spells/Techniques (flexible stat):** Can use PP, IP, or SP depending on technique flavor
+  - Example: `Fireball` (IP-based) = IP + spell die (from leveling table)
+  - Example: `Persuade` (SP-based) = SP + social die
+  - Example: `Slash` (PP-based) = PP + weapon die
+- Spell die depends on character level and spell slot (First Spell, Second Spell, etc.)
+
+### Weapon/Armor System (Stubbed for Phase 2)
+- Character data structure includes `weapon` and `armor` objects (currently null)
+- Schema: `{ "name": str, "bonus_attack": int, "bonus_defense": int, "bonus_dp": int }`
+- Phase 1: Validate and store in character schema (don't apply bonuses)
+- Phase 2: Storyweaver grants items → bonuses applied to damage/defense calcs
+
+### Backend Implementation (`backend/roll_logic.py`)
+**NEW function required:**
+- `resolve_multi_die_attack(attacker, attacker_die_str, attacker_stat, attacker_stat_value, defender, defense_die_str, defender_stat, defender_stat_value, edge, bap_triggered=False, weapon_bonus=0)`
+  - Parse `attacker_die_str` (e.g., "3d4") into individual rolls
+  - Roll each attacker die separately
+  - For each attacker die roll against defense die: calculate margin, damage per roll
+  - Sum total damage across all rolls
+  - Return: list of individual roll results + total damage + narrative + outcome
+
+**Keep existing functions:**
+- `resolve_combat_roll()` for backward compatibility (single die vs single die)
+- `roll_initiative()` with tiebreakers (1d6 + Edge, then PP → IP → SP)
+- `simulate_encounter()` for multi-actor battles
+
+### API Endpoints (Phase 1 MVP)
+- `POST /api/combat/attack` → calls `resolve_multi_die_attack()`
+  - Request: `{ attacker, defender, attack_style_die, technique_name, stat_type }`
+  - Response: `{ individual_rolls, total_damage, narrative, defender_new_dp }`
+- `POST /api/combat/roll-initiative` → rolls initiative for multiple combatants
+- `POST /api/combat/encounter-1v1` → full battle simulation (multi-round)
+
+### Testing Guidelines (Phase 1 MVP)
+- Character stats: PP/IP/SP 1-3 each, total = 6
+- DP: use level table (e.g., Level 5 = 30 DP)
+- Attack rolls: verify margin calculation **per individual die** (not totals)
+- Damage: sum positive margins only (negative/zero margins = 0 damage)
+- Initiative: 1d6 + Edge, tiebreak by PP → IP → SP
+- WebSocket: test multiplayer broadcast with concurrent clients
+- Armor/Weapons: accept in schema, store, but don't apply bonuses yet
 
 3) Important runtime & env patterns
 
