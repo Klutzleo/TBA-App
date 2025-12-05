@@ -156,13 +156,13 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register character_blp_fastapi: {e}")
 
-try:
-    from routes.roll_blp_fastapi import roll_blp_fastapi
-
-    application.include_router(roll_blp_fastapi, prefix="/api", tags=["Roll"])
-    logger.info("✅ Registered roll_blp_fastapi")
-except Exception as e:
-    logger.warning(f"⚠️ Failed to register roll_blp_fastapi: {e}")
+# TODO: Migrate roll_blp_fastapi to use resolve_multi_die_attack() from roll_logic.py
+# try:
+#     from routes.roll_blp_fastapi import roll_blp_fastapi
+#     application.include_router(roll_blp_fastapi, prefix="/api", tags=["Roll"])
+#     logger.info("✅ Registered roll_blp_fastapi")
+# except Exception as e:
+#     logger.warning(f"⚠️ Failed to register roll_blp_fastapi: {e}")
 
 try:
     from routes.effects import effects_blp
