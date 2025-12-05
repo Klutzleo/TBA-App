@@ -140,9 +140,10 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register chat_blp: {e}")
 
 try:
-    from routes.combat_fastapi import combat_blp_fastapi
+    from routes.combat_fastapi import router as combat_router
 
-    application.include_router(combat_blp_fastapi, prefix="/api", tags=["Combat"])
+    # Register combat router
+    application.include_router(combat_router)
     logger.info("✅ Registered combat_blp_fastapi")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register combat_blp_fastapi: {e}")
