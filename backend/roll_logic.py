@@ -3,7 +3,6 @@
 import random
 import re
 from schemas.loader import CORE_RULESET
-from backend.lore_log import add_lore_entry, get_lore_by_round
 from backend.utils.storage import store_roll  # adjust path if needed
 
 
