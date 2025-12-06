@@ -3,7 +3,6 @@
 import random
 import re
 from schemas.loader import CORE_RULESET
-from backend.combat_utils import resolve_initiative
 from backend.lore_log import add_lore_entry, get_lore_by_round
 from backend.utils.storage import store_roll  # adjust path if needed
 
@@ -269,7 +268,7 @@ def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
     
     # Roll initiative for both combatants
     combatants = [attacker, defender]
-    initiative_rolls = roll_initiative(combatants)
+    initiative_rolls = roll_initiative(combatants)  # Uses local function ✅
     initiative_order = [r["name"] for r in initiative_rolls]
 
     try:
@@ -635,8 +634,6 @@ def simulate_combat(*args, **kwargs):
         return simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap)
 
     raise ValueError("simulate_combat requires either an actors list or attacker and defender")
-
-# ...existing code...
 
 def resolve_multi_die_attack(
     attacker,
