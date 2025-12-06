@@ -3,9 +3,7 @@
 import random
 import re
 from schemas.loader import CORE_RULESET
-from backend.utils.storage import store_roll  # adjust path if needed
-
-
+from backend.utils.storage import store_roll  # Keep if exists, else comment out
 
 ### 🎲 Dice Utilities ###
 def parse_die(die_str):
@@ -260,7 +258,7 @@ def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
 
     import uuid
     from backend.encounter_memory import set_encounter_id, resolve_effects, get_effects, remove_effect
-    from backend.lore_log import add_lore_entry
+    # from backend.lore_log import add_lore_entry
     
     encounter_id = str(uuid.uuid4())
     set_encounter_id(encounter_id)
@@ -294,18 +292,18 @@ def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
                         attacker_dp -= 1
                     elif effect["actor"] == defender["name"]:
                         defender_dp -= 1
-                add_lore_entry(echo)
+                # add_lore_entry(echo)
                 print(f"🔮 {echo['message']}")
 
                 if effect["duration"] <= 0:
                     remove_effect(effect["actor"], effect.get("tag"))
-                    add_lore_entry({
-                        "actor": effect["actor"],
-                        "round": i,
-                        "tag": "expired",
-                        "message": f"{effect['tag']} effect on {effect['actor']} has expired.",
-                        "encounter_id": encounter_id
-                    })
+                    # add_lore_entry({
+                    #     "actor": effect["actor"],
+                    #     "round": i,
+                    #     "tag": "expired",
+                    #     "message": f"{effect['tag']} effect on {effect['actor']} has expired.",
+                    #     "encounter_id": encounter_id
+                    # })
 
             for effect in get_effects():
                 if effect.get("duration"):
@@ -365,7 +363,7 @@ def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
                     "message": result.get("narrative", f"{actor_name} acted in round {i}"),
                     "encounter_id": encounter_id
                 }
-                add_lore_entry(echo)
+                # add_lore_entry(echo)
 
 
                 print(f"Round {i} - {actor_name} strikes: {result['narrative']} | DP: {attacker_dp} vs {defender_dp}")
@@ -394,7 +392,8 @@ def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
         # Gather lore echoes for each round
         lore_summary = []
         for r in range(1, len(rounds) + 1):
-            lore_summary.extend(get_lore_by_round(r))
+            # lore_summary.extend(get_lore_by_round(r))  # ❌ Comment out
+            pass  # TODO: Migrate to new combat_log_store system
 
 
             battle_log = {
@@ -478,8 +477,6 @@ def trigger_echo(actor, context):
             bonuses.append(echo["effect"])
     return bonuses
 
-from routes.lore import add_lore_entry  # make sure this is imported
-
 def resolve_calling(actor, round_num=None, encounter_id=None):
     ip = actor["stats"].get("IP", 0)
     sp = actor["stats"].get("SP", 0)
@@ -514,7 +511,7 @@ def resolve_calling(actor, round_num=None, encounter_id=None):
             "round": round_num,
             "encounter_id": encounter_id
         }
-        add_lore_entry(lore_entry)
+        # add_lore_entry(lore_entry)
 
         return f"{actor['name']} fails The Calling—memory echoes in the aftermath."
     
