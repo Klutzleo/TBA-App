@@ -21,6 +21,10 @@ from routes.schemas.combat import (
 )
 from backend.roll_logic import resolve_multi_die_attack, roll_die
 import logging
+import random
+import re
+from schemas.loader import CORE_RULESET
+from backend.utils.storage import store_roll  # Keep this if backend/utils/storage.py exists
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +355,12 @@ async def encounter_1v1(request: Request, req: Encounter1v1Request):
         
         logger.info(f"[{request_id}] Encounter complete: {outcome}")
         
+        # Lore summary (COMMENTED OUT)
+        # lore_summary = []
+        # for r in range(1, len(rounds) + 1):
+        #     lore_summary.extend(get_lore_by_round(r))
+        lore_summary = []  # TODO: Migrate to new combat_log_store system
+        
         return Encounter1v1Result(
             type="encounter_1v1",
             initiative_order=initiative_order,
@@ -361,7 +371,8 @@ async def encounter_1v1(request: Request, req: Encounter1v1Request):
                 req.defender.name: defender_dp
             },
             outcome=outcome,
-            summary=summary
+            summary=summary,
+            lore=lore_summary  # Include empty lore summary
         )
     
     except Exception as e:
