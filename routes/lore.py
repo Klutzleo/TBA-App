@@ -11,3 +11,9 @@ router = APIRouter(prefix="/api/lore", tags=["Lore"])
 async def get_lore():
     """Placeholder lore endpoint."""
     return {"message": "Lore system coming soon"}
+
+
+def add_lore_entry(entry):
+    """Stub function for backward compatibility."""
+    pass
+

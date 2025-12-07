@@ -478,7 +478,6 @@ def trigger_echo(actor, context):
             bonuses.append(echo["effect"])
     return bonuses
 
-from routes.lore import add_lore_entry  # make sure this is imported
 
 def resolve_calling(actor, round_num=None, encounter_id=None):
     ip = actor["stats"].get("IP", 0)
