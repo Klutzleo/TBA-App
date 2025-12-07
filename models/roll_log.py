@@ -4,6 +4,7 @@ from backend.db import Base
 
 class RollLog(Base):
     __tablename__ = "roll_logs"  # ✅ match the query exactly
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
     actor = Column(String, index=True)
