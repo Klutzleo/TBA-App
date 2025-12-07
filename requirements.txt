@@ -9,7 +9,6 @@ psycopg2-binary==2.9.10
 
 # Data serialization
 pydantic==2.8.2
-pydantic-core==2.27.1
 python-multipart==0.0.7
 
 # Env vars & utilities
