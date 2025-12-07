@@ -1,36 +1,22 @@
 # Web framework
-Flask==3.1.2
-fastapi==0.104.1
-jinja2
-uvicorn[standard]==0.24.0
-
-# OpenAPI 3.0 support
-Flask-Smorest>=0.40.0
-apispec-webframeworks>=0.5.2
-
-# (De)serialization
-marshmallow>=3.0.0
-pydantic==2.5.0
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+jinja2==3.1.4
 
 # Database
-SQLAlchemy==2.0.42
+SQLAlchemy==2.0.36
 psycopg2-binary==2.9.10
 
-# Env vars
-python-dotenv>=1.0.0
+# Data serialization
+pydantic==2.8.2
+pydantic-core==2.27.1
+python-multipart==0.0.7
 
-# Other existing deps
-backports.tarfile==1.2.0
-importlib-metadata==8.0.0
-jaraco.collections==5.1.0
-jsonschema==4.25.1
-pip-chill==1.0.3
-platformdirs==4.2.2
-requests==2.31.0
-tomli==2.0.1
-python-multipart==0.0.6
-httpx==0.25.0
+# Env vars & utilities
+python-dotenv==1.0.1
+requests==2.32.3
+httpx==0.27.0
 
 # Dev tools
-pytest>=7.0
-yamllint>=1.26
+pytest==8.3.2
+yamllint==1.35.1
