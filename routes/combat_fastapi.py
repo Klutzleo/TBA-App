@@ -49,10 +49,10 @@ class CombatLogEntry(BaseModel):
 # POST endpoint to record a combat log entry
 @router.post("/log", response_model=Dict[str, Any])
 async def post_combat_log(entry: CombatLogEntry = Body(...)):
-    combat_log_store.append(entry.dict())
+    combat_log_store.append(entry.model_dump())
     return {
         "message": "Combat log entry recorded",
-        "entry": entry.dict(),
+        "entry": entry.model_dump(),
         "total_entries": len(combat_log_store)
     }
 

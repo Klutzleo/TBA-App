@@ -225,3 +225,100 @@ def test_combat_attack_invalid_stat_type(test_client):
     resp = test_client.post("/api/combat/attack", headers=headers, json=payload)
     # Should fail gracefully (422 for validation error or 500 for missing attribute)
     assert resp.status_code in {400, 422, 500}
+
+
+def test_initiative_endpoint(test_client):
+    """Roll initiative and verify ordering and roll breakdown."""
+    headers = {"X-API-Key": os.environ.get("API_KEY", "devkey")}
+    payload = {
+        "combatants": [
+            {
+                "name": "Alice",
+                "level": 5,
+                "stats": {"pp": 3, "ip": 2, "sp": 1},
+                "dp": 30,
+                "edge": 2,
+                "bap": 3,
+                "attack_style": "3d4",
+                "defense_die": "1d8"
+            },
+            {
+                "name": "Bob",
+                "level": 4,
+                "stats": {"pp": 2, "ip": 3, "sp": 2},
+                "dp": 25,
+                "edge": 1,
+                "bap": 2,
+                "attack_style": "2d6",
+                "defense_die": "1d6"
+            }
+        ]
+    }
+
+    resp = test_client.post("/api/combat/roll-initiative", headers=headers, json=payload)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("initiative_order")
+    assert len(body.get("rolls", [])) == 2
+
+
+def test_encounter_1v1_endpoint(test_client):
+    """Simulate 1v1 encounter end-to-end."""
+    headers = {"X-API-Key": os.environ.get("API_KEY", "devkey")}
+    payload = {
+        "attacker": {
+            "name": "Hero",
+            "level": 5,
+            "stats": {"pp": 3, "ip": 2, "sp": 1},
+            "dp": 30,
+            "edge": 2,
+            "bap": 3,
+            "attack_style": "2d6",
+            "defense_die": "1d8"
+        },
+        "defender": {
+            "name": "Orc",
+            "level": 4,
+            "stats": {"pp": 2, "ip": 1, "sp": 2},
+            "dp": 25,
+            "edge": 1,
+            "bap": 2,
+            "attack_style": "1d6",
+            "defense_die": "1d6"
+        },
+        "technique_name": "Slash",
+        "stat_type": "PP",
+        "max_rounds": 5
+    }
+
+    resp = test_client.post("/api/combat/encounter-1v1", headers=headers, json=payload)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("type") == "encounter_1v1"
+    assert body.get("round_count") <= 5
+    assert body.get("outcome") in {"attacker_wins", "defender_wins", "timeout"}
+
+
+def test_combat_log_recent(test_client):
+    """Post a combat log entry and retrieve it via /log/recent."""
+    headers = {"X-API-Key": os.environ.get("API_KEY", "devkey")}
+    entry = {
+        "actor": "Recorder",
+        "timestamp": "2025-12-07T12:00:00",
+        "context": "enc-123",
+        "triggered_by": "tester",
+        "narration": "Recorded a test log entry",
+        "action": {"name": "note"},
+        "roll": {"die": "1d4", "result": 3},
+        "outcome": "info",
+        "tethers": [],
+        "log": []
+    }
+
+    post_resp = test_client.post("/api/combat/log", headers=headers, json=entry)
+    assert post_resp.status_code == 200
+
+    recent_resp = test_client.get("/api/combat/log/recent", headers=headers)
+    assert recent_resp.status_code == 200
+    recent_body = recent_resp.json()
+    assert any(e.get("actor") == "Recorder" for e in recent_body.get("entries", []))
