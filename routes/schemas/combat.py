@@ -1,5 +1,5 @@
 from typing import Dict, Optional, List, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ============================================================================
@@ -42,8 +42,7 @@ class CharacterStats(BaseModel):
     ip: int = Field(..., ge=1, le=3, description="Intellect Power (1-3)")
     sp: int = Field(..., ge=1, le=3, description="Social Power (1-3)")
 
-    class Config:
-        json_schema_extra = {"example": {"pp": 3, "ip": 2, "sp": 1}}
+    model_config = ConfigDict(json_schema_extra={"example": {"pp": 3, "ip": 2, "sp": 1}})
 
 
 class Weapon(BaseModel):
@@ -52,8 +51,7 @@ class Weapon(BaseModel):
     bonus_attack: int = Field(default=0, description="Bonus to attack rolls (Phase 2)")
     bonus_damage: int = Field(default=0, description="Bonus to damage (Phase 2)")
 
-    class Config:
-        json_schema_extra = {"example": {"name": "Iron Sword", "bonus_attack": 1, "bonus_damage": 2}}
+    model_config = ConfigDict(json_schema_extra={"example": {"name": "Iron Sword", "bonus_attack": 1, "bonus_damage": 2}})
 
 
 class Armor(BaseModel):
@@ -62,8 +60,7 @@ class Armor(BaseModel):
     bonus_defense: int = Field(default=0, description="Bonus to defense rolls (Phase 2)")
     bonus_dp: int = Field(default=0, description="Bonus to DP (Phase 2)")
 
-    class Config:
-        json_schema_extra = {"example": {"name": "Leather Armor", "bonus_defense": 1, "bonus_dp": 3}}
+    model_config = ConfigDict(json_schema_extra={"example": {"name": "Leather Armor", "bonus_defense": 1, "bonus_dp": 3}})
 
 
 class Character(BaseModel):
@@ -80,22 +77,21 @@ class Character(BaseModel):
     armor: Optional[Armor] = Field(default=None, description="Armor (Phase 2)")
     session_id: Optional[str] = Field(default=None, description="Session ID for grouping")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "Alice",
-                "level": 5,
-                "stats": {"pp": 3, "ip": 2, "sp": 1},
-                "dp": 30,
-                "edge": 2,
-                "bap": 3,
-                "attack_style": "3d4",
-                "defense_die": "1d8",
-                "weapon": None,
-                "armor": None,
-                "session_id": "party-123"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "name": "Alice",
+            "level": 5,
+            "stats": {"pp": 3, "ip": 2, "sp": 1},
+            "dp": 30,
+            "edge": 2,
+            "bap": 3,
+            "attack_style": "3d4",
+            "defense_die": "1d8",
+            "weapon": None,
+            "armor": None,
+            "session_id": "party-123"
         }
+    })
 
 
 class AttackRequest(BaseModel):
@@ -106,34 +102,33 @@ class AttackRequest(BaseModel):
     stat_type: str = Field(description="Stat type: 'PP' | 'IP' | 'SP'")
     bap_triggered: bool = Field(default=False, description="Trigger BAP bonus?")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "attacker": {
-                    "name": "Alice",
-                    "level": 5,
-                    "stats": {"pp": 3, "ip": 2, "sp": 1},
-                    "dp": 30,
-                    "edge": 2,
-                    "bap": 3,
-                    "attack_style": "3d4",
-                    "defense_die": "1d8"
-                },
-                "defender": {
-                    "name": "Goblin",
-                    "level": 2,
-                    "stats": {"pp": 2, "ip": 1, "sp": 1},
-                    "dp": 15,
-                    "edge": 1,
-                    "bap": 1,
-                    "attack_style": "1d4",
-                    "defense_die": "1d4"
-                },
-                "technique_name": "Slash",
-                "stat_type": "PP",
-                "bap_triggered": False
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "attacker": {
+                "name": "Alice",
+                "level": 5,
+                "stats": {"pp": 3, "ip": 2, "sp": 1},
+                "dp": 30,
+                "edge": 2,
+                "bap": 3,
+                "attack_style": "3d4",
+                "defense_die": "1d8"
+            },
+            "defender": {
+                "name": "Goblin",
+                "level": 2,
+                "stats": {"pp": 2, "ip": 1, "sp": 1},
+                "dp": 15,
+                "edge": 1,
+                "bap": 1,
+                "attack_style": "1d4",
+                "defense_die": "1d4"
+            },
+            "technique_name": "Slash",
+            "stat_type": "PP",
+            "bap_triggered": False
         }
+    })
 
 
 class IndividualRollResult(BaseModel):
@@ -161,33 +156,32 @@ class InitiativeRequest(BaseModel):
     """Request to roll initiative."""
     combatants: List[Character]
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "combatants": [
-                    {
-                        "name": "Alice",
-                        "level": 5,
-                        "stats": {"pp": 3, "ip": 2, "sp": 1},
-                        "dp": 30,
-                        "edge": 2,
-                        "bap": 3,
-                        "attack_style": "3d4",
-                        "defense_die": "1d8"
-                    },
-                    {
-                        "name": "Bob",
-                        "level": 4,
-                        "stats": {"pp": 2, "ip": 3, "sp": 2},
-                        "dp": 25,
-                        "edge": 2,
-                        "bap": 2,
-                        "attack_style": "2d6",
-                        "defense_die": "1d6"
-                    }
-                ]
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "combatants": [
+                {
+                    "name": "Alice",
+                    "level": 5,
+                    "stats": {"pp": 3, "ip": 2, "sp": 1},
+                    "dp": 30,
+                    "edge": 2,
+                    "bap": 3,
+                    "attack_style": "3d4",
+                    "defense_die": "1d8"
+                },
+                {
+                    "name": "Bob",
+                    "level": 4,
+                    "stats": {"pp": 2, "ip": 3, "sp": 2},
+                    "dp": 25,
+                    "edge": 2,
+                    "bap": 2,
+                    "attack_style": "2d6",
+                    "defense_die": "1d6"
+                }
+            ]
         }
+    })
 
 
 class InitiativeRoll(BaseModel):

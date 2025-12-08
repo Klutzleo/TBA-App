@@ -30,4 +30,5 @@ except Exception as e:
 PY
 
 echo "▶ Launching Uvicorn"
-exec uvicorn backend.app:application --host 0.0.0.0 --port 8000 --workers 1
+PORT=${PORT:-8000}
+exec uvicorn backend.app:application --host 0.0.0.0 --port "${PORT}" --workers 1

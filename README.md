@@ -81,6 +81,43 @@ This project is licensed under the **AGPL-3.0**. All hosted versions and derivat
 
 ---
 
+## 🔗 Live API (Railway)
+
+- Base URL: https://tba-app-production.up.railway.app
+- Public health: `/health`
+- Protected routes: everything under `/api/` (requires header `X-API-Key: <your key>`)
+- OpenAPI docs: `/docs` (click **Authorize** and paste your API key to use “Try it out”).
+
+Quick checks
+
+- Health (no auth):
+	```bash
+	curl https://tba-app-production.up.railway.app/health
+	```
+- API health (with key):
+	```bash
+	curl -H "X-API-Key: <YOUR_API_KEY>" \
+			 https://tba-app-production.up.railway.app/api/health
+	```
+- Sample combat attack (with key):
+	```bash
+	curl -X POST "https://tba-app-production.up.railway.app/api/combat/attack" \
+			 -H "X-API-Key: <YOUR_API_KEY>" \
+			 -H "Content-Type: application/json" \
+			 -d '{"attacker":"Hero","defender":"Goblin","attack_style_die":"3d4","technique_name":"Slash","stat_type":"PP"}'
+	```
+
+## 🧪 Local Development
+
+1) Copy `.env.example` to `.env` and adjust if needed (defaults to sqlite and `devkey`).
+2) Install deps: `pip install -r requirements.txt`
+3) Run locally: `uvicorn backend.app:application --host 0.0.0.0 --port 8000 --reload`
+4) Hit `http://localhost:8000/health` (public) or `http://localhost:8000/api/health` with `X-API-Key: devkey`.
+
+Note: `.env` is git-ignored; do not commit secrets.
+
+---
+
 ## 💌 Want to Follow or Contribute?
 
 TBA is currently in private development. Contributions are paused while foundational systems are refined. Feel free to follow progress, fork for personal use, or reach out with questions or encouragement.
