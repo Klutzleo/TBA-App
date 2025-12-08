@@ -1,5 +1,5 @@
 from typing import Dict, Optional, List, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ============================================================================
@@ -42,8 +42,7 @@ class CharacterStats(BaseModel):
     ip: int = Field(..., ge=1, le=3, description="Intellect Power (1-3)")
     sp: int = Field(..., ge=1, le=3, description="Social Power (1-3)")
 
-    class Config:
-        json_schema_extra = {"example": {"pp": 3, "ip": 2, "sp": 1}}
+    model_config = ConfigDict(json_schema_extra={"example": {"pp": 3, "ip": 2, "sp": 1}})
 
 
 class Weapon(BaseModel):
