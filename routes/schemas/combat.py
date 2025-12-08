@@ -157,31 +157,31 @@ class InitiativeRequest(BaseModel):
     combatants: List[Character]
 
     model_config = ConfigDict(json_schema_extra={
-            "example": {
-                "combatants": [
-                    {
-                        "name": "Alice",
-                        "level": 5,
-                        "stats": {"pp": 3, "ip": 2, "sp": 1},
-                        "dp": 30,
-                        "edge": 2,
-                        "bap": 3,
-                        "attack_style": "3d4",
-                        "defense_die": "1d8"
-                    },
-                    {
-                        "name": "Bob",
-                        "level": 4,
-                        "stats": {"pp": 2, "ip": 3, "sp": 2},
-                        "dp": 25,
-                        "edge": 2,
-                        "bap": 2,
-                        "attack_style": "2d6",
-                        "defense_die": "1d6"
-                    }
-                ]
-            }
+        "example": {
+            "combatants": [
+                {
+                    "name": "Alice",
+                    "level": 5,
+                    "stats": {"pp": 3, "ip": 2, "sp": 1},
+                    "dp": 30,
+                    "edge": 2,
+                    "bap": 3,
+                    "attack_style": "3d4",
+                    "defense_die": "1d8"
+                },
+                {
+                    "name": "Bob",
+                    "level": 4,
+                    "stats": {"pp": 2, "ip": 3, "sp": 2},
+                    "dp": 25,
+                    "edge": 2,
+                    "bap": 2,
+                    "attack_style": "2d6",
+                    "defense_die": "1d6"
+                }
+            ]
         }
+    })
 
 
 class InitiativeRoll(BaseModel):
