@@ -71,10 +71,15 @@ async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
             return {"type": "system", "actor": "system", "text": "Usage: /roll 3d6+2", "party_id": party_id}
         try:
             result = parse_dice_notation(parts[1])
-            # Pretty formatting: "3d6+2 → 12 (4, 3, 3) + 2"
-            rolls_str = ", ".join(map(str, result['rolls']))
-            mod_str = f" + {result['modifier']}" if result['modifier'] else ""
-            pretty_text = f"{parts[1]} → {result['total']} ({rolls_str}){mod_str}"
+            # Math-first formatting: "(4 + 3 + 3) + 2 = 12" or "4 + 3 + 3 = 10"
+            plus_join = " + ".join(map(str, result["rolls"]))
+            modifier = result["modifier"]
+            if modifier:
+                mod_str = f" + {abs(modifier)}" if modifier > 0 else f" - {abs(modifier)}"
+                equation = f"({plus_join}){mod_str} = {result['total']}"
+            else:
+                equation = f"{plus_join} = {result['total']}"
+            pretty_text = equation
             return {
                 "type": "dice_roll",
                 "actor": actor,
