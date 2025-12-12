@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.openapi.utils import get_openapi
+from pathlib import Path
 
 from backend.db import init_db
 
@@ -126,6 +127,7 @@ async def root(request: Request):
         "openapi": "/openapi.json",
         "health": "/health",
         "api_health": "/api/health",
+        "ws_test": "/ws-test",
         "request_id": getattr(request.state, "request_id", "N/A"),
     }
 
@@ -200,6 +202,15 @@ def custom_openapi():
 
 application.openapi = custom_openapi
 
+
+# Serve simple WS test page for Railway/browser testing
+@application.get("/ws-test", response_class=HTMLResponse)
+async def ws_test_page():
+    static_path = Path(__file__).resolve().parent.parent / "static" / "ws-test.html"
+    try:
+        return HTMLResponse(static_path.read_text(encoding="utf-8"))
+    except Exception:
+        return HTMLResponse("<h1>WS Test</h1><p>ws-test.html not found.</p>", status_code=404)
 
 # Entry point for dev hot-reload
 if __name__ == "__main__":

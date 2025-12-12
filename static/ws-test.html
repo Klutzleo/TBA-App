@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TBA-App WebSocket Chat Test</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
+    input, button, select { padding: 8px; font-size: 14px; }
+    #log { border: 1px solid #ccc; padding: 12px; min-height: 180px; max-height: 320px; overflow: auto; background: #fafafa; }
+    .msg { margin: 4px 0; }
+    .sys { color: #555; }
+    .err { color: #a00; }
+    label { font-size: 12px; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>TBA-App WebSocket Chat Test</h1>
+
+  <div class="row">
+    <label>Railway Base URL</label>
+    <input id="baseUrl" placeholder="https://tba-app-production.up.railway.app" size="40" />
+  </div>
+  <div class="row">
+    <label>Party ID</label>
+    <input id="partyId" placeholder="test-party" />
+    <label>Actor</label>
+    <input id="actor" placeholder="Alice" />
+  </div>
+  <div class="row">
+    <label>API Key (optional)</label>
+    <input id="apiKey" placeholder="devkey" />
+    <button id="connectBtn">Connect</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="row">
+    <input id="messageInput" placeholder="Type a message..." size="50" />
+    <button id="sendBtn" disabled>Send</button>
+  </div>
+
+  <script>
+    const baseUrlEl = document.getElementById('baseUrl');
+    const partyIdEl = document.getElementById('partyId');
+    const actorEl = document.getElementById('actor');
+    const apiKeyEl = document.getElementById('apiKey');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const logEl = document.getElementById('log');
+    const msgInput = document.getElementById('messageInput');
+
+    let ws = null;
+
+    function log(message, cls = 'msg') {
+      const div = document.createElement('div');
+      div.className = cls;
+      div.textContent = message;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function buildWSUrl(baseUrl, partyId) {
+      const url = new URL(baseUrl);
+      url.protocol = url.protocol.replace('http', 'ws'); // http->ws, https->wss
+      url.pathname = `/api/chat/party/${encodeURIComponent(partyId)}`;
+      return url.toString();
+    }
+
+    connectBtn.addEventListener('click', async () => {
+      const baseUrl = baseUrlEl.value.trim();
+      const partyId = partyIdEl.value.trim();
+      const actor = actorEl.value.trim() || 'User';
+      const apiKey = apiKeyEl.value.trim();
+      if (!baseUrl || !partyId) {
+        log('Please provide base URL and party ID.', 'err');
+        return;
+      }
+
+      const wsUrl = buildWSUrl(baseUrl, partyId);
+      log(`Connecting to ${wsUrl} ...`, 'sys');
+
+      // Some browsers don’t support custom headers for WebSocket.
+      // If API key is required, append as query param fallback.
+      const finalUrl = apiKey ? `${wsUrl}?api_key=${encodeURIComponent(apiKey)}` : wsUrl;
+
+      try {
+        ws = new WebSocket(finalUrl);
+
+        ws.onopen = () => {
+          log('Connected.', 'sys');
+          connectBtn.disabled = true;
+          disconnectBtn.disabled = false;
+          sendBtn.disabled = false;
+          // Optionally announce join
+          const joinMsg = { type: 'message', actor, text: `${actor} joined.` };
+          ws.send(JSON.stringify(joinMsg));
+        };
+
+        ws.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data);
+            log(`[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`);
+          } catch (e) {
+            log(ev.data);
+          }
+        };
+
+        ws.onerror = (err) => {
+          log(`WebSocket error: ${err?.message || err}`, 'err');
+        };
+
+        ws.onclose = (ev) => {
+          log(`Disconnected (code ${ev.code}).`, 'sys');
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          sendBtn.disabled = true;
+          ws = null;
+        };
+      } catch (e) {
+        log(`Failed to connect: ${e.message}`, 'err');
+      }
+    });
+
+    disconnectBtn.addEventListener('click', () => {
+      if (ws) ws.close(1000, 'User requested close');
+    });
+
+    sendBtn.addEventListener('click', () => {
+      const text = msgInput.value.trim();
+      const actor = actorEl.value.trim() || 'User';
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const payload = { type: 'message', actor, text };
+      ws.send(JSON.stringify(payload));
+      msgInput.value = '';
+    });
+  </script>
+</body>
+</html>
