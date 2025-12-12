@@ -71,10 +71,14 @@ async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
             return {"type": "system", "actor": "system", "text": "Usage: /roll 3d6+2", "party_id": party_id}
         try:
             result = parse_dice_notation(parts[1])
+            # Pretty formatting: "3d6+2 → 12 (4, 3, 3) + 2"
+            rolls_str = ", ".join(map(str, result['rolls']))
+            mod_str = f" + {result['modifier']}" if result['modifier'] else ""
+            pretty_text = f"{parts[1]} → {result['total']} ({rolls_str}){mod_str}"
             return {
                 "type": "dice_roll",
                 "actor": actor,
-                "text": f"{parts[1]} → {result['total']} ({', '.join(map(str, result['rolls']))}{(' ' + str(result['modifier'])) if result['modifier'] else ''})",
+                "text": pretty_text,
                 "dice": parts[1],
                 "result": result["total"],
                 "breakdown": result["rolls"],
@@ -99,6 +103,12 @@ async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
         return {"type": "initiative", "actor": actor, "text": f"Initiative → {result}", "result": result, "party_id": party_id}
     # Unknown macro → echo as system
     return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
+
+@chat_blp.get("/chat/party/{party_id}/connections", response_model=Dict[str, Any])
+async def party_connections(party_id: str):
+    """Debug endpoint: see active WebSocket connections for a party."""
+    conns = active_connections.get(party_id, [])
+    return {"party_id": party_id, "connection_count": len(conns)}
 
 async def log_combat_event(entry: Dict[str, Any]):
     try:
