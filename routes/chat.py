@@ -1,5 +1,5 @@
 from urllib import response
-from fastapi import APIRouter, Request, Form, Body
+from fastapi import APIRouter, Request, Form, Body, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
@@ -18,6 +18,29 @@ chat_blp = APIRouter()
 templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger("uvicorn")
 
+# Simple in-memory connection store: party_id -> list[WebSocket]
+active_connections: Dict[str, list[WebSocket]] = {}
+
+def add_connection(party_id: str, ws: WebSocket):
+    active_connections.setdefault(party_id, []).append(ws)
+
+def remove_connection(party_id: str, ws: WebSocket):
+    if party_id in active_connections:
+        try:
+            active_connections[party_id].remove(ws)
+        except ValueError:
+            pass
+        if not active_connections[party_id]:
+            del active_connections[party_id]
+
+async def broadcast(party_id: str, message: Dict[str, Any]):
+    for ws in active_connections.get(party_id, []):
+        try:
+            await ws.send_json(message)
+        except Exception:
+            # Best-effort send; failures will be cleaned up on disconnect
+            pass
+
 async def log_combat_event(entry: Dict[str, Any]):
     try:
         async with httpx.AsyncClient() as client:
@@ -35,6 +58,38 @@ actor_roll_modes = {
 @chat_blp.get("/chat", response_class=HTMLResponse)
 async def chat_get(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request, "response": None})
+
+
+@chat_blp.websocket("/chat/party/{party_id}")
+async def chat_party_ws(websocket: WebSocket, party_id: str):
+    # Accept connection; optional api_key via query param for convenience
+    # Note: API key enforcement is not applied to WebSocket in HTTP middleware
+    await websocket.accept()
+    add_connection(party_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                payload = {"type": "message", "actor": "unknown", "text": data}
+
+            msg = {
+                "type": payload.get("type", "message"),
+                "actor": payload.get("actor", "unknown"),
+                "text": payload.get("text", ""),
+                "party_id": party_id,
+            }
+            await broadcast(party_id, msg)
+    except WebSocketDisconnect:
+        remove_connection(party_id, websocket)
+    except Exception as e:
+        remove_connection(party_id, websocket)
+        # Attempt to notify others of disconnect
+        try:
+            await broadcast(party_id, {"type": "system", "actor": "system", "text": f"Disconnect: {e}", "party_id": party_id})
+        except Exception:
+            pass
 
 
 @chat_blp.post("/chat", response_class=HTMLResponse)
