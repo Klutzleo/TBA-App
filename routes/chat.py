@@ -11,6 +11,7 @@ import logging
 import random
 import httpx  # For making async HTTP requests
 import os
+import re
 
 COMBAT_LOG_URL = os.getenv("COMBAT_LOG_URL", "https://tba-app-production.up.railway.app/api/combat/log")
 
@@ -40,6 +41,64 @@ async def broadcast(party_id: str, message: Dict[str, Any]):
         except Exception:
             # Best-effort send; failures will be cleaned up on disconnect
             pass
+
+
+async def broadcast_combat_event(party_id: str, event: Dict[str, Any]):
+    """Broadcast a combat event to all sockets in a party."""
+    payload = {"type": "combat_event", "party_id": party_id, **event}
+    await broadcast(party_id, payload)
+
+
+def parse_dice_notation(expr: str) -> Dict[str, Any]:
+    """Parse dice like '3d6+2' and roll it. Returns breakdown and total."""
+    m = re.fullmatch(r"\s*(\d+)d(\d+)([+\-]\d+)?\s*", expr)
+    if not m:
+        raise ValueError("Invalid dice expression. Try like 3d6+2")
+    num = int(m.group(1))
+    sides = int(m.group(2))
+    mod = int(m.group(3)) if m.group(3) else 0
+    rolls = [random.randint(1, sides) for _ in range(num)]
+    total = sum(rolls) + mod
+    return {"rolls": rolls, "modifier": mod, "total": total}
+
+
+async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
+    """Handle simple system macros: /roll, /pp, /ip, /sp, /initiative (placeholder)."""
+    parts = text.strip().split()
+    cmd = parts[0].lower()
+    if cmd == "/roll":
+        if len(parts) < 2:
+            return {"type": "system", "actor": "system", "text": "Usage: /roll 3d6+2", "party_id": party_id}
+        try:
+            result = parse_dice_notation(parts[1])
+            return {
+                "type": "dice_roll",
+                "actor": actor,
+                "text": f"{parts[1]} → {result['total']} ({', '.join(map(str, result['rolls']))}{(' ' + str(result['modifier'])) if result['modifier'] else ''})",
+                "dice": parts[1],
+                "result": result["total"],
+                "breakdown": result["rolls"],
+                "party_id": party_id,
+            }
+        except Exception as e:
+            return {"type": "system", "actor": "system", "text": f"Dice error: {e}", "party_id": party_id}
+    if cmd in {"/pp", "/ip", "/sp"}:
+        # Placeholder: roll 1d6 + stat; later tie to character data
+        stat = cmd[1:].upper()
+        result = random.randint(1, 6) + 1  # +1 as simple edge placeholder
+        return {
+            "type": "stat_roll",
+            "actor": actor,
+            "text": f"{stat} roll → {result}",
+            "stat": stat,
+            "result": result,
+            "party_id": party_id,
+        }
+    if cmd == "/initiative":
+        result = random.randint(1, 6) + 1
+        return {"type": "initiative", "actor": actor, "text": f"Initiative → {result}", "result": result, "party_id": party_id}
+    # Unknown macro → echo as system
+    return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
 
 async def log_combat_event(entry: Dict[str, Any]):
     try:
@@ -73,13 +132,17 @@ async def chat_party_ws(websocket: WebSocket, party_id: str):
                 payload = json.loads(data)
             except json.JSONDecodeError:
                 payload = {"type": "message", "actor": "unknown", "text": data}
-
-            msg = {
-                "type": payload.get("type", "message"),
-                "actor": payload.get("actor", "unknown"),
-                "text": payload.get("text", ""),
-                "party_id": party_id,
-            }
+            actor = payload.get("actor", "unknown")
+            text = payload.get("text", "")
+            if isinstance(text, str) and text.startswith("/"):
+                msg = await handle_macro(party_id, actor, text)
+            else:
+                msg = {
+                    "type": payload.get("type", "message"),
+                    "actor": actor,
+                    "text": text,
+                    "party_id": party_id,
+                }
             await broadcast(party_id, msg)
     except WebSocketDisconnect:
         remove_connection(party_id, websocket)

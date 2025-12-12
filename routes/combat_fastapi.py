@@ -20,6 +20,7 @@ from routes.schemas.combat import (
     IndividualRollResult
 )
 from backend.roll_logic import resolve_multi_die_attack, roll_die
+from routes.chat import broadcast_combat_event
 import logging
 import random
 import re
@@ -160,6 +161,23 @@ async def attack(request: Request, req: AttackRequest):
             f"[{request_id}] {req.attacker.name} dealt {result['total_damage']} damage "
             f"to {req.defender.name} (DP: {req.defender.dp} → {new_dp})"
         )
+
+        if req.party_id:
+            combat_event = {
+                "attacker": req.attacker.name,
+                "defender": req.defender.name,
+                "technique": req.technique_name,
+                "stat_type": req.stat_type,
+                "total_damage": result["total_damage"],
+                "outcome": result["outcome"],
+                "narrative": result["narrative"],
+                "defender_new_dp": new_dp,
+                "individual_rolls": result["individual_rolls"],
+            }
+            try:
+                await broadcast_combat_event(req.party_id, combat_event)
+            except Exception as e:
+                logger.warning(f"[{request_id}] Failed to broadcast combat_event to party {req.party_id}: {e}")
         
         # Map to Pydantic response
         return AttackResult(

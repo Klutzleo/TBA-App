@@ -101,6 +101,7 @@ class AttackRequest(BaseModel):
     technique_name: str = Field(description="e.g., 'Slash', 'Fireball', 'Persuade'")
     stat_type: str = Field(description="Stat type: 'PP' | 'IP' | 'SP'")
     bap_triggered: bool = Field(default=False, description="Trigger BAP bonus?")
+    party_id: Optional[str] = Field(default=None, description="If provided, broadcast combat event to this party chat")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -126,7 +127,8 @@ class AttackRequest(BaseModel):
             },
             "technique_name": "Slash",
             "stat_type": "PP",
-            "bap_triggered": False
+            "bap_triggered": False,
+            "party_id": "party-123"
         }
     })
 
