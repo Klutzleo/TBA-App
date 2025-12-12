@@ -21,11 +21,12 @@ An age gate toggles between these modes, adjusting language, narration tone, and
 
 | Feature | Description |
 |---------|-------------|
+| **Real-Time Multiplayer Chat** | WebSocket party chat — IC/OOC, system macros, emotional tone indicators, message reactions. The living table where everything happens. |
 | **Narration Engine** | Every effect, roll, and action generates expressive, replayable story beats. |
 | **Modular API** | Endpoints for actors, effects, encounters, and chat-based resolution. |
 | **Session Manager** | Tracks scenes, rolls, emotional beats, and memory markers across campaigns. |
 | **Lore & Asset Library** | Taggable, reusable homebrew content—spells, NPCs, vehicles, and more. |
-| **Cross-Platform Spectator Mode** | View-only access from web, mobile, or Discord. |
+| **Cross-Platform Spectator Mode** | View-only access from web, mobile, or Discord. Spectators can react to messages. |
 | **AI Assistant (Optional)** | Prompt-based support for NPC generation, scene narration, and lore expansion. |
 | **Age-Gated Experience** | Switch between adult and kid-friendly modes with filtered narration and UI. |
 
@@ -51,13 +52,13 @@ The UI and hosting layers will follow once the emotional and mechanical foundati
 
 ## 🧭 Roadmap Highlights
 
-- ✅ Sprint 1–4: Core schema, narration, and persistent effects complete
-- 🧠 Sprint 5: Tactical resolution, preview, and branching (in progress)
-- 🧩 Sprint 6–8: Squad coordination, conditionals, and deep lore replayability
-- 💬 Sprint 11–12: Conversational interface and dice-based reactions
-- 🧍 Sprint 14–16: Character builder, UI, and player management
-
-Full roadmap: `docs/roadmap.md`
+- ✅ **Phase 1 MVP:** Multi-die combat resolution, FastAPI endpoints, Railway deployment
+- ✅ **Phase 2a:** Real-time WebSocket party chat (working on Railway)
+- 🔄 **Phase 2b:** System macros (`/roll`, `/attack`), combat event broadcasting, persistent chat
+- 💬 **Phase 2c:** Emotional tone indicators, message reactions, markdown support
+- 🎭 **Phase 2d:** Custom user macros, image attachments, advanced filtering
+- 🧍 **Alpha Testing:** Chat tabs (IC/OOC/DMs), spectator integration (Discord/Twitch)
+- 🚀 **Beta:** Character builder UI, encounter manager, full campaign persistence
 
 ---
 
@@ -106,6 +107,61 @@ Quick checks
 			 -H "Content-Type: application/json" \
 			 -d '{"attacker":"Hero","defender":"Goblin","attack_style_die":"3d4","technique_name":"Slash","stat_type":"PP"}'
 	```
+
+### WebSocket Chat Testing
+
+Test real-time multiplayer party chat:
+
+**Browser Test (Easiest)**
+
+1. Open: `https://tba-app-production.up.railway.app/ws-test`
+2. Fill in:
+   - Railway Base URL: `https://tba-app-production.up.railway.app`
+   - Party ID: `test-party` (same for all players)
+   - Actor: `Alice` (unique per player)
+   - API Key: leave empty
+3. Click **Connect**, open second tab with same Party ID
+4. Send messages — both tabs receive broadcasts instantly
+
+**CLI Test**
+```powershell
+npm install -g wscat
+wscat -c wss://tba-app-production.up.railway.app/api/chat/party/test-party
+{"type":"message","actor":"Alice","text":"Hello!"}
+```
+
+**Endpoint:** `wss://<url>/api/chat/party/{party_id}` — broadcasts to all party members
+
+### Upcoming Chat Features (Phase 2b-d)
+
+**The Living Table** — Chat is the central hub for everything. Upcoming features:
+
+**System Macros** (Phase 2b)
+- `/roll 3d6+2` — Execute dice rolls from chat
+- `/pp`, `/ip`, `/sp` — Quick stat rolls
+- `/attack [target]` — Trigger combat
+- `/initiative` — Roll party initiative
+- Combat results broadcast to all party members
+
+**Emotional Expression** (Phase 2c)
+- **Tone indicators** — IC messages can have emotional tone (happy, sad, angry, excited)
+- **Color-coded bubbles** — UI renders chat bubbles based on tone (blue=sad, red=angry, yellow=happy)
+- **Message reactions** — React with emoji (👍🔥😊); persists across sessions
+- **Spectator reactions** — Discord/Twitch viewers can react to in-game moments
+
+**Custom Macros** (Phase 2d)
+- Players create character-specific macros (e.g., `/fireball`, `/slash`)
+- Party-level shared macros for encounters
+- Macro editor UI for easy management
+
+**Chat Tabs** (Alpha milestone)
+- IC/OOC/DMs/System Log with filtering
+- Private DM channels
+- Message search and history
+
+**Markdown & Media**
+- Safe markdown subset (**bold**, *italic*, `code`, links)
+- Image attachments for maps and character art
 
 ## 🧪 Local Development
 

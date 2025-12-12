@@ -23,11 +23,11 @@ Short, focused guidance so an AI coding agent can be productive immediately.
   - `integrations/` — Discord bot, Twitch API client, emote reactions
 
 - **Routes glue HTTP endpoints to backend logic:**
-  - `routes/campaign_websocket.py` — Campaign WebSocket (IC/OOC chat, whispers, dice rolls, combat broadcast)
-  - `routes/combat_fastapi.py` — Combat resolution endpoints (HTTP + WebSocket broadcast)
+  - `routes/chat.py` — ✅ Party chat WebSocket (`/api/chat/party/{party_id}`) — real-time multiplayer messaging
+  - `routes/combat_fastapi.py` — Combat resolution endpoints (HTTP; WebSocket broadcast pending)
   - `routes/character_fastapi.py` — Character/Party CRUD
   - `routes/effects.py` — Status effect endpoints
-  - `routes/social_integrations.py` — Discord/Twitch webhooks (Phase 2b)
+  - `routes/social_integrations.py` — Discord/Twitch webhooks (Phase 2b — deferred)
 
 - **TBA RPG v1.5 System:** Multiplayer tabletop RPG with:
   - 3 core stats (PP, IP, SP): 1-3 each, total always = 6
@@ -42,16 +42,16 @@ Short, focused guidance so an AI coding agent can be productive immediately.
 
 | File | Purpose |
 |------|---------|
-| `backend/app.py` | FastAPI server config, router registration, middleware (request ID, API key), OpenAPI, WebSocket setup |
+| `backend/app.py` | FastAPI server config, router registration, middleware (request ID, API key), OpenAPI, serves `/ws-test` page |
 | `app.py` (root) | Dev entry point; imports `backend/app.py` for hot-reload |
 | `routes/` | HTTP/WebSocket endpoints — use FastAPI `APIRouter` |
 | `routes/schemas/` | Pydantic models (preferred for validation) |
 | `routes/combat_fastapi.py` | Phase 1 MVP: 9 combat endpoints (HTTP + DB-integrated) |
-| `routes/campaign_websocket.py` | Phase 2: Campaign chat WebSocket (IC/OOC, whispers, combat broadcast) |
-| `static/campaign_chat.html` | Phase 2: Test UI for campaign chat |
+| `routes/chat.py` | ✅ **Party chat WebSocket** (`/api/chat/party/{party_id}`) — real-time multiplayer messaging |
+| `static/ws-test.html` | ✅ **Browser-based WebSocket test page** (served at `/ws-test`) |
 | `backend/roll_logic.py` | Core dice logic (`resolve_multi_die_attack()`, `roll_initiative()`, etc.) |
 | `backend/db.py` | SQLAlchemy engine, DB init |
-| `backend/integrations/` | Discord bot, Twitch client (Phase 2) |
+| `backend/integrations/` | Discord bot, Twitch client (Phase 2b — deferred) |
 | `Procfile` | Production startup: `uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}` |
 
 ---
@@ -184,106 +184,125 @@ Outcome = "partial_hit" (1-2 of 3 succeed)
 ## 5) Phase 2: Campaign WebSocket Chat (✅ COMPLETE)
 
 ### What We Built (Dec 11, 2025)
-- ✅ **Campaign WebSocket endpoint:** Real-time multiplayer chat room (`/api/campaign/ws/{campaign_id}`)
-- ✅ **Message types:** IC/OOC chat, whispers (private), GM narration, dice rolls, combat results, system notifications
-- ✅ **Combat integration:** `/attack-by-id` broadcasts results to all players in campaign
-- ✅ **Connection manager:** Tracks active WebSocket connections per campaign, handles disconnect cleanup
-- ✅ **Test UI:** `static/campaign_chat.html` — working browser-based chat client with color-coded messages
+- ✅ **Party WebSocket endpoint:** Real-time multiplayer chat (`/api/chat/party/{party_id}`)
+- ✅ **Browser test page:** `static/ws-test.html` served at `/ws-test` — simple UI for Railway testing
+- ✅ **Connection manager:** In-memory tracking per party with broadcast support
+- ✅ **Message format:** `{"type":"message","actor":"<name>","text":"<message>"}`
+- ✅ **Railway verified:** Tested and working with multiple concurrent clients via HTTPS/WSS
 
 ### Campaign Chat Architecture
 
 **Core Files:**
-- `routes/campaign_websocket.py` — WebSocket endpoint + connection manager + message handlers
-- `routes/schemas/campaign.py` — Pydantic models for all message types (chat, whisper, combat, narration, dice)
-- `static/campaign_chat.html` — Test client (HTML/JS/CSS, works in browser)
+- `routes/chat.py` — WebSocket endpoint at `/chat/party/{party_id}` with in-memory connection tracking
+- `static/ws-test.html` — Minimal browser-based test client (HTML/JS)
+- `backend/app.py` — Serves test page at `/ws-test` via HTMLResponse
 
 **Message Flow:**
 ```
-Player A → WebSocket → Server validates → Broadcast to all in campaign → Players B, C, D receive instantly
+Player A → WebSocket → Server receives JSON → Broadcast to all in party → Players B, C, D receive instantly
 
-Types:
-1. chat (IC/OOC) — Player messages
-2. whisper — Private messages (targeted to specific user)
-3. combat_result — Auto-generated from /attack-by-id endpoint
-4. dice_roll — Dice notation parser (e.g., "3d6+2")
-5. narration — GM/Storyweaver story text
-6. system — Join/leave notifications
-7. initiative — Combat turn order
+Message Format (sent by client):
+{"type":"message","actor":"Alice","text":"I attack the goblin!"}
+
+Broadcast includes party_id:
+{"type":"message","actor":"Alice","text":"I attack the goblin!","party_id":"test-party"}
 ```
 
-**Connection Manager (`CampaignConnectionManager`):**
-- `active_connections: Dict[UUID, List[tuple[WebSocket, UUID, str]]]` — campaign_id → list of (websocket, user_id, display_name)
-- `connect()` — Accept WebSocket, add to campaign, broadcast "player_joined"
-- `disconnect()` — Remove WebSocket, broadcast "player_left", cleanup empty campaigns
-- `broadcast()` — Send message to all players in campaign
-- `send_to_user()` — Send message to specific user (for whispers)
+**Connection Manager (in `routes/chat.py`):**
+- `active_connections: Dict[str, list[WebSocket]]` — party_id → list of WebSocket connections
+- `add_connection(party_id, ws)` — Accept WebSocket and add to party
+- `remove_connection(party_id, ws)` — Remove WebSocket on disconnect, cleanup empty parties
+- `broadcast(party_id, message)` — Send JSON message to all clients in party
 
 **WebSocket URL Format:**
 ```
-ws://localhost:8000/api/campaign/ws/{campaign_id}?user_id={uuid}&display_name={name}
+Local:   ws://localhost:8000/api/chat/party/{party_id}
+Railway: wss://tba-app-production.up.railway.app/api/chat/party/{party_id}
+
+# Optional: API key via query string (not currently enforced for WS)
+wss://tba-app-production.up.railway.app/api/chat/party/{party_id}?api_key=devkey
 ```
 
-**Combat Integration:**
-- `routes/combat_fastapi.py` — `/attack-by-id` endpoint now accepts optional `campaign_id` parameter
-- After damage persists to DB, calls `broadcast_combat_result(campaign_id, combat_data)`
-- All players in campaign see attack result with individual roll breakdown
+**Combat Integration (Pending):**
+- Next step: Modify `routes/combat_fastapi.py` to accept optional `party_id` parameter
+- After damage persists to DB, call `broadcast(party_id, combat_event_message)`
+- All players in party will see attack results with roll breakdown in real-time
 
-**Image Attachments (Schema Ready):**
-- `attachment: Optional[str]` field in ChatMessage, GMNarration, ChatBroadcast, NarrationBroadcast
-- UI support pending (upload endpoint needed)
-- Use case: Maps, character art, scene illustrations
+**Future Enhancements:**
+- Message types: whispers, dice rolls, combat events, GM narration
+- Image attachments: Maps, character art, scene illustrations
+- Presence tracking: Online/offline status, typing indicators
+- Message history: Persist to DB, retrieve recent messages on connect
 
 ### How to Test Campaign Chat
 
-**1. Start server:**
+**Browser Test (Easiest):**
+
+1. **Local:**
+   ```powershell
+   uvicorn backend.app:application --host 0.0.0.0 --port 8000 --reload
+   ```
+   Open: `http://localhost:8000/ws-test`
+
+2. **Railway:**
+   Open: `https://tba-app-production.up.railway.app/ws-test`
+
+3. **Connect:**
+   - Railway Base URL: `https://tba-app-production.up.railway.app` (or `http://localhost:8000`)
+   - Party ID: `test-party` (same across all clients)
+   - Actor: `Alice` (unique per client)
+   - API Key: leave empty (optional)
+
+4. **Test multiplayer:**
+   - Open second browser tab
+   - Use same Party ID, different Actor name
+   - Send messages — both tabs receive broadcasts
+
+**CLI Test (Advanced):**
+
 ```powershell
-uvicorn backend.app:application --host 0.0.0.0 --port 8000
+# Install wscat
+npm install -g wscat
+
+# Terminal 1: Connect as Alice
+wscat -c wss://tba-app-production.up.railway.app/api/chat/party/test-party
+
+# Terminal 2: Connect as Bob
+wscat -c wss://tba-app-production.up.railway.app/api/chat/party/test-party
+
+# Send message (paste and press Enter)
+{"type":"message","actor":"Alice","text":"Hello party!"}
+
+# Both terminals receive:
+{"type":"message","actor":"Alice","text":"Hello party!","party_id":"test-party"}
 ```
 
-**2. Open test client:**
-```
-http://localhost:8000/static/campaign_chat.html
-```
+### Phase 2b-d: Rich Chat Features (The Living Table)
 
-**3. Fill in connection info:**
-- Your name: Alice
-- User ID: `550e8400-e29b-41d4-a716-446655440000` (any UUID)
-- Campaign ID: `test-campaign-123` (shared by all players)
+**Vision:** Chat is the central hub for everything — IC/OOC roleplay, rolls, combat, whispers, narration. Make it expressive, reactive, and fun.
 
-**4. Click "Connect" → Status turns green**
+**Phase 2b (Current Priority):**
+- ✅ Party WebSocket chat working on Railway
+- 🔄 **System macros** (`/roll`, `/pp`, `/ip`, `/sp`, `/attack`, `/initiative`) — execute actions directly from chat
+- 🔄 Broadcast combat events to party chat with roll breakdowns
+- Persistent chat history (store messages in DB with timestamps)
 
-**5. Test features:**
-- **IC chat:** Select "In-Character", type message, Enter
-- **OOC chat:** Select "Out-of-Character", type message
-- **Dice roll:** Click "Roll Dice", enter `3d6+2` or `1d20`
-- **Multiplayer:** Open second browser window with different name, same campaign_id
+**Phase 2c (Rich Interactions):**
+- **Tone/Emotion system** — Optional `tone` field for IC messages (happy, sad, angry, excited); UI renders color-coded chat bubbles
+- **Message reactions** — Emoji reactions (👍🔥😊) persist to DB; spectators (app/Discord/Twitch) can react to messages
+- **Markdown support** — Safe subset (**bold**, *italic*, `code`, links) with DOMPurify sanitization
+- Combat results as interactive cards (expandable roll details, reaction support)
 
-**6. Test combat broadcast:**
-```bash
-# Create 2 characters via /docs
-POST /api/characters { "name": "Alice", "owner_id": "user1", "level": 5, "pp": 3, "ip": 2, "sp": 1, "attack_style": "3d4" }
-POST /api/characters { "name": "Bob", "owner_id": "user2", "level": 3, "pp": 2, "ip": 2, "sp": 2, "attack_style": "2d4" }
+**Phase 2d (Custom Macros & Advanced):**
+- **Custom macro editor** — Players create character-specific macros (e.g., `/fireball`, `/slash`) stored in Character model
+- Party-level shared macros (GM can define encounter-specific shortcuts)
+- Image attachments for maps, character art, scene illustrations
+- Presence tracking and typing indicators
 
-# Attack with campaign_id to trigger broadcast
-POST /api/combat/attack-by-id
-{
-  "attacker_id": "alice-uuid",
-  "defender_id": "bob-uuid",
-  "technique_name": "Slash",
-  "stat_type": "PP",
-  "campaign_id": "test-campaign-123"  ← Broadcasts to all connected players
-}
-
-# All players see red combat card with roll breakdown
-```
-
-### Phase 2b Roadmap (Next Steps)
-- Image upload endpoint for maps/character art
-- Weapon/Armor bonuses applied to damage/defense
-- Spell system expansion
-- Discord bot integration (forward messages to Discord channel)
-- Twitch spectator mode (read-only observers)
-- Persistent chat history (store messages in DB)
+**Alpha Testing Milestone:**
+- **Chat tabs** — IC/OOC/DMs/System Log with filtering; DM channels (`/api/chat/dm/{party_id}/{recipient}`)
+- Message search and history retrieval
+- Discord/Twitch spectator integration (read-only observers can react and comment)
 
 ---
 
