@@ -151,10 +151,11 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register combat_blp_fastapi: {e}")
 
 try:
-    from routes.character_fastapi import character_blp_fastapi
+    from routes.character_fastapi import character_blp_fastapi, party_router
 
-    application.include_router(character_blp_fastapi, prefix="/api", tags=["Character"])
-    logger.info("✅ Registered character_blp_fastapi")
+    application.include_router(character_blp_fastapi, tags=["Character"])
+    application.include_router(party_router, tags=["Party"])
+    logger.info("✅ Registered character_blp_fastapi and party_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register character_blp_fastapi: {e}")
 
@@ -173,6 +174,14 @@ try:
     logger.info("✅ Registered effects_blp")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register effects_blp: {e}")
+
+try:
+    from routes.campaign_websocket import router as campaign_ws_router
+
+    application.include_router(campaign_ws_router, tags=["Campaign"])
+    logger.info("✅ Registered campaign_websocket")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register campaign_websocket: {e}")
 
 
 # Custom OpenAPI schema

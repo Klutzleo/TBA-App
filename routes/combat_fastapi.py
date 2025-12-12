@@ -378,3 +378,295 @@ async def encounter_1v1(request: Request, req: Encounter1v1Request):
     except Exception as e:
         logger.error(f"[{request_id}] Encounter error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Encounter simulation failed: {str(e)}")
+
+
+# ============================================================================
+# DB-INTEGRATED COMBAT ENDPOINTS (Phase 1 Character Persistence)
+# ============================================================================
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from backend.db import get_db
+from backend.models import Character, PartyMembership
+from routes.schemas.combat_db import AttackByIdRequest, Encounter1v1ByIdRequest
+from uuid import UUID
+
+
+@router.post("/attack-by-id", response_model=AttackResult)
+async def attack_by_id(request: Request, req: AttackByIdRequest, db: Session = Depends(get_db)):
+    """
+    Resolve multi-die attack using persisted character IDs.
+    
+    - Fetches attacker and defender from database
+    - Resolves combat using multi-die system
+    - Auto-persists DP changes to database
+    - Returns combat result
+    
+    This is the preferred endpoint for live sessions with persistent characters.
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Attack-by-ID: {req.attacker_id} vs {req.defender_id}")
+    
+    try:
+        # Fetch characters from DB
+        attacker = db.query(Character).filter(Character.id == req.attacker_id).first()
+        if not attacker:
+            raise HTTPException(status_code=404, detail=f"Attacker {req.attacker_id} not found")
+        
+        defender = db.query(Character).filter(Character.id == req.defender_id).first()
+        if not defender:
+            raise HTTPException(status_code=404, detail=f"Defender {req.defender_id} not found")
+        
+        # Check if characters are alive
+        if attacker.dp <= 0:
+            raise HTTPException(status_code=400, detail=f"{attacker.name} is unconscious (DP: {attacker.dp})")
+        if defender.dp <= 0:
+            raise HTTPException(status_code=400, detail=f"{defender.name} is unconscious (DP: {defender.dp})")
+        
+        # Extract stat values
+        attacker_stat_value = getattr(attacker, req.stat_type.lower())
+        defender_stat_value = getattr(defender, req.stat_type.lower())
+        
+        # Get weapon bonus
+        weapon_bonus = 0
+        if attacker.weapon and isinstance(attacker.weapon, dict):
+            weapon_bonus = attacker.weapon.get("bonus_damage", 0)
+        
+        # Resolve multi-die attack
+        result = resolve_multi_die_attack(
+            attacker={"name": attacker.name},
+            attacker_die_str=attacker.attack_style,
+            attacker_stat_value=attacker_stat_value,
+            defender={"name": defender.name},
+            defense_die_str=defender.defense_die,
+            defender_stat_value=defender_stat_value,
+            edge=attacker.edge,
+            bap_triggered=req.bap_triggered,
+            weapon_bonus=weapon_bonus
+        )
+        
+        # Apply damage to defender and persist to DB
+        old_dp = defender.dp
+        defender.dp = max(0, defender.dp - result["total_damage"])
+        db.commit()
+        
+        logger.info(
+            f"[{request_id}] {attacker.name} dealt {result['total_damage']} damage "
+            f"to {defender.name} (DP: {old_dp} → {defender.dp}) [PERSISTED]"
+        )
+        
+        # Broadcast combat result to campaign WebSocket (if campaign_id provided)
+        if req.campaign_id:
+            try:
+                from routes.campaign_websocket import broadcast_combat_result
+                combat_broadcast = {
+                    "attacker_name": attacker.name,
+                    "defender_name": defender.name,
+                    "technique": req.technique_name,
+                    "total_damage": result["total_damage"],
+                    "defender_new_dp": defender.dp,
+                    "narrative": result["narrative"],
+                    "individual_rolls": result["individual_rolls"],
+                    "outcome": result["outcome"]
+                }
+                await broadcast_combat_result(req.campaign_id, combat_broadcast)
+                logger.info(f"[{request_id}] Broadcast combat result to campaign {req.campaign_id}")
+            except Exception as e:
+                logger.warning(f"[{request_id}] Failed to broadcast combat: {e}")
+        
+        # Map to Pydantic response
+        return AttackResult(
+            type=result["type"],
+            attacker_name=result["attacker_name"],
+            defender_name=result["defender_name"],
+            individual_rolls=[
+                IndividualRollResult(**roll) for roll in result["individual_rolls"]
+            ],
+            total_damage=result["total_damage"],
+            outcome=result["outcome"],
+            narrative=result["narrative"],
+            defender_new_dp=defender.dp,
+            details=result["details"]
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[{request_id}] Attack-by-ID error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Attack resolution failed: {str(e)}")
+
+
+@router.post("/encounter-1v1-by-id", response_model=Encounter1v1Result)
+async def encounter_1v1_by_id(
+    request: Request,
+    req: Encounter1v1ByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Simulate full 1v1 encounter using persisted character IDs.
+    
+    - Fetches characters from database
+    - Runs multi-round combat simulation
+    - Optionally persists final DP changes to database (default: true)
+    - Returns round-by-round breakdown + final outcome
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(
+        f"[{request_id}] 1v1 encounter-by-ID: {req.attacker_id} vs {req.defender_id} "
+        f"(max {req.max_rounds} rounds, persist={req.persist_results})"
+    )
+    
+    try:
+        # Fetch characters from DB
+        attacker = db.query(Character).filter(Character.id == req.attacker_id).first()
+        if not attacker:
+            raise HTTPException(status_code=404, detail=f"Attacker {req.attacker_id} not found")
+        
+        defender = db.query(Character).filter(Character.id == req.defender_id).first()
+        if not defender:
+            raise HTTPException(status_code=404, detail=f"Defender {req.defender_id} not found")
+        
+        # Check if characters are alive
+        if attacker.dp <= 0:
+            raise HTTPException(status_code=400, detail=f"{attacker.name} is unconscious (DP: {attacker.dp})")
+        if defender.dp <= 0:
+            raise HTTPException(status_code=400, detail=f"{defender.name} is unconscious (DP: {defender.dp})")
+        
+        # Roll initiative
+        initiative_rolls = []
+        for character in [attacker, defender]:
+            initiative_roll = roll_die("1d6")
+            total = initiative_roll + character.edge
+            initiative_rolls.append({
+                "name": character.name,
+                "roll": initiative_roll,
+                "edge": character.edge,
+                "total": total,
+                "pp": character.pp,
+                "ip": character.ip,
+                "sp": character.sp
+            })
+        
+        # Sort by initiative
+        initiative_rolls.sort(key=lambda r: (-r["total"], -r["pp"], -r["ip"], -r["sp"]))
+        initiative_order = [r["name"] for r in initiative_rolls]
+        
+        logger.info(f"[{request_id}] Initiative: {', '.join(initiative_order)}")
+        
+        # Track DP (working copies, not DB until end)
+        attacker_dp = attacker.dp
+        defender_dp = defender.dp
+        
+        rounds = []
+        round_num = 1
+        
+        while round_num <= req.max_rounds and attacker_dp > 0 and defender_dp > 0:
+            round_actions = []
+            
+            for actor_name in initiative_order:
+                if attacker_dp <= 0 or defender_dp <= 0:
+                    break
+                
+                # Determine actor and target
+                if actor_name == attacker.name:
+                    actor = attacker
+                    target = defender
+                    actor_current_dp = attacker_dp
+                    target_current_dp = defender_dp
+                else:
+                    actor = defender
+                    target = attacker
+                    actor_current_dp = defender_dp
+                    target_current_dp = attacker_dp
+                
+                # Resolve attack
+                attacker_stat_value = getattr(actor, req.stat_type.lower())
+                defender_stat_value = getattr(target, req.stat_type.lower())
+                weapon_bonus = 0
+                if actor.weapon and isinstance(actor.weapon, dict):
+                    weapon_bonus = actor.weapon.get("bonus_damage", 0)
+                
+                result = resolve_multi_die_attack(
+                    attacker={"name": actor.name},
+                    attacker_die_str=actor.attack_style,
+                    attacker_stat_value=attacker_stat_value,
+                    defender={"name": target.name},
+                    defense_die_str=target.defense_die,
+                    defender_stat_value=defender_stat_value,
+                    edge=actor.edge,
+                    bap_triggered=False,
+                    weapon_bonus=weapon_bonus
+                )
+                
+                damage = result["total_damage"]
+                
+                # Apply damage
+                if actor_name == attacker.name:
+                    defender_dp = max(0, defender_dp - damage)
+                    target_current_dp = defender_dp
+                else:
+                    attacker_dp = max(0, attacker_dp - damage)
+                    target_current_dp = attacker_dp
+                
+                round_actions.append(
+                    RoundAction(
+                        actor_name=actor.name,
+                        target_name=target.name,
+                        technique=req.technique_name,
+                        damage=damage,
+                        narrative=result["narrative"],
+                        actor_dp=actor_current_dp,
+                        target_dp=target_current_dp
+                    )
+                )
+                
+                logger.info(
+                    f"[{request_id}] Round {round_num}: {actor.name} → {target.name} "
+                    f"({damage} damage, DP: {target_current_dp})"
+                )
+            
+            rounds.append(round_actions)
+            round_num += 1
+        
+        # Determine outcome
+        if attacker_dp > defender_dp:
+            outcome = "attacker_wins"
+            summary = f"{attacker.name} defeats {defender.name} after {len(rounds)} rounds!"
+        elif defender_dp > attacker_dp:
+            outcome = "defender_wins"
+            summary = f"{defender.name} defeats {attacker.name} after {len(rounds)} rounds!"
+        else:
+            outcome = "timeout"
+            summary = f"Battle ends in a draw after {len(rounds)} rounds (max rounds reached)."
+        
+        # Persist DP changes to database if requested
+        if req.persist_results:
+            attacker.dp = attacker_dp
+            defender.dp = defender_dp
+            db.commit()
+            logger.info(
+                f"[{request_id}] Encounter complete: {outcome} "
+                f"[PERSISTED - {attacker.name}: {attacker.dp} DP, {defender.name}: {defender.dp} DP]"
+            )
+        else:
+            logger.info(f"[{request_id}] Encounter complete: {outcome} [NOT PERSISTED]")
+        
+        return Encounter1v1Result(
+            type="encounter_1v1",
+            initiative_order=initiative_order,
+            rounds=rounds,
+            round_count=len(rounds),
+            final_dp={
+                attacker.name: attacker_dp,
+                defender.name: defender_dp
+            },
+            outcome=outcome,
+            summary=summary,
+            lore=[]
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[{request_id}] Encounter-by-ID error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Encounter simulation failed: {str(e)}")

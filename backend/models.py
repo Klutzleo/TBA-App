@@ -1,5 +1,6 @@
 # models.py
-from sqlalchemy import Column, String, DateTime, JSON, Integer
+from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey
+from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
 from backend.db import Base  # ✅ This works from project root
@@ -25,3 +26,72 @@ class RollLog(Base):
     modifiers = Column(JSON)    # Any edge, bap, tether, echo bonuses
     session_id = Column(String, nullable=True)
     encounter_id = Column(String, nullable=True)
+
+
+class Character(Base):
+    """TBA v1.5 Character model (persistent storage)."""
+    __tablename__ = "characters"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False, index=True)
+    owner_id = Column(String, nullable=False, index=True)  # User who created this character
+    
+    # Core stats (1-3 each, must sum to 6)
+    level = Column(Integer, nullable=False, default=1)  # 1-10
+    pp = Column(Integer, nullable=False)  # Physical Power
+    ip = Column(Integer, nullable=False)  # Intellect Power
+    sp = Column(Integer, nullable=False)  # Social Power
+    
+    # Derived stats (auto-calculated from level)
+    dp = Column(Integer, nullable=False)  # Current Damage Points
+    max_dp = Column(Integer, nullable=False)  # Max DP for this level
+    edge = Column(Integer, nullable=False, default=0)  # 0-5
+    bap = Column(Integer, nullable=False, default=1)  # 1-5
+    
+    # Combat configuration
+    attack_style = Column(String, nullable=False)  # e.g., "3d4", "2d6"
+    defense_die = Column(String, nullable=False)  # e.g., "1d8"
+    
+    # Equipment (Phase 2 - store as JSON for now)
+    weapon = Column(JSON, nullable=True)  # {"name": str, "bonus_attack": int, "bonus_damage": int}
+    armor = Column(JSON, nullable=True)  # {"name": str, "bonus_defense": int, "bonus_dp": int}
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    party_memberships = relationship("PartyMembership", back_populates="character")
+
+
+class Party(Base):
+    """Party/Session grouping for multiplayer."""
+    __tablename__ = "parties"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    gm_id = Column(String, nullable=False, index=True)  # GM/Storyweaver who owns this party
+    session_id = Column(String, nullable=True)  # Active session ID (for WebSocket routing)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    memberships = relationship("PartyMembership", back_populates="party")
+
+
+class PartyMembership(Base):
+    """Join table: which characters belong to which parties."""
+    __tablename__ = "party_memberships"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    party_id = Column(String, ForeignKey("parties.id"), nullable=False, index=True)
+    character_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
+    joined_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    party = relationship("Party", back_populates="memberships")
+    character = relationship("Character", back_populates="party_memberships")

@@ -322,3 +322,107 @@ def test_combat_log_recent(test_client):
     assert recent_resp.status_code == 200
     recent_body = recent_resp.json()
     assert any(e.get("actor") == "Recorder" for e in recent_body.get("entries", []))
+
+
+def test_combat_attack_by_id_persists_dp(test_client):
+    """Attack using character IDs auto-persists DP changes to database."""
+    headers = {"X-API-Key": os.environ.get("API_KEY", "devkey")}
+    
+    # Create two characters
+    attacker_payload = {
+        "name": "PersistAttacker",
+        "owner_id": "user_persist_test",
+        "level": 5,
+        "pp": 3,
+        "ip": 2,
+        "sp": 1,
+        "attack_style": "3d4"
+    }
+    attacker_resp = test_client.post("/api/characters", headers=headers, json=attacker_payload)
+    attacker_id = attacker_resp.json()["id"]
+    
+    defender_payload = {
+        "name": "PersistDefender",
+        "owner_id": "user_persist_test",
+        "level": 3,
+        "pp": 2,
+        "ip": 2,
+        "sp": 2,
+        "attack_style": "2d4"
+    }
+    defender_resp = test_client.post("/api/characters", headers=headers, json=defender_payload)
+    defender_id = defender_resp.json()["id"]
+    defender_original_dp = defender_resp.json()["dp"]
+    
+    # Attack using IDs
+    attack_payload = {
+        "attacker_id": attacker_id,
+        "defender_id": defender_id,
+        "technique_name": "Slash",
+        "stat_type": "PP",
+        "bap_triggered": False
+    }
+    attack_resp = test_client.post("/api/combat/attack-by-id", headers=headers, json=attack_payload)
+    assert attack_resp.status_code == 200
+    attack_body = attack_resp.json()
+    
+    # Verify damage was applied
+    assert attack_body["defender_new_dp"] <= defender_original_dp
+    
+    # Fetch defender from DB and verify DP persisted
+    defender_after = test_client.get(f"/api/characters/{defender_id}", headers=headers)
+    assert defender_after.json()["dp"] == attack_body["defender_new_dp"]
+
+
+def test_combat_encounter_by_id_persists_results(test_client):
+    """1v1 encounter using character IDs persists final DP to database."""
+    headers = {"X-API-Key": os.environ.get("API_KEY", "devkey")}
+    
+    # Create two characters
+    attacker_payload = {
+        "name": "EncounterAttacker",
+        "owner_id": "user_encounter_test",
+        "level": 5,
+        "pp": 3,
+        "ip": 2,
+        "sp": 1,
+        "attack_style": "2d6"
+    }
+    attacker_resp = test_client.post("/api/characters", headers=headers, json=attacker_payload)
+    attacker_id = attacker_resp.json()["id"]
+    
+    defender_payload = {
+        "name": "EncounterDefender",
+        "owner_id": "user_encounter_test",
+        "level": 4,
+        "pp": 2,
+        "ip": 2,
+        "sp": 2,
+        "attack_style": "1d6"
+    }
+    defender_resp = test_client.post("/api/characters", headers=headers, json=defender_payload)
+    defender_id = defender_resp.json()["id"]
+    
+    # Run encounter
+    encounter_payload = {
+        "attacker_id": attacker_id,
+        "defender_id": defender_id,
+        "technique_name": "Slash",
+        "stat_type": "PP",
+        "max_rounds": 3,
+        "persist_results": True
+    }
+    encounter_resp = test_client.post("/api/combat/encounter-1v1-by-id", headers=headers, json=encounter_payload)
+    assert encounter_resp.status_code == 200
+    encounter_body = encounter_resp.json()
+    
+    # Verify encounter completed
+    assert encounter_body["round_count"] <= 3
+    assert encounter_body["outcome"] in {"attacker_wins", "defender_wins", "timeout"}
+    
+    # Fetch characters from DB and verify DP persisted
+    attacker_after = test_client.get(f"/api/characters/{attacker_id}", headers=headers).json()
+    defender_after = test_client.get(f"/api/characters/{defender_id}", headers=headers).json()
+    
+    assert attacker_after["dp"] == encounter_body["final_dp"]["EncounterAttacker"]
+    assert defender_after["dp"] == encounter_body["final_dp"]["EncounterDefender"]
