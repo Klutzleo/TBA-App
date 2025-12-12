@@ -8,10 +8,17 @@
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
     .row { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
     input, button, select { padding: 8px; font-size: 14px; }
-    #log { border: 1px solid #ccc; padding: 12px; min-height: 180px; max-height: 320px; overflow: auto; background: #fafafa; }
-    .msg { margin: 4px 0; }
-    .sys { color: #555; }
+    #log { border: 1px solid #ccc; padding: 12px; min-height: 180px; max-height: 400px; overflow: auto; background: #fafafa; }
+    .msg { margin: 6px 0; font-size: 13px; }
+    .sys { color: #555; font-style: italic; }
     .err { color: #a00; }
+    .dice_roll { color: #0066cc; font-weight: bold; }
+    .combat_event { 
+      background: #ffe8e8; border-left: 4px solid #d00; padding: 8px; margin: 8px 0; border-radius: 2px;
+    }
+    .combat_event .header { font-weight: bold; color: #c00; margin-bottom: 4px; }
+    .combat_event .rolls { font-family: monospace; font-size: 12px; color: #333; margin: 4px 0 2px 12px; }
+    .combat_event .outcome { font-weight: bold; color: #d00; margin-top: 4px; }
     label { font-size: 12px; color: #444; }
   </style>
 </head>
@@ -63,6 +70,45 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function renderCombatEvent(data) {
+      const container = document.createElement('div');
+      container.className = 'msg combat_event';
+      
+      const header = document.createElement('div');
+      header.className = 'header';
+      header.textContent = `⚔️ ${data.attacker_name} attacks ${data.defender_name}`;
+      container.appendChild(header);
+
+      if (data.individual_rolls && Array.isArray(data.individual_rolls)) {
+        const rollsDiv = document.createElement('div');
+        rollsDiv.className = 'rolls';
+        data.individual_rolls.forEach((roll, i) => {
+          const rollLine = document.createElement('div');
+          const dmg = roll.damage > 0 ? `✓ ${roll.damage}dmg` : '✗ 0dmg';
+          rollLine.textContent = `[${i + 1}] ${roll.attacker_roll} vs ${roll.defense_roll} → margin ${roll.margin} = ${dmg}`;
+          rollsDiv.appendChild(rollLine);
+        });
+        container.appendChild(rollsDiv);
+      }
+
+      const outcome = document.createElement('div');
+      outcome.className = 'outcome';
+      outcome.textContent = `💥 ${data.total_damage} total damage | ${data.defender_name}: ${data.defender_new_dp} DP remaining`;
+      container.appendChild(outcome);
+
+      if (data.narrative) {
+        const narrative = document.createElement('div');
+        narrative.style.fontSize = '12px';
+        narrative.style.marginTop = '4px';
+        narrative.style.fontStyle = 'italic';
+        narrative.textContent = `"${data.narrative}"`;
+        container.appendChild(narrative);
+      }
+
+      logEl.appendChild(container);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
     function buildWSUrl(baseUrl, partyId) {
       const url = new URL(baseUrl);
       url.protocol = url.protocol.replace('http', 'ws'); // http->ws, https->wss
@@ -103,7 +149,21 @@
         ws.onmessage = (ev) => {
           try {
             const data = JSON.parse(ev.data);
-            log(`[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`);
+            if (data.type === 'combat_event') {
+              renderCombatEvent(data);
+            } else if (data.type === 'dice_roll') {
+              const div = document.createElement('div');
+              div.className = 'msg dice_roll';
+              div.textContent = `🎲 ${data.actor}: ${data.text}`;
+              logEl.appendChild(div);
+              logEl.scrollTop = logEl.scrollHeight;
+            } else {
+              const div = document.createElement('div');
+              div.className = 'msg';
+              div.textContent = `[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`;
+              logEl.appendChild(div);
+              logEl.scrollTop = logEl.scrollHeight;
+            }
           } catch (e) {
             log(ev.data);
           }
