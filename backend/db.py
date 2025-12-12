@@ -22,6 +22,7 @@ Base = declarative_base()
 def init_db():
     from models.effect_log import EffectLog
     from models.roll_log import RollLog
+    from backend.models import Character, Party, PartyMembership
     
     Base.metadata.create_all(bind=engine)
 
