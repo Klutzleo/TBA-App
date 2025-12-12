@@ -13,6 +13,7 @@ class AttackByIdRequest(BaseModel):
     technique_name: str = Field(description="e.g., 'Slash', 'Fireball', 'Persuade'")
     stat_type: str = Field(description="Stat type: 'PP' | 'IP' | 'SP'")
     bap_triggered: bool = Field(default=False, description="Trigger BAP bonus?")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign UUID (for WebSocket broadcast)")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {

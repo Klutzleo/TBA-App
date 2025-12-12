@@ -387,8 +387,9 @@ async def encounter_1v1(request: Request, req: Encounter1v1Request):
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from backend.db import get_db
-from backend.models import Character
+from backend.models import Character, PartyMembership
 from routes.schemas.combat_db import AttackByIdRequest, Encounter1v1ByIdRequest
+from uuid import UUID
 
 
 @router.post("/attack-by-id", response_model=AttackResult)
@@ -453,6 +454,25 @@ async def attack_by_id(request: Request, req: AttackByIdRequest, db: Session = D
             f"[{request_id}] {attacker.name} dealt {result['total_damage']} damage "
             f"to {defender.name} (DP: {old_dp} → {defender.dp}) [PERSISTED]"
         )
+        
+        # Broadcast combat result to campaign WebSocket (if campaign_id provided)
+        if req.campaign_id:
+            try:
+                from routes.campaign_websocket import broadcast_combat_result
+                combat_broadcast = {
+                    "attacker_name": attacker.name,
+                    "defender_name": defender.name,
+                    "technique": req.technique_name,
+                    "total_damage": result["total_damage"],
+                    "defender_new_dp": defender.dp,
+                    "narrative": result["narrative"],
+                    "individual_rolls": result["individual_rolls"],
+                    "outcome": result["outcome"]
+                }
+                await broadcast_combat_result(req.campaign_id, combat_broadcast)
+                logger.info(f"[{request_id}] Broadcast combat result to campaign {req.campaign_id}")
+            except Exception as e:
+                logger.warning(f"[{request_id}] Failed to broadcast combat: {e}")
         
         # Map to Pydantic response
         return AttackResult(
