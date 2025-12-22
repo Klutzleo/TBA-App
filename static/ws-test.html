@@ -34,6 +34,11 @@
     <input id="partyId" placeholder="test-party" />
     <label>Actor</label>
     <input id="actor" placeholder="Alice" />
+    <label>Role</label>
+    <select id="role">
+      <option value="Player" selected>Player</option>
+      <option value="SW">Story Weaver (SW)</option>
+    </select>
   </div>
   <div class="row">
     <label>API Key (optional)</label>
@@ -68,8 +73,13 @@
     const sendBtn = document.getElementById('sendBtn');
     const logEl = document.getElementById('log');
     const msgInput = document.getElementById('messageInput');
+    const roleEl = document.getElementById('role');
 
     let ws = null;
+
+    function isSW() {
+      return roleEl.value === 'SW';
+    }
 
     function log(message, cls = 'msg') {
       const div = document.createElement('div');
@@ -175,26 +185,98 @@
                 bd.style.fontFamily = 'monospace';
                 bd.style.fontSize = '12px';
                 bd.style.marginLeft = '16px';
+                bd.style.display = isSW() ? 'block' : 'none';
                 bd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
+
+                const toggle = document.createElement('a');
+                toggle.href = '#';
+                toggle.style.fontSize = '12px';
+                toggle.style.marginLeft = '8px';
+                toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+                toggle.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  const showing = bd.style.display !== 'none';
+                  bd.style.display = showing ? 'none' : 'block';
+                  toggle.textContent = showing ? 'Show details' : 'Hide details';
+                });
+
+                header.appendChild(toggle);
                 container.appendChild(bd);
               }
 
               logEl.appendChild(container);
               logEl.scrollTop = logEl.scrollHeight;
             } else if (data.type === 'stat_roll') {
-              const div = document.createElement('div');
-              div.className = 'msg dice_roll';
+              // Render stat roll with expression and breakdown similar to dice_roll
+              const container = document.createElement('div');
+              container.className = 'msg dice_roll';
+
+              const header = document.createElement('div');
               const stat = data.stat ? ` ${data.stat}` : '';
-              const result = typeof data.result === 'number' ? ` → ${data.result}` : '';
-              div.textContent = `📊 ${data.actor}${stat} roll${result}`;
-              logEl.appendChild(div);
+              const diceExpr = data.dice ? ` (${data.dice})` : '';
+              header.textContent = `📊 ${data.actor}${stat}${diceExpr}: ${data.text}`;
+              container.appendChild(header);
+
+              if (Array.isArray(data.breakdown)) {
+                const bd = document.createElement('div');
+                bd.style.fontFamily = 'monospace';
+                bd.style.fontSize = '12px';
+                bd.style.marginLeft = '16px';
+                bd.style.display = isSW() ? 'block' : 'none';
+                bd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
+
+                const toggle = document.createElement('a');
+                toggle.href = '#';
+                toggle.style.fontSize = '12px';
+                toggle.style.marginLeft = '8px';
+                toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+                toggle.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  const showing = bd.style.display !== 'none';
+                  bd.style.display = showing ? 'none' : 'block';
+                  toggle.textContent = showing ? 'Show details' : 'Hide details';
+                });
+
+                header.appendChild(toggle);
+                container.appendChild(bd);
+              }
+
+              logEl.appendChild(container);
               logEl.scrollTop = logEl.scrollHeight;
             } else if (data.type === 'initiative') {
-              const div = document.createElement('div');
-              div.className = 'msg dice_roll';
-              const result = typeof data.result === 'number' ? ` → ${data.result}` : '';
-              div.textContent = `🧭 ${data.actor} initiative${result}`;
-              logEl.appendChild(div);
+              const container = document.createElement('div');
+              container.className = 'msg dice_roll';
+
+              const header = document.createElement('div');
+              const diceExpr = data.dice ? ` (${data.dice})` : '';
+              header.textContent = `🧭 ${data.actor}${diceExpr}: ${data.text}`;
+              container.appendChild(header);
+
+              if (Array.isArray(data.breakdown)) {
+                const bd = document.createElement('div');
+                bd.style.fontFamily = 'monospace';
+                bd.style.fontSize = '12px';
+                bd.style.marginLeft = '16px';
+                bd.style.display = isSW() ? 'block' : 'none';
+                bd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
+
+                const toggle = document.createElement('a');
+                toggle.href = '#';
+                toggle.style.fontSize = '12px';
+                toggle.style.marginLeft = '8px';
+                toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+                toggle.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  const showing = bd.style.display !== 'none';
+                  bd.style.display = showing ? 'none' : 'block';
+                  toggle.textContent = showing ? 'Show details' : 'Hide details';
+                });
+
+                header.appendChild(toggle);
+                container.appendChild(bd);
+              }
+
+              logEl.appendChild(container);
               logEl.scrollTop = logEl.scrollHeight;
             } else {
               const div = document.createElement('div');

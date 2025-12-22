@@ -6,6 +6,7 @@ from backend.magic_logic import resolve_spellcast
 from routes.schemas.chat import ChatMessageSchema
 from routes.schemas.resolve import ResolveRollSchema
 from typing import Dict, Any, Optional
+from time import monotonic
 from datetime import datetime
 import json
 import logging
@@ -15,6 +16,11 @@ import os
 import re
 
 COMBAT_LOG_URL = os.getenv("COMBAT_LOG_URL", "https://tba-app-production.up.railway.app/api/combat/log")
+WS_LOG_VERBOSITY = os.getenv("WS_LOG_VERBOSITY", "macros")  # macros|minimal|off
+try:
+    WS_MACRO_THROTTLE_MS = int(os.getenv("WS_MACRO_THROTTLE_MS", "700"))
+except ValueError:
+    WS_MACRO_THROTTLE_MS = 700
 
 chat_blp = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -22,6 +28,7 @@ logger = logging.getLogger("uvicorn")
 
 # Simple in-memory connection store: party_id -> list[WebSocket]
 active_connections: Dict[str, list[WebSocket]] = {}
+macro_last_ts: Dict[str, float] = {}
 
 def add_connection(party_id: str, ws: WebSocket):
     active_connections.setdefault(party_id, []).append(ws)
@@ -48,6 +55,15 @@ async def broadcast_combat_event(party_id: str, event: Dict[str, Any]):
     """Broadcast a combat event to all sockets in a party."""
     payload = {"type": "combat_event", "party_id": party_id, **event}
     await broadcast(party_id, payload)
+
+
+async def log_if_allowed(event_type: str, entry: Dict[str, Any]):
+    """Log macro events based on verbosity setting."""
+    if WS_LOG_VERBOSITY == "off":
+        return
+    if WS_LOG_VERBOSITY == "minimal" and event_type not in {"dice_roll", "initiative"}:
+        return
+    await log_combat_event(entry)
 
 
 def parse_dice_notation(expr: str) -> Dict[str, Any]:
@@ -84,7 +100,7 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             pretty_text = f"{parts[1]} → {equation}"
             # Log to combat log so dice rolls appear alongside chat events
             try:
-                await log_combat_event({
+                await log_if_allowed("dice_roll", {
                     "event": "dice_roll",
                     "actor": actor,
                     "party_id": party_id,
@@ -114,16 +130,24 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
     if cmd in {"/pp", "/ip", "/sp"}:
         # Placeholder: roll 1d6 + stat; later tie to character data
         stat = cmd[1:].upper()
-        result = random.randint(1, 6) + 1  # +1 as simple edge placeholder
+        base_roll = random.randint(1, 6)
+        edge_mod = 1  # simple edge placeholder
+        result = base_roll + edge_mod
+        formula = "1d6+1"
+        equation = f"{base_roll} + {edge_mod} = {result}"
+        pretty_text = f"{formula} → {equation}"
         # Log stat roll to combat log
         try:
-            await log_combat_event({
+            await log_if_allowed("stat_roll", {
                 "event": "stat_roll",
                 "actor": actor,
                 "party_id": party_id,
                 "stat": stat,
                 "result": result,
-                "text": f"{stat} roll → {result}",
+                "text": pretty_text,
+                "dice": formula,
+                "breakdown": [base_roll],
+                "modifier": edge_mod,
                 "context": context,
                 "encounter_id": encounter_id,
                 "timestamp": datetime.utcnow().isoformat()
@@ -133,28 +157,48 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
         return {
             "type": "stat_roll",
             "actor": actor,
-            "text": f"{stat} roll → {result}",
+            "text": pretty_text,
             "stat": stat,
             "result": result,
+            "dice": formula,
+            "breakdown": [base_roll],
+            "modifier": edge_mod,
             "party_id": party_id,
         }
     if cmd == "/initiative":
-        result = random.randint(1, 6) + 1
+        base_roll = random.randint(1, 6)
+        edge_mod = 1  # simple edge placeholder
+        result = base_roll + edge_mod
+        formula = "1d6+1"
+        equation = f"{base_roll} + {edge_mod} = {result}"
+        pretty_text = f"{formula} → {equation}"
         # Log initiative to combat log
         try:
-            await log_combat_event({
+            await log_if_allowed("initiative", {
                 "event": "initiative",
                 "actor": actor,
                 "party_id": party_id,
                 "result": result,
-                "text": f"Initiative → {result}",
+                "text": pretty_text,
+                "dice": formula,
+                "breakdown": [base_roll],
+                "modifier": edge_mod,
                 "context": context,
                 "encounter_id": encounter_id,
                 "timestamp": datetime.utcnow().isoformat()
             })
         except Exception:
             pass
-        return {"type": "initiative", "actor": actor, "text": f"Initiative → {result}", "result": result, "party_id": party_id}
+        return {
+            "type": "initiative",
+            "actor": actor,
+            "text": pretty_text,
+            "result": result,
+            "dice": formula,
+            "breakdown": [base_roll],
+            "modifier": edge_mod,
+            "party_id": party_id
+        }
     # Unknown macro → echo as system
     return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
 
@@ -201,6 +245,24 @@ async def chat_party_ws(websocket: WebSocket, party_id: str):
             ctx = payload.get("context")
             enc_id = payload.get("encounter_id")
             if isinstance(text, str) and text.startswith("/"):
+                # Simple macro throttle per actor in party to prevent spam
+                key = f"{party_id}:{actor}"
+                now = monotonic()
+                last = macro_last_ts.get(key, 0.0)
+                threshold = WS_MACRO_THROTTLE_MS / 1000.0
+                if now - last < threshold:
+                    remaining = max(0.0, threshold - (now - last))
+                    try:
+                        await websocket.send_json({
+                            "type": "system",
+                            "actor": "system",
+                            "text": f"Rate-limited. Try again in {remaining:.2f}s",
+                            "party_id": party_id
+                        })
+                    except Exception:
+                        pass
+                    continue
+                macro_last_ts[key] = now
                 msg = await handle_macro(party_id, actor, text, ctx, enc_id)
             else:
                 msg = {

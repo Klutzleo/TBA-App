@@ -567,4 +567,19 @@ TBA-App/
 
 ---
 
+## Dec 22, 2025 — WS Chat Macro Transparency + Controls (Updates)
+
+### Summary
+- All clients see explicit dice formulas and totals for macros in WS chat.
+- Macro logs now include `dice`, `breakdown`, `modifier`, `result`, plus optional `context` and `encounter_id` when provided.
+- WS test page adds Context/Encounter inputs, Role selector (Player/SW), and a “Show/Hide details” toggle; SW auto-expands breakdowns.
+- Added `WS_LOG_VERBOSITY` (macros|minimal|off) and `WS_MACRO_THROTTLE_MS` (default 700ms) to reduce logging/traffic.
+
+### Touchpoints
+- Server: `routes/chat.py` — macro formatting, logging gate `log_if_allowed()`, threaded `context`/`encounter_id`, macro throttle.
+- UI: `static/ws-test.html` — formula rendering + expandable breakdowns, inputs for Context/Encounter, Role selector with SW auto-expand.
+
+### Notes
+- `modifier` currently uses placeholder Edge=1. Next step: wire real PP/IP/SP, Edge, BAP from character data and implement initiative tie-breakers (PP → IP → SP).
+
 If anything is unclear or you want more examples, let me know which area to expand.
