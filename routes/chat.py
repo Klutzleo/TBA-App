@@ -79,7 +79,8 @@ async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
                 equation = f"({plus_join}){mod_str} = {result['total']}"
             else:
                 equation = f"{plus_join} = {result['total']}"
-            pretty_text = equation
+            # Include the original expression so the origin of the math is visible in chat
+            pretty_text = f"{parts[1]} → {equation}"
             return {
                 "type": "dice_roll",
                 "actor": actor,
