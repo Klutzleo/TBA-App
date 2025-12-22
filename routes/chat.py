@@ -5,7 +5,8 @@ from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
 from routes.schemas.chat import ChatMessageSchema
 from routes.schemas.resolve import ResolveRollSchema
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from datetime import datetime
 import json
 import logging
 import random
@@ -62,7 +63,7 @@ def parse_dice_notation(expr: str) -> Dict[str, Any]:
     return {"rolls": rolls, "modifier": mod, "total": total}
 
 
-async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
+async def handle_macro(party_id: str, actor: str, text: str, context: Optional[str] = None, encounter_id: Optional[str] = None) -> Dict[str, Any]:
     """Handle simple system macros: /roll, /pp, /ip, /sp, /initiative (placeholder)."""
     parts = text.strip().split()
     cmd = parts[0].lower()
@@ -81,6 +82,24 @@ async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
                 equation = f"{plus_join} = {result['total']}"
             # Include the original expression so the origin of the math is visible in chat
             pretty_text = f"{parts[1]} → {equation}"
+            # Log to combat log so dice rolls appear alongside chat events
+            try:
+                await log_combat_event({
+                    "event": "dice_roll",
+                    "actor": actor,
+                    "party_id": party_id,
+                    "dice": parts[1],
+                    "breakdown": result["rolls"],
+                    "modifier": modifier,
+                    "result": result["total"],
+                    "text": pretty_text,
+                    "context": context,
+                    "encounter_id": encounter_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            except Exception:
+                # Best-effort logging; ignore failures
+                pass
             return {
                 "type": "dice_roll",
                 "actor": actor,
@@ -96,6 +115,21 @@ async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
         # Placeholder: roll 1d6 + stat; later tie to character data
         stat = cmd[1:].upper()
         result = random.randint(1, 6) + 1  # +1 as simple edge placeholder
+        # Log stat roll to combat log
+        try:
+            await log_combat_event({
+                "event": "stat_roll",
+                "actor": actor,
+                "party_id": party_id,
+                "stat": stat,
+                "result": result,
+                "text": f"{stat} roll → {result}",
+                "context": context,
+                "encounter_id": encounter_id,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception:
+            pass
         return {
             "type": "stat_roll",
             "actor": actor,
@@ -106,6 +140,20 @@ async def handle_macro(party_id: str, actor: str, text: str) -> Dict[str, Any]:
         }
     if cmd == "/initiative":
         result = random.randint(1, 6) + 1
+        # Log initiative to combat log
+        try:
+            await log_combat_event({
+                "event": "initiative",
+                "actor": actor,
+                "party_id": party_id,
+                "result": result,
+                "text": f"Initiative → {result}",
+                "context": context,
+                "encounter_id": encounter_id,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception:
+            pass
         return {"type": "initiative", "actor": actor, "text": f"Initiative → {result}", "result": result, "party_id": party_id}
     # Unknown macro → echo as system
     return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
@@ -150,8 +198,10 @@ async def chat_party_ws(websocket: WebSocket, party_id: str):
                 payload = {"type": "message", "actor": "unknown", "text": data}
             actor = payload.get("actor", "unknown")
             text = payload.get("text", "")
+            ctx = payload.get("context")
+            enc_id = payload.get("encounter_id")
             if isinstance(text, str) and text.startswith("/"):
-                msg = await handle_macro(party_id, actor, text)
+                msg = await handle_macro(party_id, actor, text, ctx, enc_id)
             else:
                 msg = {
                     "type": payload.get("type", "message"),

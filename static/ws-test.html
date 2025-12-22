@@ -45,6 +45,13 @@
   <div id="log"></div>
 
   <div class="row">
+    <label>Context</label>
+    <input id="context" placeholder="e.g., Volcanic battlefield" size="30" />
+    <label>Encounter ID</label>
+    <input id="encounterId" placeholder="e.g., enc-123" size="20" />
+  </div>
+
+  <div class="row">
     <input id="messageInput" placeholder="Type a message..." size="50" />
     <button id="sendBtn" disabled>Send</button>
   </div>
@@ -54,6 +61,8 @@
     const partyIdEl = document.getElementById('partyId');
     const actorEl = document.getElementById('actor');
     const apiKeyEl = document.getElementById('apiKey');
+    const contextEl = document.getElementById('context');
+    const encounterEl = document.getElementById('encounterId');
     const connectBtn = document.getElementById('connectBtn');
     const disconnectBtn = document.getElementById('disconnectBtn');
     const sendBtn = document.getElementById('sendBtn');
@@ -152,9 +161,39 @@
             if (data.type === 'combat_event') {
               renderCombatEvent(data);
             } else if (data.type === 'dice_roll') {
+              // Render dice expression, equation text, and breakdown
+              const container = document.createElement('div');
+              container.className = 'msg dice_roll';
+
+              const header = document.createElement('div');
+              const diceExpr = data.dice ? ` (${data.dice})` : '';
+              header.textContent = `🎲 ${data.actor}${diceExpr}: ${data.text}`;
+              container.appendChild(header);
+
+              if (Array.isArray(data.breakdown)) {
+                const bd = document.createElement('div');
+                bd.style.fontFamily = 'monospace';
+                bd.style.fontSize = '12px';
+                bd.style.marginLeft = '16px';
+                bd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
+                container.appendChild(bd);
+              }
+
+              logEl.appendChild(container);
+              logEl.scrollTop = logEl.scrollHeight;
+            } else if (data.type === 'stat_roll') {
               const div = document.createElement('div');
               div.className = 'msg dice_roll';
-              div.textContent = `🎲 ${data.actor}: ${data.text}`;
+              const stat = data.stat ? ` ${data.stat}` : '';
+              const result = typeof data.result === 'number' ? ` → ${data.result}` : '';
+              div.textContent = `📊 ${data.actor}${stat} roll${result}`;
+              logEl.appendChild(div);
+              logEl.scrollTop = logEl.scrollHeight;
+            } else if (data.type === 'initiative') {
+              const div = document.createElement('div');
+              div.className = 'msg dice_roll';
+              const result = typeof data.result === 'number' ? ` → ${data.result}` : '';
+              div.textContent = `🧭 ${data.actor} initiative${result}`;
               logEl.appendChild(div);
               logEl.scrollTop = logEl.scrollHeight;
             } else {
@@ -194,6 +233,10 @@
       const actor = actorEl.value.trim() || 'User';
       if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
       const payload = { type: 'message', actor, text };
+      const ctx = contextEl.value.trim();
+      const encId = encounterEl.value.trim();
+      if (ctx) payload.context = ctx;
+      if (encId) payload.encounter_id = encId;
       ws.send(JSON.stringify(payload));
       msgInput.value = '';
     });
