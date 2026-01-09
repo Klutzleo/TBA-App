@@ -72,7 +72,7 @@ class Party(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
-    gm_id = Column(String, nullable=False, index=True)  # GM/Storyweaver who owns this party
+    sw_id = Column(String, nullable=False, index=True)  # Story Weaver who owns this party
     session_id = Column(String, nullable=True)  # Active session ID (for WebSocket routing)
     
     created_at = Column(DateTime, default=datetime.utcnow)

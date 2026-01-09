@@ -225,7 +225,7 @@ def test_create_party(test_client, auth_headers):
     """Create a new party."""
     payload = {
         "name": "The Crimson Dawn",
-        "gm_id": "gm_test"
+        "sw_id": "sw_test"
     }
     
     resp = test_client.post("/api/parties", headers=auth_headers, json=payload)
@@ -233,21 +233,21 @@ def test_create_party(test_client, auth_headers):
     body = resp.json()
     
     assert body["name"] == "The Crimson Dawn"
-    assert body["gm_id"] == "gm_test"
+    assert body["sw_id"] == "sw_test"
     assert "id" in body
 
 
 def test_list_parties(test_client, auth_headers):
-    """List all parties for a GM."""
+    """List all parties for a Story Weaver."""
     # Create party
     payload = {
         "name": "ListPartyTest",
-        "gm_id": "gm_list_test"
+        "sw_id": "sw_list_test"
     }
     test_client.post("/api/parties", headers=auth_headers, json=payload)
     
     # List parties
-    resp = test_client.get("/api/parties?gm_id=gm_list_test", headers=auth_headers)
+    resp = test_client.get("/api/parties?sw_id=sw_list_test", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
@@ -272,7 +272,7 @@ def test_add_character_to_party(test_client, auth_headers):
     # Create party
     party_payload = {
         "name": "TestParty",
-        "gm_id": "gm_party_test"
+        "sw_id": "sw_party_test"
     }
     party_resp = test_client.post("/api/parties", headers=auth_headers, json=party_payload)
     party_id = party_resp.json()["id"]
@@ -301,7 +301,7 @@ def test_list_party_members(test_client, auth_headers):
     # Create party
     party_payload = {
         "name": "MemberTestParty",
-        "gm_id": "gm_member_test"
+        "sw_id": "sw_member_test"
     }
     party_resp = test_client.post("/api/parties", headers=auth_headers, json=party_payload)
     party_id = party_resp.json()["id"]
@@ -337,7 +337,7 @@ def test_remove_character_from_party(test_client, auth_headers):
     # Create party
     party_payload = {
         "name": "RemoveTestParty",
-        "gm_id": "gm_remove_test"
+        "sw_id": "sw_remove_test"
     }
     party_resp = test_client.post("/api/parties", headers=auth_headers, json=party_payload)
     party_id = party_resp.json()["id"]

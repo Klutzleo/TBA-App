@@ -112,12 +112,12 @@ class CharacterResponse(BaseModel):
 class PartyCreate(BaseModel):
     """Request to create a new party."""
     name: str = Field(..., min_length=1, max_length=100)
-    gm_id: str = Field(..., description="GM/Storyweaver user ID")
+    sw_id: str = Field(..., description="Story Weaver user ID")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "The Crimson Dawn",
-            "gm_id": "gm_alice"
+            "sw_id": "sw_alice"
         }
     })
 
@@ -126,11 +126,11 @@ class PartyResponse(BaseModel):
     """Party response (from DB)."""
     id: str
     name: str
-    gm_id: str
+    sw_id: str
     session_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 

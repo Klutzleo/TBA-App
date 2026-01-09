@@ -220,7 +220,7 @@ async def create_party(req: PartyCreate, request: Request, db: Session = Depends
     request_id = getattr(request.state, "request_id", "unknown")
     logger.info(f"[{request_id}] Creating party: {req.name}")
     
-    party = Party(name=req.name, gm_id=req.gm_id)
+    party = Party(name=req.name, sw_id=req.sw_id)
     db.add(party)
     db.commit()
     db.refresh(party)
@@ -230,12 +230,12 @@ async def create_party(req: PartyCreate, request: Request, db: Session = Depends
 
 
 @party_router.get("", response_model=List[PartyResponse])
-async def list_parties(gm_id: str, request: Request, db: Session = Depends(get_db)):
-    """List all parties owned by a GM."""
+async def list_parties(sw_id: str, request: Request, db: Session = Depends(get_db)):
+    """List all parties owned by a Story Weaver."""
     request_id = getattr(request.state, "request_id", "unknown")
-    logger.info(f"[{request_id}] Listing parties for GM: {gm_id}")
-    
-    parties = db.query(Party).filter(Party.gm_id == gm_id).all()
+    logger.info(f"[{request_id}] Listing parties for Story Weaver: {sw_id}")
+
+    parties = db.query(Party).filter(Party.sw_id == sw_id).all()
     return parties
 
 
