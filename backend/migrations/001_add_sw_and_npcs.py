@@ -4,7 +4,7 @@ Migration 001: Add Story Weaver tracking, NPCs, and Combat Turns
 Phase 2b migration for WebSocket chat macros system.
 
 Changes:
-1. Add story_weaver_id and created_by_id to parties table
+1. Add description, story_weaver_id, and created_by_id to parties table
 2. Create npcs table for Story Weaver-created NPCs
 3. Create combat_turns table for turn-based combat tracking
 4. Backfill existing parties with first member as SW/creator
@@ -75,9 +75,19 @@ def run_migration():
     session = Session()
 
     try:
-        # Step 1: Add story_weaver_id and created_by_id columns to parties table
+        # Step 1: Add story_weaver_id, created_by_id, and description columns to parties table
         if table_exists(engine, 'parties'):
             print("\n[1/4] Updating parties table...")
+
+            if not column_exists(engine, 'parties', 'description'):
+                print("  - Adding description column")
+                session.execute(text("""
+                    ALTER TABLE parties
+                    ADD COLUMN description VARCHAR
+                """))
+                session.commit()
+            else:
+                print("  - description column already exists")
 
             if not column_exists(engine, 'parties', 'story_weaver_id'):
                 print("  - Adding story_weaver_id column")
