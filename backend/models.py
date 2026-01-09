@@ -72,12 +72,12 @@ class Party(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
-    gm_id = Column(String, nullable=False, index=True)  # GM/Storyweaver who owns this party
+    description = Column(String, nullable=True)  # Optional party description
     session_id = Column(String, nullable=True)  # Active session ID (for WebSocket routing)
 
-    # Phase 2b: Story Weaver tracking
-    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)  # Character ID of current SW
-    created_by_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)  # Character ID who created the party
+    # Story Weaver tracking
+    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)  # Character ID of current SW
+    created_by_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)  # Character ID who created the party
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

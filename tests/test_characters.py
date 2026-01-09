@@ -223,31 +223,61 @@ def test_delete_character(test_client, auth_headers):
 
 def test_create_party(test_client, auth_headers):
     """Create a new party."""
+    # First create a character to be the Story Weaver
+    char_payload = {
+        "name": "Alice",
+        "owner_id": "user_alice",
+        "level": 5,
+        "pp": 3,
+        "ip": 2,
+        "sp": 1,
+        "attack_style": "2d6"
+    }
+    char_resp = test_client.post("/api/characters", headers=auth_headers, json=char_payload)
+    character_id = char_resp.json()["id"]
+
+    # Create party with this character as creator
     payload = {
         "name": "The Crimson Dawn",
-        "sw_id": "sw_test"
+        "description": "A brave party of adventurers",
+        "creator_character_id": character_id
     }
-    
+
     resp = test_client.post("/api/parties", headers=auth_headers, json=payload)
     assert resp.status_code == 201
     body = resp.json()
-    
+
     assert body["name"] == "The Crimson Dawn"
-    assert body["sw_id"] == "sw_test"
+    assert body["description"] == "A brave party of adventurers"
+    assert body["story_weaver_id"] == character_id
+    assert body["created_by_id"] == character_id
     assert "id" in body
 
 
 def test_list_parties(test_client, auth_headers):
     """List all parties for a Story Weaver."""
+    # Create character
+    char_payload = {
+        "name": "Bob",
+        "owner_id": "user_bob",
+        "level": 3,
+        "pp": 2,
+        "ip": 2,
+        "sp": 2,
+        "attack_style": "1d8"
+    }
+    char_resp = test_client.post("/api/characters", headers=auth_headers, json=char_payload)
+    character_id = char_resp.json()["id"]
+
     # Create party
     payload = {
         "name": "ListPartyTest",
-        "sw_id": "sw_list_test"
+        "creator_character_id": character_id
     }
     test_client.post("/api/parties", headers=auth_headers, json=payload)
-    
+
     # List parties
-    resp = test_client.get("/api/parties?sw_id=sw_list_test", headers=auth_headers)
+    resp = test_client.get(f"/api/parties?story_weaver_id={character_id}", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
@@ -256,7 +286,20 @@ def test_list_parties(test_client, auth_headers):
 
 def test_add_character_to_party(test_client, auth_headers):
     """Add a character to a party."""
-    # Create character
+    # Create Story Weaver character (Level 5)
+    sw_payload = {
+        "name": "StoryWeaver",
+        "owner_id": "user_sw",
+        "level": 5,
+        "pp": 3,
+        "ip": 2,
+        "sp": 1,
+        "attack_style": "1d8"
+    }
+    sw_resp = test_client.post("/api/characters", headers=auth_headers, json=sw_payload)
+    sw_id = sw_resp.json()["id"]
+
+    # Create another character to add (Level 3)
     char_payload = {
         "name": "PartyMember",
         "owner_id": "user_party_test",
@@ -264,19 +307,19 @@ def test_add_character_to_party(test_client, auth_headers):
         "pp": 2,
         "ip": 2,
         "sp": 2,
-        "attack_style": "2d4"
+        "attack_style": "1d6"
     }
     char_resp = test_client.post("/api/characters", headers=auth_headers, json=char_payload)
     character_id = char_resp.json()["id"]
-    
-    # Create party
+
+    # Create party with SW as creator
     party_payload = {
         "name": "TestParty",
-        "sw_id": "sw_party_test"
+        "creator_character_id": sw_id
     }
     party_resp = test_client.post("/api/parties", headers=auth_headers, json=party_payload)
     party_id = party_resp.json()["id"]
-    
+
     # Add character to party
     add_payload = {"character_id": character_id}
     resp = test_client.post(f"/api/parties/{party_id}/members", headers=auth_headers, json=add_payload)
@@ -285,43 +328,70 @@ def test_add_character_to_party(test_client, auth_headers):
 
 def test_list_party_members(test_client, auth_headers):
     """List all members of a party."""
-    # Create character
-    char_payload = {
-        "name": "MemberListTest",
-        "owner_id": "user_member_test",
+    # Create Story Weaver character (Level 2)
+    sw_payload = {
+        "name": "SW_Member",
+        "owner_id": "user_sw_member",
         "level": 2,
         "pp": 3,
         "ip": 1,
         "sp": 2,
         "attack_style": "1d4"
     }
+    sw_resp = test_client.post("/api/characters", headers=auth_headers, json=sw_payload)
+    sw_id = sw_resp.json()["id"]
+
+    # Create another character
+    char_payload = {
+        "name": "MemberListTest",
+        "owner_id": "user_member_test",
+        "level": 2,
+        "pp": 2,
+        "ip": 2,
+        "sp": 2,
+        "attack_style": "1d4"
+    }
     char_resp = test_client.post("/api/characters", headers=auth_headers, json=char_payload)
     character_id = char_resp.json()["id"]
-    
+
     # Create party
     party_payload = {
         "name": "MemberTestParty",
-        "sw_id": "sw_member_test"
+        "creator_character_id": sw_id
     }
     party_resp = test_client.post("/api/parties", headers=auth_headers, json=party_payload)
     party_id = party_resp.json()["id"]
-    
+
     # Add character to party
     add_payload = {"character_id": character_id}
     test_client.post(f"/api/parties/{party_id}/members", headers=auth_headers, json=add_payload)
-    
-    # List members
+
+    # List members (should have 2: SW + added character)
     resp = test_client.get(f"/api/parties/{party_id}/members", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
-    assert len(body) >= 1
-    assert body[0]["character"]["name"] == "MemberListTest"
+    assert len(body) >= 2  # SW auto-added + manually added character
+    character_names = [m["character"]["name"] for m in body]
+    assert "MemberListTest" in character_names
 
 
 def test_remove_character_from_party(test_client, auth_headers):
     """Remove a character from a party."""
-    # Create character
+    # Create Story Weaver character (Level 1)
+    sw_payload = {
+        "name": "SW_Remove",
+        "owner_id": "user_sw_remove",
+        "level": 1,
+        "pp": 3,
+        "ip": 2,
+        "sp": 1,
+        "attack_style": "1d4"
+    }
+    sw_resp = test_client.post("/api/characters", headers=auth_headers, json=sw_payload)
+    sw_id = sw_resp.json()["id"]
+
+    # Create character to remove
     char_payload = {
         "name": "RemoveTest",
         "owner_id": "user_remove_test",
@@ -333,23 +403,23 @@ def test_remove_character_from_party(test_client, auth_headers):
     }
     char_resp = test_client.post("/api/characters", headers=auth_headers, json=char_payload)
     character_id = char_resp.json()["id"]
-    
+
     # Create party
     party_payload = {
         "name": "RemoveTestParty",
-        "sw_id": "sw_remove_test"
+        "creator_character_id": sw_id
     }
     party_resp = test_client.post("/api/parties", headers=auth_headers, json=party_payload)
     party_id = party_resp.json()["id"]
-    
+
     # Add character to party
     add_payload = {"character_id": character_id}
     test_client.post(f"/api/parties/{party_id}/members", headers=auth_headers, json=add_payload)
-    
+
     # Remove character from party
     resp = test_client.delete(f"/api/parties/{party_id}/members/{character_id}", headers=auth_headers)
     assert resp.status_code == 204
-    
+
     # Verify removed
     members_resp = test_client.get(f"/api/parties/{party_id}/members", headers=auth_headers)
     members = members_resp.json()

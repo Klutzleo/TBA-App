@@ -216,26 +216,47 @@ async def delete_character(character_id: str, request: Request, db: Session = De
 
 @party_router.post("", response_model=PartyResponse, status_code=201)
 async def create_party(req: PartyCreate, request: Request, db: Session = Depends(get_db)):
-    """Create a new party/session."""
+    """Create a new party/session with the creator as Story Weaver and first member."""
     request_id = getattr(request.state, "request_id", "unknown")
     logger.info(f"[{request_id}] Creating party: {req.name}")
-    
-    party = Party(name=req.name, sw_id=req.sw_id)
+
+    # Validate that the creator character exists
+    creator = db.query(Character).filter(Character.id == req.creator_character_id).first()
+    if not creator:
+        logger.error(f"[{request_id}] Creator character not found: {req.creator_character_id}")
+        raise HTTPException(status_code=404, detail=f"Character with ID {req.creator_character_id} not found")
+
+    # Create the party with story_weaver_id and created_by_id set to creator
+    party = Party(
+        name=req.name,
+        description=req.description,
+        story_weaver_id=req.creator_character_id,
+        created_by_id=req.creator_character_id
+    )
     db.add(party)
+    db.flush()  # Get party.id before creating membership
+
+    # Auto-add creator as first party member
+    membership = PartyMembership(
+        party_id=party.id,
+        character_id=req.creator_character_id
+    )
+    db.add(membership)
+
     db.commit()
     db.refresh(party)
-    
-    logger.info(f"[{request_id}] Party created: {party.id}")
+
+    logger.info(f"[{request_id}] Party created: {party.id} with creator {creator.name} as Story Weaver")
     return party
 
 
 @party_router.get("", response_model=List[PartyResponse])
-async def list_parties(sw_id: str, request: Request, db: Session = Depends(get_db)):
-    """List all parties owned by a Story Weaver."""
+async def list_parties(story_weaver_id: str, request: Request, db: Session = Depends(get_db)):
+    """List all parties where a character is the Story Weaver."""
     request_id = getattr(request.state, "request_id", "unknown")
-    logger.info(f"[{request_id}] Listing parties for Story Weaver: {sw_id}")
+    logger.info(f"[{request_id}] Listing parties for Story Weaver: {story_weaver_id}")
 
-    parties = db.query(Party).filter(Party.sw_id == sw_id).all()
+    parties = db.query(Party).filter(Party.story_weaver_id == story_weaver_id).all()
     return parties
 
 

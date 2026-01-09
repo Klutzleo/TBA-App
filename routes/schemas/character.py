@@ -112,12 +112,14 @@ class CharacterResponse(BaseModel):
 class PartyCreate(BaseModel):
     """Request to create a new party."""
     name: str = Field(..., min_length=1, max_length=100)
-    sw_id: str = Field(..., description="Story Weaver user ID")
-    
+    description: Optional[str] = Field(None, max_length=500, description="Optional party description")
+    creator_character_id: str = Field(..., description="Character ID of the Story Weaver creating this party")
+
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "The Crimson Dawn",
-            "sw_id": "sw_alice"
+            "description": "A group of adventurers seeking the ancient artifact",
+            "creator_character_id": "550e8400-e29b-41d4-a716-446655440000"
         }
     })
 
@@ -126,7 +128,9 @@ class PartyResponse(BaseModel):
     """Party response (from DB)."""
     id: str
     name: str
-    sw_id: str
+    description: Optional[str] = None
+    story_weaver_id: str
+    created_by_id: str
     session_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
