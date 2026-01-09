@@ -28,6 +28,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from backend.db import DATABASE_URL, Base
 from backend.models import Party, Character, PartyMembership, NPC, CombatTurn
 
+import time
+
+def wait_for_db(engine, max_retries=10, delay=2):
+    """Wait for database to be ready"""
+    for attempt in range(max_retries):
+        try:
+            # Try to connect
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"✅ Database connection established (attempt {attempt + 1})")
+            return True
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"⏳ Database not ready (attempt {attempt + 1}/{max_retries}), retrying in {delay}s...")
+                time.sleep(delay)
+            else:
+                print(f"❌ Database connection failed after {max_retries} attempts")
+                raise
+    return False
 
 def column_exists(engine, table_name, column_name):
     """Check if a column exists in a table."""
@@ -43,11 +62,15 @@ def table_exists(engine, table_name):
 
 
 def run_migration():
-    """Execute the migration."""
-    print(f"Running migration 001: Add Story Weaver and NPCs")
+    """Run the migration"""
+    print("Running migration 001: Add Story Weaver and NPCs")
     print(f"Database: {DATABASE_URL}")
-
+    
     engine = create_engine(DATABASE_URL)
+    
+    # Wait for database to be ready
+    wait_for_db(engine)
+    
     Session = sessionmaker(bind=engine)
     session = Session()
 
