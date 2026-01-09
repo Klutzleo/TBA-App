@@ -1,0 +1,7 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "python backend/migrations/001_add_sw_and_npcs.py && uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
