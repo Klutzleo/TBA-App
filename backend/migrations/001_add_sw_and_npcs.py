@@ -209,7 +209,6 @@ if __name__ == "__main__":
         print("=" * 60, file=sys.stderr, flush=True)
         print("✅ MIGRATION COMPLETED SUCCESSFULLY", file=sys.stderr, flush=True)
         print("=" * 60, file=sys.stderr, flush=True)
-        sys.exit(0)  # Explicit success
     except Exception as e:
         print("=" * 60, file=sys.stderr, flush=True)
         print(f"❌ MIGRATION FAILED: {e}", file=sys.stderr, flush=True)
