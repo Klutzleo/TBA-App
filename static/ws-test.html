@@ -20,6 +20,7 @@
     .combat_event .rolls { font-family: monospace; font-size: 12px; color: #333; margin: 4px 0 2px 12px; }
     .combat_event .outcome { font-weight: bold; color: #d00; margin-top: 4px; }
     label { font-size: 12px; color: #444; }
+    .help-text { font-size: 11px; color: #666; font-style: italic; margin-left: 4px; }
   </style>
 </head>
 <body>
@@ -39,6 +40,11 @@
       <option value="Player" selected>Player</option>
       <option value="SW">Story Weaver (SW)</option>
     </select>
+  </div>
+  <div class="row">
+    <label>Character ID (optional)</label>
+    <input id="characterId" placeholder="uuid-of-character" size="36" />
+    <span class="help-text">Enable character stat caching & auto role detection</span>
   </div>
   <div class="row">
     <label>API Key (optional)</label>
@@ -65,6 +71,7 @@
     const baseUrlEl = document.getElementById('baseUrl');
     const partyIdEl = document.getElementById('partyId');
     const actorEl = document.getElementById('actor');
+    const characterIdEl = document.getElementById('characterId');
     const apiKeyEl = document.getElementById('apiKey');
     const contextEl = document.getElementById('context');
     const encounterEl = document.getElementById('encounterId');
@@ -128,10 +135,24 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    function buildWSUrl(baseUrl, partyId) {
+    function buildWSUrl(baseUrl, partyId, characterId, apiKey) {
       const url = new URL(baseUrl);
       url.protocol = url.protocol.replace('http', 'ws'); // http->ws, https->wss
       url.pathname = `/api/chat/party/${encodeURIComponent(partyId)}`;
+
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (characterId) {
+        params.append('character_id', characterId);
+      }
+      if (apiKey) {
+        params.append('api_key', apiKey);
+      }
+
+      if (params.toString()) {
+        url.search = params.toString();
+      }
+
       return url.toString();
     }
 
@@ -139,21 +160,24 @@
       const baseUrl = baseUrlEl.value.trim();
       const partyId = partyIdEl.value.trim();
       const actor = actorEl.value.trim() || 'User';
+      const characterId = characterIdEl.value.trim();
       const apiKey = apiKeyEl.value.trim();
+
       if (!baseUrl || !partyId) {
         log('Please provide base URL and party ID.', 'err');
         return;
       }
 
-      const wsUrl = buildWSUrl(baseUrl, partyId);
-      log(`Connecting to ${wsUrl} ...`, 'sys');
+      const wsUrl = buildWSUrl(baseUrl, partyId, characterId, apiKey);
 
-      // Some browsers don’t support custom headers for WebSocket.
-      // If API key is required, append as query param fallback.
-      const finalUrl = apiKey ? `${wsUrl}?api_key=${encodeURIComponent(apiKey)}` : wsUrl;
+      if (characterId) {
+        log(`Connecting to ${wsUrl} with character caching enabled...`, 'sys');
+      } else {
+        log(`Connecting to ${wsUrl} (legacy mode - no character caching)...`, 'sys');
+      }
 
       try {
-        ws = new WebSocket(finalUrl);
+        ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
           log('Connected.', 'sys');
