@@ -199,8 +199,21 @@ def rollback_migration():
 
 if __name__ == "__main__":
     import sys
-
-    if len(sys.argv) > 1 and sys.argv[1] == "--rollback":
-        rollback_migration()
-    else:
+    print("=" * 60, file=sys.stderr, flush=True)
+    print("🔧 MIGRATION SCRIPT EXECUTING", file=sys.stderr, flush=True)
+    print(f"DATABASE_URL: {os.getenv('DATABASE_URL', 'NOT SET')[:50]}...", file=sys.stderr, flush=True)
+    print("=" * 60, file=sys.stderr, flush=True)
+    
+    try:
         run_migration()
+        print("=" * 60, file=sys.stderr, flush=True)
+        print("✅ MIGRATION COMPLETED SUCCESSFULLY", file=sys.stderr, flush=True)
+        print("=" * 60, file=sys.stderr, flush=True)
+        sys.exit(0)  # Explicit success
+    except Exception as e:
+        print("=" * 60, file=sys.stderr, flush=True)
+        print(f"❌ MIGRATION FAILED: {e}", file=sys.stderr, flush=True)
+        print("=" * 60, file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)  # Explicit failure - stops deployment
