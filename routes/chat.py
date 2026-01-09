@@ -1,11 +1,13 @@
 from urllib import response
-from fastapi import APIRouter, Request, Form, Body, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, Form, Body, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
+from backend.db import SessionLocal
+from backend.models import Character, Party, NPC, PartyMembership
 from routes.schemas.chat import ChatMessageSchema
 from routes.schemas.resolve import ResolveRollSchema
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from time import monotonic
 from datetime import datetime
 import json
@@ -26,29 +28,203 @@ chat_blp = APIRouter()
 templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger("uvicorn")
 
-# Simple in-memory connection store: party_id -> list[WebSocket]
-active_connections: Dict[str, list[WebSocket]] = {}
+# Macro throttle tracking (preserved for backward compatibility)
 macro_last_ts: Dict[str, float] = {}
 
+
+class ConnectionManager:
+    """
+    Manages WebSocket connections with character caching for macro support.
+
+    Features:
+    - Tracks active WebSocket connections per party
+    - Caches character stats on connection to avoid DB hits
+    - Tracks Story Weaver role per connection
+    - Broadcasts messages to all party members
+    """
+
+    def __init__(self):
+        # Structure: {party_id: [(ws, character_id, metadata)]}
+        self.active_connections: Dict[str, List[tuple[WebSocket, str, Dict[str, Any]]]] = {}
+
+        # Character cache: {party_id: {character_id: stats_dict}}
+        self.character_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+        # Party metadata cache: {party_id: {"story_weaver_id": str}}
+        self.party_cache: Dict[str, Dict[str, Any]] = {}
+
+    async def add_connection(
+        self,
+        party_id: str,
+        ws: WebSocket,
+        character_id: Optional[str] = None
+    ):
+        """
+        Add a WebSocket connection and cache character data.
+
+        Args:
+            party_id: The party ID
+            ws: The WebSocket connection
+            character_id: Optional character ID to associate with this connection
+        """
+        # Initialize party structures
+        if party_id not in self.active_connections:
+            self.active_connections[party_id] = []
+        if party_id not in self.character_cache:
+            self.character_cache[party_id] = {}
+
+        # Fetch and cache character data if provided
+        metadata = {"role": "player", "character_id": character_id}
+
+        if character_id:
+            db = SessionLocal()
+            try:
+                # Try to load party metadata (for SW check)
+                if party_id not in self.party_cache:
+                    party = db.query(Party).filter(Party.id == party_id).first()
+                    if party:
+                        self.party_cache[party_id] = {
+                            "story_weaver_id": party.story_weaver_id,
+                            "created_by_id": party.created_by_id
+                        }
+
+                # Check if this character is the Story Weaver
+                party_meta = self.party_cache.get(party_id, {})
+                is_sw = (character_id == party_meta.get("story_weaver_id"))
+                metadata["role"] = "SW" if is_sw else "player"
+
+                # Try Character first
+                character = db.query(Character).filter(Character.id == character_id).first()
+                if character:
+                    self.character_cache[party_id][character_id] = {
+                        "id": character.id,
+                        "name": character.name,
+                        "type": "character",
+                        "pp": character.pp,
+                        "ip": character.ip,
+                        "sp": character.sp,
+                        "edge": character.edge,
+                        "bap": character.bap,
+                        "level": character.level,
+                        "dp": character.dp,
+                        "max_dp": character.max_dp,
+                        "attack_style": character.attack_style,
+                        "defense_die": character.defense_die
+                    }
+                    metadata["character_name"] = character.name
+                else:
+                    # Try NPC
+                    npc = db.query(NPC).filter(NPC.id == character_id).first()
+                    if npc:
+                        self.character_cache[party_id][character_id] = {
+                            "id": npc.id,
+                            "name": npc.name,
+                            "type": "npc",
+                            "pp": npc.pp,
+                            "ip": npc.ip,
+                            "sp": npc.sp,
+                            "edge": npc.edge,
+                            "bap": npc.bap,
+                            "level": npc.level,
+                            "dp": npc.dp,
+                            "max_dp": npc.max_dp,
+                            "attack_style": npc.attack_style,
+                            "defense_die": npc.defense_die,
+                            "npc_type": npc.npc_type,
+                            "visible_to_players": npc.visible_to_players
+                        }
+                        metadata["character_name"] = npc.name
+
+            except Exception as e:
+                logger.error(f"Failed to cache character {character_id}: {e}")
+            finally:
+                db.close()
+
+        # Add connection with metadata
+        self.active_connections[party_id].append((ws, character_id or "", metadata))
+        logger.info(
+            f"Connection added: party={party_id}, character={character_id}, "
+            f"role={metadata['role']}, total_connections={len(self.active_connections[party_id])}"
+        )
+
+    def remove_connection(self, party_id: str, ws: WebSocket):
+        """Remove a WebSocket connection and clean up if party is empty."""
+        if party_id in self.active_connections:
+            # Find and remove the connection
+            self.active_connections[party_id] = [
+                (w, cid, meta) for w, cid, meta in self.active_connections[party_id]
+                if w != ws
+            ]
+
+            # Clean up empty party
+            if not self.active_connections[party_id]:
+                del self.active_connections[party_id]
+                # Also clear character cache for this party
+                if party_id in self.character_cache:
+                    del self.character_cache[party_id]
+                if party_id in self.party_cache:
+                    del self.party_cache[party_id]
+                logger.info(f"Party {party_id} cleaned up (no active connections)")
+
+    async def broadcast(self, party_id: str, message: Dict[str, Any]):
+        """Broadcast a message to all connections in a party."""
+        for ws, _, _ in self.active_connections.get(party_id, []):
+            try:
+                await ws.send_json(message)
+            except Exception as e:
+                logger.warning(f"Broadcast failed to connection: {e}")
+                # Connection will be cleaned up on next disconnect
+
+    def get_character_stats(self, party_id: str, character_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached character stats.
+
+        Returns:
+            Dict with character stats or None if not found
+        """
+        return self.character_cache.get(party_id, {}).get(character_id)
+
+    def get_party_sw(self, party_id: str) -> Optional[str]:
+        """
+        Get the Story Weaver character ID for a party.
+
+        Returns:
+            Character ID of the Story Weaver or None
+        """
+        return self.party_cache.get(party_id, {}).get("story_weaver_id")
+
+    def get_connection_metadata(self, party_id: str, ws: WebSocket) -> Optional[Dict[str, Any]]:
+        """Get metadata for a specific connection."""
+        for w, _, meta in self.active_connections.get(party_id, []):
+            if w == ws:
+                return meta
+        return None
+
+    def is_story_weaver(self, party_id: str, character_id: str) -> bool:
+        """Check if a character is the Story Weaver for a party."""
+        sw_id = self.get_party_sw(party_id)
+        return sw_id is not None and sw_id == character_id
+
+
+# Global connection manager instance
+connection_manager = ConnectionManager()
+
+
+# Legacy functions (preserved for backward compatibility with existing code)
 def add_connection(party_id: str, ws: WebSocket):
-    active_connections.setdefault(party_id, []).append(ws)
+    """Legacy: Add connection without character_id (for backward compatibility)."""
+    import asyncio
+    asyncio.create_task(connection_manager.add_connection(party_id, ws, None))
+
 
 def remove_connection(party_id: str, ws: WebSocket):
-    if party_id in active_connections:
-        try:
-            active_connections[party_id].remove(ws)
-        except ValueError:
-            pass
-        if not active_connections[party_id]:
-            del active_connections[party_id]
+    """Legacy: Remove connection."""
+    connection_manager.remove_connection(party_id, ws)
+
 
 async def broadcast(party_id: str, message: Dict[str, Any]):
-    for ws in active_connections.get(party_id, []):
-        try:
-            await ws.send_json(message)
-        except Exception:
-            # Best-effort send; failures will be cleaned up on disconnect
-            pass
+    """Legacy: Broadcast message."""
+    await connection_manager.broadcast(party_id, message)
 
 
 async def broadcast_combat_event(party_id: str, event: Dict[str, Any]):
@@ -204,9 +380,28 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 
 @chat_blp.get("/chat/party/{party_id}/connections", response_model=Dict[str, Any])
 async def party_connections(party_id: str):
-    """Debug endpoint: see active WebSocket connections for a party."""
-    conns = active_connections.get(party_id, [])
-    return {"party_id": party_id, "connection_count": len(conns)}
+    """
+    Debug endpoint: see active WebSocket connections for a party.
+
+    Returns connection count, character IDs, roles, and cached character names.
+    """
+    conns = connection_manager.active_connections.get(party_id, [])
+    connection_details = []
+
+    for ws, char_id, metadata in conns:
+        connection_details.append({
+            "character_id": char_id or None,
+            "character_name": metadata.get("character_name", "Unknown"),
+            "role": metadata.get("role", "player")
+        })
+
+    return {
+        "party_id": party_id,
+        "connection_count": len(conns),
+        "connections": connection_details,
+        "story_weaver_id": connection_manager.get_party_sw(party_id),
+        "cached_characters": list(connection_manager.character_cache.get(party_id, {}).keys())
+    }
 
 async def log_combat_event(entry: Dict[str, Any]):
     try:
@@ -228,11 +423,49 @@ async def chat_get(request: Request):
 
 
 @chat_blp.websocket("/chat/party/{party_id}")
-async def chat_party_ws(websocket: WebSocket, party_id: str):
+async def chat_party_ws(
+    websocket: WebSocket,
+    party_id: str,
+    character_id: Optional[str] = Query(None, description="Character or NPC ID to associate with this connection")
+):
+    """
+    WebSocket endpoint for party chat with character caching.
+
+    Query Parameters:
+        character_id: Optional UUID of Character or NPC to associate with connection.
+                      If provided, character stats are cached for macro support.
+
+    Connection Flow:
+        1. Accept WebSocket connection
+        2. If character_id provided, fetch and cache character data
+        3. Determine if character is Story Weaver
+        4. Handle messages and macros with cached stats
+
+    Examples:
+        ws://localhost:8000/api/chat/party/test-party
+        ws://localhost:8000/api/chat/party/test-party?character_id=char-uuid-123
+    """
     # Accept connection; optional api_key via query param for convenience
     # Note: API key enforcement is not applied to WebSocket in HTTP middleware
     await websocket.accept()
-    add_connection(party_id, websocket)
+
+    # Add connection with character caching
+    await connection_manager.add_connection(party_id, websocket, character_id)
+
+    # Get connection metadata
+    metadata = connection_manager.get_connection_metadata(party_id, websocket)
+    role = metadata.get("role", "player") if metadata else "player"
+    character_name = metadata.get("character_name", "Unknown") if metadata else "Unknown"
+
+    # Notify party of join (if character_id provided)
+    if character_id and character_name != "Unknown":
+        await connection_manager.broadcast(party_id, {
+            "type": "system",
+            "actor": "system",
+            "text": f"{character_name} ({role}) joined the party",
+            "party_id": party_id
+        })
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -240,10 +473,12 @@ async def chat_party_ws(websocket: WebSocket, party_id: str):
                 payload = json.loads(data)
             except json.JSONDecodeError:
                 payload = {"type": "message", "actor": "unknown", "text": data}
-            actor = payload.get("actor", "unknown")
+
+            actor = payload.get("actor", character_name if character_id else "unknown")
             text = payload.get("text", "")
             ctx = payload.get("context")
             enc_id = payload.get("encounter_id")
+
             if isinstance(text, str) and text.startswith("/"):
                 # Simple macro throttle per actor in party to prevent spam
                 key = f"{party_id}:{actor}"
@@ -273,12 +508,29 @@ async def chat_party_ws(websocket: WebSocket, party_id: str):
                 }
             await broadcast(party_id, msg)
     except WebSocketDisconnect:
-        remove_connection(party_id, websocket)
+        # Notify party of leave
+        if character_id and character_name != "Unknown":
+            try:
+                await connection_manager.broadcast(party_id, {
+                    "type": "system",
+                    "actor": "system",
+                    "text": f"{character_name} left the party",
+                    "party_id": party_id
+                })
+            except Exception:
+                pass
+        connection_manager.remove_connection(party_id, websocket)
     except Exception as e:
-        remove_connection(party_id, websocket)
+        logger.error(f"WebSocket error for {character_name} in {party_id}: {e}")
+        connection_manager.remove_connection(party_id, websocket)
         # Attempt to notify others of disconnect
         try:
-            await broadcast(party_id, {"type": "system", "actor": "system", "text": f"Disconnect: {e}", "party_id": party_id})
+            await connection_manager.broadcast(party_id, {
+                "type": "system",
+                "actor": "system",
+                "text": f"{character_name} disconnected: {e}",
+                "party_id": party_id
+            })
         except Exception:
             pass
 
