@@ -108,6 +108,16 @@ def run_migration():
                 session.commit()
             else:
                 print("  - created_by_id column already exists")
+
+            # Drop legacy gm_id column if it exists (replaced by story_weaver_id)
+            if column_exists(engine, 'parties', 'gm_id'):
+                print("  - Dropping legacy gm_id column")
+                session.execute(text("""
+                    ALTER TABLE parties DROP COLUMN IF EXISTS gm_id
+                """))
+                session.commit()
+            else:
+                print("  - gm_id column already removed")
         else:
             print("\n[1/4] Parties table doesn't exist yet - will be created by init_db()")
 
