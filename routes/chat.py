@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
 from backend.db import SessionLocal
-from backend.models import Character, Party, NPC, PartyMembership
+from backend.models import Character, Party, NPC, PartyMembership, CombatTurn
 from routes.schemas.chat import ChatMessageSchema
 from routes.schemas.resolve import ResolveRollSchema
 from typing import Dict, Any, Optional, List
@@ -52,6 +52,9 @@ class ConnectionManager:
 
         # Party metadata cache: {party_id: {"story_weaver_id": str}}
         self.party_cache: Dict[str, Dict[str, Any]] = {}
+
+        # Active encounters: {party_id: encounter_data}
+        self.active_encounters: Dict[str, Dict[str, Any]] = {}
 
     async def add_connection(
         self,
@@ -222,9 +225,324 @@ class ConnectionManager:
             char_data['is_story_weaver'] = self.is_story_weaver(party_id, character_id)
         return char_data
 
+    # ========================================================================
+    # ENCOUNTER STATE MANAGEMENT (Phase 2b Task 3)
+    # ========================================================================
+
+    def start_encounter(self, party_id: str, initiator_id: str) -> str:
+        """
+        Start combat encounter for party.
+
+        Args:
+            party_id: Party UUID
+            initiator_id: Character ID who started encounter (usually SW)
+
+        Returns:
+            encounter_id: UUID for this encounter
+
+        State:
+            {
+                'encounter_id': uuid,
+                'turn_number': 0,
+                'combatants': [
+                    {
+                        'id': character/npc uuid,
+                        'name': str,
+                        'type': 'character' or 'npc',
+                        'initiative': None (not rolled yet)
+                    }
+                ],
+                'turn_order': [],  # Sorted by initiative after rolls
+                'current_turn_index': 0,
+                'started_by': initiator_id
+            }
+        """
+        import uuid
+        encounter_id = str(uuid.uuid4())
+
+        self.active_encounters[party_id] = {
+            'encounter_id': encounter_id,
+            'turn_number': 0,
+            'combatants': [],
+            'turn_order': [],
+            'current_turn_index': 0,
+            'started_by': initiator_id
+        }
+
+        return encounter_id
+
+    def add_combatant(self, party_id: str, combatant_id: str, name: str, combatant_type: str):
+        """
+        Add character/NPC to active encounter.
+
+        Args:
+            party_id: Party UUID
+            combatant_id: Character or NPC UUID
+            name: Display name
+            combatant_type: 'character' or 'npc'
+        """
+        if party_id not in self.active_encounters:
+            return
+
+        encounter = self.active_encounters[party_id]
+
+        # Check if already added
+        if any(c['id'] == combatant_id for c in encounter['combatants']):
+            return
+
+        encounter['combatants'].append({
+            'id': combatant_id,
+            'name': name,
+            'type': combatant_type,
+            'initiative': None
+        })
+
+    def roll_initiative(self, party_id: str, combatant_id: str, roll_result: int):
+        """
+        Record initiative roll for combatant.
+
+        Args:
+            party_id: Party UUID
+            combatant_id: Character or NPC UUID
+            roll_result: Initiative roll total
+        """
+        if party_id not in self.active_encounters:
+            return
+
+        encounter = self.active_encounters[party_id]
+
+        # Find combatant and update initiative
+        for combatant in encounter['combatants']:
+            if combatant['id'] == combatant_id:
+                combatant['initiative'] = roll_result
+                break
+
+    def sort_initiative(self, party_id: str):
+        """
+        Sort combatants by initiative rolls (highest first).
+
+        Ties broken by: PP > IP > SP (from character cache)
+        """
+        if party_id not in self.active_encounters:
+            return
+
+        encounter = self.active_encounters[party_id]
+
+        # Filter combatants with initiative rolled
+        combatants_with_init = [c for c in encounter['combatants'] if c['initiative'] is not None]
+
+        # Sort by initiative (highest first), with tiebreaker using stats
+        def sort_key(combatant):
+            char_stats = self.get_character_stats(party_id, combatant['id'])
+            pp = char_stats.get('pp', 0) if char_stats else 0
+            ip = char_stats.get('ip', 0) if char_stats else 0
+            sp = char_stats.get('sp', 0) if char_stats else 0
+
+            # Return tuple: (initiative desc, pp desc, ip desc, sp desc)
+            return (-combatant['initiative'], -pp, -ip, -sp)
+
+        encounter['turn_order'] = sorted(combatants_with_init, key=sort_key)
+        encounter['current_turn_index'] = 0
+
+    def get_current_turn(self, party_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get current combatant whose turn it is.
+
+        Returns:
+            Dict with combatant data or None if no active encounter
+        """
+        if party_id not in self.active_encounters:
+            return None
+
+        encounter = self.active_encounters[party_id]
+
+        if not encounter['turn_order']:
+            return None
+
+        return encounter['turn_order'][encounter['current_turn_index']]
+
+    def next_turn(self, party_id: str):
+        """
+        Advance to next combatant, increment turn_number if looped.
+        """
+        if party_id not in self.active_encounters:
+            return
+
+        encounter = self.active_encounters[party_id]
+
+        if not encounter['turn_order']:
+            return
+
+        # Advance index
+        encounter['current_turn_index'] += 1
+
+        # Wrap around and increment turn number
+        if encounter['current_turn_index'] >= len(encounter['turn_order']):
+            encounter['current_turn_index'] = 0
+            encounter['turn_number'] += 1
+
+    def get_turn_number(self, party_id: str) -> int:
+        """Get current turn number for encounter."""
+        if party_id not in self.active_encounters:
+            return 0
+        return self.active_encounters[party_id]['turn_number']
+
+    def end_encounter(self, party_id: str):
+        """Clear encounter state."""
+        if party_id in self.active_encounters:
+            del self.active_encounters[party_id]
+
+    def get_encounter(self, party_id: str) -> Optional[Dict[str, Any]]:
+        """Get active encounter data for party."""
+        return self.active_encounters.get(party_id)
+
 
 # Global connection manager instance
 connection_manager = ConnectionManager()
+
+
+# ============================================================================
+# COMBAT TURN DATABASE LOGGING (Phase 2b Task 3)
+# ============================================================================
+
+async def log_combat_action(
+    party_id: str,
+    combatant_id: str,
+    combatant_name: str,
+    action_type: str,
+    result_data: Dict[str, Any],
+    bap_applied: bool = False
+) -> Optional[str]:
+    """
+    Log combat action to database for retroactive BAP grants and combat history.
+
+    Args:
+        party_id: Party UUID
+        combatant_id: Character or NPC UUID who performed the action
+        combatant_name: Display name of combatant
+        action_type: Type of action ('initiative', 'attack', 'defend', 'spell', 'roll')
+        result_data: Full roll results, damage, etc. (stored as JSON)
+        bap_applied: Whether BAP was already applied to this action
+
+    Returns:
+        message_id: Unique identifier for this combat turn (format: "{name}_turn_{num}")
+                   or None if no active encounter
+
+    Example:
+        await log_combat_action(
+            party_id="party-123",
+            combatant_id="char-456",
+            combatant_name="Alice",
+            action_type="attack",
+            result_data={'attack_roll': 15, 'damage': 8, 'target': 'Goblin'},
+            bap_applied=False
+        )
+        # Returns: "alice_turn_1"
+    """
+    # Get current turn number from active encounter
+    turn_number = connection_manager.get_turn_number(party_id)
+
+    # Generate message_id: lowercase name with underscores, plus turn number
+    sanitized_name = combatant_name.lower().replace(' ', '_')
+    message_id = f"{sanitized_name}_turn_{turn_number}"
+
+    # Create database record
+    db = SessionLocal()
+    try:
+        turn = CombatTurn(
+            party_id=party_id,
+            combatant_id=combatant_id,
+            combatant_name=combatant_name,
+            turn_number=turn_number,
+            action_type=action_type,
+            result_data=result_data,
+            bap_applied=bap_applied,
+            message_id=message_id
+        )
+        db.add(turn)
+        db.commit()
+        db.refresh(turn)
+
+        logger.info(f"Combat action logged: {message_id} ({action_type}) in party {party_id}")
+        return message_id
+
+    except Exception as e:
+        logger.error(f"Failed to log combat action: {e}")
+        db.rollback()
+        return None
+    finally:
+        db.close()
+
+
+def get_combat_history(party_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Get recent combat turn history for a party.
+
+    Args:
+        party_id: Party UUID
+        limit: Maximum number of turns to retrieve (default 50)
+
+    Returns:
+        List of combat turn records, ordered by timestamp (newest first)
+    """
+    db = SessionLocal()
+    try:
+        turns = db.query(CombatTurn).filter(
+            CombatTurn.party_id == party_id
+        ).order_by(
+            CombatTurn.timestamp.desc()
+        ).limit(limit).all()
+
+        return [{
+            'id': turn.id,
+            'combatant_id': turn.combatant_id,
+            'combatant_name': turn.combatant_name,
+            'turn_number': turn.turn_number,
+            'action_type': turn.action_type,
+            'result_data': turn.result_data,
+            'bap_applied': turn.bap_applied,
+            'message_id': turn.message_id,
+            'timestamp': turn.timestamp.isoformat()
+        } for turn in turns]
+
+    except Exception as e:
+        logger.error(f"Failed to get combat history: {e}")
+        return []
+    finally:
+        db.close()
+
+
+def mark_turn_bap_applied(message_id: str) -> bool:
+    """
+    Mark a combat turn as having BAP applied (for retroactive BAP grants).
+
+    Args:
+        message_id: The unique message_id of the combat turn
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+    try:
+        turn = db.query(CombatTurn).filter(
+            CombatTurn.message_id == message_id
+        ).first()
+
+        if turn:
+            turn.bap_applied = True
+            db.commit()
+            logger.info(f"BAP applied to turn: {message_id}")
+            return True
+
+        logger.warning(f"Combat turn not found: {message_id}")
+        return False
+
+    except Exception as e:
+        logger.error(f"Failed to mark BAP applied: {e}")
+        db.rollback()
+        return False
+    finally:
+        db.close()
 
 
 # Legacy functions (preserved for backward compatibility with existing code)
