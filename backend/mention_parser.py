@@ -36,6 +36,8 @@ def extract_mentions(text: str) -> List[str]:
     """
     Extract all @mentions from text.
 
+    Supports multi-word names with underscores: @Goblin_Archer_1
+
     Args:
         text: The message text to parse
 
@@ -45,96 +47,107 @@ def extract_mentions(text: str) -> List[str]:
     Examples:
         >>> extract_mentions("/attack @goblin with @sword")
         ['goblin', 'sword']
+        >>> extract_mentions("@Goblin_Archer_1 attacks")
+        ['Goblin_Archer_1']
         >>> extract_mentions("No mentions here")
         []
     """
-    pattern = r'@(\w+)'
+    # Updated pattern to match @word or @word_word_word
+    pattern = r'@(\w+(?:_\w+)*)'
     matches = re.findall(pattern, text)
     return matches
 
 
-def parse_mentions(text: str, party_id: str, db_session: Session) -> List[Dict]:
+def parse_mentions(text: str, party_id: str, db_session: Session, sender_is_sw: bool = False) -> dict:
     """
     Parse @mentions and resolve them to Character or NPC entities.
+
+    Supports multi-word names with underscores: @Goblin_Archer_1 → "Goblin Archer 1"
 
     Args:
         text: The message text containing @mentions
         party_id: The party ID to scope the search
         db_session: SQLAlchemy database session
+        sender_is_sw: Whether sender is Story Weaver (can see hidden NPCs)
 
     Returns:
-        List of dicts with keys: id, name, type
-        Example: [{"id": "uuid", "name": "Alice", "type": "character"}]
-
-    Raises:
-        MentionParseError: If mention is ambiguous or not found
+        {
+            'original': original message,
+            'mentions': [
+                {
+                    'raw': '@Goblin_Archer_1',
+                    'name': 'Goblin Archer 1',
+                    'id': 'uuid-here',
+                    'type': 'npc' or 'character'
+                }
+            ],
+            'unresolved': ['@NonexistentName']
+        }
 
     Examples:
         >>> parse_mentions("/attack @goblin", "party-123", session)
-        [{"id": "npc-uuid", "name": "Goblin", "type": "npc"}]
+        {
+            'original': '/attack @goblin',
+            'mentions': [{'raw': '@goblin', 'name': 'Goblin', 'id': 'npc-uuid', 'type': 'npc'}],
+            'unresolved': []
+        }
     """
     mention_names = extract_mentions(text)
-    if not mention_names:
-        return []
 
-    resolved = []
+    mentions = []
+    unresolved = []
 
-    for name in mention_names:
-        # Case-insensitive lookup
-        name_lower = name.lower()
+    for raw_mention in mention_names:
+        # Normalize: replace underscores with spaces for matching
+        normalized_name = raw_mention.replace('_', ' ')
 
         # Search in Characters (party members only)
-        character_matches = (
+        character = (
             db_session.query(Character)
             .join(PartyMembership, PartyMembership.character_id == Character.id)
             .filter(PartyMembership.party_id == party_id)
-            .filter(Character.name.ilike(name_lower))
-            .all()
+            .filter(Character.name.ilike(normalized_name))
+            .first()
         )
+
+        if character:
+            mentions.append({
+                'raw': f'@{raw_mention}',
+                'name': character.name,
+                'id': character.id,
+                'type': 'character'
+            })
+            continue
 
         # Search in NPCs (for this party)
-        npc_matches = (
-            db_session.query(NPC)
-            .filter(NPC.party_id == party_id)
-            .filter(NPC.name.ilike(name_lower))
-            .all()
+        npc_query = db_session.query(NPC).filter(
+            NPC.party_id == party_id,
+            NPC.name.ilike(normalized_name)
         )
 
-        # Combine results
-        all_matches = []
-        for char in character_matches:
-            all_matches.append({
-                "id": char.id,
-                "name": char.name,
-                "type": "character"
+        # If sender is not Story Weaver, only show visible NPCs
+        if not sender_is_sw:
+            npc_query = npc_query.filter(NPC.visible_to_players == True)
+
+        npc = npc_query.first()
+
+        if npc:
+            mentions.append({
+                'raw': f'@{raw_mention}',
+                'name': npc.name,
+                'id': npc.id,
+                'type': 'npc'
             })
+            continue
 
-        for npc in npc_matches:
-            all_matches.append({
-                "id": npc.id,
-                "name": npc.name,
-                "type": "npc"
-            })
+        # Not found - add to unresolved
+        unresolved.append(f'@{raw_mention}')
 
-        # Validate results
-        if len(all_matches) == 0:
-            raise MentionParseError(
-                f"@{name} not found in party. "
-                f"Use /who to see available characters and NPCs."
-            )
-
-        if len(all_matches) > 1:
-            # Ambiguous - multiple matches
-            names = [f"{m['name']} ({m['type']})" for m in all_matches]
-            raise MentionParseError(
-                f"@{name} is ambiguous. Found: {', '.join(names)}. "
-                f"Please be more specific."
-            )
-
-        # Exactly one match - success!
-        resolved.append(all_matches[0])
-
-    return resolved
+    return {
+        'original': text,
+        'mentions': mentions,
+        'unresolved': unresolved
+    }
 
 
 def resolve_single_mention(

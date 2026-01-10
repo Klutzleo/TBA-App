@@ -205,6 +205,23 @@ class ConnectionManager:
         sw_id = self.get_party_sw(party_id)
         return sw_id is not None and sw_id == character_id
 
+    def get_character(self, party_id: str, character_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached character data for a specific character in a party.
+
+        Returns:
+            Dict with character stats including:
+            - id, name, type (character/npc)
+            - pp, ip, sp, edge, bap, level
+            - dp, max_dp, attack_style, defense_die
+            - is_story_weaver (bool)
+        """
+        char_data = self.get_character_stats(party_id, character_id)
+        if char_data:
+            # Add is_story_weaver flag
+            char_data['is_story_weaver'] = self.is_story_weaver(party_id, character_id)
+        return char_data
+
 
 # Global connection manager instance
 connection_manager = ConnectionManager()
