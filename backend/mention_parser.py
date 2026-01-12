@@ -58,7 +58,7 @@ def extract_mentions(text: str) -> List[str]:
     return matches
 
 
-def parse_mentions(text: str, party_id: str, db_session: Session, sender_is_sw: bool = False) -> dict:
+def parse_mentions(text: str, party_id: str, db_session: Session, sender_is_sw: bool = False, connection_manager=None) -> dict:
     """
     Parse @mentions and resolve them to Character or NPC entities.
 
@@ -69,6 +69,7 @@ def parse_mentions(text: str, party_id: str, db_session: Session, sender_is_sw: 
         party_id: The party ID to scope the search
         db_session: SQLAlchemy database session
         sender_is_sw: Whether sender is Story Weaver (can see hidden NPCs)
+        connection_manager: Optional ConnectionManager instance to check cached characters
 
     Returns:
         {
@@ -101,7 +102,27 @@ def parse_mentions(text: str, party_id: str, db_session: Session, sender_is_sw: 
         # Normalize: replace underscores with spaces for matching
         normalized_name = raw_mention.replace('_', ' ')
 
-        # Search in Characters (party members only)
+        # PRIORITY 1: Check ConnectionManager cache for actively connected characters
+        # This fixes the issue where WebSocket-connected characters aren't in PartyMembership yet
+        found_in_cache = False
+        if connection_manager:
+            cached_chars = connection_manager.character_cache.get(party_id, {})
+            for char_id, char_data in cached_chars.items():
+                if char_data.get('name', '').lower() == normalized_name.lower():
+                    # Found in cache!
+                    mentions.append({
+                        'raw': f'@{raw_mention}',
+                        'name': char_data['name'],
+                        'id': char_data['id'],
+                        'type': char_data.get('type', 'character')
+                    })
+                    found_in_cache = True
+                    break
+
+        if found_in_cache:
+            continue
+
+        # PRIORITY 2: Search in Characters (party members in database)
         character = (
             db_session.query(Character)
             .join(PartyMembership, PartyMembership.character_id == Character.id)
@@ -119,7 +140,7 @@ def parse_mentions(text: str, party_id: str, db_session: Session, sender_is_sw: 
             })
             continue
 
-        # Search in NPCs (for this party)
+        # PRIORITY 3: Search in NPCs (for this party)
         npc_query = db_session.query(NPC).filter(
             NPC.party_id == party_id,
             NPC.name.ilike(normalized_name)
