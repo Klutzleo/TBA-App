@@ -381,16 +381,17 @@
 
     .toggle-details {
       font-size: 11px;
-      color: var(--accent-primary);
+      color: rgba(255, 255, 255, 0.9);
       cursor: pointer;
-      text-decoration: none;
+      text-decoration: underline;
       margin-left: 8px;
-      transition: color 0.2s;
+      transition: color 0.2s, opacity 0.2s;
     }
 
     .toggle-details:hover {
-      color: var(--accent-secondary);
-      text-decoration: underline;
+      color: rgba(255, 255, 255, 1);
+      opacity: 1;
+      text-decoration: none;
     }
 
     .breakdown-hidden {
