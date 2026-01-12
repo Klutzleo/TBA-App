@@ -710,6 +710,73 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "modifier": edge_mod,
             "party_id": party_id
         }
+
+    if cmd == "/attack":
+        # Parse @mention target from remaining text
+        args = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+        if not args or not args.strip():
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "Usage: /attack @target (e.g., /attack @goblin)",
+                "party_id": party_id
+            }
+
+        # Parse mentions using mention_parser
+        from backend.mention_parser import parse_mentions
+
+        db = SessionLocal()
+        try:
+            # Determine if sender is SW for hidden NPC visibility
+            sender_is_sw = False
+            # TODO: Get character_id from connection metadata and check if SW
+
+            parsed = parse_mentions(args, party_id, db, sender_is_sw)
+
+            if parsed['unresolved']:
+                unresolved_str = ', '.join(parsed['unresolved'])
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": f"Target not found: {unresolved_str}. Use /who to see available targets.",
+                    "party_id": party_id
+                }
+
+            if not parsed['mentions']:
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": "No valid target found. Use @name to target (e.g., /attack @goblin)",
+                    "party_id": party_id
+                }
+
+            # Get first mention as target
+            target = parsed['mentions'][0]
+            target_name = target['name']
+            target_id = target['id']
+            target_type = target['type']
+
+            # For now, return a placeholder attack message
+            # TODO: Implement full combat resolution with cached character stats
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"⚔️ {actor} attacks {target_name} ({target_type})! [Combat system integration pending]",
+                "party_id": party_id
+            }
+
+        except Exception as e:
+            logger.error(f"Attack macro error: {e}")
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"Attack failed: {str(e)}",
+                "party_id": party_id
+            }
+        finally:
+            db.close()
+
     # Unknown macro → echo as system
     return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
 
