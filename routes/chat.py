@@ -710,6 +710,146 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "modifier": edge_mod,
             "party_id": party_id
         }
+
+    if cmd == "/attack":
+        # Parse @mention target from remaining text
+        args = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+        if not args or not args.strip():
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "Usage: /attack @target (e.g., /attack @goblin)",
+                "party_id": party_id
+            }
+
+        # Parse mentions using mention_parser
+        from backend.mention_parser import parse_mentions
+
+        db = SessionLocal()
+        try:
+            # Determine if sender is SW for hidden NPC visibility
+            sender_is_sw = False
+            # TODO: Get character_id from connection metadata and check if SW
+
+            # FIXED: Pass connection_manager to check cached characters first
+            parsed = parse_mentions(args, party_id, db, sender_is_sw, connection_manager)
+
+            if parsed['unresolved']:
+                unresolved_str = ', '.join(parsed['unresolved'])
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": f"Target not found: {unresolved_str}. Use /who to see available targets.",
+                    "party_id": party_id
+                }
+
+            if not parsed['mentions']:
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": "No valid target found. Use @name to target (e.g., /attack @goblin)",
+                    "party_id": party_id
+                }
+
+            # Get first mention as target
+            target = parsed['mentions'][0]
+            target_name = target['name']
+            target_id = target['id']
+            target_type = target['type']
+
+            # For now, return a placeholder attack message
+            # TODO: Implement full combat resolution with cached character stats
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"⚔️ {actor} attacks {target_name} ({target_type})! [Combat system integration pending]",
+                "party_id": party_id
+            }
+
+        except Exception as e:
+            logger.error(f"Attack macro error: {e}")
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"Attack failed: {str(e)}",
+                "party_id": party_id
+            }
+        finally:
+            db.close()
+
+    if cmd == "/who":
+        # List all available targets (characters and NPCs) in the party
+        db = SessionLocal()
+        try:
+            # Get cached characters (actively connected via WebSocket)
+            cached_chars = connection_manager.character_cache.get(party_id, {})
+            online_characters = []
+
+            for char_id, char_data in cached_chars.items():
+                char_type = char_data.get('type', 'character')
+                if char_type == 'character':
+                    online_characters.append(f"@{char_data['name']}")
+
+            # Get party members from database (may include offline members)
+            db_characters = (
+                db.query(Character)
+                .join(PartyMembership, PartyMembership.character_id == Character.id)
+                .filter(PartyMembership.party_id == party_id)
+                .all()
+            )
+
+            offline_characters = []
+            online_char_ids = set(cached_chars.keys())
+
+            for char in db_characters:
+                if char.id not in online_char_ids:
+                    offline_characters.append(f"@{char.name}")
+
+            # Get NPCs (visible only, unless sender is SW)
+            sender_is_sw = False
+            # TODO: Get character_id from connection metadata and check if SW
+
+            npc_query = db.query(NPC).filter(NPC.party_id == party_id)
+            if not sender_is_sw:
+                npc_query = npc_query.filter(NPC.visible_to_players == True)
+
+            npcs = npc_query.all()
+            npc_list = [f"@{npc.name}" for npc in npcs]
+
+            # Format response
+            lines = ["📋 **Available Targets:**"]
+
+            if online_characters:
+                lines.append(f"**Players (online):** {', '.join(online_characters)}")
+
+            if offline_characters:
+                lines.append(f"**Players (offline):** {', '.join(offline_characters)}")
+
+            if npc_list:
+                lines.append(f"**NPCs:** {', '.join(npc_list)}")
+
+            if not online_characters and not offline_characters and not npc_list:
+                lines.append("No characters or NPCs found in this party.")
+
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "\n".join(lines),
+                "party_id": party_id
+            }
+
+        except Exception as e:
+            logger.error(f"/who command error: {e}")
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"Failed to list targets: {str(e)}",
+                "party_id": party_id
+            }
+        finally:
+            db.close()
+
     # Unknown macro → echo as system
     return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
 
