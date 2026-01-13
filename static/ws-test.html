@@ -599,6 +599,90 @@
       min-width: 100px;
     }
 
+    /* === Loading Spinner === */
+    .loading-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 40px;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(212, 175, 55, 0.2);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-spinner p {
+      margin-top: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* === Copy Button & Tooltip === */
+    .copy-id-btn {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--accent-primary);
+      color: var(--bg-darker);
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .copy-id-btn:hover {
+      background: var(--accent-secondary);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .copy-id-btn:active {
+      transform: translateY(0);
+    }
+
+    .copied-tooltip {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--accent-success);
+      color: white;
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 14px;
+      animation: slideInRight 0.3s ease;
+      z-index: 10000;
+      box-shadow: var(--shadow-lg);
+    }
+
+    @keyframes slideInRight {
+      from {
+        transform: translateX(100px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
     /* === Responsive Design === */
     @media (max-width: 768px) {
       .main-content {
@@ -687,6 +771,9 @@
               placeholder="test-party"
             />
           </div>
+          <button id="copyPartyIdBtn" class="copy-id-btn">
+            📋 Copy Party ID
+          </button>
         </div>
 
         <!-- Character Settings -->
@@ -754,7 +841,12 @@
 
       <!-- Chat Area -->
       <main class="chat-container">
-        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-messages" id="chatMessages">
+          <div id="loadingSpinner" class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Connecting to party chat...</p>
+          </div>
+        </div>
         <div class="chat-input-container">
           <div class="chat-input-row">
             <div class="form-group">
@@ -1044,6 +1136,10 @@
 
       const wsUrl = buildWSUrl(baseUrl, partyId, characterId, apiKey);
 
+      // Show loading spinner
+      const spinner = document.getElementById('loadingSpinner');
+      if (spinner) spinner.style.display = 'flex';
+
       const statusMsg = characterId
         ? `Connecting with character caching enabled...`
         : `Connecting (legacy mode - no character caching)...`;
@@ -1053,6 +1149,10 @@
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
+          // Hide loading spinner
+          const spinner = document.getElementById('loadingSpinner');
+          if (spinner) spinner.style.display = 'none';
+
           addMessage('Connected to party chat.', 'message-card message-system');
           updateConnectionStatus(true);
           connectBtn.disabled = true;
@@ -1220,10 +1320,38 @@
       msgInput.value = '';
     });
 
-    // Allow Enter key to send message
-    msgInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !sendBtn.disabled) {
+    // Allow Enter key to send message (Shift+Enter for newlines)
+    msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !sendBtn.disabled) {
+        e.preventDefault();
         sendBtn.click();
+      }
+    });
+
+    // Copy Party ID button
+    document.getElementById('copyPartyIdBtn').addEventListener('click', async () => {
+      const partyId = partyIdEl.value.trim();
+
+      if (!partyId) {
+        addMessage('Please enter a Party ID first.', 'message-card message-error');
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(partyId);
+
+        // Show tooltip
+        const tooltip = document.createElement('div');
+        tooltip.className = 'copied-tooltip';
+        tooltip.textContent = '✓ Party ID Copied!';
+        document.body.appendChild(tooltip);
+
+        // Remove after 2 seconds
+        setTimeout(() => {
+          tooltip.remove();
+        }, 2000);
+      } catch (err) {
+        addMessage('Failed to copy Party ID.', 'message-card message-error');
       }
     });
   </script>
