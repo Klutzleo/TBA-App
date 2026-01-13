@@ -379,6 +379,23 @@
       border-left: 2px solid var(--border-color);
     }
 
+        /* Target the links directly inside dice roll cards */
+    .msg_dice_roll a {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.9) !important;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-left: 8px;
+      transition: color 0.2s, opacity 0.2s;
+    }
+
+    .msg_dice_roll a:hover {
+      color: #ffd166 !important; /* Gold on hover */
+      opacity: 1;
+      text-decoration: none;
+    }
+
+    /* Keep your original for any that DO have the class */
     .toggle-details {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.9) !important;
@@ -389,7 +406,7 @@
     }
 
     .toggle-details:hover {
-      color: rgba(255, 255, 255, 1) !important;
+      color: #ffd166 !important;
       opacity: 1;
       text-decoration: none;
     }
