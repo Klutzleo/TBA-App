@@ -68,18 +68,35 @@
       gap: 12px;
     }
 
+    .header-title .icon {
+      font-size: 24px;
+    }
+
     .header-title h1 {
       font-size: 24px;
       font-weight: 700;
       color: var(--accent-primary);
       letter-spacing: 0.5px;
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      margin: 0;
     }
 
     .header-title .subtitle {
       font-size: 12px;
       color: var(--text-muted);
       font-style: italic;
+    }
+
+    .user-menu {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .username {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 500;
     }
 
     .connection-status {
@@ -683,8 +700,69 @@
       }
     }
 
+    /* === Hamburger Button === */
+    .hamburger-btn {
+      display: none;
+      flex-direction: column;
+      justify-content: space-around;
+      width: 30px;
+      height: 24px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      z-index: 1001;
+    }
+
+    .hamburger-btn span {
+      width: 100%;
+      height: 3px;
+      background: var(--accent-primary);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+    }
+
+    .hamburger-btn.active span:nth-child(1) {
+      transform: translateY(10px) rotate(45deg);
+    }
+
+    .hamburger-btn.active span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger-btn.active span:nth-child(3) {
+      transform: translateY(-11px) rotate(-45deg);
+    }
+
+    /* === Mobile Overlay === */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 999;
+      backdrop-filter: blur(4px);
+    }
+
+    .sidebar-overlay.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
     /* === Responsive Design === */
     @media (max-width: 768px) {
+      .hamburger-btn {
+        display: flex;
+      }
+
       .main-content {
         grid-template-columns: 1fr;
       }
@@ -692,15 +770,33 @@
       .sidebar {
         position: fixed;
         left: -320px;
-        top: 70px;
-        height: calc(100vh - 70px);
+        top: 0;
+        height: 100vh;
         width: 320px;
         z-index: 1000;
         transition: left 0.3s ease;
+        box-shadow: 4px 0 12px rgba(0, 0, 0, 0.5);
       }
 
-      .sidebar.open {
+      .sidebar.active {
         left: 0;
+      }
+
+      .header {
+        padding: 12px 16px;
+      }
+
+      .connection-status {
+        font-size: 11px;
+        padding: 4px 8px;
+      }
+
+      .connection-status span:last-child {
+        display: none;
+      }
+
+      .header-title {
+        justify-content: flex-start;
       }
 
       .header-title h1 {
@@ -714,6 +810,11 @@
       .chat-input-row {
         grid-template-columns: 1fr;
       }
+
+      .chat-input-container input,
+      .chat-input-container textarea {
+        font-size: 16px;
+      }
     }
   </style>
 </head>
@@ -721,8 +822,16 @@
   <div class="app-container">
     <!-- Header -->
     <header class="header">
+      <!-- Hamburger menu (mobile only) -->
+      <button id="hamburgerBtn" class="hamburger-btn">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      
       <div class="header-title">
-        <h1>⚔️ TBA Chat</h1>
+        <span class="icon">⚔️</span>
+        <h1>TBA Chat</h1>
         <span class="subtitle">Tabletop Adventure Platform</span>
       </div>
       <div class="connection-status">
@@ -1352,6 +1461,38 @@
         }, 2000);
       } catch (err) {
         addMessage('Failed to copy Party ID.', 'message-card message-error');
+      }
+    });
+
+    // Hamburger menu toggle (mobile)
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const sidebar = document.querySelector('.sidebar');
+
+    // Create overlay element
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+
+    // Toggle sidebar on mobile
+    hamburgerBtn.addEventListener('click', () => {
+      hamburgerBtn.classList.toggle('active');
+      sidebar.classList.toggle('active');
+      overlay.classList.toggle('active');
+    });
+
+    // Close sidebar when clicking overlay
+    overlay.addEventListener('click', () => {
+      hamburgerBtn.classList.remove('active');
+      sidebar.classList.remove('active');
+      overlay.classList.remove('active');
+    });
+
+    // Close sidebar when window resizes to desktop
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 768) {
+        hamburgerBtn.classList.remove('active');
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
       }
     });
   </script>
