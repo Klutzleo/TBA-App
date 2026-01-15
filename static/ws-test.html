@@ -277,11 +277,14 @@
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0; /* Allow flex child to shrink below content size */
+      overflow: hidden; /* Contain children */
       background: var(--bg-dark);
     }
 
     .chat-messages {
       flex: 1;
+      min-height: 0; /* Critical: allows flex child to scroll instead of expanding */
       overflow-y: auto;
       padding: 24px;
       display: flex;
@@ -1656,27 +1659,52 @@
       addMessage(container, 'message-card message-combat');
     }
 
-    // Render defend action
-    function renderDefendAction(actor) {
+    // Render defend roll result
+    function renderDefendRoll(data) {
       const container = document.createElement('div');
       container.className = 'message-defend';
 
       const label = document.createElement('div');
       label.className = 'mode-label';
-      label.textContent = '🛡️ Defensive Stance';
+      label.textContent = '🛡️ Defense Roll';
       container.appendChild(label);
 
-      const status = document.createElement('div');
-      status.className = 'defend-status';
-      status.textContent = `${actor} takes a defensive stance!`;
-      container.appendChild(status);
+      const header = document.createElement('div');
+      header.className = 'defend-status';
+      const diceExpr = data.dice ? ` (${data.dice})` : '';
+      header.textContent = `${data.actor}${diceExpr}: ${data.text}`;
+      container.appendChild(header);
 
-      const effect = document.createElement('div');
-      effect.style.fontSize = '12px';
-      effect.style.color = 'var(--text-secondary)';
-      effect.style.marginTop = '8px';
-      effect.textContent = '+2 to defense rolls until next turn';
-      container.appendChild(effect);
+      // Show breakdown for SW, hidden by default for players
+      if (Array.isArray(data.breakdown)) {
+        const bd = document.createElement('div');
+        bd.style.fontFamily = 'monospace';
+        bd.style.fontSize = '12px';
+        bd.style.marginTop = '8px';
+        bd.style.padding = '8px';
+        bd.style.background = 'rgba(0, 0, 0, 0.2)';
+        bd.style.borderRadius = '4px';
+        bd.style.display = isSW() ? 'block' : 'none';
+        bd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
+
+        const toggle = document.createElement('a');
+        toggle.href = '#';
+        toggle.style.fontSize = '11px';
+        toggle.style.color = '#ffd166';
+        toggle.style.marginLeft = '8px';
+        toggle.style.textDecoration = 'underline';
+        toggle.style.cursor = 'pointer';
+        toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+        toggle.addEventListener('click', (e) => {
+          e.preventDefault();
+          const showing = bd.style.display !== 'none';
+          bd.style.display = showing ? 'none' : 'block';
+          toggle.textContent = showing ? 'Show details' : 'Hide details';
+        });
+
+        header.appendChild(toggle);
+        container.appendChild(bd);
+      }
 
       chatMessagesEl.appendChild(container);
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
@@ -1884,19 +1912,25 @@
             } else if (data.type === 'initiative') {
               renderDiceRoll(data, '🧭');
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
-              // In-Character message from another player
-              displayTypedMessage('ic', data.actor || 'Unknown', data.text);
+              // In-Character message - skip if from self (already displayed locally)
+              const myActor = actorEl.value.trim() || 'User';
+              if (data.actor !== myActor) {
+                displayTypedMessage('ic', data.actor || 'Unknown', data.text);
+              }
             } else if (data.type === 'chat_ooc' || data.chat_mode === 'ooc') {
-              // Out-of-Character message from another player
-              displayTypedMessage('ooc', data.actor || 'Unknown', data.text);
+              // Out-of-Character message - skip if from self (already displayed locally)
+              const myActor = actorEl.value.trim() || 'User';
+              if (data.actor !== myActor) {
+                displayTypedMessage('ooc', data.actor || 'Unknown', data.text);
+              }
             } else if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
               // Whisper message (only received if you're the target or SW)
               // Handle both whisper_targets (array) and whisper_target (legacy single)
               const targets = data.whisper_targets || data.whisper_target;
               displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets);
-            } else if (data.type === 'defend' || (data.text && data.text.toLowerCase().includes('defensive stance'))) {
-              // Defend action from another player
-              renderDefendAction(data.actor || 'Unknown');
+            } else if (data.type === 'defend') {
+              // Defense roll result
+              renderDefendRoll(data);
             } else {
               const content = document.createElement('div');
               content.textContent = `[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`;
@@ -1952,17 +1986,6 @@
         }
 
         // Use quick context/encounter if provided, otherwise fall back to sidebar
-        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
-        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
-        if (ctx) payload.context = ctx;
-        if (encId) payload.encounter_id = encId;
-
-        ws.send(JSON.stringify(payload));
-      } else if (/^\/defend\s*$/i.test(text)) {
-        // /defend command - display locally and send to server
-        renderDefendAction(actor);
-
-        const payload = { type: 'message', actor, text };
         const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
         const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
         if (ctx) payload.context = ctx;

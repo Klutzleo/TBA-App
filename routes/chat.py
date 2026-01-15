@@ -628,8 +628,46 @@ def parse_dice_notation(expr: str) -> Dict[str, Any]:
     return {"rolls": rolls, "modifier": mod, "total": total}
 
 
-async def handle_macro(party_id: str, actor: str, text: str, context: Optional[str] = None, encounter_id: Optional[str] = None) -> Dict[str, Any]:
-    """Handle simple system macros: /roll, /pp, /ip, /sp, /initiative (placeholder)."""
+def check_story_weaver(character_id: Optional[str], party_id: str) -> tuple[bool, Optional[str]]:
+    """
+    Check if character is the Story Weaver for this party.
+
+    Args:
+        character_id: The character ID to check
+        party_id: The party ID
+
+    Returns:
+        Tuple of (is_sw: bool, error_message: Optional[str])
+    """
+    if not character_id:
+        return False, "⚠️ Cannot verify Story Weaver status without character_id. Please reconnect."
+
+    # Check cached party data first
+    party_meta = connection_manager.party_cache.get(party_id, {})
+    sw_id = party_meta.get("story_weaver_id")
+
+    if sw_id:
+        if character_id == sw_id:
+            return True, None
+        return False, "⚠️ Only the Story Weaver can use this command."
+
+    # Fallback to database query
+    db = SessionLocal()
+    try:
+        party = db.query(Party).filter(Party.id == party_id).first()
+        if not party:
+            return False, "Party not found."
+
+        if character_id != party.story_weaver_id:
+            return False, "⚠️ Only the Story Weaver can use this command."
+
+        return True, None
+    finally:
+        db.close()
+
+
+async def handle_macro(party_id: str, actor: str, text: str, context: Optional[str] = None, encounter_id: Optional[str] = None, character_id: Optional[str] = None) -> Dict[str, Any]:
+    """Handle simple system macros: /roll, /pp, /ip, /sp, /initiative, /attack, /defend, combat management."""
     parts = text.strip().split()
     cmd = parts[0].lower()
     if cmd == "/roll":
@@ -715,12 +753,31 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "party_id": party_id,
         }
     if cmd == "/initiative":
+        # Get character stats from cache for Edge bonus
+        char_data = None
+        char_id = None
+        for cid, data in connection_manager.character_cache.get(party_id, {}).items():
+            if data.get("name", "").lower() == actor.lower():
+                char_data = data
+                char_id = cid
+                break
+
+        # Use character's Edge if available, else default to 1
+        edge_mod = char_data.get("edge", 1) if char_data else 1
+
         base_roll = random.randint(1, 6)
-        edge_mod = 1  # simple edge placeholder
         result = base_roll + edge_mod
-        formula = "1d6+1"
+        formula = f"1d6+{edge_mod}"
         equation = f"{base_roll} + {edge_mod} = {result}"
         pretty_text = f"{formula} → {equation}"
+
+        # Register with active encounter if one exists
+        encounter = connection_manager.get_encounter(party_id)
+        if encounter and char_id:
+            char_type = char_data.get("type", "character") if char_data else "character"
+            connection_manager.add_combatant(party_id, char_id, actor, char_type)
+            connection_manager.roll_initiative(party_id, char_id, result)
+
         # Log initiative to combat log
         try:
             await log_if_allowed("initiative", {
@@ -763,14 +820,14 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 
         # Parse mentions using mention_parser
         from backend.mention_parser import parse_mentions
+        from backend.roll_logic import resolve_multi_die_attack
 
         db = SessionLocal()
         try:
             # Determine if sender is SW for hidden NPC visibility
             sender_is_sw = False
-            # TODO: Get character_id from connection metadata and check if SW
 
-            # FIXED: Pass connection_manager to check cached characters first
+            # Pass connection_manager to check cached characters first
             parsed = parse_mentions(args, party_id, db, sender_is_sw, connection_manager)
 
             if parsed['unresolved']:
@@ -791,17 +848,135 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 }
 
             # Get first mention as target
-            target = parsed['mentions'][0]
-            target_name = target['name']
-            target_id = target['id']
-            target_type = target['type']
+            target_mention = parsed['mentions'][0]
+            target_name = target_mention['name']
+            target_id = target_mention['id']
+            target_type = target_mention['type']
 
-            # For now, return a placeholder attack message
-            # TODO: Implement full combat resolution with cached character stats
+            # Get attacker stats from cache
+            attacker_data = None
+            for _, data in connection_manager.character_cache.get(party_id, {}).items():
+                if data.get("name", "").lower() == actor.lower():
+                    attacker_data = data
+                    break
+
+            # Get target stats from cache or database
+            defender_data = connection_manager.character_cache.get(party_id, {}).get(target_id)
+
+            if not defender_data:
+                # Try to get from database
+                if target_type == "character":
+                    char = db.query(Character).filter(Character.id == target_id).first()
+                    if char:
+                        defender_data = {
+                            "id": char.id,
+                            "name": char.name,
+                            "type": "character",
+                            "pp": char.pp,
+                            "ip": char.ip,
+                            "sp": char.sp,
+                            "edge": char.edge,
+                            "dp": char.dp,
+                            "max_dp": char.max_dp,
+                            "attack_style": char.attack_style,
+                            "defense_die": char.defense_die
+                        }
+                elif target_type == "npc":
+                    npc = db.query(NPC).filter(NPC.id == target_id).first()
+                    if npc:
+                        defender_data = {
+                            "id": npc.id,
+                            "name": npc.name,
+                            "type": "npc",
+                            "pp": npc.pp,
+                            "ip": npc.ip,
+                            "sp": npc.sp,
+                            "edge": npc.edge,
+                            "dp": npc.dp,
+                            "max_dp": npc.max_dp,
+                            "attack_style": npc.attack_style,
+                            "defense_die": npc.defense_die
+                        }
+
+            if not attacker_data:
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": f"Cannot attack: Your character data is not cached. Please reconnect with character_id.",
+                    "party_id": party_id
+                }
+
+            if not defender_data:
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": f"Cannot attack: Target '{target_name}' data not found.",
+                    "party_id": party_id
+                }
+
+            # Check if defender is alive
+            if defender_data.get("dp", 0) <= 0:
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": f"{target_name} is already defeated (DP: {defender_data.get('dp', 0)}).",
+                    "party_id": party_id
+                }
+
+            # Get attack and defense stats
+            attacker_die = attacker_data.get("attack_style", "1d6")
+            defense_die = defender_data.get("defense_die", "1d6")
+            attacker_pp = attacker_data.get("pp", 1)
+            defender_pp = defender_data.get("pp", 1)
+            attacker_edge = attacker_data.get("edge", 0)
+
+            # Resolve multi-die attack
+            result = resolve_multi_die_attack(
+                attacker={"name": actor},
+                attacker_die_str=attacker_die,
+                attacker_stat_value=attacker_pp,
+                defender={"name": target_name},
+                defense_die_str=defense_die,
+                defender_stat_value=defender_pp,
+                edge=attacker_edge,
+                bap_triggered=False,
+                weapon_bonus=0
+            )
+
+            # Calculate new DP
+            old_dp = defender_data.get("dp", 20)
+            new_dp = max(0, old_dp - result["total_damage"])
+
+            # Persist DP change to database
+            if target_type == "character":
+                char = db.query(Character).filter(Character.id == target_id).first()
+                if char:
+                    char.dp = new_dp
+                    db.commit()
+            elif target_type == "npc":
+                npc = db.query(NPC).filter(NPC.id == target_id).first()
+                if npc:
+                    npc.dp = new_dp
+                    db.commit()
+
+            # Update cache
+            if target_id in connection_manager.character_cache.get(party_id, {}):
+                connection_manager.character_cache[party_id][target_id]["dp"] = new_dp
+
+            # Return combat event message for broadcast
             return {
-                "type": "system",
-                "actor": "system",
-                "text": f"⚔️ {actor} attacks {target_name} ({target_type})! [Combat system integration pending]",
+                "type": "combat_event",
+                "attacker": actor,
+                "attacker_name": actor,
+                "defender": target_name,
+                "defender_name": target_name,
+                "technique": "Basic Attack",
+                "total_damage": result["total_damage"],
+                "outcome": result["outcome"],
+                "narrative": result["narrative"],
+                "defender_new_dp": new_dp,
+                "defender_max_dp": defender_data.get("max_dp", 20),
+                "individual_rolls": result["individual_rolls"],
                 "party_id": party_id
             }
 
@@ -815,6 +990,63 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             }
         finally:
             db.close()
+
+    if cmd == "/defend":
+        # Roll defense die for the character
+        # Get character stats from cache if available
+        char_data = None
+        for char_id, data in connection_manager.character_cache.get(party_id, {}).items():
+            if data.get("name", "").lower() == actor.lower():
+                char_data = data
+                break
+
+        # Default defense die is 1d6 if not found
+        defense_die = "1d6"
+        if char_data and char_data.get("defense_die"):
+            defense_die = char_data["defense_die"]
+
+        # Parse and roll the defense die
+        try:
+            result = parse_dice_notation(defense_die)
+            plus_join = " + ".join(map(str, result["rolls"]))
+            modifier = result["modifier"]
+            if modifier:
+                mod_str = f" + {abs(modifier)}" if modifier > 0 else f" - {abs(modifier)}"
+                equation = f"({plus_join}){mod_str} = {result['total']}"
+            else:
+                equation = f"{plus_join} = {result['total']}"
+            pretty_text = f"{defense_die} → {equation}"
+
+            # Log defense roll
+            try:
+                await log_if_allowed("defend", {
+                    "event": "defend",
+                    "actor": actor,
+                    "party_id": party_id,
+                    "dice": defense_die,
+                    "breakdown": result["rolls"],
+                    "modifier": modifier,
+                    "result": result["total"],
+                    "text": pretty_text,
+                    "context": context,
+                    "encounter_id": encounter_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            except Exception:
+                pass
+
+            return {
+                "type": "defend",
+                "actor": actor,
+                "text": pretty_text,
+                "dice": defense_die,
+                "result": result["total"],
+                "breakdown": result["rolls"],
+                "modifier": modifier,
+                "party_id": party_id,
+            }
+        except Exception as e:
+            return {"type": "system", "actor": "system", "text": f"Defense roll error: {e}", "party_id": party_id}
 
     if cmd == "/who":
         # List all available targets (characters and NPCs) in the party
@@ -887,6 +1119,144 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             }
         finally:
             db.close()
+
+    if cmd == "/start-combat":
+        # SW-only: Start a combat encounter
+        is_sw, error_msg = check_story_weaver(character_id, party_id)
+        if not is_sw:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": error_msg,
+                "party_id": party_id
+            }
+
+        encounter_id = connection_manager.start_encounter(party_id, actor)
+        return {
+            "type": "system",
+            "actor": "system",
+            "text": f"⚔️ Combat encounter started! All combatants roll /initiative to join the fight.",
+            "party_id": party_id
+        }
+
+    if cmd == "/end-combat":
+        # SW-only: End the current combat encounter
+        is_sw, error_msg = check_story_weaver(character_id, party_id)
+        if not is_sw:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": error_msg,
+                "party_id": party_id
+            }
+
+        encounter = connection_manager.get_encounter(party_id)
+        if not encounter:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "No active combat encounter to end.",
+                "party_id": party_id
+            }
+        connection_manager.end_encounter(party_id)
+        return {
+            "type": "system",
+            "actor": "system",
+            "text": "🏁 Combat encounter ended.",
+            "party_id": party_id
+        }
+
+    if cmd == "/turn-order":
+        # Display current turn order
+        encounter = connection_manager.get_encounter(party_id)
+        if not encounter:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "No active combat encounter. Use /start-combat to begin.",
+                "party_id": party_id
+            }
+
+        # Sort initiative if not already sorted
+        if not encounter.get('turn_order'):
+            connection_manager.sort_initiative(party_id)
+            encounter = connection_manager.get_encounter(party_id)
+
+        turn_order = encounter.get('turn_order', [])
+        if not turn_order:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "No combatants have rolled initiative yet. Everyone roll /initiative!",
+                "party_id": party_id
+            }
+
+        # Format turn order display
+        current_idx = encounter.get('current_turn_index', 0)
+        turn_num = encounter.get('turn_number', 1)
+        lines = [f"🧭 **Turn Order** (Round {turn_num})"]
+
+        for i, combatant in enumerate(turn_order):
+            marker = "▶️ " if i == current_idx else "   "
+            init_val = combatant.get('initiative', '?')
+            lines.append(f"{marker}{i+1}. {combatant['name']} (Init: {init_val})")
+
+        return {
+            "type": "system",
+            "actor": "system",
+            "text": "\n".join(lines),
+            "party_id": party_id
+        }
+
+    if cmd == "/next-turn":
+        # SW-only: Advance to next combatant
+        is_sw, error_msg = check_story_weaver(character_id, party_id)
+        if not is_sw:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": error_msg,
+                "party_id": party_id
+            }
+
+        encounter = connection_manager.get_encounter(party_id)
+        if not encounter:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "No active combat encounter.",
+                "party_id": party_id
+            }
+
+        turn_order = encounter.get('turn_order', [])
+        if not turn_order:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "Turn order not established. Everyone roll /initiative first!",
+                "party_id": party_id
+            }
+
+        # Advance turn
+        connection_manager.next_turn(party_id)
+        encounter = connection_manager.get_encounter(party_id)
+
+        current_combatant = connection_manager.get_current_turn(party_id)
+        turn_num = encounter.get('turn_number', 1)
+
+        if current_combatant:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"⏭️ **{current_combatant['name']}**'s turn! (Round {turn_num})",
+                "party_id": party_id
+            }
+        return {
+            "type": "system",
+            "actor": "system",
+            "text": "Turn advanced.",
+            "party_id": party_id
+        }
 
     # Unknown macro → echo as system
     return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
@@ -1013,9 +1383,27 @@ async def chat_party_ws(
                         pass
                     continue
                 macro_last_ts[key] = now
-                msg = await handle_macro(party_id, actor, text, ctx, enc_id)
-                # Regular broadcast for macro results
-                await broadcast(party_id, msg)
+                msg = await handle_macro(party_id, actor, text, ctx, enc_id, character_id)
+
+                # Check if this is an error/unknown command - send only to sender
+                is_error_message = (
+                    msg.get("type") == "system" and
+                    msg.get("actor") == "system" and
+                    any(phrase in msg.get("text", "").lower() for phrase in [
+                        "unknown command", "usage:", "not found", "error", "failed", "invalid",
+                        "only the story weaver", "cannot verify"
+                    ])
+                )
+
+                if is_error_message:
+                    # Send error only to the sender, not to everyone
+                    try:
+                        await websocket.send_json(msg)
+                    except Exception:
+                        pass
+                else:
+                    # Regular broadcast for valid macro results
+                    await broadcast(party_id, msg)
             elif chat_mode == "whisper" and whisper_targets:
                 # Private whisper - only send to targets and SW
                 msg = {
