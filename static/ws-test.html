@@ -587,6 +587,229 @@
       font-size: 13px;
     }
 
+    /* === Chat Mode Styles (IC/OOC/Whisper) === */
+    .message-ic {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      background: rgba(16, 185, 129, 0.1);
+      border-left: 3px solid var(--accent-success);
+      box-shadow: var(--shadow-sm);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .message-ic .mode-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent-success);
+      margin-bottom: 4px;
+    }
+
+    .message-ic .actor-name {
+      color: var(--accent-success);
+    }
+
+    .message-ic .message-text {
+      font-style: italic;
+      color: var(--text-primary);
+    }
+
+    .message-ooc {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      background: rgba(107, 114, 128, 0.15);
+      border-left: 3px solid var(--text-muted);
+      box-shadow: var(--shadow-sm);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .message-ooc .mode-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .message-ooc .actor-name {
+      color: var(--text-secondary);
+    }
+
+    .message-ooc .message-text {
+      color: var(--text-secondary);
+    }
+
+    .message-whisper {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      background: rgba(139, 92, 246, 0.1);
+      border-left: 3px solid #8b5cf6;
+      box-shadow: var(--shadow-sm);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .message-whisper .mode-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8b5cf6;
+      margin-bottom: 4px;
+    }
+
+    .message-whisper .actor-name {
+      color: #8b5cf6;
+    }
+
+    .message-whisper .whisper-target {
+      font-size: 11px;
+      color: #a78bfa;
+      font-style: italic;
+    }
+
+    .message-whisper .message-text {
+      color: var(--text-primary);
+      font-style: italic;
+    }
+
+    /* === DP Bar Styles === */
+    .dp-bar-container {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dp-bar-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      min-width: 60px;
+    }
+
+    .dp-bar {
+      flex: 1;
+      height: 18px;
+      background: var(--bg-darker);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .dp-bar-fill {
+      height: 100%;
+      transition: width 0.5s ease-out, background 0.3s;
+      border-radius: var(--radius-sm);
+    }
+
+    .dp-bar-fill.dp-high {
+      background: linear-gradient(90deg, #10b981, #34d399);
+    }
+
+    .dp-bar-fill.dp-medium {
+      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    }
+
+    .dp-bar-fill.dp-low {
+      background: linear-gradient(90deg, #ef4444, #f87171);
+    }
+
+    .dp-bar-fill.dp-critical {
+      background: linear-gradient(90deg, #991b1b, #dc2626);
+      animation: dpPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes dpPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .dp-bar-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      font-weight: 700;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Combat result enhancements */
+    .combat-damage {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent-combat);
+      text-align: center;
+      margin: 12px 0;
+      text-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+    }
+
+    .combat-damage.no-damage {
+      color: var(--text-muted);
+      font-size: 18px;
+    }
+
+    .combat-miss {
+      text-align: center;
+      font-style: italic;
+      color: var(--text-muted);
+      margin: 8px 0;
+    }
+
+    .combat-critical {
+      text-align: center;
+      font-weight: 700;
+      color: var(--accent-primary);
+      margin: 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .combat-defeated {
+      text-align: center;
+      font-weight: 700;
+      color: var(--accent-combat);
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--accent-combat);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      animation: defeatPulse 0.5s ease-out;
+    }
+
+    @keyframes defeatPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* /defend command styling */
+    .message-defend {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 3px solid #3b82f6;
+      box-shadow: var(--shadow-sm);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .message-defend .mode-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #3b82f6;
+      margin-bottom: 4px;
+    }
+
+    .defend-status {
+      font-weight: 600;
+      color: #60a5fa;
+    }
+
     /* === Chat Input === */
     .chat-input-container {
       padding: 20px 24px;
@@ -614,6 +837,16 @@
     .chat-input-main button {
       width: auto;
       min-width: 100px;
+    }
+
+    /* === Textarea for Message Input === */
+    .chat-input-main textarea.form-input {
+      flex: 1;
+      resize: none;
+      max-height: 120px;
+      overflow-y: auto;
+      line-height: 1.4;
+      font-family: inherit;
     }
 
     /* === Loading Spinner === */
@@ -973,12 +1206,12 @@
             </div>
           </div>
           <div class="chat-input-main">
-            <input
-              type="text"
+            <textarea
               class="form-input"
               id="messageInput"
+              rows="1"
               placeholder="Type a message or command..."
-            />
+            ></textarea>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
           </div>
         </div>
@@ -1149,31 +1382,269 @@
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
     }
 
+    // Display typed message (IC, OOC, Whisper)
+    // targets can be a string (single target) or array (multiple targets)
+    function displayTypedMessage(mode, actor, text, targets = null) {
+      const container = document.createElement('div');
+
+      if (mode === 'ic') {
+        container.className = 'message-ic';
+
+        const label = document.createElement('div');
+        label.className = 'mode-label';
+        label.textContent = '🎭 In Character';
+        container.appendChild(label);
+
+        const actorSpan = document.createElement('span');
+        actorSpan.className = 'actor-name';
+        actorSpan.textContent = actor;
+        container.appendChild(actorSpan);
+
+        const textDiv = document.createElement('div');
+        textDiv.className = 'message-text';
+        textDiv.textContent = `"${text}"`;
+        container.appendChild(textDiv);
+
+      } else if (mode === 'ooc') {
+        container.className = 'message-ooc';
+
+        const label = document.createElement('div');
+        label.className = 'mode-label';
+        label.textContent = '💬 Out of Character';
+        container.appendChild(label);
+
+        const content = document.createElement('div');
+        const actorSpan = document.createElement('span');
+        actorSpan.className = 'actor-name';
+        actorSpan.textContent = `[${actor}]`;
+        content.appendChild(actorSpan);
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'message-text';
+        textSpan.textContent = ` ${text}`;
+        content.appendChild(textSpan);
+        container.appendChild(content);
+
+      } else if (mode === 'whisper') {
+        container.className = 'message-whisper';
+
+        const label = document.createElement('div');
+        label.className = 'mode-label';
+        label.textContent = '🤫 Whisper';
+        container.appendChild(label);
+
+        const actorSpan = document.createElement('span');
+        actorSpan.className = 'actor-name';
+        actorSpan.textContent = actor;
+        container.appendChild(actorSpan);
+
+        if (targets) {
+          const targetSpan = document.createElement('span');
+          targetSpan.className = 'whisper-target';
+          // Handle both single target (string) and multiple targets (array)
+          const targetList = Array.isArray(targets) ? targets : [targets];
+          targetSpan.textContent = ` → ${targetList.join(', ')}`;
+          container.appendChild(targetSpan);
+        }
+
+        const textDiv = document.createElement('div');
+        textDiv.className = 'message-text';
+        textDiv.textContent = `"${text}"`;
+        container.appendChild(textDiv);
+      }
+
+      chatMessagesEl.appendChild(container);
+      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+    }
+
+    // Parse chat command and return mode info
+    function parseChatCommand(text) {
+      // /say <message> - In-Character speech
+      const sayMatch = text.match(/^\/say\s+(.+)$/i);
+      if (sayMatch) {
+        return { mode: 'ic', text: sayMatch[1], targets: null };
+      }
+
+      // /ooc <message> - Out-of-Character chat
+      const oocMatch = text.match(/^\/ooc\s+(.+)$/i);
+      if (oocMatch) {
+        return { mode: 'ooc', text: oocMatch[1], targets: null };
+      }
+
+      // /whisper @Target1 @Target2 <message> or /whisper @Target1, @Target2 <message>
+      // Supports multiple @mentions
+      const whisperMatch = text.match(/^\/whisper\s+(.+)$/i);
+      if (whisperMatch) {
+        return parseWhisperTargets(whisperMatch[1]);
+      }
+
+      // /w @Target1 @Target2 <message> - Shorthand whisper
+      const wMatch = text.match(/^\/w\s+(.+)$/i);
+      if (wMatch) {
+        return parseWhisperTargets(wMatch[1]);
+      }
+
+      // Not a chat mode command
+      return null;
+    }
+
+    // Parse whisper targets from the argument string
+    // Supports: @Alice @Bob message, @Alice, @Bob message, @Alice message
+    function parseWhisperTargets(argString) {
+      // Find all @mentions at the start
+      const targets = [];
+      let remaining = argString.trim();
+
+      // Match @mentions (with optional trailing comma)
+      const mentionPattern = /^@(\S+?),?\s*/;
+      let match;
+
+      while ((match = remaining.match(mentionPattern)) !== null) {
+        // Check if this looks like a username (not the start of the message)
+        const potentialTarget = match[1].replace(/,$/, ''); // Remove trailing comma if any
+
+        // If the "target" contains sentence-ending punctuation, it's probably the message
+        if (/[.!?]$/.test(potentialTarget) || potentialTarget.length > 30) {
+          break;
+        }
+
+        targets.push(potentialTarget);
+        remaining = remaining.slice(match[0].length);
+      }
+
+      // If no targets found, invalid whisper
+      if (targets.length === 0) {
+        return null;
+      }
+
+      // The rest is the message
+      const message = remaining.trim();
+      if (!message) {
+        return null; // No message provided
+      }
+
+      return {
+        mode: 'whisper',
+        text: message,
+        targets: targets // Array of targets
+      };
+    }
+
+    // Check if command is a combat command that needs local display
+    function isCombatCommand(text) {
+      return /^\/defend\s*$/i.test(text);
+    }
+
     // === Message Renderers ===
     function renderCombatEvent(data) {
       const container = document.createElement('div');
 
       const header = document.createElement('div');
       header.className = 'message-header';
-      header.innerHTML = `<span class="icon">⚔️</span><span>${data.attacker_name} attacks ${data.defender_name}</span>`;
+      header.innerHTML = `<span class="icon">⚔️</span><span>${data.attacker_name || data.attacker} attacks ${data.defender_name || data.defender}</span>`;
       container.appendChild(header);
+
+      // Show technique if available
+      if (data.technique) {
+        const techniqueDiv = document.createElement('div');
+        techniqueDiv.style.fontSize = '12px';
+        techniqueDiv.style.color = 'var(--text-muted)';
+        techniqueDiv.style.marginBottom = '8px';
+        techniqueDiv.textContent = `Using: ${data.technique}`;
+        container.appendChild(techniqueDiv);
+      }
 
       if (data.individual_rolls && Array.isArray(data.individual_rolls)) {
         const rollsDiv = document.createElement('div');
-        rollsDiv.className = 'message-rolls';
+        rollsDiv.className = `message-rolls ${isSW() ? '' : 'breakdown-hidden'}`;
         data.individual_rolls.forEach((roll, i) => {
           const rollLine = document.createElement('div');
           const dmg = roll.damage > 0 ? `✓ ${roll.damage}dmg` : '✗ 0dmg';
           rollLine.textContent = `[${i + 1}] ${roll.attacker_roll} vs ${roll.defense_roll} → margin ${roll.margin} = ${dmg}`;
           rollsDiv.appendChild(rollLine);
         });
+
+        // Add toggle for non-SW
+        if (!isSW()) {
+          const toggle = document.createElement('a');
+          toggle.href = '#';
+          toggle.className = 'toggle-details';
+          toggle.textContent = 'Show details';
+          toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            const showing = !rollsDiv.classList.contains('breakdown-hidden');
+            rollsDiv.classList.toggle('breakdown-hidden');
+            toggle.textContent = showing ? 'Show details' : 'Hide details';
+          });
+          header.appendChild(toggle);
+        }
+
         container.appendChild(rollsDiv);
       }
 
-      const outcome = document.createElement('div');
-      outcome.className = 'message-outcome';
-      outcome.textContent = `💥 ${data.total_damage} total damage | ${data.defender_name}: ${data.defender_new_dp} DP remaining`;
-      container.appendChild(outcome);
+      // Big damage number
+      const damageDiv = document.createElement('div');
+      const totalDamage = data.total_damage || 0;
+      if (totalDamage > 0) {
+        damageDiv.className = 'combat-damage';
+        damageDiv.textContent = `💥 ${totalDamage} DAMAGE`;
+      } else {
+        damageDiv.className = 'combat-damage no-damage';
+        damageDiv.textContent = '🛡️ BLOCKED';
+      }
+      container.appendChild(damageDiv);
+
+      // DP Bar for defender
+      const defenderName = data.defender_name || data.defender;
+      const newDP = data.defender_new_dp;
+      if (newDP !== undefined) {
+        const dpContainer = document.createElement('div');
+        dpContainer.className = 'dp-bar-container';
+
+        const dpLabel = document.createElement('span');
+        dpLabel.className = 'dp-bar-label';
+        dpLabel.textContent = defenderName;
+        dpContainer.appendChild(dpLabel);
+
+        const dpBar = document.createElement('div');
+        dpBar.className = 'dp-bar';
+
+        // Estimate max DP (use 20 as default if not known)
+        const maxDP = data.defender_max_dp || Math.max(20, newDP + totalDamage);
+        const dpPercent = Math.max(0, Math.min(100, (newDP / maxDP) * 100));
+
+        const dpFill = document.createElement('div');
+        dpFill.className = 'dp-bar-fill';
+        dpFill.style.width = dpPercent + '%';
+
+        // Color based on DP percentage
+        if (dpPercent > 50) {
+          dpFill.classList.add('dp-high');
+        } else if (dpPercent > 25) {
+          dpFill.classList.add('dp-medium');
+        } else if (dpPercent > 10) {
+          dpFill.classList.add('dp-low');
+        } else {
+          dpFill.classList.add('dp-critical');
+        }
+
+        const dpText = document.createElement('span');
+        dpText.className = 'dp-bar-text';
+        dpText.textContent = `${newDP} DP`;
+
+        dpBar.appendChild(dpFill);
+        dpBar.appendChild(dpText);
+        dpContainer.appendChild(dpBar);
+        container.appendChild(dpContainer);
+
+        // Defeated message
+        if (newDP <= 0) {
+          const defeatedDiv = document.createElement('div');
+          defeatedDiv.className = 'combat-defeated';
+          defeatedDiv.textContent = `💀 ${defenderName} has been defeated!`;
+          container.appendChild(defeatedDiv);
+        }
+      }
 
       if (data.narrative) {
         const narrative = document.createElement('div');
@@ -1183,6 +1654,32 @@
       }
 
       addMessage(container, 'message-card message-combat');
+    }
+
+    // Render defend action
+    function renderDefendAction(actor) {
+      const container = document.createElement('div');
+      container.className = 'message-defend';
+
+      const label = document.createElement('div');
+      label.className = 'mode-label';
+      label.textContent = '🛡️ Defensive Stance';
+      container.appendChild(label);
+
+      const status = document.createElement('div');
+      status.className = 'defend-status';
+      status.textContent = `${actor} takes a defensive stance!`;
+      container.appendChild(status);
+
+      const effect = document.createElement('div');
+      effect.style.fontSize = '12px';
+      effect.style.color = 'var(--text-secondary)';
+      effect.style.marginTop = '8px';
+      effect.textContent = '+2 to defense rolls until next turn';
+      container.appendChild(effect);
+
+      chatMessagesEl.appendChild(container);
+      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
     }
 
     function renderDiceRoll(data, icon = '🎲') {
@@ -1386,6 +1883,20 @@
               chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
             } else if (data.type === 'initiative') {
               renderDiceRoll(data, '🧭');
+            } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
+              // In-Character message from another player
+              displayTypedMessage('ic', data.actor || 'Unknown', data.text);
+            } else if (data.type === 'chat_ooc' || data.chat_mode === 'ooc') {
+              // Out-of-Character message from another player
+              displayTypedMessage('ooc', data.actor || 'Unknown', data.text);
+            } else if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
+              // Whisper message (only received if you're the target or SW)
+              // Handle both whisper_targets (array) and whisper_target (legacy single)
+              const targets = data.whisper_targets || data.whisper_target;
+              displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets);
+            } else if (data.type === 'defend' || (data.text && data.text.toLowerCase().includes('defensive stance'))) {
+              // Defend action from another player
+              renderDefendAction(data.actor || 'Unknown');
             } else {
               const content = document.createElement('div');
               content.textContent = `[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`;
@@ -1421,17 +1932,59 @@
       const text = msgInput.value.trim();
       const actor = actorEl.value.trim() || 'User';
       if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-      const payload = { type: 'message', actor, text };
 
-      // Use quick context/encounter if provided, otherwise fall back to sidebar
-      const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
-      const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+      // Check for chat mode commands (/say, /ooc, /whisper)
+      const chatCmd = parseChatCommand(text);
+      if (chatCmd) {
+        // Display locally with styled message
+        displayTypedMessage(chatCmd.mode, actor, chatCmd.text, chatCmd.targets);
 
-      if (ctx) payload.context = ctx;
-      if (encId) payload.encounter_id = encId;
+        // Build payload with chat_mode for server
+        const payload = {
+          type: 'message',
+          actor,
+          text: chatCmd.text,
+          chat_mode: chatCmd.mode
+        };
 
-      ws.send(JSON.stringify(payload));
+        if (chatCmd.targets) {
+          payload.whisper_targets = chatCmd.targets; // Array of targets
+        }
+
+        // Use quick context/encounter if provided, otherwise fall back to sidebar
+        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
+        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+        if (ctx) payload.context = ctx;
+        if (encId) payload.encounter_id = encId;
+
+        ws.send(JSON.stringify(payload));
+      } else if (/^\/defend\s*$/i.test(text)) {
+        // /defend command - display locally and send to server
+        renderDefendAction(actor);
+
+        const payload = { type: 'message', actor, text };
+        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
+        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+        if (ctx) payload.context = ctx;
+        if (encId) payload.encounter_id = encId;
+
+        ws.send(JSON.stringify(payload));
+      } else {
+        // Regular message or other command (like /roll, /attack)
+        const payload = { type: 'message', actor, text };
+
+        // Use quick context/encounter if provided, otherwise fall back to sidebar
+        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
+        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+
+        if (ctx) payload.context = ctx;
+        if (encId) payload.encounter_id = encId;
+
+        ws.send(JSON.stringify(payload));
+      }
+
       msgInput.value = '';
+      msgInput.style.height = 'auto'; // Reset textarea height
     });
 
     // Allow Enter key to send message (Shift+Enter for newlines)
@@ -1440,6 +1993,12 @@
         e.preventDefault();
         sendBtn.click();
       }
+    });
+
+    // Auto-resize textarea as user types
+    msgInput.addEventListener('input', () => {
+      msgInput.style.height = 'auto';
+      msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
     });
 
     // Copy Party ID button

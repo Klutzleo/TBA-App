@@ -178,6 +178,44 @@ class ConnectionManager:
                 logger.warning(f"Broadcast failed to connection: {e}")
                 # Connection will be cleaned up on next disconnect
 
+    async def broadcast_whisper(
+        self,
+        party_id: str,
+        message: Dict[str, Any],
+        target_names: List[str],
+        sender_name: str
+    ):
+        """
+        Broadcast a whisper message only to specific targets and the Story Weaver.
+
+        Args:
+            party_id: The party ID
+            message: The message to send
+            target_names: List of character names who should receive the whisper
+            sender_name: Name of the sender (so they don't receive their own message back)
+        """
+        # Normalize target names for case-insensitive matching
+        target_names_lower = [name.lower() for name in target_names]
+        sender_name_lower = sender_name.lower() if sender_name else ""
+
+        for ws, char_id, metadata in self.active_connections.get(party_id, []):
+            try:
+                char_name = metadata.get("character_name", "").lower()
+                is_sw = metadata.get("role") == "SW"
+
+                # Send to: targets, Story Weaver (always sees whispers), but not back to sender
+                should_receive = (
+                    (char_name in target_names_lower and char_name != sender_name_lower) or
+                    (is_sw and char_name != sender_name_lower)
+                )
+
+                if should_receive:
+                    await ws.send_json(message)
+                    logger.debug(f"Whisper sent to {char_name} (SW={is_sw})")
+
+            except Exception as e:
+                logger.warning(f"Whisper broadcast failed to connection: {e}")
+
     def get_character_stats(self, party_id: str, character_id: str) -> Optional[Dict[str, Any]]:
         """
         Get cached character stats.
@@ -953,6 +991,8 @@ async def chat_party_ws(
             text = payload.get("text", "")
             ctx = payload.get("context")
             enc_id = payload.get("encounter_id")
+            chat_mode = payload.get("chat_mode")  # ic, ooc, or whisper
+            whisper_targets = payload.get("whisper_targets", [])  # List of target names
 
             if isinstance(text, str) and text.startswith("/"):
                 # Simple macro throttle per actor in party to prevent spam
@@ -974,14 +1014,34 @@ async def chat_party_ws(
                     continue
                 macro_last_ts[key] = now
                 msg = await handle_macro(party_id, actor, text, ctx, enc_id)
+                # Regular broadcast for macro results
+                await broadcast(party_id, msg)
+            elif chat_mode == "whisper" and whisper_targets:
+                # Private whisper - only send to targets and SW
+                msg = {
+                    "type": "message",
+                    "actor": actor,
+                    "text": text,
+                    "party_id": party_id,
+                    "chat_mode": "whisper",
+                    "whisper_targets": whisper_targets,
+                }
+                await connection_manager.broadcast_whisper(
+                    party_id, msg, whisper_targets, actor
+                )
+                logger.info(f"Whisper from {actor} to {whisper_targets}: {text[:50]}...")
             else:
+                # Regular message or IC/OOC (broadcast to all)
                 msg = {
                     "type": payload.get("type", "message"),
                     "actor": actor,
                     "text": text,
                     "party_id": party_id,
                 }
-            await broadcast(party_id, msg)
+                # Include chat_mode if present (for IC/OOC styling on clients)
+                if chat_mode:
+                    msg["chat_mode"] = chat_mode
+                await broadcast(party_id, msg)
     except WebSocketDisconnect:
         # Notify party of leave
         if character_id and character_name != "Unknown":
