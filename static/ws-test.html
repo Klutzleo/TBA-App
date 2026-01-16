@@ -1498,16 +1498,16 @@
       const targets = [];
       let remaining = argString.trim();
 
-      // Match @mentions (with optional trailing comma)
-      const mentionPattern = /^@(\S+?),?\s*/;
+      // Match @mentions - greedy match for the name, with optional trailing comma
+      // Pattern: @Name followed by optional comma, then whitespace
+      const mentionPattern = /^@([A-Za-z0-9_-]+),?\s*/;
       let match;
 
       while ((match = remaining.match(mentionPattern)) !== null) {
-        // Check if this looks like a username (not the start of the message)
-        const potentialTarget = match[1].replace(/,$/, ''); // Remove trailing comma if any
+        const potentialTarget = match[1]; // Already captured without comma
 
-        // If the "target" contains sentence-ending punctuation, it's probably the message
-        if (/[.!?]$/.test(potentialTarget) || potentialTarget.length > 30) {
+        // If the "target" is too long, it's probably not a username
+        if (potentialTarget.length > 30) {
           break;
         }
 
@@ -1798,14 +1798,23 @@
           disconnectBtn.disabled = false;
           sendBtn.disabled = false;
 
-          // Send join message
-          const joinMsg = { type: 'message', actor, text: `${actor} joined.` };
-          ws.send(JSON.stringify(joinMsg));
+          // Note: Join notification is now handled by the backend after caching character data
+          // The backend will broadcast "{character_name} joined the party" to all clients
         };
 
         ws.onmessage = (ev) => {
           try {
             const data = JSON.parse(ev.data);
+
+            // Handle welcome message - update Actor field with character name
+            if (data.type === 'welcome') {
+              if (data.character_name && data.character_name !== 'Unknown') {
+                actorEl.value = data.character_name;
+                const roleText = data.role === 'SW' ? ' (Story Weaver)' : '';
+                addMessage(`Welcome, ${data.character_name}${roleText}!`, 'message-card message-system');
+              }
+              return;
+            }
 
             if (data.type === 'combat_event') {
               renderCombatEvent(data);
@@ -1913,14 +1922,16 @@
               renderDiceRoll(data, '🧭');
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
               // In-Character message - skip if from self (already displayed locally)
-              const myActor = actorEl.value.trim() || 'User';
-              if (data.actor !== myActor) {
+              const myActor = (actorEl.value.trim() || 'User').toLowerCase();
+              const msgActor = (data.actor || 'Unknown').toLowerCase();
+              if (msgActor !== myActor) {
                 displayTypedMessage('ic', data.actor || 'Unknown', data.text);
               }
             } else if (data.type === 'chat_ooc' || data.chat_mode === 'ooc') {
               // Out-of-Character message - skip if from self (already displayed locally)
-              const myActor = actorEl.value.trim() || 'User';
-              if (data.actor !== myActor) {
+              const myActor = (actorEl.value.trim() || 'User').toLowerCase();
+              const msgActor = (data.actor || 'Unknown').toLowerCase();
+              if (msgActor !== myActor) {
                 displayTypedMessage('ooc', data.actor || 'Unknown', data.text);
               }
             } else if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {

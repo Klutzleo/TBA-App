@@ -753,22 +753,32 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "party_id": party_id,
         }
     if cmd == "/initiative":
-        # Get character stats from cache for Edge bonus
+        # Get character stats from cache for PP and Edge bonus
         char_data = None
         char_id = None
-        for cid, data in connection_manager.character_cache.get(party_id, {}).items():
-            if data.get("name", "").lower() == actor.lower():
-                char_data = data
-                char_id = cid
-                break
 
-        # Use character's Edge if available, else default to 1
-        edge_mod = char_data.get("edge", 1) if char_data else 1
+        # First try by character_id
+        if character_id:
+            char_data = connection_manager.character_cache.get(party_id, {}).get(character_id)
+            char_id = character_id
+
+        # Fallback: search by actor name
+        if not char_data:
+            for cid, data in connection_manager.character_cache.get(party_id, {}).items():
+                if data.get("name", "").lower() == actor.lower():
+                    char_data = data
+                    char_id = cid
+                    break
+
+        # Get PP and Edge from character data (1d6 + PP + Edge per rules)
+        pp_mod = char_data.get("pp", 1) if char_data else 1
+        edge_mod = char_data.get("edge", 0) if char_data else 0
+        total_mod = pp_mod + edge_mod
 
         base_roll = random.randint(1, 6)
-        result = base_roll + edge_mod
-        formula = f"1d6+{edge_mod}"
-        equation = f"{base_roll} + {edge_mod} = {result}"
+        result = base_roll + total_mod
+        formula = f"1d6+{pp_mod}+{edge_mod}" if edge_mod else f"1d6+{pp_mod}"
+        equation = f"{base_roll} + {pp_mod}" + (f" + {edge_mod}" if edge_mod else "") + f" = {result}"
         pretty_text = f"{formula} → {equation}"
 
         # Register with active encounter if one exists
@@ -777,6 +787,11 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             char_type = char_data.get("type", "character") if char_data else "character"
             connection_manager.add_combatant(party_id, char_id, actor, char_type)
             connection_manager.roll_initiative(party_id, char_id, result)
+
+        # Check if encounter exists - show helpful message
+        encounter_status = ""
+        if not encounter:
+            encounter_status = " (No active combat - use /start-combat first)"
 
         # Log initiative to combat log
         try:
@@ -788,7 +803,7 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 "text": pretty_text,
                 "dice": formula,
                 "breakdown": [base_roll],
-                "modifier": edge_mod,
+                "modifier": total_mod,
                 "context": context,
                 "encounter_id": encounter_id,
                 "timestamp": datetime.utcnow().isoformat()
@@ -798,11 +813,11 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
         return {
             "type": "initiative",
             "actor": actor,
-            "text": pretty_text,
+            "text": pretty_text + encounter_status,
             "result": result,
             "dice": formula,
             "breakdown": [base_roll],
-            "modifier": edge_mod,
+            "modifier": total_mod,
             "party_id": party_id
         }
 
@@ -853,12 +868,39 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             target_id = target_mention['id']
             target_type = target_mention['type']
 
-            # Get attacker stats from cache
+            # Get attacker stats from cache - first try by character_id, then by name
             attacker_data = None
-            for _, data in connection_manager.character_cache.get(party_id, {}).items():
-                if data.get("name", "").lower() == actor.lower():
-                    attacker_data = data
-                    break
+            if character_id:
+                attacker_data = connection_manager.character_cache.get(party_id, {}).get(character_id)
+
+            # Fallback: search by name
+            if not attacker_data:
+                for _, data in connection_manager.character_cache.get(party_id, {}).items():
+                    if data.get("name", "").lower() == actor.lower():
+                        attacker_data = data
+                        break
+
+            # Fallback: load from database if not in cache
+            if not attacker_data and character_id:
+                char = db.query(Character).filter(Character.id == character_id).first()
+                if char:
+                    attacker_data = {
+                        "id": char.id,
+                        "name": char.name,
+                        "type": "character",
+                        "pp": char.pp,
+                        "ip": char.ip,
+                        "sp": char.sp,
+                        "edge": char.edge,
+                        "dp": char.dp,
+                        "max_dp": char.max_dp,
+                        "attack_style": char.attack_style,
+                        "defense_die": char.defense_die
+                    }
+                    # Cache it for future use
+                    if party_id not in connection_manager.character_cache:
+                        connection_manager.character_cache[party_id] = {}
+                    connection_manager.character_cache[party_id][character_id] = attacker_data
 
             # Get target stats from cache or database
             defender_data = connection_manager.character_cache.get(party_id, {}).get(target_id)
@@ -1193,13 +1235,24 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 
         # Format turn order display
         current_idx = encounter.get('current_turn_index', 0)
-        turn_num = encounter.get('turn_number', 1)
+        turn_num = encounter.get('turn_number', 0)
+
+        # If turn_number is 0, this is the first time showing turn order - start round 1
+        if turn_num == 0:
+            encounter['turn_number'] = 1
+            turn_num = 1
+
         lines = [f"🧭 **Turn Order** (Round {turn_num})"]
 
         for i, combatant in enumerate(turn_order):
             marker = "▶️ " if i == current_idx else "   "
             init_val = combatant.get('initiative', '?')
             lines.append(f"{marker}{i+1}. {combatant['name']} (Init: {init_val})")
+
+        # Show whose turn it is
+        current_combatant = turn_order[current_idx] if turn_order else None
+        if current_combatant:
+            lines.append(f"\n⚔️ **{current_combatant['name']}**'s turn!")
 
         return {
             "type": "system",
@@ -1237,6 +1290,9 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 "party_id": party_id
             }
 
+        # Track round before advancing to detect round change
+        old_round = encounter.get('turn_number', 1)
+
         # Advance turn
         connection_manager.next_turn(party_id)
         encounter = connection_manager.get_encounter(party_id)
@@ -1245,6 +1301,14 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
         turn_num = encounter.get('turn_number', 1)
 
         if current_combatant:
+            # Check if we wrapped to a new round
+            if turn_num > old_round:
+                return {
+                    "type": "system",
+                    "actor": "system",
+                    "text": f"🔄 **Round {turn_num} begins!**\n⏭️ **{current_combatant['name']}**'s turn!",
+                    "party_id": party_id
+                }
             return {
                 "type": "system",
                 "actor": "system",
@@ -1339,6 +1403,20 @@ async def chat_party_ws(
     metadata = connection_manager.get_connection_metadata(party_id, websocket)
     role = metadata.get("role", "player") if metadata else "player"
     character_name = metadata.get("character_name", "Unknown") if metadata else "Unknown"
+
+    # Send welcome message to the connecting client with their character info
+    # This allows the frontend to update the Actor field with the correct name
+    if character_id:
+        try:
+            await websocket.send_json({
+                "type": "welcome",
+                "character_id": character_id,
+                "character_name": character_name,
+                "role": role,
+                "party_id": party_id
+            })
+        except Exception:
+            pass
 
     # Notify party of join (if character_id provided)
     if character_id and character_name != "Unknown":
