@@ -1547,15 +1547,18 @@
       header.innerHTML = `<span class="icon">⚔️</span><span>${data.attacker_name || data.attacker} attacks ${data.defender_name || data.defender}</span>`;
       container.appendChild(header);
 
-      // Show technique if available
-      if (data.technique) {
-        const techniqueDiv = document.createElement('div');
-        techniqueDiv.style.fontSize = '12px';
-        techniqueDiv.style.color = 'var(--text-muted)';
-        techniqueDiv.style.marginBottom = '8px';
-        techniqueDiv.textContent = `Using: ${data.technique}`;
-        container.appendChild(techniqueDiv);
+      // Show weapon vs defense info
+      const weaponInfo = document.createElement('div');
+      weaponInfo.style.fontSize = '11px';
+      weaponInfo.style.color = 'var(--text-muted)';
+      weaponInfo.style.marginBottom = '8px';
+      const attackerWeapon = data.attacker_weapon || '1d6';
+      const defenderDefense = data.defender_defense || '1d6';
+      weaponInfo.textContent = `Using: ${attackerWeapon} vs ${defenderDefense}`;
+      if (data.auto_defense) {
+        weaponInfo.textContent += ' (defense auto-rolled)';
       }
+      container.appendChild(weaponInfo);
 
       if (data.individual_rolls && Array.isArray(data.individual_rolls)) {
         const rollsDiv = document.createElement('div');
@@ -1647,6 +1650,17 @@
           defeatedDiv.textContent = `💀 ${defenderName} has been defeated!`;
           container.appendChild(defeatedDiv);
         }
+      }
+
+      // Show flavor text / narrative
+      if (data.flavor_text || data.narrative) {
+        const flavorDiv = document.createElement('div');
+        flavorDiv.style.fontSize = '11px';
+        flavorDiv.style.color = 'var(--text-muted)';
+        flavorDiv.style.marginTop = '8px';
+        flavorDiv.style.fontStyle = 'italic';
+        flavorDiv.textContent = `"${data.flavor_text || data.narrative}"`;
+        container.appendChild(flavorDiv);
       }
 
       if (data.narrative) {

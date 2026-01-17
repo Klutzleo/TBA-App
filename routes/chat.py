@@ -359,7 +359,7 @@ class ConnectionManager:
         """
         Sort combatants by initiative rolls (highest first).
 
-        Ties broken by: PP > IP > SP (from character cache)
+        Ties broken by: PP > IP > SP > random coin flip (from character cache)
         """
         if party_id not in self.active_encounters:
             return
@@ -369,17 +369,44 @@ class ConnectionManager:
         # Filter combatants with initiative rolled
         combatants_with_init = [c for c in encounter['combatants'] if c['initiative'] is not None]
 
-        # Sort by initiative (highest first), with tiebreaker using stats
-        def sort_key(combatant):
+        # Add stats and random tiebreaker to each combatant for sorting
+        for combatant in combatants_with_init:
             char_stats = self.get_character_stats(party_id, combatant['id'])
-            pp = char_stats.get('pp', 0) if char_stats else 0
-            ip = char_stats.get('ip', 0) if char_stats else 0
-            sp = char_stats.get('sp', 0) if char_stats else 0
+            combatant['pp'] = char_stats.get('pp', 0) if char_stats else 0
+            combatant['ip'] = char_stats.get('ip', 0) if char_stats else 0
+            combatant['sp'] = char_stats.get('sp', 0) if char_stats else 0
+            combatant['tiebreaker'] = random.random()  # Random for final tie-break
 
-            # Return tuple: (initiative desc, pp desc, ip desc, sp desc)
-            return (-combatant['initiative'], -pp, -ip, -sp)
+        # Sort by initiative (highest first), with tiebreaker using stats then random
+        def sort_key(combatant):
+            # Return tuple: (initiative desc, pp desc, ip desc, sp desc, random desc)
+            return (
+                -combatant['initiative'],
+                -combatant['pp'],
+                -combatant['ip'],
+                -combatant['sp'],
+                -combatant['tiebreaker']
+            )
 
-        encounter['turn_order'] = sorted(combatants_with_init, key=sort_key)
+        sorted_combatants = sorted(combatants_with_init, key=sort_key)
+
+        # Determine tie-breaker reason for display
+        for i, combatant in enumerate(sorted_combatants):
+            combatant['tiebreaker_reason'] = None
+            if i > 0:
+                prev = sorted_combatants[i - 1]
+                if combatant['initiative'] == prev['initiative']:
+                    # They tied on initiative - figure out what broke the tie
+                    if combatant['pp'] != prev['pp']:
+                        combatant['tiebreaker_reason'] = 'PP'
+                    elif combatant['ip'] != prev['ip']:
+                        combatant['tiebreaker_reason'] = 'IP'
+                    elif combatant['sp'] != prev['sp']:
+                        combatant['tiebreaker_reason'] = 'SP'
+                    else:
+                        combatant['tiebreaker_reason'] = 'coin flip'
+
+        encounter['turn_order'] = sorted_combatants
         encounter['current_turn_index'] = 0
 
     def get_current_turn(self, party_id: str) -> Optional[Dict[str, Any]]:
@@ -1005,6 +1032,12 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             if target_id in connection_manager.character_cache.get(party_id, {}):
                 connection_manager.character_cache[party_id][target_id]["dp"] = new_dp
 
+            # Generate flavor text based on outcome
+            if result["total_damage"] > 0:
+                flavor_text = f"{actor} lands {result['details']['hit_count']}/{result['details']['total_rolls']} hits on {target_name}!"
+            else:
+                flavor_text = f"{target_name} blocks all of {actor}'s attacks!"
+
             # Return combat event message for broadcast
             return {
                 "type": "combat_event",
@@ -1013,12 +1046,18 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 "defender": target_name,
                 "defender_name": target_name,
                 "technique": "Basic Attack",
+                "attacker_weapon": attacker_die,
+                "defender_defense": defense_die,
                 "total_damage": result["total_damage"],
                 "outcome": result["outcome"],
                 "narrative": result["narrative"],
+                "flavor_text": flavor_text,
                 "defender_new_dp": new_dp,
                 "defender_max_dp": defender_data.get("max_dp", 20),
                 "individual_rolls": result["individual_rolls"],
+                "hit_count": result["details"]["hit_count"],
+                "total_rolls": result["details"]["total_rolls"],
+                "auto_defense": True,
                 "party_id": party_id
             }
 
@@ -1091,9 +1130,15 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             return {"type": "system", "actor": "system", "text": f"Defense roll error: {e}", "party_id": party_id}
 
     if cmd == "/who":
-        # List all available targets (characters and NPCs) in the party
+        # List all available targets (characters and NPCs) in the party with stats
         db = SessionLocal()
         try:
+            # Check if sender is SW for visibility
+            sender_is_sw = False
+            if character_id:
+                is_sw, _ = check_story_weaver(character_id, party_id)
+                sender_is_sw = is_sw
+
             # Get cached characters (actively connected via WebSocket)
             cached_chars = connection_manager.character_cache.get(party_id, {})
             online_characters = []
@@ -1101,7 +1146,14 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             for char_id, char_data in cached_chars.items():
                 char_type = char_data.get('type', 'character')
                 if char_type == 'character':
-                    online_characters.append(f"@{char_data['name']}")
+                    # Format: @Name (DP: X/Y, Weapon: 2d4, Defense: 1d6) 🟢
+                    dp = char_data.get('dp', '?')
+                    max_dp = char_data.get('max_dp', '?')
+                    weapon = char_data.get('attack_style', '1d6')
+                    defense = char_data.get('defense_die', '1d6')
+                    online_characters.append(
+                        f"  @{char_data['name']} (DP: {dp}/{max_dp}, Weapon: {weapon}, Defense: {defense}) 🟢"
+                    )
 
             # Get party members from database (may include offline members)
             db_characters = (
@@ -1116,33 +1168,53 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 
             for char in db_characters:
                 if char.id not in online_char_ids:
-                    offline_characters.append(f"@{char.name}")
+                    # Format with stats for offline players
+                    dp = char.dp if char.dp is not None else '?'
+                    max_dp = char.max_dp if char.max_dp is not None else '?'
+                    weapon = char.attack_style or '1d6'
+                    defense = char.defense_die or '1d6'
+                    offline_characters.append(
+                        f"  @{char.name} (DP: {dp}/{max_dp}, Weapon: {weapon}, Defense: {defense}) ⚫"
+                    )
 
             # Get NPCs (visible only, unless sender is SW)
-            sender_is_sw = False
-            # TODO: Get character_id from connection metadata and check if SW
-
             npc_query = db.query(NPC).filter(NPC.party_id == party_id)
             if not sender_is_sw:
                 npc_query = npc_query.filter(NPC.visible_to_players == True)
 
             npcs = npc_query.all()
-            npc_list = [f"@{npc.name}" for npc in npcs]
+            npc_list = []
+            for npc in npcs:
+                dp = npc.dp if npc.dp is not None else '?'
+                max_dp = npc.max_dp if npc.max_dp is not None else '?'
+                weapon = npc.attack_style or '1d6'
+                defense = npc.defense_die or '1d6'
+                # Check if NPC is in cache (active in combat)
+                npc_in_cache = npc.id in cached_chars
+                status = "🔴" if npc_in_cache else "⚪"
+                npc_list.append(
+                    f"  @{npc.name} (DP: {dp}/{max_dp}, Weapon: {weapon}, Defense: {defense}) {status}"
+                )
 
             # Format response
             lines = ["📋 **Available Targets:**"]
 
             if online_characters:
-                lines.append(f"**Players (online):** {', '.join(online_characters)}")
+                lines.append("**Players (online):**")
+                lines.extend(online_characters)
 
             if offline_characters:
-                lines.append(f"**Players (offline):** {', '.join(offline_characters)}")
+                lines.append("**Players (offline):**")
+                lines.extend(offline_characters)
 
             if npc_list:
-                lines.append(f"**NPCs:** {', '.join(npc_list)}")
+                lines.append("**NPCs:**")
+                lines.extend(npc_list)
 
             if not online_characters and not offline_characters and not npc_list:
                 lines.append("No characters or NPCs found in this party.")
+
+            lines.append("\n💡 Multi-die weapons (2d4, 3d6) attack multiple times per action!")
 
             return {
                 "type": "system",
@@ -1174,10 +1246,23 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             }
 
         encounter_id = connection_manager.start_encounter(party_id, actor)
+
+        instructions = """⚔️ **Combat encounter started!**
+
+📜 **Quick Guide:**
+1. Everyone roll `/initiative` to determine turn order
+2. Story Weaver uses `/turn-order` to lock in order
+3. On your turn, `/attack @target` to strike
+4. Story Weaver uses `/next-turn` to advance
+5. End combat with `/end-combat`
+
+💡 Use `/who` to see everyone's DP and weapon dice!
+💡 Use `/combat-help` for detailed combat rules."""
+
         return {
             "type": "system",
             "actor": "system",
-            "text": f"⚔️ Combat encounter started! All combatants roll /initiative to join the fight.",
+            "text": instructions,
             "party_id": party_id
         }
 
@@ -1247,7 +1332,14 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
         for i, combatant in enumerate(turn_order):
             marker = "▶️ " if i == current_idx else "   "
             init_val = combatant.get('initiative', '?')
-            lines.append(f"{marker}{i+1}. {combatant['name']} (Init: {init_val})")
+            line = f"{marker}{i+1}. {combatant['name']} (Init: {init_val})"
+
+            # Show tie-breaker reason if applicable
+            tiebreaker_reason = combatant.get('tiebreaker_reason')
+            if tiebreaker_reason:
+                line += f" ✓won on {tiebreaker_reason}"
+
+            lines.append(line)
 
         # Show whose turn it is
         current_combatant = turn_order[current_idx] if turn_order else None
@@ -1319,6 +1411,74 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "type": "system",
             "actor": "system",
             "text": "Turn advanced.",
+            "party_id": party_id
+        }
+
+    if cmd == "/combat-help":
+        help_text = """⚔️ **Combat System Guide**
+
+**Starting Combat:**
+• `/start-combat` (SW only) - Begin encounter
+• `/initiative` - Roll your initiative (1d6 + PP + Edge)
+• `/turn-order` - Lock in and display turn order
+
+**During Combat:**
+• `/attack @target` - Attack a target
+  → Defense is auto-rolled for the defender
+  → Multi-die weapons (2d4, 2d6) make multiple attacks
+• `/defend` - Manually roll defense (optional)
+• `/next-turn` (SW only) - Advance to next player
+• `/turn-order` - See current turn order
+
+**Combat Info:**
+• `/who` - See everyone's DP, weapons, and status
+• Multi-die weapons attack multiple times per action
+• Defense is automatically rolled during attacks
+• At 0 DP, you're knocked out
+• At -10 DP, you face The Calling
+
+**Ending Combat:**
+• `/end-combat` (SW only) - End the encounter
+
+**Tie-Breakers:** Initiative ties are broken by PP > IP > SP > coin flip"""
+
+        return {
+            "type": "system",
+            "actor": "system",
+            "text": help_text,
+            "party_id": party_id
+        }
+
+    if cmd == "/help":
+        help_text = """📜 **Available Commands:**
+
+**Chat:**
+• `/say <message>` - In-character speech (green)
+• `/ooc <message>` - Out-of-character chat (gray)
+• `/whisper @player <message>` - Private message (purple)
+• `/w @player <message>` - Whisper shorthand
+
+**Dice & Actions:**
+• `/roll XdY+Z` - Roll dice (e.g., /roll 2d6+3)
+• `/pp`, `/ip`, `/sp` - Roll stat checks
+• `/who` - List party members with stats
+
+**Combat:**
+• `/combat-help` - Full combat guide
+• `/start-combat` (SW) - Begin combat
+• `/initiative` - Roll initiative (1d6 + PP + Edge)
+• `/attack @target` - Attack someone
+• `/defend` - Roll defense manually
+• `/turn-order` - View turn order
+• `/next-turn` (SW) - Advance turn
+• `/end-combat` (SW) - End combat
+
+**Legend:** (SW) = Story Weaver only"""
+
+        return {
+            "type": "system",
+            "actor": "system",
+            "text": help_text,
             "party_id": party_id
         }
 
