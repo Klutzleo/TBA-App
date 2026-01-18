@@ -1,4 +1,4 @@
--- Migration 004: Create Abilities Table
+-- Migration 004: Create Abilities Table (PostgreSQL)
 -- Phase 2d: Custom spells, techniques, and abilities for characters
 --
 -- Purpose: Store character-specific abilities (spells, techniques, special moves)
@@ -6,8 +6,8 @@
 -- Examples: /fireball, /slash, /heal, /persuade, /stealth
 
 CREATE TABLE IF NOT EXISTS abilities (
-    id VARCHAR PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),  -- UUID-like string
-    character_id VARCHAR NOT NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    character_id UUID NOT NULL,
     slot_number INTEGER NOT NULL CHECK (slot_number >= 1 AND slot_number <= 5),  -- 1-5 ability slots
 
     -- Ability identification
@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS abilities (
     is_aoe BOOLEAN NOT NULL DEFAULT FALSE,  -- Whether ability affects multiple targets
 
     -- Metadata
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- Foreign key
-    FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+    CONSTRAINT fk_abilities_character FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
 );
 
 -- Create indexes for efficient queries
@@ -41,16 +41,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_abilities_character_slot
 CREATE UNIQUE INDEX IF NOT EXISTS idx_abilities_character_macro
     ON abilities(character_id, macro_command);
 
--- Add comments for documentation (PostgreSQL only)
--- COMMENT ON TABLE abilities IS 'Custom spells, techniques, and abilities for characters';
--- COMMENT ON COLUMN abilities.slot_number IS 'Ability slot (1-5), determines hotkey/UI position';
--- COMMENT ON COLUMN abilities.ability_type IS 'Category: spell (magical), technique (martial), special (unique)';
--- COMMENT ON COLUMN abilities.display_name IS 'Human-readable name shown in UI';
--- COMMENT ON COLUMN abilities.macro_command IS 'Chat command to trigger ability (e.g., /fireball)';
--- COMMENT ON COLUMN abilities.power_source IS 'Which stat powers this ability: PP, IP, or SP';
--- COMMENT ON COLUMN abilities.effect_type IS 'Effect category: damage, heal, buff, debuff, or utility';
--- COMMENT ON COLUMN abilities.die IS 'Dice expression for ability roll (e.g., 2d6, 3d4)';
--- COMMENT ON COLUMN abilities.is_aoe IS 'Whether ability affects multiple targets (area of effect)';
+-- Add comments for documentation
+COMMENT ON TABLE abilities IS 'Custom spells, techniques, and abilities for characters';
+COMMENT ON COLUMN abilities.slot_number IS 'Ability slot (1-5), determines hotkey/UI position';
+COMMENT ON COLUMN abilities.ability_type IS 'Category: spell (magical), technique (martial), special (unique)';
+COMMENT ON COLUMN abilities.display_name IS 'Human-readable name shown in UI';
+COMMENT ON COLUMN abilities.macro_command IS 'Chat command to trigger ability (e.g., /fireball)';
+COMMENT ON COLUMN abilities.power_source IS 'Which stat powers this ability: PP, IP, or SP';
+COMMENT ON COLUMN abilities.effect_type IS 'Effect category: damage, heal, buff, debuff, or utility';
+COMMENT ON COLUMN abilities.die IS 'Dice expression for ability roll (e.g., 2d6, 3d4)';
+COMMENT ON COLUMN abilities.is_aoe IS 'Whether ability affects multiple targets (area of effect)';
+
+-- Create trigger to auto-update updated_at
+CREATE OR REPLACE FUNCTION update_abilities_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_abilities_updated_at ON abilities;
+CREATE TRIGGER trigger_abilities_updated_at
+    BEFORE UPDATE ON abilities
+    FOR EACH ROW
+    EXECUTE FUNCTION update_abilities_updated_at();
 
 -- Migration complete
 SELECT 'Migration 004: Abilities table created successfully' AS status;
