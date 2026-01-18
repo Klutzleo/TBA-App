@@ -237,6 +237,21 @@ async def ws_test_page():
     except Exception:
         return HTMLResponse("<h1>WS Test</h1><p>ws-test.html not found.</p>", status_code=404)
 
+
+# Character creation form
+@application.get("/create-character", response_class=HTMLResponse)
+async def create_character_form():
+    """
+    Serve the character creation form.
+
+    Usage: /create-character?campaign_id=<uuid>&return=/campaign/<uuid>
+    """
+    template_path = Path(__file__).resolve().parent.parent / "templates" / "create_character.html"
+    try:
+        return HTMLResponse(template_path.read_text(encoding="utf-8"))
+    except Exception:
+        return HTMLResponse("<h1>Error</h1><p>Character creation form not found.</p>", status_code=404)
+
 # Entry point for dev hot-reload
 if __name__ == "__main__":
     import uvicorn

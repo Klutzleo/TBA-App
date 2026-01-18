@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Character - TBA</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d4ff; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 30px; }
+
+        /* Progress bar */
+        .progress-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #333;
+            z-index: 0;
+        }
+        .step-indicator {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #333;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            z-index: 1;
+            transition: all 0.3s;
+        }
+        .step-indicator.active {
+            background: #00d4ff;
+            color: #000;
+        }
+        .step-indicator.complete {
+            background: #00ff88;
+            color: #000;
+        }
+
+        /* Form steps */
+        .form-step {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        .form-step.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-title {
+            font-size: 1.5em;
+            color: #00d4ff;
+            margin-bottom: 20px;
+        }
+
+        /* Form elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #252540;
+            color: #fff;
+            font-size: 1em;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        input:disabled, select:disabled {
+            background: #1a1a2e;
+            color: #666;
+        }
+
+        /* Stats validation */
+        .stats-total {
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .stats-total.valid { background: #00ff8833; color: #00ff88; }
+        .stats-total.invalid { background: #ff444433; color: #ff4444; }
+
+        /* Buttons */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+        button {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-back {
+            background: #333;
+            color: #aaa;
+        }
+        .btn-back:hover { background: #444; }
+        .btn-next {
+            background: #00d4ff;
+            color: #000;
+            font-weight: bold;
+        }
+        .btn-next:hover { background: #00b8e6; }
+        .btn-next:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .btn-create {
+            background: #00ff88;
+            color: #000;
+            font-weight: bold;
+        }
+        .btn-create:hover { background: #00dd77; }
+
+        /* Review section */
+        .review-section {
+            background: #252540;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .review-section h4 {
+            color: #00d4ff;
+            margin: 0 0 10px 0;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+        .review-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #333;
+        }
+        .review-row:last-child { border-bottom: none; }
+        .review-label { color: #888; }
+        .review-value { color: #fff; font-weight: bold; }
+        .review-value.calculated { color: #00ff88; }
+
+        /* Messages */
+        .error-msg {
+            background: #ff444433;
+            color: #ff4444;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .success-msg {
+            background: #00ff8833;
+            color: #00ff88;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        /* Helper text */
+        .helper { color: #666; font-size: 0.85em; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Create Character</h1>
+    <p class="subtitle">TBA v1.5 Character Creation</p>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar">
+        <div class="step-indicator active" data-step="1">1</div>
+        <div class="step-indicator" data-step="2">2</div>
+        <div class="step-indicator" data-step="3">3</div>
+        <div class="step-indicator" data-step="4">4</div>
+        <div class="step-indicator" data-step="5">5</div>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="success-msg" id="successMsg"></div>
+
+    <form id="characterForm">
+        <!-- Hidden campaign_id (set via URL param or JavaScript) -->
+        <input type="hidden" id="campaign_id" name="campaign_id" value="">
+
+        <!-- Step 1: Basic Info -->
+        <div class="form-step active" data-step="1">
+            <h2 class="step-title">Basic Info</h2>
+
+            <div class="form-group">
+                <label for="name">Character Name *</label>
+                <input type="text" id="name" name="name" required maxlength="100"
+                       placeholder="Enter character name">
+            </div>
+
+            <div class="form-group">
+                <label for="level">Starting Level (1-10)</label>
+                <input type="number" id="level" name="level" min="1" max="10" value="1" required>
+                <p class="helper">Higher levels unlock more weapon options</p>
+            </div>
+
+            <div class="btn-row">
+                <button type="button" class="btn-next" onclick="nextStep()">Next: Stats</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Stats -->
+        <div class="form-step" data-step="2">
+            <h2 class="step-title">Allocate Stats</h2>
+            <p class="helper">Distribute 6 points across PP, IP, and SP (1-3 each)</p>
+
+            <div class="form-group">
+                <label for="pp">Physical Power (PP)</label>
+                <select id="pp" name="pp" onchange="updateStatsTotal()">
+                    <option value="1">1 - Low</option>
+                    <option value="2" selected>2 - Average</option>
+                    <option value="3">3 - High</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="ip">Intellect Power (IP)</label>
+                <select id="ip" name="ip" onchange="updateStatsTotal()">
+                    <option value="1">1 - Low</option>
+                    <option value="2" selected>2 - Average</option>
+                    <option value="3">3 - High</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="sp">Social Power (SP)</label>
+                <select id="sp" name="sp" onchange="updateStatsTotal()">
+                    <option value="1">1 - Low</option>
+                    <option value="2" selected>2 - Average</option>
+                    <option value="3">3 - High</option>
+                </select>
+            </div>
+
+            <div class="stats-total valid" id="statsTotal">Total: 6 / 6</div>
+
+            <div class="btn-row">
+                <button type="button" class="btn-back" onclick="prevStep()">Back</button>
+                <button type="button" class="btn-next" id="statsNextBtn" onclick="nextStep()">Next: Combat</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Combat -->
+        <div class="form-step" data-step="3">
+            <h2 class="step-title">Combat Setup</h2>
+
+            <div class="form-group">
+                <label for="weapon_die">Weapon Die *</label>
+                <select id="weapon_die" name="weapon_die" required>
+                    <!-- Options populated by JavaScript based on level -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="weapon_name">Weapon Name (optional)</label>
+                <input type="text" id="weapon_name" name="weapon_name"
+                       placeholder="e.g., Steel Longsword" maxlength="100">
+            </div>
+
+            <div class="form-group">
+                <label for="defense_die">Defense Die (auto-calculated)</label>
+                <input type="text" id="defense_die" name="defense_die" disabled>
+            </div>
+
+            <div class="form-group">
+                <label for="armor_name">Armor Name (optional)</label>
+                <input type="text" id="armor_name" name="armor_name"
+                       placeholder="e.g., Leather Armor" maxlength="100">
+            </div>
+
+            <div class="btn-row">
+                <button type="button" class="btn-back" onclick="prevStep()">Back</button>
+                <button type="button" class="btn-next" onclick="nextStep()">Next: Ability</button>
+            </div>
+        </div>
+
+        <!-- Step 4: First Ability -->
+        <div class="form-step" data-step="4">
+            <h2 class="step-title">Starting Ability</h2>
+            <p class="helper">Create your first spell, technique, or special ability</p>
+
+            <div class="form-group">
+                <label for="ability_name">Ability Name *</label>
+                <input type="text" id="ability_name" name="ability_name" required
+                       placeholder="e.g., Power Strike, Fireball" maxlength="100">
+            </div>
+
+            <div class="form-group">
+                <label for="macro_command">Macro Command *</label>
+                <input type="text" id="macro_command" name="macro_command" required
+                       placeholder="/strike" maxlength="50" pattern="^/[a-z0-9]+$"
+                       oninput="formatMacro(this)">
+                <p class="helper">Lowercase, no spaces. Will be used in chat like: /strike</p>
+            </div>
+
+            <div class="form-group">
+                <label for="power_source">Power Source *</label>
+                <select id="power_source" name="power_source" required>
+                    <option value="PP">PP - Physical Power</option>
+                    <option value="IP">IP - Intellect Power</option>
+                    <option value="SP">SP - Social Power</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="effect_type">Effect Type *</label>
+                <select id="effect_type" name="effect_type" required>
+                    <option value="damage">Damage - Deal damage to enemies</option>
+                    <option value="heal">Heal - Restore DP</option>
+                    <option value="buff">Buff - Boost allies</option>
+                    <option value="debuff">Debuff - Weaken enemies</option>
+                    <option value="utility">Utility - Other effects</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="ability_die">Ability Die (based on level)</label>
+                <input type="text" id="ability_die" name="ability_die" disabled>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="is_aoe" name="is_aoe">
+                    Area of Effect (hits multiple targets)
+                </label>
+            </div>
+
+            <div class="btn-row">
+                <button type="button" class="btn-back" onclick="prevStep()">Back</button>
+                <button type="button" class="btn-next" onclick="nextStep()">Next: Review</button>
+            </div>
+        </div>
+
+        <!-- Step 5: Review -->
+        <div class="form-step" data-step="5">
+            <h2 class="step-title">Review Character</h2>
+
+            <div class="review-section">
+                <h4>Basic Info</h4>
+                <div class="review-row">
+                    <span class="review-label">Name</span>
+                    <span class="review-value" id="review_name">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Level</span>
+                    <span class="review-value" id="review_level">-</span>
+                </div>
+            </div>
+
+            <div class="review-section">
+                <h4>Stats</h4>
+                <div class="review-row">
+                    <span class="review-label">PP / IP / SP</span>
+                    <span class="review-value" id="review_stats">-</span>
+                </div>
+            </div>
+
+            <div class="review-section">
+                <h4>Combat</h4>
+                <div class="review-row">
+                    <span class="review-label">Weapon</span>
+                    <span class="review-value" id="review_weapon">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Defense Die</span>
+                    <span class="review-value" id="review_defense">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Armor</span>
+                    <span class="review-value" id="review_armor">-</span>
+                </div>
+            </div>
+
+            <div class="review-section">
+                <h4>Ability</h4>
+                <div class="review-row">
+                    <span class="review-label">Name</span>
+                    <span class="review-value" id="review_ability_name">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Command</span>
+                    <span class="review-value" id="review_macro">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Type</span>
+                    <span class="review-value" id="review_ability_type">-</span>
+                </div>
+            </div>
+
+            <div class="review-section">
+                <h4>Auto-Calculated Stats</h4>
+                <div class="review-row">
+                    <span class="review-label">Max DP</span>
+                    <span class="review-value calculated" id="review_dp">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Edge</span>
+                    <span class="review-value calculated" id="review_edge">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">BAP</span>
+                    <span class="review-value calculated" id="review_bap">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Uses per Encounter</span>
+                    <span class="review-value calculated" id="review_uses">-</span>
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button type="button" class="btn-back" onclick="prevStep()">Back</button>
+                <button type="submit" class="btn-create">Create Character</button>
+            </div>
+        </div>
+    </form>
+
+    <script>
+        // =====================================================================
+        // Configuration - Level tables
+        // =====================================================================
+        const WEAPON_OPTIONS_BY_LEVEL = {
+            1: ['1d4'], 2: ['1d4'],
+            3: ['2d4', '1d6'], 4: ['2d4', '1d6'],
+            5: ['3d4', '2d6', '1d8'], 6: ['3d4', '2d6', '1d8'],
+            7: ['4d4', '3d6', '2d8', '1d10'], 8: ['4d4', '3d6', '2d8', '1d10'],
+            9: ['5d4', '4d6', '3d8', '2d10', '1d12'], 10: ['5d4', '4d6', '3d8', '2d10', '1d12']
+        };
+
+        const DEFENSE_DIE_BY_LEVEL = {
+            1: '1d4', 2: '1d4',
+            3: '1d6', 4: '1d6',
+            5: '1d8', 6: '1d8',
+            7: '1d10', 8: '1d10',
+            9: '1d12', 10: '1d12'
+        };
+
+        const DP_BY_LEVEL = {
+            1: 10, 2: 15, 3: 20, 4: 25, 5: 30,
+            6: 35, 7: 40, 8: 45, 9: 50, 10: 55
+        };
+
+        const EDGE_BY_LEVEL = {
+            1: 0, 2: 0, 3: 1, 4: 1, 5: 2,
+            6: 2, 7: 3, 8: 3, 9: 4, 10: 5
+        };
+
+        const BAP_BY_LEVEL = {
+            1: 1, 2: 1, 3: 1, 4: 2, 5: 2,
+            6: 2, 7: 3, 8: 3, 9: 4, 10: 5
+        };
+
+        // =====================================================================
+        // State
+        // =====================================================================
+        let currentStep = 1;
+        const totalSteps = 5;
+
+        // Get campaign_id from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        document.getElementById('campaign_id').value = urlParams.get('campaign_id') || '';
+
+        // =====================================================================
+        // Navigation
+        // =====================================================================
+        function updateProgressBar() {
+            document.querySelectorAll('.step-indicator').forEach(el => {
+                const step = parseInt(el.dataset.step);
+                el.classList.remove('active', 'complete');
+                if (step === currentStep) {
+                    el.classList.add('active');
+                } else if (step < currentStep) {
+                    el.classList.add('complete');
+                }
+            });
+        }
+
+        function showStep(step) {
+            document.querySelectorAll('.form-step').forEach(el => {
+                el.classList.remove('active');
+                if (parseInt(el.dataset.step) === step) {
+                    el.classList.add('active');
+                }
+            });
+            currentStep = step;
+            updateProgressBar();
+
+            // Update dynamic fields when entering certain steps
+            if (step === 3) updateCombatOptions();
+            if (step === 4) updateAbilityDie();
+            if (step === 5) updateReview();
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                // Validate current step
+                if (!validateStep(currentStep)) return;
+                showStep(currentStep + 1);
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                showStep(currentStep - 1);
+            }
+        }
+
+        // =====================================================================
+        // Validation
+        // =====================================================================
+        function validateStep(step) {
+            hideError();
+
+            if (step === 1) {
+                const name = document.getElementById('name').value.trim();
+                const level = parseInt(document.getElementById('level').value);
+                if (!name) {
+                    showError('Please enter a character name');
+                    return false;
+                }
+                if (level < 1 || level > 10) {
+                    showError('Level must be between 1 and 10');
+                    return false;
+                }
+            }
+
+            if (step === 2) {
+                const pp = parseInt(document.getElementById('pp').value);
+                const ip = parseInt(document.getElementById('ip').value);
+                const sp = parseInt(document.getElementById('sp').value);
+                if (pp + ip + sp !== 6) {
+                    showError('Stats must total exactly 6');
+                    return false;
+                }
+            }
+
+            if (step === 4) {
+                const abilityName = document.getElementById('ability_name').value.trim();
+                const macro = document.getElementById('macro_command').value.trim();
+                if (!abilityName) {
+                    showError('Please enter an ability name');
+                    return false;
+                }
+                if (!macro || !macro.startsWith('/')) {
+                    showError('Macro command must start with /');
+                    return false;
+                }
+                if (macro.includes(' ')) {
+                    showError('Macro command cannot contain spaces');
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorMsg').style.display = 'none';
+        }
+
+        // =====================================================================
+        // Stats
+        // =====================================================================
+        function updateStatsTotal() {
+            const pp = parseInt(document.getElementById('pp').value);
+            const ip = parseInt(document.getElementById('ip').value);
+            const sp = parseInt(document.getElementById('sp').value);
+            const total = pp + ip + sp;
+
+            const el = document.getElementById('statsTotal');
+            el.textContent = `Total: ${total} / 6`;
+
+            if (total === 6) {
+                el.classList.remove('invalid');
+                el.classList.add('valid');
+                document.getElementById('statsNextBtn').disabled = false;
+            } else {
+                el.classList.remove('valid');
+                el.classList.add('invalid');
+                document.getElementById('statsNextBtn').disabled = true;
+            }
+        }
+
+        // =====================================================================
+        // Combat Options
+        // =====================================================================
+        function updateCombatOptions() {
+            const level = parseInt(document.getElementById('level').value) || 1;
+
+            // Update weapon options
+            const weaponSelect = document.getElementById('weapon_die');
+            weaponSelect.innerHTML = '';
+            const options = WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                weaponSelect.appendChild(option);
+            });
+
+            // Update defense die
+            document.getElementById('defense_die').value = DEFENSE_DIE_BY_LEVEL[level] || '1d4';
+        }
+
+        // =====================================================================
+        // Ability
+        // =====================================================================
+        function updateAbilityDie() {
+            const level = parseInt(document.getElementById('level').value) || 1;
+            // Use the first weapon option as the ability die for slot 1
+            const options = WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+            document.getElementById('ability_die').value = options[0];
+        }
+
+        function formatMacro(input) {
+            let val = input.value.toLowerCase().replace(/[^a-z0-9/]/g, '');
+            if (!val.startsWith('/')) {
+                val = '/' + val.replace(/\//g, '');
+            }
+            input.value = val;
+        }
+
+        // =====================================================================
+        // Review
+        // =====================================================================
+        function updateReview() {
+            const level = parseInt(document.getElementById('level').value) || 1;
+
+            // Basic info
+            document.getElementById('review_name').textContent = document.getElementById('name').value || '-';
+            document.getElementById('review_level').textContent = level;
+
+            // Stats
+            const pp = document.getElementById('pp').value;
+            const ip = document.getElementById('ip').value;
+            const sp = document.getElementById('sp').value;
+            document.getElementById('review_stats').textContent = `${pp} / ${ip} / ${sp}`;
+
+            // Combat
+            const weaponDie = document.getElementById('weapon_die').value;
+            const weaponName = document.getElementById('weapon_name').value;
+            document.getElementById('review_weapon').textContent = weaponName ? `${weaponName} (${weaponDie})` : weaponDie;
+            document.getElementById('review_defense').textContent = document.getElementById('defense_die').value;
+            document.getElementById('review_armor').textContent = document.getElementById('armor_name').value || 'None';
+
+            // Ability
+            document.getElementById('review_ability_name').textContent = document.getElementById('ability_name').value || '-';
+            document.getElementById('review_macro').textContent = document.getElementById('macro_command').value || '-';
+            const powerSource = document.getElementById('power_source').value;
+            const effectType = document.getElementById('effect_type').value;
+            document.getElementById('review_ability_type').textContent = `${effectType} (${powerSource})`;
+
+            // Auto-calculated
+            document.getElementById('review_dp').textContent = DP_BY_LEVEL[level] || 10;
+            document.getElementById('review_edge').textContent = EDGE_BY_LEVEL[level] || 0;
+            document.getElementById('review_bap').textContent = BAP_BY_LEVEL[level] || 1;
+            document.getElementById('review_uses').textContent = level * 3;
+        }
+
+        // =====================================================================
+        // Form Submission
+        // =====================================================================
+        document.getElementById('characterForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            hideError();
+
+            const campaignId = document.getElementById('campaign_id').value;
+            if (!campaignId) {
+                showError('No campaign ID provided. Please access this page from your campaign.');
+                return;
+            }
+
+            const level = parseInt(document.getElementById('level').value);
+            const options = WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+
+            const payload = {
+                campaign_id: campaignId,
+                name: document.getElementById('name').value.trim(),
+                level: level,
+                pp: parseInt(document.getElementById('pp').value),
+                ip: parseInt(document.getElementById('ip').value),
+                sp: parseInt(document.getElementById('sp').value),
+                weapon_die: document.getElementById('weapon_die').value,
+                weapon_name: document.getElementById('weapon_name').value.trim() || null,
+                defense_die: null, // Let server auto-calculate
+                armor_name: document.getElementById('armor_name').value.trim() || null,
+                ability: {
+                    slot_number: 1,
+                    display_name: document.getElementById('ability_name').value.trim(),
+                    macro_command: document.getElementById('macro_command').value.trim(),
+                    power_source: document.getElementById('power_source').value,
+                    effect_type: document.getElementById('effect_type').value,
+                    die: options[0], // First option for slot 1
+                    is_aoe: document.getElementById('is_aoe').checked
+                }
+            };
+
+            try {
+                const response = await fetch('/api/characters/full', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': 'default-dev-key' // TODO: Get from session
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.detail || 'Failed to create character');
+                    return;
+                }
+
+                // Success!
+                document.getElementById('successMsg').textContent =
+                    `Character "${data.name}" created successfully! Redirecting...`;
+                document.getElementById('successMsg').style.display = 'block';
+
+                // Hide form
+                document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
+
+                // Redirect after 2 seconds
+                setTimeout(() => {
+                    const returnUrl = urlParams.get('return') || `/campaign/${campaignId}`;
+                    window.location.href = returnUrl;
+                }, 2000);
+
+            } catch (err) {
+                showError('Network error: ' + err.message);
+            }
+        });
+
+        // =====================================================================
+        // Initialize
+        // =====================================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatsTotal();
+            updateCombatOptions();
+
+            // Update combat options when level changes
+            document.getElementById('level').addEventListener('change', function() {
+                updateCombatOptions();
+                updateAbilityDie();
+            });
+        });
+    </script>
+</body>
+</html>
