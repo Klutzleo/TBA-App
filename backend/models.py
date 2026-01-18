@@ -61,8 +61,19 @@ class Character(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Phase 2d: Additional character columns
+    notes = Column(String, nullable=True)  # Character backstory, personality notes
+    max_uses_per_encounter = Column(Integer, nullable=False, default=3)  # Limited ability uses
+    current_uses = Column(Integer, nullable=False, default=3)  # Remaining uses this encounter
+    weapon_bonus = Column(Integer, nullable=False, default=0)  # Weapon attack bonus
+    armor_bonus = Column(Integer, nullable=False, default=0)  # Armor defense bonus
+    times_called = Column(Integer, nullable=False, default=0)  # Times summoned/called
+    is_called = Column(Boolean, nullable=False, default=False)  # Currently summoned
+    status = Column(String, nullable=False, default='active')  # 'active', 'unconscious', 'dead'
+
     # Relationships
     party_memberships = relationship("PartyMembership", back_populates="character")
+    abilities = relationship("Ability", back_populates="character", cascade="all, delete-orphan")
 
 
 class Party(Base):
@@ -78,6 +89,12 @@ class Party(Base):
     # Story Weaver tracking
     story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)  # Character ID of current SW
     created_by_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)  # Character ID who created the party
+
+    # Phase 2d: Tab system columns
+    campaign_id = Column(String, nullable=True, index=True)  # Campaign this party belongs to
+    party_type = Column(String, nullable=False, default='standard')  # 'story', 'ooc', 'standard', 'whisper'
+    is_active = Column(Boolean, nullable=False, default=True)  # Whether tab is displayed
+    archived_at = Column(DateTime, nullable=True)  # Soft delete timestamp
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -161,3 +178,26 @@ class CombatTurn(Base):
 
     # Relationships
     party = relationship("Party", back_populates="combat_turns")
+
+
+class Ability(Base):
+    """Custom spells, techniques, and abilities for characters."""
+    __tablename__ = "abilities"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    character_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
+    slot_number = Column(Integer, nullable=False)  # 1-5, determines hotkey/UI position
+    ability_type = Column(String, nullable=False)  # 'spell', 'technique', 'special'
+    display_name = Column(String, nullable=False)  # Human-readable name
+    macro_command = Column(String, nullable=False)  # Chat command (e.g., /fireball)
+    power_source = Column(String, nullable=False)  # 'PP', 'IP', or 'SP'
+    effect_type = Column(String, nullable=False)  # 'damage', 'heal', 'buff', 'debuff', 'utility'
+    die = Column(String, nullable=False)  # Dice expression (e.g., 2d6, 3d4)
+    is_aoe = Column(Boolean, nullable=False, default=False)  # Area of effect
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    character = relationship("Character", back_populates="abilities")
