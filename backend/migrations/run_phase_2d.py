@@ -1,10 +1,11 @@
 """
 Phase 2d Migration Runner (PostgreSQL)
 Auto-runs SQL migrations on startup if needed.
+Properly handles PostgreSQL DO blocks and CREATE FUNCTION statements.
 """
 
 import logging
-import os
+import re
 from pathlib import Path
 from sqlalchemy import text, inspect
 from backend.db import engine
@@ -43,70 +44,98 @@ def check_migration_needed() -> bool:
     return True
 
 
+def split_sql_statements(sql_content: str) -> list:
+    """
+    Split SQL content into individual statements.
+    Properly handles:
+    - DO $$ ... END $$; blocks
+    - CREATE FUNCTION ... $$ LANGUAGE plpgsql; blocks
+    - Regular statements ending with ;
+    - Comments
+    """
+    statements = []
+    current = []
+    in_dollar_block = False
+    dollar_tag = None
+
+    lines = sql_content.split('\n')
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Skip empty lines and comment-only lines when not in a block
+        if not in_dollar_block and (not stripped or stripped.startswith('--')):
+            continue
+
+        # Check for start of dollar-quoted block (DO $$, CREATE FUNCTION ... AS $$)
+        if not in_dollar_block:
+            # Match $$ or $tag$ at start of dollar quoting
+            dollar_match = re.search(r'\$(\w*)\$', line)
+            if dollar_match:
+                in_dollar_block = True
+                dollar_tag = dollar_match.group(0)  # e.g., "$$" or "$tag$"
+                current.append(line)
+
+                # Check if block ends on same line (e.g., $$ LANGUAGE plpgsql;)
+                # Count occurrences of the dollar tag
+                occurrences = line.count(dollar_tag)
+                if occurrences >= 2:
+                    # Block starts and ends on same line
+                    in_dollar_block = False
+                    if stripped.endswith(';'):
+                        statements.append('\n'.join(current))
+                        current = []
+                continue
+
+        # Inside a dollar-quoted block
+        if in_dollar_block:
+            current.append(line)
+            # Check for end of dollar block
+            if dollar_tag and dollar_tag in line:
+                # Check if this closes the block (second occurrence)
+                in_dollar_block = False
+                dollar_tag = None
+                if stripped.endswith(';'):
+                    statements.append('\n'.join(current))
+                    current = []
+            continue
+
+        # Regular statement
+        current.append(line)
+        if stripped.endswith(';'):
+            stmt = '\n'.join(current).strip()
+            if stmt and not stmt.startswith('--'):
+                statements.append(stmt)
+            current = []
+
+    # Don't forget any remaining content
+    if current:
+        stmt = '\n'.join(current).strip()
+        if stmt and not stmt.startswith('--'):
+            statements.append(stmt)
+
+    return statements
+
+
 def run_sql_file(filepath: Path, conn):
     """
     Execute a single SQL migration file.
-    Handles multi-statement files including DO blocks.
     """
     logger.info(f"Running {filepath.name}...")
 
     with open(filepath, 'r', encoding='utf-8') as f:
         sql_content = f.read()
 
-    # For PostgreSQL, we can execute the entire file as one transaction
-    # But we need to handle DO blocks specially
+    # Split into proper statements
+    statements = split_sql_statements(sql_content)
 
-    # Split on semicolons that are NOT inside DO blocks
-    # Simple approach: execute the whole file
-    try:
-        conn.execute(text(sql_content))
-        conn.commit()
-        logger.info(f"✓ {filepath.name} completed")
-    except Exception as e:
-        logger.warning(f"⚠️ {filepath.name} warning: {e}")
-        conn.rollback()
-
-        # Try statement-by-statement for better error handling
-        logger.info(f"  Retrying {filepath.name} statement-by-statement...")
-        run_sql_statements(sql_content, conn, filepath.name)
-
-
-def run_sql_statements(sql_content: str, conn, filename: str):
-    """
-    Execute SQL content statement by statement.
-    Handles DO blocks and regular statements.
-    """
-    # Split into statements, being careful with DO blocks
-    statements = []
-    current = []
-    in_do_block = False
-
-    for line in sql_content.split('\n'):
-        stripped = line.strip()
-
-        # Track DO block state
-        if stripped.upper().startswith('DO $$') or stripped.upper().startswith('DO $'):
-            in_do_block = True
-
-        current.append(line)
-
-        # Check for end of DO block
-        if in_do_block and stripped.endswith('$$;'):
-            in_do_block = False
-            statements.append('\n'.join(current))
-            current = []
-        # Check for regular statement end (not in DO block)
-        elif not in_do_block and stripped.endswith(';') and not stripped.startswith('--'):
-            stmt = '\n'.join(current).strip()
-            if stmt and not stmt.startswith('--'):
-                statements.append(stmt)
-            current = []
-
-    # Execute each statement
     success_count = 0
+    error_count = 0
+
     for stmt in statements:
-        if not stmt.strip() or stmt.strip().startswith('--'):
+        if not stmt.strip():
             continue
+
         try:
             conn.execute(text(stmt))
             conn.commit()
@@ -115,12 +144,17 @@ def run_sql_statements(sql_content: str, conn, filename: str):
             error_msg = str(e).lower()
             # Ignore "already exists" errors
             if 'already exists' in error_msg or 'duplicate' in error_msg:
-                logger.debug(f"  Skipping (already exists): {stmt[:50]}...")
+                logger.debug(f"  Skipping (already exists)")
+                success_count += 1  # Count as success
             else:
-                logger.warning(f"  Statement warning: {e}")
+                logger.warning(f"  Statement error: {e}")
+                error_count += 1
             conn.rollback()
 
-    logger.info(f"✓ {filename} completed ({success_count} statements)")
+    if error_count > 0:
+        logger.warning(f"⚠️ {filepath.name} completed with {error_count} errors ({success_count} succeeded)")
+    else:
+        logger.info(f"✓ {filepath.name} completed ({success_count} statements)")
 
 
 def run_migrations():
@@ -155,7 +189,15 @@ def run_migrations():
 
                 run_sql_file(filepath, conn)
 
-        logger.info("✅ All Phase 2d migrations completed successfully!")
+        logger.info("✅ All Phase 2d migrations completed!")
+
+        # Verify critical tables were created
+        if not table_exists('parties'):
+            logger.error("❌ CRITICAL: 'parties' table was not created!")
+        if not table_exists('abilities'):
+            logger.error("❌ CRITICAL: 'abilities' table was not created!")
+        if not table_exists('party_members'):
+            logger.error("❌ CRITICAL: 'party_members' table was not created!")
 
     except Exception as e:
         logger.error(f"❌ Migration failed: {e}")
@@ -165,7 +207,6 @@ def run_migrations():
 def run_cleanup():
     """
     Run cleanup script to remove failed migration artifacts.
-    Use this if migrations failed partway through.
     """
     logger.info("🧹 Running cleanup for failed migrations...")
 

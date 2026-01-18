@@ -1,31 +1,20 @@
 -- Migration 004: Create Abilities Table (PostgreSQL)
 -- Phase 2d: Custom spells, techniques, and abilities for characters
---
--- Purpose: Store character-specific abilities (spells, techniques, special moves)
--- Each character can have up to 5 ability slots with custom macros
--- Examples: /fireball, /slash, /heal, /persuade, /stealth
+-- Uses VARCHAR for IDs to match existing schema
 
 CREATE TABLE IF NOT EXISTS abilities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    character_id UUID NOT NULL,
-    slot_number INTEGER NOT NULL CHECK (slot_number >= 1 AND slot_number <= 5),  -- 1-5 ability slots
-
-    -- Ability identification
+    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    character_id VARCHAR(36) NOT NULL,
+    slot_number INTEGER NOT NULL CHECK (slot_number >= 1 AND slot_number <= 5),
     ability_type VARCHAR(20) NOT NULL CHECK (ability_type IN ('spell', 'technique', 'special')),
-    display_name VARCHAR(100) NOT NULL,  -- e.g., "Fireball", "Slash", "Persuade"
-    macro_command VARCHAR(50) NOT NULL,  -- e.g., "/fireball", "/slash", "/persuade"
-
-    -- Ability mechanics
-    power_source VARCHAR(10) NOT NULL CHECK (power_source IN ('PP', 'IP', 'SP')),  -- Which stat powers this ability
+    display_name VARCHAR(100) NOT NULL,
+    macro_command VARCHAR(50) NOT NULL,
+    power_source VARCHAR(10) NOT NULL CHECK (power_source IN ('PP', 'IP', 'SP')),
     effect_type VARCHAR(20) NOT NULL CHECK (effect_type IN ('damage', 'heal', 'buff', 'debuff', 'utility')),
-    die VARCHAR(10) NOT NULL,  -- Dice expression: "2d6", "3d4", "1d12"
-    is_aoe BOOLEAN NOT NULL DEFAULT FALSE,  -- Whether ability affects multiple targets
-
-    -- Metadata
+    die VARCHAR(10) NOT NULL,
+    is_aoe BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    -- Foreign key
     CONSTRAINT fk_abilities_character FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
 );
 
@@ -52,7 +41,7 @@ COMMENT ON COLUMN abilities.effect_type IS 'Effect category: damage, heal, buff,
 COMMENT ON COLUMN abilities.die IS 'Dice expression for ability roll (e.g., 2d6, 3d4)';
 COMMENT ON COLUMN abilities.is_aoe IS 'Whether ability affects multiple targets (area of effect)';
 
--- Create trigger to auto-update updated_at
+-- Create trigger function for updated_at
 CREATE OR REPLACE FUNCTION update_abilities_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -61,11 +50,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Create trigger
 DROP TRIGGER IF EXISTS trigger_abilities_updated_at ON abilities;
 CREATE TRIGGER trigger_abilities_updated_at
     BEFORE UPDATE ON abilities
     FOR EACH ROW
     EXECUTE FUNCTION update_abilities_updated_at();
 
--- Migration complete
 SELECT 'Migration 004: Abilities table created successfully' AS status;
