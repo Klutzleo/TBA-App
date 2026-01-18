@@ -36,6 +36,11 @@ async def lifespan(app: FastAPI):
     try:
         init_db()
         logger.info("✅ Database initialized")
+
+        # Run Phase 2d migrations
+        from backend.migrations.run_phase_2d import run_migrations
+        run_migrations()
+
     except Exception as e:
         logger.warning(f"⚠️ DB init warning: {e}")
     yield
