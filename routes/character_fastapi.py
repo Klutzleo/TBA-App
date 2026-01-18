@@ -1,17 +1,19 @@
 """
-Character and Party CRUD endpoints (TBA v1.5 Phase 1).
+Character and Party CRUD endpoints (TBA v1.5 Phase 2d).
 Auto-calculates level stats from CORE_RULESET, persists to database.
+Includes full character creation with abilities and party membership.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from backend.db import get_db
-from backend.models import Character, Party, PartyMembership
+from backend.models import Character, Party, PartyMembership, Ability
 from backend.character_utils import (
     calculate_level_stats,
     validate_stats,
     validate_attack_style,
-    get_defense_die
+    get_defense_die,
+    get_available_attack_styles
 )
 from routes.schemas.character import (
     CharacterCreate,
@@ -20,9 +22,12 @@ from routes.schemas.character import (
     PartyCreate,
     PartyResponse,
     PartyMemberAdd,
-    PartyMemberResponse
+    PartyMemberResponse,
+    FullCharacterCreate,
+    FullCharacterResponse,
+    AbilityResponse
 )
-from typing import List
+from typing import List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -83,11 +88,219 @@ async def create_character(req: CharacterCreate, request: Request, db: Session =
         
         logger.info(f"[{request_id}] Character created: {character.id}")
         return character
-    
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"[{request_id}] Character creation error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Character creation failed: {str(e)}")
+
+
+@character_blp_fastapi.post("/full", response_model=FullCharacterResponse, status_code=201)
+async def create_character_full(req: FullCharacterCreate, request: Request, db: Session = Depends(get_db)):
+    """
+    Create a new character with ability and party membership (Phase 2d).
+
+    This endpoint:
+    1. Validates stats sum to 6, each stat 1-3
+    2. Validates weapon_die is available for the character's level
+    3. Auto-calculates max_dp, edge, bap, defense_die from level
+    4. Creates the character with all Phase 2d fields
+    5. Creates the starting ability
+    6. Adds character to campaign's Story and OOC parties
+
+    Returns the full character with abilities and party IDs.
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Creating full character: {req.name} (level {req.level}) for campaign {req.campaign_id}")
+
+    try:
+        # =====================================================================
+        # 1. Validate stats
+        # =====================================================================
+        if req.pp + req.ip + req.sp != 6:
+            raise ValueError(f"Stats must sum to 6, got {req.pp + req.ip + req.sp}")
+
+        for stat_name, stat_val in [("PP", req.pp), ("IP", req.ip), ("SP", req.sp)]:
+            if not 1 <= stat_val <= 3:
+                raise ValueError(f"{stat_name} must be between 1 and 3, got {stat_val}")
+
+        # =====================================================================
+        # 2. Validate level (1-10 for TBA v1.5)
+        # =====================================================================
+        if not 1 <= req.level <= 10:
+            raise ValueError(f"Level must be between 1 and 10, got {req.level}")
+
+        # =====================================================================
+        # 3. Validate weapon_die for level
+        # =====================================================================
+        available_weapons = get_available_attack_styles(req.level)
+        if req.weapon_die not in available_weapons:
+            raise ValueError(
+                f"Weapon die '{req.weapon_die}' not available at level {req.level}. "
+                f"Available options: {', '.join(available_weapons)}"
+            )
+
+        # =====================================================================
+        # 4. Auto-calculate level stats
+        # =====================================================================
+        level_stats = calculate_level_stats(req.level)
+        defense_die = req.defense_die if req.defense_die else get_defense_die(req.level)
+
+        # Calculate uses per encounter (3 * level as per task)
+        max_uses = 3 * req.level
+
+        # =====================================================================
+        # 5. Find Story and OOC parties for this campaign
+        # =====================================================================
+        story_party = db.query(Party).filter(
+            Party.campaign_id == req.campaign_id,
+            Party.party_type == 'story'
+        ).first()
+
+        ooc_party = db.query(Party).filter(
+            Party.campaign_id == req.campaign_id,
+            Party.party_type == 'ooc'
+        ).first()
+
+        if not story_party and not ooc_party:
+            logger.warning(f"[{request_id}] No parties found for campaign {req.campaign_id}")
+            # We'll still create the character, just won't add to parties
+
+        # =====================================================================
+        # 6. Create character
+        # =====================================================================
+        character = Character(
+            name=req.name,
+            owner_id=req.campaign_id,  # Use campaign_id as owner for campaign-scoped characters
+            level=req.level,
+            pp=req.pp,
+            ip=req.ip,
+            sp=req.sp,
+            dp=level_stats["max_dp"],
+            max_dp=level_stats["max_dp"],
+            edge=level_stats["edge"],
+            bap=level_stats["bap"],
+            attack_style=req.weapon_die,
+            defense_die=defense_die,
+            weapon={"name": req.weapon_name, "die": req.weapon_die} if req.weapon_name else None,
+            armor={"name": req.armor_name} if req.armor_name else None,
+            # Phase 2d fields
+            notes=None,
+            max_uses_per_encounter=max_uses,
+            current_uses=max_uses,
+            weapon_bonus=0,
+            armor_bonus=0,
+            times_called=0,
+            is_called=False,
+            status='active'
+        )
+
+        db.add(character)
+        db.flush()  # Get character.id before creating ability
+
+        logger.info(f"[{request_id}] Character created: {character.id}")
+
+        # =====================================================================
+        # 7. Create starting ability
+        # =====================================================================
+        # Determine ability_type from effect_type
+        ability_type_map = {
+            'damage': 'technique',
+            'heal': 'spell',
+            'buff': 'spell',
+            'debuff': 'spell',
+            'utility': 'special'
+        }
+        ability_type = ability_type_map.get(req.ability.effect_type, 'technique')
+
+        ability = Ability(
+            character_id=character.id,
+            slot_number=req.ability.slot_number,
+            ability_type=ability_type,
+            display_name=req.ability.display_name,
+            macro_command=req.ability.macro_command,
+            power_source=req.ability.power_source,
+            effect_type=req.ability.effect_type,
+            die=req.ability.die,
+            is_aoe=req.ability.is_aoe
+        )
+
+        db.add(ability)
+        logger.info(f"[{request_id}] Ability created: {ability.display_name} ({ability.macro_command})")
+
+        # =====================================================================
+        # 8. Add character to Story and OOC parties
+        # =====================================================================
+        party_ids = []
+
+        if story_party:
+            story_membership = PartyMembership(
+                party_id=story_party.id,
+                character_id=character.id
+            )
+            db.add(story_membership)
+            party_ids.append(story_party.id)
+            logger.info(f"[{request_id}] Added to Story party: {story_party.id}")
+
+        if ooc_party:
+            ooc_membership = PartyMembership(
+                party_id=ooc_party.id,
+                character_id=character.id
+            )
+            db.add(ooc_membership)
+            party_ids.append(ooc_party.id)
+            logger.info(f"[{request_id}] Added to OOC party: {ooc_party.id}")
+
+        # =====================================================================
+        # 9. Commit transaction
+        # =====================================================================
+        db.commit()
+        db.refresh(character)
+
+        logger.info(f"[{request_id}] Full character creation complete: {character.name} ({character.id})")
+
+        # =====================================================================
+        # 10. Build response
+        # =====================================================================
+        # Load abilities for response
+        abilities = db.query(Ability).filter(Ability.character_id == character.id).all()
+
+        return FullCharacterResponse(
+            id=character.id,
+            name=character.name,
+            owner_id=character.owner_id,
+            level=character.level,
+            pp=character.pp,
+            ip=character.ip,
+            sp=character.sp,
+            dp=character.dp,
+            max_dp=character.max_dp,
+            edge=character.edge,
+            bap=character.bap,
+            attack_style=character.attack_style,
+            defense_die=character.defense_die,
+            weapon=character.weapon,
+            armor=character.armor,
+            notes=character.notes,
+            max_uses_per_encounter=character.max_uses_per_encounter,
+            current_uses=character.current_uses,
+            weapon_bonus=character.weapon_bonus,
+            armor_bonus=character.armor_bonus,
+            status=character.status,
+            abilities=[AbilityResponse.model_validate(a) for a in abilities],
+            campaign_id=req.campaign_id,
+            party_ids=party_ids,
+            created_at=character.created_at,
+            updated_at=character.updated_at
+        )
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[{request_id}] Full character creation error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Character creation failed: {str(e)}")
 
 

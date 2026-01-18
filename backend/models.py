@@ -1,21 +1,39 @@
 # models.py
-from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean
+"""
+TBA-App SQLAlchemy Models
+
+Phase 2d schema with:
+- Characters with abilities and status tracking
+- Parties (tabs) with campaign grouping
+- Party memberships (many-to-many)
+- Messages with party routing
+- NPCs and combat turns
+"""
+from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean, Text
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
 from backend.db import Base  # ✅ This works from project root
 
+
 class Echo(Base):
+    """Legacy echo storage for schema payloads."""
     __tablename__ = "echoes"
     __table_args__ = {'extend_existing': True}
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     timestamp = Column(DateTime, default=datetime.utcnow)
     schema_type = Column(String)
     payload = Column(JSON)
 
+    def __repr__(self):
+        return f"<Echo(id={self.id[:8]}..., schema_type={self.schema_type})>"
+
 class RollLog(Base):
+    """Log of dice rolls for audit/replay."""
     __tablename__ = "roll_logs"
     __table_args__ = {'extend_existing': True}
+
     id = Column(Integer, primary_key=True, index=True)
     actor = Column(String)
     target = Column(String)
@@ -26,6 +44,9 @@ class RollLog(Base):
     modifiers = Column(JSON)    # Any edge, bap, tether, echo bonuses
     session_id = Column(String, nullable=True)
     encounter_id = Column(String, nullable=True)
+
+    def __repr__(self):
+        return f"<RollLog(id={self.id}, actor={self.actor}, roll_type={self.roll_type})>"
 
 
 class Character(Base):
@@ -75,9 +96,20 @@ class Character(Base):
     party_memberships = relationship("PartyMembership", back_populates="character")
     abilities = relationship("Ability", back_populates="character", cascade="all, delete-orphan")
 
+    def __repr__(self):
+        return f"<Character(id={self.id[:8]}..., name={self.name}, level={self.level}, status={self.status})>"
+
 
 class Party(Base):
-    """Party/Session grouping for multiplayer."""
+    """
+    Party/Session grouping for multiplayer.
+
+    Represents a chat tab/channel within a campaign. Types:
+    - 'story': Main in-character gameplay
+    - 'ooc': Out-of-character discussion
+    - 'standard': Custom party/group
+    - 'whisper': Private conversation
+    """
     __tablename__ = "parties"
     __table_args__ = {'extend_existing': True}
 
@@ -87,8 +119,8 @@ class Party(Base):
     session_id = Column(String, nullable=True)  # Active session ID (for WebSocket routing)
 
     # Story Weaver tracking
-    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)  # Character ID of current SW
-    created_by_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)  # Character ID who created the party
+    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
+    created_by_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
 
     # Phase 2d: Tab system columns
     campaign_id = Column(String, nullable=True, index=True)  # Campaign this party belongs to
@@ -100,13 +132,25 @@ class Party(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    memberships = relationship("PartyMembership", back_populates="party")
+    memberships = relationship("PartyMembership", back_populates="party", cascade="all, delete-orphan")
     npcs = relationship("NPC", back_populates="party", cascade="all, delete-orphan")
     combat_turns = relationship("CombatTurn", back_populates="party", cascade="all, delete-orphan")
+    messages = relationship("Message", back_populates="party")
+
+    # Relationships to Character for SW and creator
+    story_weaver = relationship("Character", foreign_keys=[story_weaver_id])
+    creator = relationship("Character", foreign_keys=[created_by_id])
+
+    def __repr__(self):
+        return f"<Party(id={self.id[:8]}..., name={self.name}, type={self.party_type}, campaign={self.campaign_id[:8] if self.campaign_id else None}...)>"
 
 
 class PartyMembership(Base):
-    """Join table: which characters belong to which parties."""
+    """
+    Join table: which characters belong to which parties.
+
+    Tracks membership history with joined_at and left_at timestamps.
+    """
     __tablename__ = "party_memberships"
     __table_args__ = {'extend_existing': True}
 
@@ -114,14 +158,24 @@ class PartyMembership(Base):
     party_id = Column(String, ForeignKey("parties.id"), nullable=False, index=True)
     character_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
     joined_at = Column(DateTime, default=datetime.utcnow)
+    left_at = Column(DateTime, nullable=True)  # NULL = still active member
 
     # Relationships
     party = relationship("Party", back_populates="memberships")
     character = relationship("Character", back_populates="party_memberships")
 
+    def __repr__(self):
+        status = "active" if self.left_at is None else "left"
+        return f"<PartyMembership(party={self.party_id[:8]}..., character={self.character_id[:8]}..., {status})>"
+
 
 class NPC(Base):
-    """Non-Player Characters created by Story Weavers for encounters."""
+    """
+    Non-Player Characters created by Story Weavers for encounters.
+
+    NPCs have similar stats to Characters but are party-scoped and
+    controlled by the Story Weaver.
+    """
     __tablename__ = "npcs"
     __table_args__ = {'extend_existing': True}
 
@@ -153,10 +207,18 @@ class NPC(Base):
 
     # Relationships
     party = relationship("Party", back_populates="npcs")
+    creator = relationship("Character", foreign_keys=[created_by])
+
+    def __repr__(self):
+        return f"<NPC(id={self.id[:8]}..., name={self.name}, type={self.npc_type}, dp={self.dp}/{self.max_dp})>"
 
 
 class CombatTurn(Base):
-    """Combat turn history and action tracking for parties."""
+    """
+    Combat turn history and action tracking for parties.
+
+    Logs each combat action for replay, BAP tracking, and audit purposes.
+    """
     __tablename__ = "combat_turns"
     __table_args__ = {'extend_existing': True}
 
@@ -179,9 +241,18 @@ class CombatTurn(Base):
     # Relationships
     party = relationship("Party", back_populates="combat_turns")
 
+    def __repr__(self):
+        return f"<CombatTurn(id={self.id[:8]}..., turn={self.turn_number}, combatant={self.combatant_name}, action={self.action_type})>"
+
 
 class Ability(Base):
-    """Custom spells, techniques, and abilities for characters."""
+    """
+    Custom spells, techniques, and abilities for characters.
+
+    Each character can have up to 5 abilities in numbered slots.
+    Abilities are triggered via chat macros and use the character's
+    power source (PP/IP/SP) for rolls.
+    """
     __tablename__ = "abilities"
     __table_args__ = {'extend_existing': True}
 
@@ -201,3 +272,41 @@ class Ability(Base):
 
     # Relationships
     character = relationship("Character", back_populates="abilities")
+
+    def __repr__(self):
+        return f"<Ability(id={self.id[:8]}..., name={self.display_name}, slot={self.slot_number}, type={self.ability_type})>"
+
+
+class Message(Base):
+    """
+    Chat messages within a campaign/party.
+
+    Messages are routed to specific parties (tabs) within a campaign.
+    Types: chat, combat, system, narration
+    Modes: IC (in-character), OOC (out-of-character)
+    """
+    __tablename__ = "messages"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    campaign_id = Column(String, nullable=False, index=True)  # Campaign this message belongs to
+    party_id = Column(String, ForeignKey("parties.id"), nullable=True, index=True)  # Tab/channel (nullable for legacy)
+
+    # Sender info
+    sender_id = Column(String, nullable=False, index=True)  # Character ID or system
+    sender_name = Column(String, nullable=False)  # Display name
+
+    # Message content
+    message_type = Column(String, nullable=False, default='chat')  # 'chat', 'combat', 'system', 'narration'
+    mode = Column(String, nullable=True)  # 'IC' (in-character) or 'OOC' (out-of-character)
+    content = Column(Text, nullable=False)  # Message body
+    attachment_url = Column(String, nullable=True)  # Optional image/file URL
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Relationships
+    party = relationship("Party", back_populates="messages")
+
+    def __repr__(self):
+        preview = self.content[:20] + "..." if len(self.content) > 20 else self.content
+        return f"<Message(id={self.id[:8]}..., sender={self.sender_name}, type={self.message_type}, preview='{preview}')>"
