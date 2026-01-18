@@ -53,6 +53,51 @@ engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
+async def should_run_migration() -> bool:
+    """
+    Check if the migration needs to run.
+
+    Returns False if:
+    - Story/OOC parties already exist for campaigns
+    - No campaigns exist to migrate
+
+    This allows the migration to be called on every startup
+    without doing unnecessary work.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            # Check if we have any campaigns in messages
+            result = await session.execute(
+                text("SELECT COUNT(DISTINCT campaign_id) FROM messages WHERE campaign_id IS NOT NULL")
+            )
+            campaign_count = result.scalar() or 0
+
+            if campaign_count == 0:
+                # No campaigns to migrate
+                return False
+
+            # Check if we already have story parties for campaigns
+            result = await session.execute(
+                text("""
+                    SELECT COUNT(*) FROM parties
+                    WHERE party_type = 'story' AND campaign_id IS NOT NULL
+                """)
+            )
+            story_party_count = result.scalar() or 0
+
+            # If we have story parties for most campaigns, skip migration
+            # (allows for partial migrations to complete)
+            if story_party_count >= campaign_count:
+                return False
+
+            return True
+
+        except Exception as e:
+            # If we can't check, assume migration is needed
+            print(f"  Warning: Could not check migration status: {e}")
+            return True
+
+
 async def get_unique_campaigns(session: AsyncSession) -> list[str]:
     """
     Discover unique campaign IDs from existing data.

@@ -37,9 +37,20 @@ async def lifespan(app: FastAPI):
         init_db()
         logger.info("✅ Database initialized")
 
-        # Run Phase 2d migrations
+        # Run Phase 2d schema migrations
         from backend.migrations.run_phase_2d import run_migrations
         run_migrations()
+
+        # Run Phase 2d data migration (campaigns → parties)
+        try:
+            from scripts.migrate_to_parties import run_migration, should_run_migration
+            if await should_run_migration():
+                logger.info("🔄 Running party data migration...")
+                await run_migration()
+            else:
+                logger.info("✅ Party data migration already complete")
+        except Exception as migration_err:
+            logger.warning(f"⚠️ Party migration skipped: {migration_err}")
 
     except Exception as e:
         logger.warning(f"⚠️ DB init warning: {e}")
