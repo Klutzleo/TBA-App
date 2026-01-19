@@ -993,6 +993,81 @@
       to { opacity: 1; }
     }
 
+    /* === Tab Bar Styles === */
+    .tab-bar {
+      display: flex;
+      background: var(--bg-darker);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0;
+    }
+
+    .tab-btn {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .tab-btn.active {
+      color: var(--accent-primary);
+      border-bottom-color: var(--accent-primary);
+      background: rgba(212, 175, 55, 0.05);
+    }
+
+    .tab-btn.story-tab.active {
+      color: #a855f7;
+      border-bottom-color: #a855f7;
+      background: rgba(168, 85, 247, 0.05);
+    }
+
+    .tab-btn.ooc-tab.active {
+      color: var(--text-muted);
+      border-bottom-color: var(--text-muted);
+      background: rgba(107, 114, 128, 0.05);
+    }
+
+    .tab-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-danger);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 18px;
+      height: 18px;
+    }
+
+    .tab-badge.hidden {
+      display: none;
+    }
+
+    .message-tab-indicator {
+      font-size: 9px;
+      color: var(--text-muted);
+      padding: 2px 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-left: auto;
+    }
+
     /* === Responsive Design === */
     @media (max-width: 768px) {
       .hamburger-btn {
@@ -1191,6 +1266,16 @@
 
       <!-- Chat Area -->
       <main class="chat-container">
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+          <button class="tab-btn story-tab active" data-tab="story" onclick="switchTab('story')">
+            📖 Story <span id="story-badge" class="tab-badge hidden">0</span>
+          </button>
+          <button class="tab-btn ooc-tab" data-tab="ooc" onclick="switchTab('ooc')">
+            💬 OOC <span id="ooc-badge" class="tab-badge hidden">0</span>
+          </button>
+        </div>
+
         <div class="chat-messages" id="chatMessages">
           <div id="loadingSpinner" class="loading-spinner">
             <div class="spinner"></div>
@@ -1244,6 +1329,113 @@
 
     let ws = null;
 
+    // === Tab State ===
+    let activeTab = 'story';  // 'story' or 'ooc'
+    let allMessages = [];     // Store all messages with their tab info
+    let unreadCounts = { story: 0, ooc: 0 };
+
+    // === Tab Functions ===
+    function switchTab(tab) {
+      activeTab = tab;
+
+      // Update tab button styles
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+      // Clear unread count for this tab
+      unreadCounts[tab] = 0;
+      updateBadge(tab);
+
+      // Re-render messages for the active tab
+      renderMessages();
+    }
+
+    function updateBadge(tab) {
+      const badge = document.getElementById(`${tab}-badge`);
+      if (unreadCounts[tab] > 0) {
+        badge.textContent = unreadCounts[tab] > 99 ? '99+' : unreadCounts[tab];
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    // Determine which tab a message belongs to
+    function getMessageTab(data) {
+      // /ooc command explicitly goes to OOC
+      if (data.is_ooc_command) {
+        return 'ooc';
+      }
+
+      // Check chat_mode from server
+      if (data.chat_mode === 'ooc' || data.type === 'chat_ooc') {
+        return 'ooc';
+      }
+
+      // Combat events, dice rolls, narration, initiative, defend go to Story
+      if (['combat_event', 'combat_result', 'dice_roll', 'narration',
+           'initiative', 'stat_roll', 'defend', 'chat_ic'].includes(data.type)) {
+        return 'story';
+      }
+
+      // Whispers go to Story tab
+      if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
+        return 'story';
+      }
+
+      // System messages go to Story by default (unless target_tab specified)
+      if (data.type === 'system') {
+        return data.target_tab || 'story';
+      }
+
+      // IC messages go to Story
+      if (data.chat_mode === 'ic') {
+        return 'story';
+      }
+
+      // Default: Story
+      return 'story';
+    }
+
+    // Re-render all messages for the current active tab
+    function renderMessages() {
+      const chatMessagesEl = document.getElementById('chatMessages');
+      chatMessagesEl.innerHTML = '';
+
+      const filteredMessages = allMessages.filter(msg => msg._tab === activeTab);
+
+      filteredMessages.forEach(msgData => {
+        if (msgData._element) {
+          chatMessagesEl.appendChild(msgData._element.cloneNode(true));
+        }
+      });
+
+      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+    }
+
+    // Add message to storage and optionally display
+    function storeAndDisplayMessage(element, data) {
+      const messageTab = getMessageTab(data);
+      data._tab = messageTab;
+      data._element = element;
+
+      allMessages.push(data);
+
+      // If message is for inactive tab, increment unread count
+      if (messageTab !== activeTab) {
+        unreadCounts[messageTab]++;
+        updateBadge(messageTab);
+      }
+
+      // Only display if it belongs to the active tab
+      if (messageTab === activeTab) {
+        chatMessagesEl.appendChild(element);
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      }
+    }
+
     // === Helper Functions ===
     function isSW() {
       return roleEl.value === 'SW';
@@ -1261,7 +1453,7 @@
       }
     }
 
-    function addMessage(content, className = 'message-card') {
+    function addMessage(content, className = 'message-card', data = {}) {
       const div = document.createElement('div');
       div.className = className;
       if (typeof content === 'string') {
@@ -1269,8 +1461,16 @@
       } else {
         div.appendChild(content);
       }
-      chatMessagesEl.appendChild(div);
-      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+      // Add tab indicator for debugging (can be removed later)
+      const tabIndicator = document.createElement('span');
+      tabIndicator.className = 'message-tab-indicator';
+      const msgTab = getMessageTab(data);
+      tabIndicator.textContent = msgTab.toUpperCase();
+      div.appendChild(tabIndicator);
+
+      // Store and display via tab system
+      storeAndDisplayMessage(div, data);
     }
 
     // Display user's command (local echo)
@@ -1359,12 +1559,21 @@
     }
 
     // Display system message
-    function displaySystemMessage(text) {
+    function displaySystemMessage(text, targetTab = null) {
       const container = document.createElement('div');
       container.className = 'system-message';
       container.textContent = text;
-      chatMessagesEl.appendChild(container);
-      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+      const data = { type: 'system', text: text, target_tab: targetTab };
+
+      // Add tab indicator
+      const tabIndicator = document.createElement('span');
+      tabIndicator.className = 'message-tab-indicator';
+      const msgTab = getMessageTab(data);
+      tabIndicator.textContent = msgTab.toUpperCase();
+      container.appendChild(tabIndicator);
+
+      storeAndDisplayMessage(container, data);
     }
 
     // Display regular chat message
@@ -1387,7 +1596,7 @@
 
     // Display typed message (IC, OOC, Whisper)
     // targets can be a string (single target) or array (multiple targets)
-    function displayTypedMessage(mode, actor, text, targets = null) {
+    function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false) {
       const container = document.createElement('div');
 
       if (mode === 'ic') {
@@ -1456,8 +1665,24 @@
         container.appendChild(textDiv);
       }
 
-      chatMessagesEl.appendChild(container);
-      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      // Build data object for tab routing
+      const data = {
+        type: mode === 'ic' ? 'chat_ic' : (mode === 'ooc' ? 'chat_ooc' : 'chat_whisper'),
+        chat_mode: mode,
+        actor: actor,
+        text: text,
+        is_ooc_command: isOocCommand
+      };
+
+      // Add tab indicator
+      const tabIndicator = document.createElement('span');
+      tabIndicator.className = 'message-tab-indicator';
+      const msgTab = getMessageTab(data);
+      tabIndicator.textContent = msgTab.toUpperCase();
+      container.appendChild(tabIndicator);
+
+      // Store and display via tab system
+      storeAndDisplayMessage(container, data);
     }
 
     // Parse chat command and return mode info
@@ -1670,7 +1895,7 @@
         container.appendChild(narrative);
       }
 
-      addMessage(container, 'message-card message-combat');
+      addMessage(container, 'message-card message-combat', { type: 'combat_event', ...data });
     }
 
     // Render defend roll result
@@ -1720,8 +1945,14 @@
         container.appendChild(bd);
       }
 
-      chatMessagesEl.appendChild(container);
-      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      // Add tab indicator
+      const tabIndicator = document.createElement('span');
+      tabIndicator.className = 'message-tab-indicator';
+      tabIndicator.textContent = 'STORY';
+      container.appendChild(tabIndicator);
+
+      // Store and display via tab system
+      storeAndDisplayMessage(container, { type: 'defend', ...data });
     }
 
     function renderDiceRoll(data, icon = '🎲') {
@@ -1755,7 +1986,7 @@
         container.appendChild(header);
       }
 
-      addMessage(container, 'message-card message-dice');
+      addMessage(container, 'message-card message-dice', { type: 'dice_roll', ...data });
     }
 
     // === WebSocket Connection ===
@@ -1893,8 +2124,13 @@
                 container.appendChild(bd);
               }
 
-              chatMessagesEl.appendChild(container);
-              chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+              // Add tab indicator
+              const tabIndicator = document.createElement('span');
+              tabIndicator.className = 'message-tab-indicator';
+              tabIndicator.textContent = 'STORY';
+              container.appendChild(tabIndicator);
+
+              storeAndDisplayMessage(container, data);
             } else if (data.type === 'stat_roll') {
               // Render stat roll with expression and breakdown similar to dice_roll
               const container = document.createElement('div');
@@ -1930,8 +2166,13 @@
                 container.appendChild(bd);
               }
 
-              chatMessagesEl.appendChild(container);
-              chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+              // Add tab indicator
+              const tabIndicator = document.createElement('span');
+              tabIndicator.className = 'message-tab-indicator';
+              tabIndicator.textContent = 'STORY';
+              container.appendChild(tabIndicator);
+
+              storeAndDisplayMessage(container, data);
             } else if (data.type === 'initiative') {
               renderDiceRoll(data, '🧭');
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
@@ -1939,27 +2180,27 @@
               const myActor = (actorEl.value.trim() || 'User').toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
-                displayTypedMessage('ic', data.actor || 'Unknown', data.text);
+                displayTypedMessage('ic', data.actor || 'Unknown', data.text, null, false);
               }
             } else if (data.type === 'chat_ooc' || data.chat_mode === 'ooc') {
               // Out-of-Character message - skip if from self (already displayed locally)
               const myActor = (actorEl.value.trim() || 'User').toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
-                displayTypedMessage('ooc', data.actor || 'Unknown', data.text);
+                displayTypedMessage('ooc', data.actor || 'Unknown', data.text, null, data.is_ooc_command || false);
               }
             } else if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
               // Whisper message (only received if you're the target or SW)
               // Handle both whisper_targets (array) and whisper_target (legacy single)
               const targets = data.whisper_targets || data.whisper_target;
-              displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets);
+              displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets, false);
             } else if (data.type === 'defend') {
               // Defense roll result
               renderDefendRoll(data);
             } else {
               const content = document.createElement('div');
               content.textContent = `[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`;
-              addMessage(content, 'message-card');
+              addMessage(content, 'message-card', data);
             }
           } catch (e) {
             addMessage(ev.data, 'message-card');
@@ -1995,15 +2236,19 @@
       // Check for chat mode commands (/say, /ooc, /whisper)
       const chatCmd = parseChatCommand(text);
       if (chatCmd) {
+        // Check if it's an /ooc command
+        const isOocCommand = chatCmd.mode === 'ooc' && text.toLowerCase().startsWith('/ooc');
+
         // Display locally with styled message
-        displayTypedMessage(chatCmd.mode, actor, chatCmd.text, chatCmd.targets);
+        displayTypedMessage(chatCmd.mode, actor, chatCmd.text, chatCmd.targets, isOocCommand);
 
         // Build payload with chat_mode for server
         const payload = {
           type: 'message',
           actor,
           text: chatCmd.text,
-          chat_mode: chatCmd.mode
+          chat_mode: chatCmd.mode,
+          is_ooc_command: isOocCommand
         };
 
         if (chatCmd.targets) {
