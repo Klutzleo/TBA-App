@@ -1449,12 +1449,49 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "party_id": party_id
         }
 
+    if cmd == "/ooc":
+        # OOC command - handled client-side but we need to echo it properly
+        ooc_text = " ".join(parts[1:]) if len(parts) > 1 else ""
+        if not ooc_text:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "Usage: /ooc <message>",
+                "party_id": party_id
+            }
+        return {
+            "type": "message",
+            "actor": actor,
+            "text": ooc_text,
+            "party_id": party_id,
+            "chat_mode": "ooc",
+            "is_ooc_command": True
+        }
+
+    if cmd == "/say":
+        # Say command - explicit IC message
+        say_text = " ".join(parts[1:]) if len(parts) > 1 else ""
+        if not say_text:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "Usage: /say <message>",
+                "party_id": party_id
+            }
+        return {
+            "type": "message",
+            "actor": actor,
+            "text": say_text,
+            "party_id": party_id,
+            "chat_mode": "ic"
+        }
+
     if cmd == "/help":
         help_text = """📜 **Available Commands:**
 
 **Chat:**
 • `/say <message>` - In-character speech (green)
-• `/ooc <message>` - Out-of-character chat (gray)
+• `/ooc <message>` - Out-of-character chat (gray, goes to OOC tab)
 • `/whisper @player <message>` - Private message (purple)
 • `/w @player <message>` - Whisper shorthand
 

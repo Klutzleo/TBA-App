@@ -197,6 +197,77 @@
             background: #0f3460;
             border-radius: 4px;
         }
+
+        /* Tab Bar Styles */
+        #tab-bar {
+            display: flex;
+            background: #16213e;
+            border-bottom: 2px solid #0f3460;
+            padding: 0;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            margin: 0;
+        }
+
+        .tab-btn:hover {
+            color: #ccc;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .tab-btn.active {
+            color: #4a9eff;
+            border-bottom-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.1);
+        }
+
+        .tab-btn.story-tab.active {
+            color: #a855f7;
+            border-bottom-color: #a855f7;
+            background: rgba(168, 85, 247, 0.1);
+        }
+
+        .tab-btn.ooc-tab.active {
+            color: #888;
+            border-bottom-color: #888;
+            background: rgba(136, 136, 136, 0.1);
+        }
+
+        /* Tab badge for unread messages */
+        .tab-badge {
+            display: inline-block;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+            min-width: 16px;
+            text-align: center;
+        }
+
+        .tab-badge.hidden {
+            display: none;
+        }
+
+        /* Message tab indicator */
+        .message-tab-indicator {
+            font-size: 0.7em;
+            color: #666;
+            margin-left: 8px;
+            padding: 2px 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -222,6 +293,16 @@
     </div>
     
     <div id="chat-container">
+        <!-- Tab Bar -->
+        <div id="tab-bar">
+            <button class="tab-btn story-tab active" data-tab="story" onclick="switchTab('story')">
+                📖 Story <span id="story-badge" class="tab-badge hidden">0</span>
+            </button>
+            <button class="tab-btn ooc-tab" data-tab="ooc" onclick="switchTab('ooc')">
+                💬 OOC <span id="ooc-badge" class="tab-badge hidden">0</span>
+            </button>
+        </div>
+
         <div id="messages"></div>
         
         <div id="input-area">
@@ -240,6 +321,222 @@
         let displayName = '';
         let userId = '';
         let campaignId = '';
+
+        // Tab state
+        let activeTab = 'story';  // 'story' or 'ooc'
+        let allMessages = [];     // Store all messages with their tab info
+        let unreadCounts = { story: 0, ooc: 0 };
+
+        // Tab switching function
+        function switchTab(tab) {
+            activeTab = tab;
+
+            // Update tab button styles
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            // Clear unread count for this tab
+            unreadCounts[tab] = 0;
+            updateBadge(tab);
+
+            // Re-render messages for the active tab
+            renderMessages();
+        }
+
+        // Update badge for a tab
+        function updateBadge(tab) {
+            const badge = document.getElementById(`${tab}-badge`);
+            if (unreadCounts[tab] > 0) {
+                badge.textContent = unreadCounts[tab] > 99 ? '99+' : unreadCounts[tab];
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // Determine which tab a message belongs to
+        function getMessageTab(data) {
+            // Commands always go to Story tab, except /ooc
+            if (data.is_ooc_command) {
+                return 'ooc';
+            }
+
+            // Check chat_mode from server
+            if (data.chat_mode === 'ooc' || data.mode === 'OOC') {
+                return 'ooc';
+            }
+
+            // Combat events, dice rolls, narration go to Story
+            if (['combat_result', 'combat_event', 'dice_roll', 'narration',
+                 'initiative', 'stat_roll', 'defend'].includes(data.type)) {
+                return 'story';
+            }
+
+            // System messages go to current active tab (or story by default)
+            if (data.type === 'system') {
+                return data.target_tab || 'story';
+            }
+
+            // Whispers go to Story tab
+            if (data.type === 'whisper' || data.chat_mode === 'whisper') {
+                return 'story';
+            }
+
+            // Default: Story for IC, OOC for explicit OOC
+            return 'story';
+        }
+
+        // Render messages for the current active tab
+        function renderMessages() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+
+            const filteredMessages = allMessages.filter(msg => msg._tab === activeTab);
+
+            filteredMessages.forEach(data => {
+                const messageDiv = createMessageElement(data);
+                if (messageDiv) {
+                    messagesDiv.appendChild(messageDiv);
+                }
+            });
+
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Create a message element (extracted from addMessage)
+        function createMessageElement(data) {
+            const messageDiv = document.createElement('div');
+            const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+            // Add tab indicator for debugging
+            const tabIndicator = `<span class="message-tab-indicator">${data._tab.toUpperCase()}</span>`;
+
+            if (data.type === 'chat') {
+                messageDiv.className = `message chat-${data.mode}`;
+                messageDiv.innerHTML = `
+                    <span class="sender">${data.sender}</span>
+                    <span>${data.message}</span>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'message') {
+                // Regular message from WebSocket
+                const cssClass = data.chat_mode === 'ooc' ? 'chat-OOC' : 'chat-IC';
+                messageDiv.className = `message ${cssClass}`;
+                messageDiv.innerHTML = `
+                    <span class="sender">${data.actor}</span>
+                    <span>${data.text}</span>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'narration') {
+                messageDiv.className = 'message narration';
+                messageDiv.innerHTML = `
+                    <div>📖 ${data.text}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'combat_result' || data.type === 'combat_event') {
+                messageDiv.className = 'message combat_result';
+                let rollsHtml = '';
+                if (data.individual_rolls) {
+                    rollsHtml = data.individual_rolls.map(r =>
+                        `Roll: ${r.attacker_roll} vs ${r.defense_roll} → ${r.margin > 0 ? '+' + r.margin : r.margin} → ${r.damage} damage`
+                    ).join('<br>');
+                }
+
+                const attacker = data.attacker || data.attacker_name || 'Unknown';
+                const defender = data.defender || data.defender_name || 'Unknown';
+                const technique = data.technique || 'Attack';
+                const damage = data.damage || data.total_damage || 0;
+                const defenderDp = data.defender_new_dp !== undefined ? data.defender_new_dp : '?';
+                const narrative = data.narrative || data.flavor_text || '';
+
+                messageDiv.innerHTML = `
+                    <div><strong>⚔️ ${attacker} attacks ${defender} with ${technique}</strong></div>
+                    ${rollsHtml ? `<div class="combat-breakdown">${rollsHtml}</div>` : ''}
+                    <div><strong>Total: ${damage} damage (${defender} has ${defenderDp} DP remaining)</strong></div>
+                    <div>${narrative}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'dice_roll') {
+                messageDiv.className = 'message dice_roll';
+                const breakdown = data.breakdown ? data.breakdown.join(', ') : data.rolls?.join(', ') || '?';
+                messageDiv.innerHTML = `
+                    <div><strong>🎲 ${data.roller || data.actor} rolls ${data.dice}</strong></div>
+                    <div>Rolls: [${breakdown}] = ${data.result}</div>
+                    ${data.reason ? `<div style="font-style: italic;">${data.reason}</div>` : ''}
+                    ${data.text ? `<div>${data.text}</div>` : ''}
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'initiative') {
+                messageDiv.className = 'message dice_roll';
+                messageDiv.innerHTML = `
+                    <div><strong>⚡ ${data.actor} rolls initiative</strong></div>
+                    <div>${data.text}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'stat_roll') {
+                messageDiv.className = 'message dice_roll';
+                messageDiv.innerHTML = `
+                    <div><strong>📊 ${data.actor} rolls ${data.stat}</strong></div>
+                    <div>${data.text}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'defend') {
+                messageDiv.className = 'message dice_roll';
+                messageDiv.innerHTML = `
+                    <div><strong>🛡️ ${data.actor} defends</strong></div>
+                    <div>${data.text}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'system') {
+                messageDiv.className = 'message system';
+                messageDiv.innerHTML = `
+                    <div>ℹ️ ${data.message || data.text}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'whisper') {
+                messageDiv.className = 'message whisper';
+                messageDiv.innerHTML = `
+                    <div>🔒 <strong>${data.sender || data.actor} whispers:</strong> ${data.message || data.text}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+            else if (data.type === 'welcome') {
+                // Don't display welcome messages, just use for setup
+                return null;
+            }
+            else {
+                // Unknown type - display as generic message
+                messageDiv.className = 'message system';
+                messageDiv.innerHTML = `
+                    <div>${JSON.stringify(data)}</div>
+                    ${tabIndicator}
+                    <span class="timestamp">${timestamp}</span>
+                `;
+            }
+
+            return messageDiv;
+        }
         
         function connect() {
             displayName = document.getElementById('display-name').value.trim();
@@ -288,17 +585,49 @@
             const input = document.getElementById('message-input');
             const mode = document.getElementById('mode').value;
             const message = input.value.trim();
-            
+
             if (!message || !ws) return;
-            
+
+            // Check for /ooc command - sends to OOC tab
+            if (message.toLowerCase().startsWith('/ooc ')) {
+                const oocMessage = message.substring(5).trim();
+                if (oocMessage) {
+                    ws.send(JSON.stringify({
+                        type: 'message',
+                        actor: displayName,
+                        text: oocMessage,
+                        user_id: userId,
+                        chat_mode: 'ooc',
+                        is_ooc_command: true
+                    }));
+                }
+                input.value = '';
+                return;
+            }
+
+            // Check for other commands (/) - these go to Story tab
+            if (message.startsWith('/')) {
+                ws.send(JSON.stringify({
+                    type: 'message',
+                    actor: displayName,
+                    text: message,
+                    user_id: userId,
+                    chat_mode: 'ic'  // Commands go to Story/IC tab
+                }));
+                input.value = '';
+                return;
+            }
+
+            // Regular chat message - respect the mode dropdown
+            const chatMode = mode === 'OOC' ? 'ooc' : 'ic';
             ws.send(JSON.stringify({
-                type: 'chat',
-                mode: mode,
-                sender: displayName,
+                type: 'message',
+                actor: displayName,
+                text: message,
                 user_id: userId,
-                message: message
+                chat_mode: chatMode
             }));
-            
+
             input.value = '';
         }
         
@@ -316,66 +645,28 @@
         }
         
         function addMessage(data) {
-            const messagesDiv = document.getElementById('messages');
-            const messageDiv = document.createElement('div');
-            
-            const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-            
-            if (data.type === 'chat') {
-                messageDiv.className = `message chat-${data.mode}`;
-                messageDiv.innerHTML = `
-                    <span class="sender">${data.sender}</span>
-                    <span>${data.message}</span>
-                    <span class="timestamp">${timestamp}</span>
-                `;
+            // Determine which tab this message belongs to
+            const messageTab = getMessageTab(data);
+            data._tab = messageTab;
+
+            // Store message
+            allMessages.push(data);
+
+            // If message is for inactive tab, increment unread count
+            if (messageTab !== activeTab) {
+                unreadCounts[messageTab]++;
+                updateBadge(messageTab);
             }
-            else if (data.type === 'narration') {
-                messageDiv.className = 'message narration';
-                messageDiv.innerHTML = `
-                    <div>📖 ${data.text}</div>
-                    <span class="timestamp">${timestamp}</span>
-                `;
+
+            // If message is for active tab, render it immediately
+            if (messageTab === activeTab) {
+                const messagesDiv = document.getElementById('messages');
+                const messageDiv = createMessageElement(data);
+                if (messageDiv) {
+                    messagesDiv.appendChild(messageDiv);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
             }
-            else if (data.type === 'combat_result') {
-                messageDiv.className = 'message combat_result';
-                let rollsHtml = data.individual_rolls.map(r => 
-                    `Roll: ${r.attacker_roll} vs ${r.defense_roll} → ${r.margin > 0 ? '+' + r.margin : r.margin} → ${r.damage} damage`
-                ).join('<br>');
-                
-                messageDiv.innerHTML = `
-                    <div><strong>⚔️ ${data.attacker} attacks ${data.defender} with ${data.technique}</strong></div>
-                    <div class="combat-breakdown">${rollsHtml}</div>
-                    <div><strong>Total: ${data.damage} damage (${data.defender} has ${data.defender_new_dp} DP remaining)</strong></div>
-                    <div>${data.narrative}</div>
-                    <span class="timestamp">${timestamp}</span>
-                `;
-            }
-            else if (data.type === 'dice_roll') {
-                messageDiv.className = 'message dice_roll';
-                messageDiv.innerHTML = `
-                    <div><strong>🎲 ${data.roller} rolls ${data.dice}</strong></div>
-                    <div>Rolls: [${data.breakdown.join(', ')}] = ${data.result}</div>
-                    ${data.reason ? `<div style="font-style: italic;">${data.reason}</div>` : ''}
-                    <span class="timestamp">${timestamp}</span>
-                `;
-            }
-            else if (data.type === 'system') {
-                messageDiv.className = 'message system';
-                messageDiv.innerHTML = `
-                    <div>ℹ️ ${data.message}</div>
-                    <span class="timestamp">${timestamp}</span>
-                `;
-            }
-            else if (data.type === 'whisper') {
-                messageDiv.className = 'message whisper';
-                messageDiv.innerHTML = `
-                    <div>🔒 <strong>${data.sender} whispers:</strong> ${data.message}</div>
-                    <span class="timestamp">${timestamp}</span>
-                `;
-            }
-            
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
         
         // Enter key to send
