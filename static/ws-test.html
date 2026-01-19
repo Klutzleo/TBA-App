@@ -1039,6 +1039,12 @@
       background: rgba(107, 114, 128, 0.05);
     }
 
+    .tab-btn.whisper-tab.active {
+      color: #8b5cf6;
+      border-bottom-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.05);
+    }
+
     .tab-badge {
       display: inline-flex;
       align-items: center;
@@ -1271,6 +1277,9 @@
           <button class="tab-btn story-tab active" data-tab="story" onclick="switchTab('story')">
             📖 Story <span id="story-badge" class="tab-badge hidden">0</span>
           </button>
+          <button class="tab-btn whisper-tab" data-tab="whispers" onclick="switchTab('whispers')">
+            🤫 Whispers <span id="whispers-badge" class="tab-badge hidden">0</span>
+          </button>
           <button class="tab-btn ooc-tab" data-tab="ooc" onclick="switchTab('ooc')">
             💬 OOC <span id="ooc-badge" class="tab-badge hidden">0</span>
           </button>
@@ -1330,9 +1339,9 @@
     let ws = null;
 
     // === Tab State ===
-    let activeTab = 'story';  // 'story' or 'ooc'
+    let activeTab = 'story';  // 'story', 'whispers', or 'ooc'
     let allMessages = [];     // Store all messages with their tab info
-    let unreadCounts = { story: 0, ooc: 0 };
+    let unreadCounts = { story: 0, whispers: 0, ooc: 0 };
 
     // === Tab Functions ===
     function switchTab(tab) {
@@ -1374,14 +1383,14 @@
         return 'ooc';
       }
 
+      // Whispers go to Whispers tab
+      if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
+        return 'whispers';
+      }
+
       // Combat events, dice rolls, narration, initiative, defend go to Story
       if (['combat_event', 'combat_result', 'dice_roll', 'narration',
            'initiative', 'stat_roll', 'defend', 'chat_ic'].includes(data.type)) {
-        return 'story';
-      }
-
-      // Whispers go to Story tab
-      if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
         return 'story';
       }
 
@@ -2262,9 +2271,32 @@
         if (encId) payload.encounter_id = encId;
 
         ws.send(JSON.stringify(payload));
-      } else {
-        // Regular message or other command (like /roll, /attack)
+      } else if (text.startsWith('/')) {
+        // Command (like /roll, /attack) - always goes to Story tab
         const payload = { type: 'message', actor, text };
+
+        // Use quick context/encounter if provided, otherwise fall back to sidebar
+        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
+        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+
+        if (ctx) payload.context = ctx;
+        if (encId) payload.encounter_id = encId;
+
+        ws.send(JSON.stringify(payload));
+      } else {
+        // Regular message - use active tab to determine chat mode
+        const chatMode = activeTab === 'ooc' ? 'ooc' : 'ic';
+
+        // Display locally with styled message
+        displayTypedMessage(chatMode, actor, text, null, false);
+
+        // Build payload
+        const payload = {
+          type: 'message',
+          actor,
+          text,
+          chat_mode: chatMode
+        };
 
         // Use quick context/encounter if provided, otherwise fall back to sidebar
         const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
