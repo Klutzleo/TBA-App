@@ -490,19 +490,31 @@
             6: 3, 7: 4, 8: 4, 9: 5, 10: 5
         };
 
-        // TBA v2.0 Spell/Tech die by slot and level
-        // Slot 1 (Single): All levels
-        // Slot 2 (AOE): Unlocks level 3
-        // Slot 3 (Single): Unlocks level 5
-        // Slot 4 (AOE): Unlocks level 7
-        // Slot 5 (Single): Unlocks level 9
-        const SPELL_DIE_BY_LEVEL = {
-            1: '1d6', 2: '1d6',
-            3: '1d8', 4: '1d8',
-            5: '1d10', 6: '1d10',
-            7: '1d12', 8: '1d12',
-            9: '2d8', 10: '2d8'
+        // TBA v2.0 Spell/Tech die by SLOT and LEVEL
+        // Each slot has its own progression based on when it unlocks
+        // Slot 1 (Single): Unlocks L1 - starts at 1d6
+        // Slot 2 (AOE): Unlocks L3 - starts at 1d6
+        // Slot 3 (Single): Unlocks L5 - starts at 1d6
+        // Slot 4 (AOE): Unlocks L7 - starts at 1d8
+        // Slot 5 (Single): Unlocks L9 - starts at 1d10
+        const SPELL_DIE_BY_SLOT_AND_LEVEL = {
+            // Slot 1: L1-2=1d6, L3-4=1d8, L5-6=1d10, L7-8=1d12, L9-10=2d8
+            1: { 1: '1d6', 2: '1d6', 3: '1d8', 4: '1d8', 5: '1d10', 6: '1d10', 7: '1d12', 8: '1d12', 9: '2d8', 10: '2d8' },
+            // Slot 2: Unlocks L3. L3-4=1d6, L5-6=1d8, L7-8=1d10, L9-10=1d12
+            2: { 3: '1d6', 4: '1d6', 5: '1d8', 6: '1d8', 7: '1d10', 8: '1d10', 9: '1d12', 10: '1d12' },
+            // Slot 3: Unlocks L5. L5-6=1d6, L7-8=1d8, L9=1d10, L10=2d6
+            3: { 5: '1d6', 6: '1d6', 7: '1d8', 8: '1d8', 9: '1d10', 10: '2d6' },
+            // Slot 4: Unlocks L7. L7-8=1d8, L9-10=1d10
+            4: { 7: '1d8', 8: '1d8', 9: '1d10', 10: '1d10' },
+            // Slot 5: Unlocks L9. L9=1d10, L10=1d12
+            5: { 9: '1d10', 10: '1d12' }
         };
+
+        // Helper to get spell die for a specific slot at a specific level
+        function getSpellDie(slotNum, level) {
+            const slotDice = SPELL_DIE_BY_SLOT_AND_LEVEL[slotNum];
+            return slotDice ? (slotDice[level] || '1d6') : '1d6';
+        }
 
         // Uses per encounter (3 * level)
         const USES_BY_LEVEL = {
@@ -869,7 +881,7 @@
         // Generate ability slot HTML
         function generateAbilitySlotHTML(slotNum, config, level) {
             const isAoe = config.type === 'aoe';
-            const spellDie = SPELL_DIE_BY_LEVEL[level] || '1d6';
+            const spellDie = getSpellDie(slotNum, level);
 
             return `
                 <div class="ability-slot ${config.type}" data-slot="${slotNum}">
@@ -987,7 +999,6 @@
             // Abilities - dynamically build based on available slots
             const abilitiesContainer = document.getElementById('review_abilities_container');
             const availableSlots = getAvailableSlots(level);
-            const spellDie = SPELL_DIE_BY_LEVEL[level] || '1d6';
 
             abilitiesContainer.innerHTML = availableSlots.map(slot => {
                 const slotNum = slot.slot;
@@ -996,6 +1007,7 @@
                 const powerSource = document.getElementById(`power_source_${slotNum}`)?.value || 'PP';
                 const effectType = document.getElementById(`effect_type_${slotNum}`)?.value || 'damage';
                 const isAoe = slot.type === 'aoe';
+                const slotSpellDie = getSpellDie(slotNum, level);
 
                 return `
                     <div style="margin-bottom: 10px; padding: 8px; background: #1a1a2e; border-radius: 4px; border-left: 3px solid ${isAoe ? '#ff6b6b' : '#00d4ff'};">
@@ -1009,7 +1021,7 @@
                         </div>
                         <div class="review-row">
                             <span class="review-label">Type</span>
-                            <span class="review-value">${effectType} (${powerSource}) - ${spellDie}</span>
+                            <span class="review-value">${effectType} (${powerSource}) - ${slotSpellDie}</span>
                         </div>
                     </div>
                 `;
@@ -1036,10 +1048,9 @@
             }
 
             const level = parseInt(document.getElementById('level').value);
-            const spellDie = SPELL_DIE_BY_LEVEL[level] || '1d6';
             const availableSlots = getAvailableSlots(level);
 
-            // Build abilities array from all available slots
+            // Build abilities array from all available slots (each slot has its own die)
             const abilities = availableSlots.map(slot => {
                 const slotNum = slot.slot;
                 return {
@@ -1048,7 +1059,7 @@
                     macro_command: document.getElementById(`macro_command_${slotNum}`).value.trim(),
                     power_source: document.getElementById(`power_source_${slotNum}`).value,
                     effect_type: document.getElementById(`effect_type_${slotNum}`).value,
-                    die: spellDie,
+                    die: getSpellDie(slotNum, level),
                     is_aoe: slot.type === 'aoe'
                 };
             });
