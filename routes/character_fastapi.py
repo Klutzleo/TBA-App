@@ -202,7 +202,7 @@ async def create_character_full(req: FullCharacterCreate, request: Request, db: 
         logger.info(f"[{request_id}] Character created: {character.id}")
 
         # =====================================================================
-        # 7. Create starting ability
+        # 7. Create starting abilities (supports single or multiple)
         # =====================================================================
         # Determine ability_type from effect_type
         ability_type_map = {
@@ -212,22 +212,27 @@ async def create_character_full(req: FullCharacterCreate, request: Request, db: 
             'debuff': 'spell',
             'utility': 'special'
         }
-        ability_type = ability_type_map.get(req.ability.effect_type, 'technique')
 
-        ability = Ability(
-            character_id=character.id,
-            slot_number=req.ability.slot_number,
-            ability_type=ability_type,
-            display_name=req.ability.display_name,
-            macro_command=req.ability.macro_command,
-            power_source=req.ability.power_source,
-            effect_type=req.ability.effect_type,
-            die=req.ability.die,
-            is_aoe=req.ability.is_aoe
-        )
+        # req.ability is now always a list after validation
+        abilities_to_create = req.ability if isinstance(req.ability, list) else [req.ability]
 
-        db.add(ability)
-        logger.info(f"[{request_id}] Ability created: {ability.display_name} ({ability.macro_command})")
+        for ability_data in abilities_to_create:
+            ability_type = ability_type_map.get(ability_data.effect_type, 'technique')
+
+            ability = Ability(
+                character_id=character.id,
+                slot_number=ability_data.slot_number,
+                ability_type=ability_type,
+                display_name=ability_data.display_name,
+                macro_command=ability_data.macro_command,
+                power_source=ability_data.power_source,
+                effect_type=ability_data.effect_type,
+                die=ability_data.die,
+                is_aoe=ability_data.is_aoe
+            )
+
+            db.add(ability)
+            logger.info(f"[{request_id}] Ability created: {ability.display_name} ({ability.macro_command}) - Slot {ability.slot_number}")
 
         # =====================================================================
         # 8. Add character to Story and OOC parties

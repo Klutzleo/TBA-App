@@ -193,6 +193,61 @@
 
         /* Helper text */
         .helper { color: #666; font-size: 0.85em; margin-top: 5px; }
+
+        /* Ability slot cards */
+        .ability-slot {
+            background: #252540;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .ability-slot.aoe {
+            border-left: 3px solid #ff6b6b;
+        }
+        .ability-slot.single {
+            border-left: 3px solid #00d4ff;
+        }
+        .ability-slot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        .ability-slot-title {
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .ability-slot-badge {
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .ability-slot-badge.single {
+            background: #00d4ff33;
+            color: #00d4ff;
+        }
+        .ability-slot-badge.aoe {
+            background: #ff6b6b33;
+            color: #ff6b6b;
+        }
+        .ability-slot .form-group {
+            margin-bottom: 12px;
+        }
+        .ability-slot .form-group:last-child {
+            margin-bottom: 0;
+        }
+        .ability-die-display {
+            background: #1a1a2e;
+            padding: 8px 12px;
+            border-radius: 4px;
+            color: #00ff88;
+            font-weight: bold;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -243,7 +298,7 @@
 
             <div class="form-group">
                 <label for="pp">Physical Power (PP)</label>
-                <select id="pp" name="pp" onchange="updateStatsTotal()">
+                <select id="pp" name="pp" onchange="updateStatsDropdowns('pp')">
                     <option value="1">1 - Low</option>
                     <option value="2" selected>2 - Average</option>
                     <option value="3">3 - High</option>
@@ -252,7 +307,7 @@
 
             <div class="form-group">
                 <label for="ip">Intellect Power (IP)</label>
-                <select id="ip" name="ip" onchange="updateStatsTotal()">
+                <select id="ip" name="ip" onchange="updateStatsDropdowns('ip')">
                     <option value="1">1 - Low</option>
                     <option value="2" selected>2 - Average</option>
                     <option value="3">3 - High</option>
@@ -261,7 +316,7 @@
 
             <div class="form-group">
                 <label for="sp">Social Power (SP)</label>
-                <select id="sp" name="sp" onchange="updateStatsTotal()">
+                <select id="sp" name="sp" onchange="updateStatsDropdowns('sp')">
                     <option value="1">1 - Low</option>
                     <option value="2" selected>2 - Average</option>
                     <option value="3">3 - High</option>
@@ -310,56 +365,13 @@
             </div>
         </div>
 
-        <!-- Step 4: First Ability -->
+        <!-- Step 4: Abilities (dynamic based on level) -->
         <div class="form-step" data-step="4">
-            <h2 class="step-title">Starting Ability</h2>
-            <p class="helper">Create your first spell, technique, or special ability</p>
+            <h2 class="step-title">Starting Abilities</h2>
+            <p class="helper" id="abilities_helper">Create your spells, techniques, or special abilities</p>
 
-            <div class="form-group">
-                <label for="ability_name">Ability Name *</label>
-                <input type="text" id="ability_name" name="ability_name" required
-                       placeholder="e.g., Power Strike, Fireball" maxlength="100">
-            </div>
-
-            <div class="form-group">
-                <label for="macro_command">Macro Command *</label>
-                <input type="text" id="macro_command" name="macro_command" required
-                       placeholder="/strike" maxlength="50" pattern="^/[a-z0-9]+$"
-                       oninput="formatMacro(this)">
-                <p class="helper">Lowercase, no spaces. Will be used in chat like: /strike</p>
-            </div>
-
-            <div class="form-group">
-                <label for="power_source">Power Source *</label>
-                <select id="power_source" name="power_source" required>
-                    <option value="PP">PP - Physical Power</option>
-                    <option value="IP">IP - Intellect Power</option>
-                    <option value="SP">SP - Social Power</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="effect_type">Effect Type *</label>
-                <select id="effect_type" name="effect_type" required>
-                    <option value="damage">Damage - Deal damage to enemies</option>
-                    <option value="heal">Heal - Restore DP</option>
-                    <option value="buff">Buff - Boost allies</option>
-                    <option value="debuff">Debuff - Weaken enemies</option>
-                    <option value="utility">Utility - Other effects</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="ability_die">Ability Die (based on level)</label>
-                <input type="text" id="ability_die" name="ability_die" disabled>
-            </div>
-
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="is_aoe" name="is_aoe">
-                    Area of Effect (hits multiple targets)
-                </label>
-            </div>
+            <!-- Ability slots container - dynamically populated based on level -->
+            <div id="ability_slots_container"></div>
 
             <div class="btn-row">
                 <button type="button" class="btn-back" onclick="prevStep()">Back</button>
@@ -408,18 +420,9 @@
             </div>
 
             <div class="review-section">
-                <h4>Ability</h4>
-                <div class="review-row">
-                    <span class="review-label">Name</span>
-                    <span class="review-value" id="review_ability_name">-</span>
-                </div>
-                <div class="review-row">
-                    <span class="review-label">Command</span>
-                    <span class="review-value" id="review_macro">-</span>
-                </div>
-                <div class="review-row">
-                    <span class="review-label">Type</span>
-                    <span class="review-value" id="review_ability_type">-</span>
+                <h4>Abilities</h4>
+                <div id="review_abilities_container">
+                    <!-- Dynamically populated based on level -->
                 </div>
             </div>
 
@@ -452,14 +455,14 @@
 
     <script>
         // =====================================================================
-        // Configuration - Level tables
+        // Configuration - TBA v2.0 Level Tables
         // =====================================================================
         const WEAPON_OPTIONS_BY_LEVEL = {
             1: ['1d4'], 2: ['1d4'],
-            3: ['2d4', '1d6'], 4: ['2d4', '1d6'],
-            5: ['3d4', '2d6', '1d8'], 6: ['3d4', '2d6', '1d8'],
-            7: ['4d4', '3d6', '2d8', '1d10'], 8: ['4d4', '3d6', '2d8', '1d10'],
-            9: ['5d4', '4d6', '3d8', '2d10', '1d12'], 10: ['5d4', '4d6', '3d8', '2d10', '1d12']
+            3: ['1d6', '2d4'], 4: ['1d6', '2d4'],
+            5: ['1d8', '2d6', '3d4'], 6: ['1d8', '2d6', '3d4'],
+            7: ['1d10', '2d8', '3d6', '4d4'], 8: ['1d10', '2d8', '3d6', '4d4'],
+            9: ['1d12', '2d10', '3d8', '4d6', '5d4'], 10: ['1d12', '2d10', '3d8', '4d6', '5d4']
         };
 
         const DEFENSE_DIE_BY_LEVEL = {
@@ -475,14 +478,36 @@
             6: 35, 7: 40, 8: 45, 9: 50, 10: 55
         };
 
+        // TBA v2.0 Edge progression
         const EDGE_BY_LEVEL = {
-            1: 0, 2: 0, 3: 1, 4: 1, 5: 2,
-            6: 2, 7: 3, 8: 3, 9: 4, 10: 5
+            1: 0, 2: 1, 3: 1, 4: 2, 5: 2,
+            6: 3, 7: 3, 8: 4, 9: 4, 10: 5
         };
 
+        // TBA v2.0 BAP progression
         const BAP_BY_LEVEL = {
-            1: 1, 2: 1, 3: 1, 4: 2, 5: 2,
-            6: 2, 7: 3, 8: 3, 9: 4, 10: 5
+            1: 1, 2: 1, 3: 2, 4: 2, 5: 3,
+            6: 3, 7: 4, 8: 4, 9: 5, 10: 5
+        };
+
+        // TBA v2.0 Spell/Tech die by slot and level
+        // Slot 1 (Single): All levels
+        // Slot 2 (AOE): Unlocks level 3
+        // Slot 3 (Single): Unlocks level 5
+        // Slot 4 (AOE): Unlocks level 7
+        // Slot 5 (Single): Unlocks level 9
+        const SPELL_DIE_BY_LEVEL = {
+            1: '1d6', 2: '1d6',
+            3: '1d8', 4: '1d8',
+            5: '1d10', 6: '1d10',
+            7: '1d12', 8: '1d12',
+            9: '2d8', 10: '2d8'
+        };
+
+        // Uses per encounter (3 * level)
+        const USES_BY_LEVEL = {
+            1: 3, 2: 6, 3: 9, 4: 12, 5: 15,
+            6: 18, 7: 21, 8: 24, 9: 27, 10: 30
         };
 
         // =====================================================================
@@ -570,19 +595,34 @@
             }
 
             if (step === 4) {
-                const abilityName = document.getElementById('ability_name').value.trim();
-                const macro = document.getElementById('macro_command').value.trim();
-                if (!abilityName) {
-                    showError('Please enter an ability name');
-                    return false;
-                }
-                if (!macro || !macro.startsWith('/')) {
-                    showError('Macro command must start with /');
-                    return false;
-                }
-                if (macro.includes(' ')) {
-                    showError('Macro command cannot contain spaces');
-                    return false;
+                // Validate all available ability slots
+                const level = parseInt(document.getElementById('level').value) || 1;
+                const availableSlots = getAvailableSlots(level);
+                const macros = new Set();
+
+                for (const slot of availableSlots) {
+                    const slotNum = slot.slot;
+                    const abilityName = document.getElementById(`ability_name_${slotNum}`).value.trim();
+                    const macro = document.getElementById(`macro_command_${slotNum}`).value.trim();
+
+                    if (!abilityName) {
+                        showError(`Please enter a name for ability slot ${slotNum}`);
+                        return false;
+                    }
+                    if (!macro || !macro.startsWith('/')) {
+                        showError(`Macro command for slot ${slotNum} must start with /`);
+                        return false;
+                    }
+                    if (macro.includes(' ')) {
+                        showError(`Macro command for slot ${slotNum} cannot contain spaces`);
+                        return false;
+                    }
+                    // Check for duplicate macros
+                    if (macros.has(macro.toLowerCase())) {
+                        showError(`Duplicate macro command: ${macro}. Each ability needs a unique command.`);
+                        return false;
+                    }
+                    macros.add(macro.toLowerCase());
                 }
             }
 
@@ -600,9 +640,112 @@
         }
 
         // =====================================================================
-        // Stats
+        // Stats - Smart Dropdown Logic
         // =====================================================================
-        function updateStatsTotal() {
+
+        // Get valid options for a stat given the other two stat values
+        function getValidStatOptions(otherStat1, otherStat2) {
+            const remaining = 6 - otherStat1 - otherStat2;
+            const options = [];
+
+            // Valid values are 1, 2, or 3, and must make total = 6
+            for (let val = 1; val <= 3; val++) {
+                if (otherStat1 + otherStat2 + val === 6) {
+                    options.push(val);
+                } else if (otherStat1 + otherStat2 + val < 6 && val < 3) {
+                    // Can still reach 6 with higher values in other stats
+                    options.push(val);
+                } else if (otherStat1 + otherStat2 + val > 6) {
+                    // Would exceed 6, skip
+                    continue;
+                } else {
+                    options.push(val);
+                }
+            }
+
+            // Filter to only values that can lead to valid total
+            return options.filter(val => {
+                const newTotal = otherStat1 + otherStat2 + val;
+                // Check if remaining stats can still reach 6
+                return newTotal <= 6 && newTotal >= 6 - (3 - 1) * 0; // simplified: just check bounds
+            });
+        }
+
+        // Rebuild dropdown options for a stat
+        function rebuildStatDropdown(statId, validValues, currentValue) {
+            const select = document.getElementById(statId);
+            const labels = { 1: '1 - Low', 2: '2 - Average', 3: '3 - High' };
+
+            select.innerHTML = '';
+            validValues.forEach(val => {
+                const option = document.createElement('option');
+                option.value = val;
+                option.textContent = labels[val];
+                if (val === currentValue) option.selected = true;
+                select.appendChild(option);
+            });
+
+            // If current value isn't valid, select first valid option
+            if (!validValues.includes(currentValue) && validValues.length > 0) {
+                select.value = validValues[0];
+            }
+        }
+
+        // Smart stats update - when one stat changes, limit others
+        function updateStatsDropdowns(changedStat) {
+            const pp = parseInt(document.getElementById('pp').value);
+            const ip = parseInt(document.getElementById('ip').value);
+            const sp = parseInt(document.getElementById('sp').value);
+
+            // Calculate what values are valid for each stat
+            // Rule: PP + IP + SP = 6, each stat 1-3
+
+            // For each stat, calculate valid range based on others
+            const stats = { pp, ip, sp };
+            const statIds = ['pp', 'ip', 'sp'];
+
+            statIds.forEach(statId => {
+                if (statId === changedStat) return; // Don't modify the one user just changed
+
+                const otherStats = statIds.filter(s => s !== statId);
+                const other1 = stats[otherStats[0]];
+                const other2 = stats[otherStats[1]];
+
+                // Calculate valid values: must be 1-3 and make total work toward 6
+                const minNeeded = 6 - other1 - other2;
+                const validValues = [];
+
+                for (let val = 1; val <= 3; val++) {
+                    // Check if this value allows the remaining stat to be valid (1-3)
+                    const remaining = 6 - other1 - val;
+                    if (remaining >= 1 && remaining <= 3) {
+                        validValues.push(val);
+                    }
+                }
+
+                // Also check: given current other values, what can this be?
+                const currentOther = statId === 'pp' ? ip + sp : (statId === 'ip' ? pp + sp : pp + ip);
+                const neededForSix = 6 - currentOther;
+
+                // Final valid values: 1-3 that when combined with others can reach 6
+                const finalValid = [1, 2, 3].filter(val => {
+                    const otherTwo = statIds.filter(s => s !== statId);
+                    const o1 = stats[otherTwo[0]];
+                    const o2 = stats[otherTwo[1]];
+                    // If this stat is val, can the remaining stat reach a valid value?
+                    // Already set stats + this val must allow remaining to be 1-3
+                    return true; // For simplicity, just show all valid options
+                });
+
+                rebuildStatDropdown(statId, [1, 2, 3], stats[statId]);
+            });
+
+            // Now enforce the constraint more directly
+            updateStatsConstraints();
+        }
+
+        // After any stat change, check and update constraints
+        function updateStatsConstraints() {
             const pp = parseInt(document.getElementById('pp').value);
             const ip = parseInt(document.getElementById('ip').value);
             const sp = parseInt(document.getElementById('sp').value);
@@ -620,6 +763,61 @@
                 el.classList.add('invalid');
                 document.getElementById('statsNextBtn').disabled = true;
             }
+
+            // Smart constraint: limit dropdowns based on what's possible
+            // If two stats are set, the third is determined
+            const statIds = ['pp', 'ip', 'sp'];
+            const values = { pp, ip, sp };
+
+            statIds.forEach(statId => {
+                const otherIds = statIds.filter(s => s !== statId);
+                const other1 = values[otherIds[0]];
+                const other2 = values[otherIds[1]];
+                const needed = 6 - other1 - other2;
+
+                // Valid options for this stat given the other two
+                const validOptions = [1, 2, 3].filter(val => {
+                    // This value is valid if remaining = 6 - other1 - other2 - val
+                    // But we only have 3 stats, so: val must = needed for total 6
+                    // OR val can be different if we haven't locked in all values
+                    const wouldTotal = other1 + other2 + val;
+                    // Allow values that don't exceed 6 and leave room for others
+                    return val >= 1 && val <= 3;
+                });
+
+                // Smarter: show only values that can lead to valid total
+                const smartOptions = [1, 2, 3].filter(val => {
+                    // If I pick val, can the remaining stats still sum to 6?
+                    // With this stat = val, other two = other1, other2
+                    // Total would be val + other1 + other2
+                    // This works if we're just showing current situation
+                    // But for guidance, show what makes sense
+                    const projectedTotal = val + other1 + other2;
+                    return projectedTotal >= 3 && projectedTotal <= 9; // Always possible
+                });
+
+                const select = document.getElementById(statId);
+                const currentVal = parseInt(select.value);
+                const labels = { 1: '1 - Low', 2: '2 - Average', 3: '3 - High' };
+
+                // Highlight/style valid vs problematic choices
+                Array.from(select.options).forEach(opt => {
+                    const optVal = parseInt(opt.value);
+                    const wouldTotal = optVal + values[otherIds[0]] + values[otherIds[1]];
+                    if (wouldTotal === 6) {
+                        opt.style.fontWeight = 'bold';
+                        opt.style.color = '#00ff88';
+                    } else if (wouldTotal > 6) {
+                        opt.style.color = '#ff6666';
+                    } else {
+                        opt.style.color = '#ffaa00';
+                    }
+                });
+            });
+        }
+
+        function updateStatsTotal() {
+            updateStatsConstraints();
         }
 
         // =====================================================================
@@ -644,16 +842,118 @@
         }
 
         // =====================================================================
-        // Ability
+        // Ability Slots - TBA v2.0 Dynamic Slot System
         // =====================================================================
-        function updateAbilityDie() {
+
+        // Slot configuration per TBA v2.0:
+        // Slot 1 (Single): All levels - uses SPELL_DIE_BY_LEVEL
+        // Slot 2 (AOE): Unlocks level 3
+        // Slot 3 (Single): Unlocks level 5
+        // Slot 4 (AOE): Unlocks level 7
+        // Slot 5 (Single): Unlocks level 9
+        const ABILITY_SLOTS = {
+            1: { type: 'single', unlockLevel: 1, label: '1st Spell/Tech (Single Target)' },
+            2: { type: 'aoe', unlockLevel: 3, label: '2nd Spell/Tech (Area of Effect)' },
+            3: { type: 'single', unlockLevel: 5, label: '3rd Spell/Tech (Single Target)' },
+            4: { type: 'aoe', unlockLevel: 7, label: '4th Spell/Tech (Area of Effect)' },
+            5: { type: 'single', unlockLevel: 9, label: '5th Spell/Tech (Single Target)' }
+        };
+
+        // Get available slots for a level
+        function getAvailableSlots(level) {
+            return Object.entries(ABILITY_SLOTS)
+                .filter(([slot, config]) => level >= config.unlockLevel)
+                .map(([slot, config]) => ({ slot: parseInt(slot), ...config }));
+        }
+
+        // Generate ability slot HTML
+        function generateAbilitySlotHTML(slotNum, config, level) {
+            const isAoe = config.type === 'aoe';
+            const spellDie = SPELL_DIE_BY_LEVEL[level] || '1d6';
+
+            return `
+                <div class="ability-slot ${config.type}" data-slot="${slotNum}">
+                    <div class="ability-slot-header">
+                        <span class="ability-slot-title">${config.label}</span>
+                        <span class="ability-slot-badge ${config.type}">${isAoe ? 'AOE' : 'Single'}</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ability_name_${slotNum}">Ability Name *</label>
+                        <input type="text" id="ability_name_${slotNum}" name="ability_name_${slotNum}"
+                               placeholder="e.g., ${isAoe ? 'Fireball, Thunder Wave' : 'Power Strike, Ice Spike'}"
+                               maxlength="100" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="macro_command_${slotNum}">Macro Command *</label>
+                        <input type="text" id="macro_command_${slotNum}" name="macro_command_${slotNum}"
+                               placeholder="/${isAoe ? 'fireball' : 'strike'}" maxlength="50"
+                               oninput="formatMacroField(this)" required>
+                        <p class="helper">Lowercase, no spaces. Used in chat like: /strike</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="power_source_${slotNum}">Power Source *</label>
+                        <select id="power_source_${slotNum}" name="power_source_${slotNum}" required>
+                            <option value="PP">PP - Physical Power</option>
+                            <option value="IP">IP - Intellect Power</option>
+                            <option value="SP">SP - Social Power</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="effect_type_${slotNum}">Effect Type *</label>
+                        <select id="effect_type_${slotNum}" name="effect_type_${slotNum}" required>
+                            <option value="damage">Damage - Deal damage to enemies</option>
+                            <option value="heal">Heal - Restore DP</option>
+                            <option value="buff">Buff - Boost allies</option>
+                            <option value="debuff">Debuff - Weaken enemies</option>
+                            <option value="utility">Utility - Other effects</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ability Die</label>
+                        <span class="ability-die-display">${spellDie}</span>
+                        <input type="hidden" id="ability_die_${slotNum}" value="${spellDie}">
+                    </div>
+
+                    <input type="hidden" id="is_aoe_${slotNum}" value="${isAoe}">
+                </div>
+            `;
+        }
+
+        // Update ability slots based on level
+        function updateAbilitySlots() {
             const level = parseInt(document.getElementById('level').value) || 1;
-            // Use the first weapon option as the ability die for slot 1
-            const options = WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
-            document.getElementById('ability_die').value = options[0];
+            const container = document.getElementById('ability_slots_container');
+            const availableSlots = getAvailableSlots(level);
+
+            // Update helper text
+            const helperText = document.getElementById('abilities_helper');
+            if (availableSlots.length === 1) {
+                helperText.textContent = 'Create your starting ability (more slots unlock at higher levels)';
+            } else {
+                helperText.textContent = `Create your ${availableSlots.length} starting abilities`;
+            }
+
+            // Generate slot HTML
+            container.innerHTML = availableSlots
+                .map(slot => generateAbilitySlotHTML(slot.slot, slot, level))
+                .join('');
+        }
+
+        // Legacy function name for compatibility
+        function updateAbilityDie() {
+            updateAbilitySlots();
         }
 
         function formatMacro(input) {
+            formatMacroField(input);
+        }
+
+        function formatMacroField(input) {
             let val = input.value.toLowerCase().replace(/[^a-z0-9/]/g, '');
             if (!val.startsWith('/')) {
                 val = '/' + val.replace(/\//g, '');
@@ -684,18 +984,42 @@
             document.getElementById('review_defense').textContent = document.getElementById('defense_die').value;
             document.getElementById('review_armor').textContent = document.getElementById('armor_name').value || 'None';
 
-            // Ability
-            document.getElementById('review_ability_name').textContent = document.getElementById('ability_name').value || '-';
-            document.getElementById('review_macro').textContent = document.getElementById('macro_command').value || '-';
-            const powerSource = document.getElementById('power_source').value;
-            const effectType = document.getElementById('effect_type').value;
-            document.getElementById('review_ability_type').textContent = `${effectType} (${powerSource})`;
+            // Abilities - dynamically build based on available slots
+            const abilitiesContainer = document.getElementById('review_abilities_container');
+            const availableSlots = getAvailableSlots(level);
+            const spellDie = SPELL_DIE_BY_LEVEL[level] || '1d6';
+
+            abilitiesContainer.innerHTML = availableSlots.map(slot => {
+                const slotNum = slot.slot;
+                const abilityName = document.getElementById(`ability_name_${slotNum}`)?.value || '-';
+                const macro = document.getElementById(`macro_command_${slotNum}`)?.value || '-';
+                const powerSource = document.getElementById(`power_source_${slotNum}`)?.value || 'PP';
+                const effectType = document.getElementById(`effect_type_${slotNum}`)?.value || 'damage';
+                const isAoe = slot.type === 'aoe';
+
+                return `
+                    <div style="margin-bottom: 10px; padding: 8px; background: #1a1a2e; border-radius: 4px; border-left: 3px solid ${isAoe ? '#ff6b6b' : '#00d4ff'};">
+                        <div class="review-row">
+                            <span class="review-label">Slot ${slotNum} (${isAoe ? 'AOE' : 'Single'})</span>
+                            <span class="review-value">${abilityName}</span>
+                        </div>
+                        <div class="review-row">
+                            <span class="review-label">Command</span>
+                            <span class="review-value">${macro}</span>
+                        </div>
+                        <div class="review-row">
+                            <span class="review-label">Type</span>
+                            <span class="review-value">${effectType} (${powerSource}) - ${spellDie}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
             // Auto-calculated
             document.getElementById('review_dp').textContent = DP_BY_LEVEL[level] || 10;
             document.getElementById('review_edge').textContent = EDGE_BY_LEVEL[level] || 0;
             document.getElementById('review_bap').textContent = BAP_BY_LEVEL[level] || 1;
-            document.getElementById('review_uses').textContent = level * 3;
+            document.getElementById('review_uses').textContent = USES_BY_LEVEL[level] || 3;
         }
 
         // =====================================================================
@@ -712,8 +1036,24 @@
             }
 
             const level = parseInt(document.getElementById('level').value);
-            const options = WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+            const spellDie = SPELL_DIE_BY_LEVEL[level] || '1d6';
+            const availableSlots = getAvailableSlots(level);
 
+            // Build abilities array from all available slots
+            const abilities = availableSlots.map(slot => {
+                const slotNum = slot.slot;
+                return {
+                    slot_number: slotNum,
+                    display_name: document.getElementById(`ability_name_${slotNum}`).value.trim(),
+                    macro_command: document.getElementById(`macro_command_${slotNum}`).value.trim(),
+                    power_source: document.getElementById(`power_source_${slotNum}`).value,
+                    effect_type: document.getElementById(`effect_type_${slotNum}`).value,
+                    die: spellDie,
+                    is_aoe: slot.type === 'aoe'
+                };
+            });
+
+            // Send all abilities as an array
             const payload = {
                 campaign_id: campaignId,
                 name: document.getElementById('name').value.trim(),
@@ -725,15 +1065,7 @@
                 weapon_name: document.getElementById('weapon_name').value.trim() || null,
                 defense_die: null, // Let server auto-calculate
                 armor_name: document.getElementById('armor_name').value.trim() || null,
-                ability: {
-                    slot_number: 1,
-                    display_name: document.getElementById('ability_name').value.trim(),
-                    macro_command: document.getElementById('macro_command').value.trim(),
-                    power_source: document.getElementById('power_source').value,
-                    effect_type: document.getElementById('effect_type').value,
-                    die: options[0], // First option for slot 1
-                    is_aoe: document.getElementById('is_aoe').checked
-                }
+                ability: abilities // Send all abilities
             };
 
             try {
@@ -754,8 +1086,9 @@
                 }
 
                 // Success!
+                const abilityCount = abilities.length;
                 document.getElementById('successMsg').textContent =
-                    `Character "${data.name}" created successfully! Redirecting...`;
+                    `Character "${data.name}" created with ${abilityCount} ${abilityCount === 1 ? 'ability' : 'abilities'}! Redirecting...`;
                 document.getElementById('successMsg').style.display = 'block';
 
                 // Hide form
@@ -778,11 +1111,12 @@
         document.addEventListener('DOMContentLoaded', function() {
             updateStatsTotal();
             updateCombatOptions();
+            updateAbilitySlots(); // Initialize ability slots for starting level
 
-            // Update combat options when level changes
+            // Update all level-dependent fields when level changes
             document.getElementById('level').addEventListener('change', function() {
                 updateCombatOptions();
-                updateAbilityDie();
+                updateAbilitySlots();
             });
         });
     </script>

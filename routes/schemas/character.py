@@ -3,7 +3,7 @@ Pydantic schemas for Character and Party management (TBA v1.5).
 """
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional
+from typing import Optional, List, Union
 from datetime import datetime
 
 
@@ -246,8 +246,12 @@ class FullCharacterCreate(BaseModel):
     defense_die: Optional[str] = Field(None, description="Defense die (auto-calculated if not provided)")
     armor_name: Optional[str] = Field(None, max_length=100, description="Optional armor name")
 
-    # Starting ability
-    ability: AbilityCreate = Field(..., description="Starting ability for this character")
+    # Starting abilities - can be single ability or list of abilities
+    # Accepts either a single AbilityCreate or a list of AbilityCreate
+    ability: Union[AbilityCreate, List[AbilityCreate]] = Field(
+        ...,
+        description="Starting ability or list of abilities for this character"
+    )
 
     @field_validator('pp', 'ip', 'sp', mode='after')
     @classmethod
@@ -255,6 +259,14 @@ class FullCharacterCreate(BaseModel):
         if not 1 <= v <= 3:
             raise ValueError('Each stat must be between 1 and 3')
         return v
+
+    @field_validator('ability', mode='after')
+    @classmethod
+    def normalize_abilities(cls, v):
+        """Ensure abilities is always a list."""
+        if isinstance(v, list):
+            return v
+        return [v]
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
