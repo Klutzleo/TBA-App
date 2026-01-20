@@ -813,6 +813,81 @@
       color: #60a5fa;
     }
 
+    /* === Spell Cast Styles === */
+    .message-spell {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: rgba(168, 85, 247, 0.1);
+      border-left: 3px solid #a855f7;
+      box-shadow: var(--shadow-sm);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .message-spell .spell-header {
+      font-weight: 700;
+      color: #a855f7;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+    }
+
+    .message-spell .spell-rolls {
+      font-family: "Courier New", monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin: 8px 0;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: var(--radius-sm);
+    }
+
+    .message-spell .spell-rolls .roll-line {
+      margin: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .message-spell .spell-rolls .roll-icon {
+      font-size: 14px;
+    }
+
+    .message-spell .spell-outcome {
+      font-weight: 700;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 15px;
+    }
+
+    .message-spell .spell-outcome.hit {
+      color: #ef4444;
+    }
+
+    .message-spell .spell-outcome.miss {
+      color: var(--text-muted);
+    }
+
+    .message-spell .spell-knockout {
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(239, 68, 68, 0.2);
+      border-radius: var(--radius-sm);
+      color: #ef4444;
+      font-weight: 700;
+      text-align: center;
+      animation: defeatPulse 0.5s ease-out;
+    }
+
+    .message-spell .uses-remaining {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-style: italic;
+    }
+
     /* === Chat Input === */
     .chat-input-container {
       padding: 20px 24px;
@@ -1039,10 +1114,66 @@
       background: rgba(107, 114, 128, 0.05);
     }
 
-    .tab-btn.whisper-tab.active {
+    /* Dynamic whisper tabs - scrollable container */
+    .tab-bar {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-color) transparent;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-bar::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .tab-bar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .tab-bar::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 2px;
+    }
+
+    /* Dynamic whisper tab styling */
+    .tab-btn.whisper-dynamic {
+      position: relative;
+      padding-right: 28px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .tab-btn.whisper-dynamic.active {
       color: #8b5cf6;
       border-bottom-color: #8b5cf6;
       background: rgba(139, 92, 246, 0.05);
+    }
+
+    .tab-btn.whisper-dynamic .tab-close {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      padding: 0;
+    }
+
+    .tab-btn.whisper-dynamic .tab-close:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
     }
 
     .tab-badge {
@@ -1273,13 +1404,11 @@
       <!-- Chat Area -->
       <main class="chat-container">
         <!-- Tab Bar -->
-        <div class="tab-bar">
+        <div class="tab-bar" id="tabBar">
           <button class="tab-btn story-tab active" data-tab="story" onclick="switchTab('story')">
             📖 Story <span id="story-badge" class="tab-badge hidden">0</span>
           </button>
-          <button class="tab-btn whisper-tab" data-tab="whispers" onclick="switchTab('whispers')">
-            🤫 Whispers <span id="whispers-badge" class="tab-badge hidden">0</span>
-          </button>
+          <!-- Dynamic whisper tabs will be inserted here -->
           <button class="tab-btn ooc-tab" data-tab="ooc" onclick="switchTab('ooc')">
             💬 OOC <span id="ooc-badge" class="tab-badge hidden">0</span>
           </button>
@@ -1339,9 +1468,10 @@
     let ws = null;
 
     // === Tab State ===
-    let activeTab = 'story';  // 'story', 'whispers', or 'ooc'
+    let activeTab = 'story';  // 'story', 'whisper-{name}', or 'ooc'
     let allMessages = [];     // Store all messages with their tab info
-    let unreadCounts = { story: 0, whispers: 0, ooc: 0 };
+    let unreadCounts = { story: 0, ooc: 0 };  // Dynamic whisper tabs added as needed
+    let whisperTabs = {};     // Track active whisper tabs: { 'playername': { visible: true, element: btn } }
 
     // === Tab Functions ===
     function switchTab(tab) {
@@ -1351,11 +1481,16 @@
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
       });
-      document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+      const targetBtn = document.querySelector(`[data-tab="${tab}"]`);
+      if (targetBtn) {
+        targetBtn.classList.add('active');
+      }
 
       // Clear unread count for this tab
-      unreadCounts[tab] = 0;
-      updateBadge(tab);
+      if (unreadCounts[tab] !== undefined) {
+        unreadCounts[tab] = 0;
+        updateBadge(tab);
+      }
 
       // Re-render messages for the active tab
       renderMessages();
@@ -1363,12 +1498,94 @@
 
     function updateBadge(tab) {
       const badge = document.getElementById(`${tab}-badge`);
+      if (!badge) return;
+
       if (unreadCounts[tab] > 0) {
         badge.textContent = unreadCounts[tab] > 99 ? '99+' : unreadCounts[tab];
         badge.classList.remove('hidden');
       } else {
         badge.classList.add('hidden');
       }
+    }
+
+    // Get or create a whisper tab for a specific player
+    function getOrCreateWhisperTab(playerName) {
+      const tabId = `whisper-${playerName.toLowerCase()}`;
+
+      // If tab already exists and is visible, return it
+      if (whisperTabs[playerName.toLowerCase()] && whisperTabs[playerName.toLowerCase()].visible) {
+        return tabId;
+      }
+
+      // Create or show the tab
+      const tabBar = document.getElementById('tabBar');
+      const oocTab = tabBar.querySelector('[data-tab="ooc"]');
+
+      // Check if tab element exists but was hidden
+      let existingTab = tabBar.querySelector(`[data-tab="${tabId}"]`);
+
+      if (existingTab) {
+        // Tab exists, just show it
+        existingTab.style.display = '';
+        whisperTabs[playerName.toLowerCase()].visible = true;
+      } else {
+        // Create new tab button
+        const tabBtn = document.createElement('button');
+        tabBtn.className = 'tab-btn whisper-dynamic';
+        tabBtn.setAttribute('data-tab', tabId);
+        tabBtn.onclick = () => switchTab(tabId);
+
+        tabBtn.innerHTML = `
+          🤫 ${playerName} <span id="${tabId}-badge" class="tab-badge hidden">0</span>
+          <span class="tab-close" onclick="event.stopPropagation(); closeWhisperTab('${playerName.toLowerCase()}')">&times;</span>
+        `;
+
+        // Insert before OOC tab
+        tabBar.insertBefore(tabBtn, oocTab);
+
+        // Track it
+        whisperTabs[playerName.toLowerCase()] = { visible: true, element: tabBtn };
+        unreadCounts[tabId] = 0;
+      }
+
+      return tabId;
+    }
+
+    // Close (hide) a whisper tab
+    function closeWhisperTab(playerNameLower) {
+      const tabId = `whisper-${playerNameLower}`;
+      const tabBar = document.getElementById('tabBar');
+      const tabBtn = tabBar.querySelector(`[data-tab="${tabId}"]`);
+
+      if (tabBtn) {
+        tabBtn.style.display = 'none';
+        whisperTabs[playerNameLower].visible = false;
+
+        // If this was the active tab, switch to Story
+        if (activeTab === tabId) {
+          switchTab('story');
+        }
+      }
+    }
+
+    // Get the "other party" in a whisper conversation (not the current user)
+    function getWhisperPartner(data) {
+      const myName = (actorEl.value.trim() || 'User').toLowerCase();
+      const sender = (data.actor || '').toLowerCase();
+
+      // If I'm the sender, the partner is the target
+      if (sender === myName) {
+        // Get first target from whisper_targets or whisper_target
+        const targets = data.whisper_targets || (data.whisper_target ? [data.whisper_target] : []);
+        if (targets.length > 0) {
+          // Return the display name (original case) if available
+          return typeof targets[0] === 'string' ? targets[0] : targets[0];
+        }
+        return null;
+      }
+
+      // If I'm the recipient, the partner is the sender
+      return data.actor || null;
     }
 
     // Determine which tab a message belongs to
@@ -1383,14 +1600,20 @@
         return 'ooc';
       }
 
-      // Whispers go to Whispers tab
+      // Whispers go to dynamic per-player tab
       if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
-        return 'whispers';
+        const partner = getWhisperPartner(data);
+        if (partner) {
+          // Get or create the whisper tab for this conversation partner
+          return getOrCreateWhisperTab(partner);
+        }
+        // Fallback to story if we can't determine partner
+        return 'story';
       }
 
-      // Combat events, dice rolls, narration, initiative, defend go to Story
+      // Combat events, dice rolls, narration, initiative, defend, spell_cast go to Story
       if (['combat_event', 'combat_result', 'dice_roll', 'narration',
-           'initiative', 'stat_roll', 'defend', 'chat_ic'].includes(data.type)) {
+           'initiative', 'stat_roll', 'defend', 'chat_ic', 'spell_cast'].includes(data.type)) {
         return 'story';
       }
 
@@ -1680,7 +1903,8 @@
         chat_mode: mode,
         actor: actor,
         text: text,
-        is_ooc_command: isOocCommand
+        is_ooc_command: isOocCommand,
+        whisper_targets: targets ? (Array.isArray(targets) ? targets : [targets]) : null
       };
 
       // Add tab indicator
@@ -1998,6 +2222,109 @@
       addMessage(container, 'message-card message-dice', { type: 'dice_roll', ...data });
     }
 
+    // Render spell cast result
+    function renderSpellCast(data) {
+      const container = document.createElement('div');
+      container.className = 'message-spell';
+
+      // Header: "Caster casts Spell on Target!"
+      const header = document.createElement('div');
+      header.className = 'spell-header';
+      header.innerHTML = `<span>✨</span><span>${data.caster_name} casts ${data.spell_name} on ${data.target_name}!</span>`;
+      container.appendChild(header);
+
+      // Roll breakdown section
+      const rollsDiv = document.createElement('div');
+      rollsDiv.className = 'spell-rolls';
+
+      // Attack roll line
+      const attackLine = document.createElement('div');
+      attackLine.className = 'roll-line';
+      attackLine.innerHTML = `<span class="roll-icon">🎲</span><span>Attack: ${data.spell_breakdown}</span>`;
+      rollsDiv.appendChild(attackLine);
+
+      // Defense roll line
+      const defenseLine = document.createElement('div');
+      defenseLine.className = 'roll-line';
+      defenseLine.innerHTML = `<span class="roll-icon">🛡️</span><span>Defense: ${data.defense_breakdown}</span>`;
+      rollsDiv.appendChild(defenseLine);
+
+      container.appendChild(rollsDiv);
+
+      // DP Bar for target
+      if (data.target_new_dp !== undefined) {
+        const dpContainer = document.createElement('div');
+        dpContainer.className = 'dp-bar-container';
+
+        const dpLabel = document.createElement('span');
+        dpLabel.className = 'dp-bar-label';
+        dpLabel.textContent = data.target_name;
+        dpContainer.appendChild(dpLabel);
+
+        const dpBar = document.createElement('div');
+        dpBar.className = 'dp-bar';
+
+        const maxDP = data.target_max_dp || 20;
+        const newDP = data.target_new_dp;
+        const dpPercent = Math.max(0, Math.min(100, (newDP / maxDP) * 100));
+
+        const dpFill = document.createElement('div');
+        dpFill.className = 'dp-bar-fill';
+        dpFill.style.width = dpPercent + '%';
+
+        // Color based on DP percentage
+        if (dpPercent > 50) {
+          dpFill.classList.add('dp-high');
+        } else if (dpPercent > 25) {
+          dpFill.classList.add('dp-medium');
+        } else if (dpPercent > 10) {
+          dpFill.classList.add('dp-low');
+        } else {
+          dpFill.classList.add('dp-critical');
+        }
+
+        const dpText = document.createElement('span');
+        dpText.className = 'dp-bar-text';
+        dpText.textContent = `${newDP} / ${maxDP} DP`;
+
+        dpBar.appendChild(dpFill);
+        dpBar.appendChild(dpText);
+        dpContainer.appendChild(dpBar);
+        container.appendChild(dpContainer);
+      }
+
+      // Outcome
+      const outcomeDiv = document.createElement('div');
+      outcomeDiv.className = 'spell-outcome ' + (data.damage > 0 ? 'hit' : 'miss');
+      outcomeDiv.textContent = data.outcome_text;
+      container.appendChild(outcomeDiv);
+
+      // Knockout message if applicable
+      if (data.knocked_out) {
+        const knockoutDiv = document.createElement('div');
+        knockoutDiv.className = 'spell-knockout';
+        knockoutDiv.textContent = `💀 ${data.target_name} is knocked unconscious!`;
+        container.appendChild(knockoutDiv);
+      }
+
+      // Uses remaining
+      if (data.caster_uses_remaining !== undefined) {
+        const usesDiv = document.createElement('div');
+        usesDiv.className = 'uses-remaining';
+        usesDiv.textContent = `Ability uses remaining: ${data.caster_uses_remaining}/${data.caster_max_uses}`;
+        container.appendChild(usesDiv);
+      }
+
+      // Add tab indicator
+      const tabIndicator = document.createElement('span');
+      tabIndicator.className = 'message-tab-indicator';
+      tabIndicator.textContent = 'STORY';
+      container.appendChild(tabIndicator);
+
+      // Store and display via tab system (goes to Story tab)
+      storeAndDisplayMessage(container, { type: 'spell_cast', ...data });
+    }
+
     // === WebSocket Connection ===
     function buildWSUrl(baseUrl, partyId, characterId, apiKey) {
       const url = new URL(baseUrl);
@@ -2072,6 +2399,8 @@
 
             if (data.type === 'combat_event') {
               renderCombatEvent(data);
+            } else if (data.type === 'spell_cast') {
+              renderSpellCast(data);
             } else if (data.type === 'system') {
               // Handle system messages (including commands like /attack, /roll results)
               const text = data.text || '';

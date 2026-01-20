@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
 from backend.db import SessionLocal
-from backend.models import Character, Party, NPC, PartyMembership, CombatTurn
+from backend.models import Character, Party, NPC, PartyMembership, CombatTurn, Ability
 from routes.schemas.chat import ChatMessageSchema
 from routes.schemas.resolve import ResolveRollSchema
 from typing import Dict, Any, Optional, List
@@ -693,6 +693,240 @@ def check_story_weaver(character_id: Optional[str], party_id: str) -> tuple[bool
         db.close()
 
 
+async def handle_ability_macro(
+    party_id: str,
+    actor: str,
+    macro_command: str,
+    target_args: str,
+    character_id: Optional[str],
+    context: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Handle custom ability/spell execution via macro command.
+
+    When a player types /<macro_command> @target:
+    1. Look up ability by macro_command for this character
+    2. Validate ability exists, has uses, target exists, effect_type is 'damage'
+    3. Execute attack: roll spell die + power_source_stat + edge vs defense
+    4. Apply damage and broadcast results
+
+    Returns:
+        Dict with spell_cast event data, or None if not a custom ability
+    """
+    if not character_id:
+        return None
+
+    db = SessionLocal()
+    try:
+        # 1. Look up ability by macro_command for this character
+        ability = db.query(Ability).filter(
+            Ability.character_id == character_id,
+            Ability.macro_command == macro_command
+        ).first()
+
+        if not ability:
+            return None  # Not a custom ability, let other handlers try
+
+        # 2. Validate effect_type is 'damage' (only type we support for MVP)
+        if ability.effect_type != 'damage':
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"⚠️ {ability.display_name} is a {ability.effect_type} ability. Only attack (damage) abilities are supported for MVP.",
+                "party_id": party_id
+            }
+
+        # Get caster data
+        caster = db.query(Character).filter(Character.id == character_id).first()
+        if not caster:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": "⚠️ Could not find your character data.",
+                "party_id": party_id
+            }
+
+        # 3. Validate character has current_uses > 0
+        if caster.current_uses <= 0:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"⚠️ {caster.name} has no ability uses remaining this encounter! (0/{caster.max_uses_per_encounter})",
+                "party_id": party_id
+            }
+
+        # 4. Parse @mention target
+        if not target_args or not target_args.strip():
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"Usage: {macro_command} @target (e.g., {macro_command} @goblin)",
+                "party_id": party_id
+            }
+
+        from backend.mention_parser import parse_mentions
+
+        # Determine if sender is SW for hidden NPC visibility
+        sender_is_sw = connection_manager.is_story_weaver(party_id, character_id)
+
+        parsed = parse_mentions(target_args, party_id, db, sender_is_sw, connection_manager)
+
+        if parsed['unresolved']:
+            unresolved_str = ', '.join(parsed['unresolved'])
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"Target not found: {unresolved_str}. Use /who to see available targets.",
+                "party_id": party_id
+            }
+
+        if not parsed['mentions']:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"No valid target found. Use @name to target (e.g., {macro_command} @goblin)",
+                "party_id": party_id
+            }
+
+        # Get first target
+        target_mention = parsed['mentions'][0]
+        target_name = target_mention['name']
+        target_id = target_mention['id']
+        target_type = target_mention['type']
+
+        # 5. Get target data
+        if target_type == "character":
+            target = db.query(Character).filter(Character.id == target_id).first()
+        else:  # npc
+            target = db.query(NPC).filter(NPC.id == target_id).first()
+
+        if not target:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"Target '{target_name}' not found in database.",
+                "party_id": party_id
+            }
+
+        # Check if target is already unconscious/dead
+        target_status = getattr(target, 'status', 'active')
+        if target_status in ('unconscious', 'dead'):
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"⚠️ {target_name} is already {target_status}!",
+                "party_id": party_id
+            }
+
+        # 6. Execute attack spell
+        # Get power source stat value
+        power_source = ability.power_source.lower()  # 'pp', 'ip', or 'sp'
+        caster_stat_value = getattr(caster, power_source, 1)
+        caster_edge = caster.edge or 0
+
+        # Parse and roll spell die
+        spell_die = ability.die  # e.g., "2d6", "1d8"
+        spell_roll_result = parse_dice_notation(spell_die)
+        spell_base_roll = spell_roll_result["total"] - spell_roll_result["modifier"]  # Get just the dice
+        spell_total = spell_base_roll + caster_stat_value + caster_edge
+
+        # Defender rolls: defense_die + PP + edge
+        defense_die = target.defense_die or "1d6"
+        defense_roll_result = parse_dice_notation(defense_die)
+        defense_base_roll = defense_roll_result["total"] - defense_roll_result["modifier"]
+        target_pp = target.pp or 1
+        target_edge = getattr(target, 'edge', 0) or 0
+        defense_total = defense_base_roll + target_pp + target_edge
+
+        # 7. Calculate damage
+        damage = max(0, spell_total - defense_total)
+
+        # 8. Update defender's current_dp
+        old_dp = target.dp or 0
+        new_dp = old_dp - damage
+        target.dp = new_dp
+
+        # 9. Decrement caster's current_uses
+        caster.current_uses = max(0, caster.current_uses - 1)
+
+        # 10. Check for unconscious status at 0 DP or below
+        knocked_out = False
+        if new_dp <= 0 and target_status == 'active':
+            target.status = 'unconscious'
+            knocked_out = True
+
+        db.commit()
+
+        # Update cache if target is cached
+        if target_id in connection_manager.character_cache.get(party_id, {}):
+            connection_manager.character_cache[party_id][target_id]["dp"] = new_dp
+            if knocked_out:
+                connection_manager.character_cache[party_id][target_id]["status"] = 'unconscious'
+
+        # 11. Build broadcast message
+        # Format spell roll breakdown
+        spell_rolls_str = " + ".join(map(str, spell_roll_result["rolls"]))
+        spell_breakdown = f"{spell_die} = [{spell_rolls_str}] + {power_source.upper()}({caster_stat_value}) + Edge({caster_edge}) = {spell_total}"
+
+        # Format defense roll breakdown
+        defense_rolls_str = " + ".join(map(str, defense_roll_result["rolls"]))
+        defense_breakdown = f"{defense_die} = [{defense_rolls_str}] + PP({target_pp}) + Edge({target_edge}) = {defense_total}"
+
+        # Determine outcome text
+        if damage > 0:
+            outcome_text = f"💥 {damage} damage! {target_name} at {new_dp}/{target.max_dp or 20} DP"
+        else:
+            outcome_text = f"🛡️ No damage! {target_name} defends successfully ({new_dp}/{target.max_dp or 20} DP)"
+
+        # Build result message
+        result = {
+            "type": "spell_cast",
+            "actor": actor,
+            "caster_name": caster.name,
+            "target_name": target_name,
+            "spell_name": ability.display_name,
+            "ability_type": ability.ability_type,
+            "power_source": ability.power_source,
+            "spell_die": spell_die,
+            "spell_roll": spell_total,
+            "spell_breakdown": spell_breakdown,
+            "defense_die": defense_die,
+            "defense_roll": defense_total,
+            "defense_breakdown": defense_breakdown,
+            "damage": damage,
+            "target_old_dp": old_dp,
+            "target_new_dp": new_dp,
+            "target_max_dp": target.max_dp or 20,
+            "caster_uses_remaining": caster.current_uses,
+            "caster_max_uses": caster.max_uses_per_encounter,
+            "outcome_text": outcome_text,
+            "knocked_out": knocked_out,
+            "party_id": party_id,
+            "text": f"✨ {caster.name} casts {ability.display_name} on {target_name}!\n"
+                    f"🎲 Attack: {spell_breakdown}\n"
+                    f"🛡️ Defense: {defense_breakdown}\n"
+                    f"{outcome_text}"
+        }
+
+        # Add knockout message if applicable
+        if knocked_out:
+            result["text"] += f"\n💀 {target_name} is knocked unconscious!"
+            result["knockout_message"] = f"{target_name} is knocked unconscious!"
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Ability macro error: {e}")
+        return {
+            "type": "system",
+            "actor": "system",
+            "text": f"Spell failed: {str(e)}",
+            "party_id": party_id
+        }
+    finally:
+        db.close()
+
+
 async def handle_macro(party_id: str, actor: str, text: str, context: Optional[str] = None, encounter_id: Optional[str] = None, character_id: Optional[str] = None) -> Dict[str, Any]:
     """Handle simple system macros: /roll, /pp, /ip, /sp, /initiative, /attack, /defend, combat management."""
     parts = text.strip().split()
@@ -1293,6 +1527,54 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "party_id": party_id
         }
 
+    if cmd == "/end-encounter":
+        # SW-only: End encounter and reset all ability uses for party members
+        is_sw, error_msg = check_story_weaver(character_id, party_id)
+        if not is_sw:
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": error_msg,
+                "party_id": party_id
+            }
+
+        db = SessionLocal()
+        try:
+            # Get all characters in this party via PartyMembership
+            party_members = db.query(Character).join(
+                PartyMembership, PartyMembership.character_id == Character.id
+            ).filter(PartyMembership.party_id == party_id).all()
+
+            reset_count = 0
+            for char in party_members:
+                char.current_uses = char.max_uses_per_encounter
+                reset_count += 1
+
+            db.commit()
+
+            # Also end any active combat encounter
+            if connection_manager.get_encounter(party_id):
+                connection_manager.end_encounter(party_id)
+
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"✨ **Encounter ended!** All ability uses restored for {reset_count} character(s).",
+                "party_id": party_id
+            }
+
+        except Exception as e:
+            logger.error(f"/end-encounter error: {e}")
+            db.rollback()
+            return {
+                "type": "system",
+                "actor": "system",
+                "text": f"Failed to end encounter: {str(e)}",
+                "party_id": party_id
+            }
+        finally:
+            db.close()
+
     if cmd == "/turn-order":
         # Display current turn order
         encounter = connection_manager.get_encounter(party_id)
@@ -1439,6 +1721,7 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 
 **Ending Combat:**
 • `/end-combat` (SW only) - End the encounter
+• `/end-encounter` (SW only) - End encounter & restore all ability uses
 
 **Tie-Breakers:** Initiative ties are broken by PP > IP > SP > coin flip"""
 
@@ -1509,6 +1792,7 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 • `/turn-order` - View turn order
 • `/next-turn` (SW) - Advance turn
 • `/end-combat` (SW) - End combat
+• `/end-encounter` (SW) - End & restore ability uses
 
 **Legend:** (SW) = Story Weaver only"""
 
@@ -1518,6 +1802,20 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             "text": help_text,
             "party_id": party_id
         }
+
+    # Try custom ability macro before returning unknown
+    # Extract target args (everything after the command)
+    target_args = " ".join(parts[1:]) if len(parts) > 1 else ""
+    ability_result = await handle_ability_macro(
+        party_id=party_id,
+        actor=actor,
+        macro_command=cmd,
+        target_args=target_args,
+        character_id=character_id,
+        context=context
+    )
+    if ability_result is not None:
+        return ability_result
 
     # Unknown macro → echo as system
     return {"type": "system", "actor": "system", "text": f"Unknown command: {cmd}", "party_id": party_id}
