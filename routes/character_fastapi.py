@@ -186,7 +186,7 @@ async def create_character_full(req: FullCharacterCreate, request: Request, db: 
             weapon={"name": req.weapon_name, "die": req.weapon_die} if req.weapon_name else None,
             armor={"name": req.armor_name} if req.armor_name else None,
             # Phase 2d fields
-            notes=None,
+            notes=req.notes,
             max_uses_per_encounter=max_uses,
             current_uses=max_uses,
             weapon_bonus=0,

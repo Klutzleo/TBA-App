@@ -2393,6 +2393,14 @@
                 actorEl.value = data.character_name;
                 const roleText = data.role === 'SW' ? ' (Story Weaver)' : '';
                 addMessage(`Welcome, ${data.character_name}${roleText}!`, 'message-card message-system');
+              } else if (data.character_id) {
+                // Character ID provided but not found in database
+                addMessage(`⚠️ Character ID "${data.character_id}" not found. Please check your Character ID in the connection settings.`, 'message-card message-error');
+                actorEl.value = 'User'; // Set fallback
+              } else {
+                // No character ID provided
+                addMessage(`⚠️ Connected without a Character ID. Enter a valid Character ID in the connection settings to use your character name.`, 'message-card message-system');
+                actorEl.value = 'User'; // Set fallback
               }
               return;
             }

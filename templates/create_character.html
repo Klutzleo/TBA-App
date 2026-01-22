@@ -267,17 +267,29 @@
     <div class="success-msg" id="successMsg"></div>
 
     <form id="characterForm">
-        <!-- Hidden campaign_id (set via URL param or JavaScript) -->
-        <input type="hidden" id="campaign_id" name="campaign_id" value="">
-
         <!-- Step 1: Basic Info -->
         <div class="form-step active" data-step="1">
             <h2 class="step-title">Basic Info</h2>
 
             <div class="form-group">
+                <label for="campaign_id">Campaign ID *</label>
+                <input type="text" id="campaign_id" name="campaign_id" required
+                       placeholder="Enter your campaign ID">
+                <p class="helper">Required: The campaign ID this character will join</p>
+            </div>
+
+            <div class="form-group">
                 <label for="name">Character Name *</label>
                 <input type="text" id="name" name="name" required maxlength="100"
                        placeholder="Enter character name">
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Character Description</label>
+                <textarea id="notes" name="notes" rows="3" maxlength="500"
+                          placeholder="Describe your character's appearance, personality, or backstory..."
+                          style="width: 100%; padding: 12px; border: 1px solid #333; border-radius: 6px; background: #252540; color: #fff; font-size: 1em; font-family: inherit; resize: vertical;"></textarea>
+                <p class="helper">Optional: Add flavor to your character (max 500 characters)</p>
             </div>
 
             <div class="form-group">
@@ -388,6 +400,10 @@
                 <div class="review-row">
                     <span class="review-label">Name</span>
                     <span class="review-value" id="review_name">-</span>
+                </div>
+                <div class="review-row">
+                    <span class="review-label">Description</span>
+                    <span class="review-value" id="review_notes" style="font-style: italic; color: #aaa;">-</span>
                 </div>
                 <div class="review-row">
                     <span class="review-label">Level</span>
@@ -981,6 +997,8 @@
 
             // Basic info
             document.getElementById('review_name').textContent = document.getElementById('name').value || '-';
+            const notes = document.getElementById('notes').value.trim();
+            document.getElementById('review_notes').textContent = notes || 'No description provided';
             document.getElementById('review_level').textContent = level;
 
             // Stats
@@ -1068,6 +1086,7 @@
             const payload = {
                 campaign_id: campaignId,
                 name: document.getElementById('name').value.trim(),
+                notes: document.getElementById('notes').value.trim() || null,
                 level: level,
                 pp: parseInt(document.getElementById('pp').value),
                 ip: parseInt(document.getElementById('ip').value),

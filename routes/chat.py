@@ -1980,7 +1980,7 @@ async def chat_party_ws(
             elif chat_mode == "whisper" and whisper_targets:
                 # Private whisper - only send to targets and SW
                 msg = {
-                    "type": "message",
+                    "type": "chat_whisper",
                     "actor": actor,
                     "text": text,
                     "party_id": party_id,
@@ -1993,15 +1993,21 @@ async def chat_party_ws(
                 logger.info(f"Whisper from {actor} to {whisper_targets}: {text[:50]}...")
             else:
                 # Regular message or IC/OOC (broadcast to all)
+                # Determine message type based on chat_mode for proper tab routing
+                if chat_mode == 'ooc':
+                    message_type = 'chat_ooc'
+                elif chat_mode == 'ic':
+                    message_type = 'chat_ic'
+                else:
+                    message_type = payload.get("type", "message")
+
                 msg = {
-                    "type": payload.get("type", "message"),
+                    "type": message_type,
                     "actor": actor,
                     "text": text,
                     "party_id": party_id,
+                    "chat_mode": chat_mode if chat_mode else None
                 }
-                # Include chat_mode if present (for IC/OOC styling on clients)
-                if chat_mode:
-                    msg["chat_mode"] = chat_mode
                 await broadcast(party_id, msg)
     except WebSocketDisconnect:
         # Notify party of leave

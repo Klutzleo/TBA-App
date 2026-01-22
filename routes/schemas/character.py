@@ -231,6 +231,7 @@ class FullCharacterCreate(BaseModel):
 
     # Character basics
     name: str = Field(..., min_length=1, max_length=100)
+    notes: Optional[str] = Field(None, max_length=500, description="Character description/backstory")
     level: int = Field(default=1, ge=1, le=10, description="Starting level (1-10)")
 
     # Stats (must sum to 6)
