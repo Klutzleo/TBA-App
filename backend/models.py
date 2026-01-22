@@ -91,6 +91,7 @@ class Character(Base):
     times_called = Column(Integer, nullable=False, default=0)  # Times summoned/called
     is_called = Column(Boolean, nullable=False, default=False)  # Currently summoned
     status = Column(String, nullable=False, default='active')  # 'active', 'unconscious', 'dead'
+    in_calling = Column(Boolean, nullable=False, default=False)  # Currently in The Calling state (at -10 DP)
 
     # Relationships
     party_memberships = relationship("PartyMembership", back_populates="character")
