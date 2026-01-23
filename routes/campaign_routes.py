@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 import uuid
 
-from backend.database import get_db
+from backend.db import get_db
 from backend.models import Campaign, Party, Character, PartyMembership
 
 router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
