@@ -96,8 +96,46 @@ class ConnectionManager:
                 is_sw = (character_id == party_meta.get("story_weaver_id"))
                 metadata["role"] = "SW" if is_sw else "player"
 
+                # DEBUG LOGGING - START
+                logger.info("=" * 60)
+                logger.info(f"🔍 CHARACTER LOOKUP DEBUG")
+                logger.info(f"🔍 character_id received: {character_id}")
+                logger.info(f"🔍 character_id type: {type(character_id)}")
+                logger.info(f"🔍 character_id repr: {repr(character_id)}")
+                logger.info(f"🔍 party_id: {party_id}")
+                # DEBUG LOGGING - END
+
                 # Try Character first
                 character = db.query(Character).filter(Character.id == character_id).first()
+
+                # DEBUG LOGGING - START
+                logger.info(f"🔍 Query result: {character}")
+
+                if not character:
+                    # If not found, let's see what IS in the database
+                    logger.warning(f"🔍 Character not found! Checking database...")
+
+                    # Get ALL characters to compare
+                    all_characters = db.query(Character).limit(5).all()
+                    logger.info(f"🔍 Found {len(all_characters)} characters in database:")
+                    for char in all_characters:
+                        logger.info(f"  - ID: {char.id} (type: {type(char.id)})")
+                        logger.info(f"    Name: {char.name}")
+                        logger.info(f"    ID repr: {repr(char.id)}")
+                        logger.info(f"    Match (==)? {char.id == character_id}")
+                        logger.info(f"    String match? {str(char.id) == str(character_id)}")
+                        logger.info(f"    Lower match? {str(char.id).lower() == str(character_id).lower()}")
+
+                    # Try alternate query methods
+                    logger.info(f"🔍 Trying alternate query: filter() with ==")
+                    alt_char = db.query(Character).filter(Character.id == str(character_id)).first()
+                    logger.info(f"🔍 Alternate query result: {alt_char}")
+                else:
+                    logger.info(f"🔍 SUCCESS! Found character: {character.name}")
+
+                logger.info("=" * 60)
+                # DEBUG LOGGING - END
+
                 if character:
                     self.character_cache[party_id][character_id] = {
                         "id": character.id,
@@ -117,8 +155,10 @@ class ConnectionManager:
                     metadata["character_name"] = character.name
                 else:
                     # Try NPC
+                    logger.info(f"🔍 Character not found, trying NPC lookup...")
                     npc = db.query(NPC).filter(NPC.id == character_id).first()
                     if npc:
+                        logger.info(f"🔍 SUCCESS! Found NPC: {npc.name}")
                         self.character_cache[party_id][character_id] = {
                             "id": npc.id,
                             "name": npc.name,
@@ -137,9 +177,12 @@ class ConnectionManager:
                             "visible_to_players": npc.visible_to_players
                         }
                         metadata["character_name"] = npc.name
+                    else:
+                        logger.warning(f"🔍 NPC also not found! character_id {character_id} does not exist in Characters OR NPCs table.")
 
             except Exception as e:
                 logger.error(f"Failed to cache character {character_id}: {e}")
+                logger.exception("Full exception traceback:")
             finally:
                 db.close()
 
