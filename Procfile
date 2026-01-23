@@ -1,1 +1,1 @@
-web: python backend/migrations/001_add_sw_and_npcs.py && uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}
+web: python run_migrations.py && uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}
