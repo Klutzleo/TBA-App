@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
 from backend.db import SessionLocal
-from backend.models import Character, Party, NPC, PartyMembership, CombatTurn, Ability
+from backend.models import Character, Party, NPC, PartyMembership, CombatTurn, Ability, Campaign
 from routes.schemas.chat import ChatMessageSchema
 from routes.schemas.resolve import ResolveRollSchema
 from typing import Dict, Any, Optional, List
@@ -82,13 +82,24 @@ class ConnectionManager:
         if character_id:
             db = SessionLocal()
             try:
-                # Try to load party metadata (for SW check)
+                # Try to load campaign metadata (for SW check)
                 if party_id not in self.party_cache:
                     party = db.query(Party).filter(Party.id == party_id).first()
-                    if party:
+                    if party and party.campaign_id:
+                        # Get the Story Weaver from the Campaign, not the Party
+                        campaign = db.query(Campaign).filter(Campaign.id == party.campaign_id).first()
+                        if campaign:
+                            self.party_cache[party_id] = {
+                                "story_weaver_id": campaign.story_weaver_id,
+                                "created_by_id": campaign.created_by_id,
+                                "campaign_id": campaign.id
+                            }
+                    elif party:
+                        # Legacy: Party without campaign (fallback to party's SW)
                         self.party_cache[party_id] = {
                             "story_weaver_id": party.story_weaver_id,
-                            "created_by_id": party.created_by_id
+                            "created_by_id": party.created_by_id,
+                            "campaign_id": None
                         }
 
                 # Check if this character is the Story Weaver

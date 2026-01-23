@@ -199,6 +199,14 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register campaign_websocket: {e}")
 
+try:
+    from routes.campaign_routes import router as campaign_router
+
+    application.include_router(campaign_router, tags=["Campaigns"])
+    logger.info("✅ Registered campaign_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register campaign_router: {e}")
+
 
 # Custom OpenAPI schema
 def custom_openapi():

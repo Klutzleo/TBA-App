@@ -101,44 +101,90 @@ class Character(Base):
         return f"<Character(id={self.id[:8]}..., name={self.name}, level={self.level}, status={self.status})>"
 
 
+class Campaign(Base):
+    """
+    Campaign - The main game container.
+
+    A campaign holds all players, channels (story, ooc, whispers, etc.),
+    and game data for a single story/adventure.
+
+    Each campaign automatically gets:
+    - 1 Story channel (shared by all players)
+    - 1 OOC channel (out-of-character chat)
+    - N Whisper channels (created on-demand for private conversations)
+    - N Split Group channels (when the party splits in-game)
+    """
+    __tablename__ = "campaigns"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+
+    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)
+    created_by_id = Column(String, nullable=False, index=True)
+
+    is_active = Column(Boolean, nullable=False, default=True)
+    archived_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    channels = relationship("Party", back_populates="campaign", foreign_keys="Party.campaign_id")
+    story_weaver = relationship("Character", foreign_keys=[story_weaver_id])
+
+    def __repr__(self):
+        return f"<Campaign(id={self.id[:8]}..., name={self.name}, sw={self.story_weaver_id[:8] if self.story_weaver_id else None}...)>"
+
+
 class Party(Base):
     """
-    Party/Session grouping for multiplayer.
+    Communication Channel within a Campaign.
 
-    Represents a chat tab/channel within a campaign. Types:
-    - 'story': Main in-character gameplay
-    - 'ooc': Out-of-character discussion
-    - 'standard': Custom party/group
-    - 'whisper': Private conversation
+    Despite the name "Party", this represents communication channels/tabs within a campaign:
+    - 'story': Main in-character gameplay channel (shared by all players)
+    - 'ooc': Out-of-character discussion channel
+    - 'whisper': Private 1-to-1 or small group DM channels
+    - 'split_group': Temporary channels when the party splits in-game
+    - 'spectator': Read-only channels for observers (future)
+
+    Note: The Story channel remains accessible even when players split into groups,
+    allowing the Story Weaver to narrate cross-group events.
     """
     __tablename__ = "parties"
     __table_args__ = {'extend_existing': True}
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
-    description = Column(String, nullable=True)  # Optional party description
+    description = Column(String, nullable=True)
     session_id = Column(String, nullable=True)  # Active session ID (for WebSocket routing)
 
-    # Story Weaver tracking
-    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
-    created_by_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
+    # Campaign relationship
+    campaign_id = Column(String, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
 
-    # Phase 2d: Tab system columns
-    campaign_id = Column(String, nullable=True, index=True)  # Campaign this party belongs to
-    party_type = Column(String, nullable=False, default='standard')  # 'story', 'ooc', 'standard', 'whisper'
-    is_active = Column(Boolean, nullable=False, default=True)  # Whether tab is displayed
-    archived_at = Column(DateTime, nullable=True)  # Soft delete timestamp
+    # Channel type
+    party_type = Column(String, nullable=False, default='story')  # 'story', 'ooc', 'whisper', 'split_group', 'spectator'
+
+    # Legacy Story Weaver tracking (deprecated - use campaign.story_weaver_id instead)
+    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)
+    created_by_id = Column(String, nullable=False, index=True)
+
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+    archived_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    campaign = relationship("Campaign", back_populates="channels", foreign_keys=[campaign_id])
     memberships = relationship("PartyMembership", back_populates="party", cascade="all, delete-orphan")
     npcs = relationship("NPC", back_populates="party", cascade="all, delete-orphan")
     combat_turns = relationship("CombatTurn", back_populates="party", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="party")
 
-    # Relationships to Character for SW and creator
+    # Legacy relationships to Character
     story_weaver = relationship("Character", foreign_keys=[story_weaver_id])
     creator = relationship("Character", foreign_keys=[created_by_id])
 
