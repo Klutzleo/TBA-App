@@ -71,4 +71,4 @@ CREATE TRIGGER update_users_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-PRINT 'Phase 3 migration completed: Users table and authentication system created';
+SELECT 'Phase 3 migration completed: Users table and authentication system created' AS status;
