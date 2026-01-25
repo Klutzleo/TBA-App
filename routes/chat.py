@@ -865,9 +865,17 @@ async def handle_ability_macro(
 
         # 10. Check for unconscious status at 0 DP or below
         knocked_out = False
+        calling_triggered = False
+
         if new_dp <= 0 and target_status == 'active':
             target.status = 'unconscious'
             knocked_out = True
+
+        # 11. Check for The Calling at -10 DP (only for Characters, not NPCs)
+        if target_type == "character" and new_dp <= -10:
+            if not target.in_calling:
+                target.in_calling = True
+                calling_triggered = True
 
         db.commit()
 
@@ -926,6 +934,12 @@ async def handle_ability_macro(
         if knocked_out:
             result["text"] += f"\n💀 {target_name} is knocked unconscious!"
             result["knockout_message"] = f"{target_name} is knocked unconscious!"
+
+        # Add calling trigger if applicable
+        if calling_triggered:
+            result["text"] += f"\n⚠️ {target_name} has reached -10 DP and enters The Calling!"
+            result["calling_triggered"] = True
+            result["calling_message"] = f"{target_name} enters The Calling!"
 
         return result
 
@@ -1263,28 +1277,80 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             # Calculate new DP
             old_dp = defender_data.get("dp", 20)
             new_dp = max(0, old_dp - result["total_damage"])
+            defender_edge = defender_data.get("edge", 0)
 
-            # Persist DP change to database
+            # Persist DP change to database and check for calling
+            knocked_out = False
+            calling_triggered = False
+
             if target_type == "character":
                 char = db.query(Character).filter(Character.id == target_id).first()
                 if char:
                     char.dp = new_dp
+                    if new_dp <= 0 and char.status == 'active':
+                        char.status = 'unconscious'
+                        knocked_out = True
+                    if new_dp <= -10 and not char.in_calling:
+                        char.in_calling = True
+                        calling_triggered = True
                     db.commit()
             elif target_type == "npc":
                 npc = db.query(NPC).filter(NPC.id == target_id).first()
                 if npc:
                     npc.dp = new_dp
+                    # NPCs don't have calling, just track unconscious
+                    if new_dp <= 0:
+                        knocked_out = True
                     db.commit()
 
             # Update cache
             if target_id in connection_manager.character_cache.get(party_id, {}):
                 connection_manager.character_cache[party_id][target_id]["dp"] = new_dp
+                if knocked_out:
+                    connection_manager.character_cache[party_id][target_id]["status"] = 'unconscious'
 
-            # Generate flavor text based on outcome
+            # Build detailed attack breakdown
+            attack_rolls_str = ", ".join([str(r["total"]) for r in result["individual_rolls"]])
+            attack_breakdown = f"{attacker_die} = [{attack_rolls_str}] + PP({attacker_pp}) + Edge({attacker_edge})"
+
+            # Build detailed defense breakdown (for each attack roll)
+            defense_breakdowns = []
+            for idx, roll_data in enumerate(result["individual_rolls"]):
+                defense_roll = roll_data.get("defense_roll", 0)
+                defense_breakdown = f"{defense_die} = [{defense_roll}] + PP({defender_pp}) + Edge({defender_edge})"
+                defense_breakdowns.append(defense_breakdown)
+
+            # Build outcome text
+            outcome_lines = []
+            outcome_lines.append(f"⚔️ {actor} attacks {target_name}")
+            outcome_lines.append(f"")
+            outcome_lines.append(f"🎲 Attack: {attack_breakdown}")
+
+            # Add individual roll results
+            for idx, roll_data in enumerate(result["individual_rolls"], 1):
+                attack_total = roll_data["total"]
+                defense_total = roll_data["defense_total"]
+                damage = roll_data["damage"]
+                hit = damage > 0
+
+                outcome_lines.append(f"   Roll {idx}: {attack_total} vs {defense_total} → {'HIT' if hit else 'MISS'} ({damage} damage)")
+
+            outcome_lines.append(f"")
+
             if result["total_damage"] > 0:
-                flavor_text = f"{actor} lands {result['details']['hit_count']}/{result['details']['total_rolls']} hits on {target_name}!"
+                outcome_lines.append(f"💥 {result['total_damage']} total damage! {target_name} at {new_dp}/{defender_data.get('max_dp', 20)} DP")
             else:
-                flavor_text = f"{target_name} blocks all of {actor}'s attacks!"
+                outcome_lines.append(f"🛡️ BLOCKED")
+                outcome_lines.append(f"")
+                outcome_lines.append(f"\"{target_name} blocks all of {actor}'s attacks!\"")
+
+            if knocked_out:
+                outcome_lines.append(f"💀 {target_name} is knocked unconscious!")
+
+            if calling_triggered:
+                outcome_lines.append(f"⚠️ {target_name} has reached -10 DP and enters The Calling!")
+
+            outcome_text = "\n".join(outcome_lines)
 
             # Return combat event message for broadcast
             return {
@@ -1299,13 +1365,16 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 "total_damage": result["total_damage"],
                 "outcome": result["outcome"],
                 "narrative": result["narrative"],
-                "flavor_text": flavor_text,
+                "text": outcome_text,
+                "defender_old_dp": old_dp,
                 "defender_new_dp": new_dp,
                 "defender_max_dp": defender_data.get("max_dp", 20),
                 "individual_rolls": result["individual_rolls"],
                 "hit_count": result["details"]["hit_count"],
                 "total_rolls": result["details"]["total_rolls"],
                 "auto_defense": True,
+                "knocked_out": knocked_out,
+                "calling_triggered": calling_triggered,
                 "party_id": party_id
             }
 

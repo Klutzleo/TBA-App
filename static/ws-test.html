@@ -2000,6 +2000,21 @@
     function renderCombatEvent(data) {
       const container = document.createElement('div');
 
+      // If we have preformatted text (new detailed format), use it
+      if (data.text) {
+        const textDiv = document.createElement('pre');
+        textDiv.className = 'combat-detailed-text';
+        textDiv.style.whiteSpace = 'pre-wrap';
+        textDiv.style.fontFamily = 'inherit';
+        textDiv.style.margin = '0';
+        textDiv.textContent = data.text;
+        container.appendChild(textDiv);
+
+        addMessage(container, 'message-card message-combat', { type: 'combat_event', ...data });
+        return;
+      }
+
+      // Legacy rendering (fallback)
       const header = document.createElement('div');
       header.className = 'message-header';
       header.innerHTML = `<span class="icon">⚔️</span><span>${data.attacker_name || data.attacker} attacks ${data.defender_name || data.defender}</span>`;
@@ -2407,8 +2422,18 @@
 
             if (data.type === 'combat_event') {
               renderCombatEvent(data);
+              // Check for calling trigger
+              if (data.calling_triggered) {
+                console.warn(`⚠️ THE CALLING: ${data.defender_name} has reached -10 DP!`);
+                // TODO: Show The Calling modal for this character
+              }
             } else if (data.type === 'spell_cast') {
               renderSpellCast(data);
+              // Check for calling trigger
+              if (data.calling_triggered) {
+                console.warn(`⚠️ THE CALLING: ${data.target_name} has reached -10 DP!`);
+                // TODO: Show The Calling modal for this character
+              }
             } else if (data.type === 'system') {
               // Handle system messages (including commands like /attack, /roll results)
               const text = data.text || '';
@@ -2622,10 +2647,20 @@
         ws.send(JSON.stringify(payload));
       } else {
         // Regular message - use active tab to determine chat mode
-        const chatMode = activeTab === 'ooc' ? 'ooc' : 'ic';
+        let chatMode = 'ic'; // default
+        let whisperTargets = null;
+
+        if (activeTab === 'ooc') {
+          chatMode = 'ooc';
+        } else if (activeTab.startsWith('whisper-')) {
+          // Whisper tab - extract target name from tab ID
+          chatMode = 'whisper';
+          const targetName = activeTab.replace('whisper-', '');
+          whisperTargets = [targetName];
+        }
 
         // Display locally with styled message
-        displayTypedMessage(chatMode, actor, text, null, false);
+        displayTypedMessage(chatMode, actor, text, whisperTargets, false);
 
         // Build payload
         const payload = {
@@ -2634,6 +2669,11 @@
           text,
           chat_mode: chatMode
         };
+
+        // Add whisper targets if applicable
+        if (whisperTargets) {
+          payload.whisper_targets = whisperTargets;
+        }
 
         // Use quick context/encounter if provided, otherwise fall back to sidebar
         const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
