@@ -398,6 +398,10 @@
             <div class="review-section">
                 <h4>Basic Info</h4>
                 <div class="review-row">
+                    <span class="review-label">Campaign ID</span>
+                    <span class="review-value" id="review_campaign_id">-</span>
+                </div>
+                <div class="review-row">
                     <span class="review-label">Name</span>
                     <span class="review-value" id="review_name">-</span>
                 </div>
@@ -994,6 +998,9 @@
         // =====================================================================
         function updateReview() {
             const level = parseInt(document.getElementById('level').value) || 1;
+
+            // Campaign ID
+            document.getElementById('review_campaign_id').textContent = document.getElementById('campaign-id').value || '(Not set)';
 
             // Basic info
             document.getElementById('review_name').textContent = document.getElementById('name').value || '-';

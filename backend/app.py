@@ -119,7 +119,7 @@ async def attach_request_id_and_auth(request: Request, call_next):
     request.state.request_id = request_id
 
     # Exempt these paths from API key check
-    exempt_paths = {"/health", "/docs", "/openapi.json", "/", "/redoc"}
+    exempt_paths = {"/health", "/docs", "/openapi.json", "/", "/redoc", "/api/characters/full"}
 
     # Only enforce API key on /api/ routes (and not on exempt paths)
     if request.url.path.startswith("/api/") and request.url.path not in exempt_paths:
