@@ -7,11 +7,16 @@ python run_migrations.py || echo "⚠️ Migrations failed or not found"
 echo "🔧 Force-fixing database constraints..."
 python backend/force_fix_constraints.py
 
-echo "🔧 Fixing campaign trigger..."
-python backend/fix_trigger.py
+echo "🔧 Fixing campaign trigger (if needed)..."
+python backend/fix_trigger.py || echo "⚠️ Trigger fix skipped"
 
-echo "🔧 Checking for test campaign..."
+echo ""
+echo "======================================================================"
+echo "🎯 BOOTSTRAPPING TEST CAMPAIGN"
+echo "======================================================================"
 python backend/bootstrap_test_data.py || python backend/manual_bootstrap.py
+echo "======================================================================"
+echo ""
 
-echo "✅ Bootstrap complete, starting web server..."
+echo "🚀 Starting web server..."
 exec uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}

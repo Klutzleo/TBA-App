@@ -5,7 +5,8 @@ from sqlalchemy import create_engine, text
 DATABASE_URL = os.getenv('DATABASE_URL')
 engine = create_engine(DATABASE_URL)
 
-print("🔧 Manually creating test campaign...")
+print("\n🔧 Manually creating test campaign...")
+print("=" * 60)
 
 with engine.connect() as conn:
     try:
@@ -32,10 +33,13 @@ with engine.connect() as conn:
                 story_channel = next((c for c in channels if c[2] == 'story'), None)
                 ooc_channel = next((c for c in channels if c[2] == 'ooc'), None)
 
-                print(f"\n📋 USE THESE IDS FOR TESTING:")
-                print(f"   Campaign ID: test-campaign-001")
-                print(f"   Story Channel ID: {story_channel[0] if story_channel else 'NOT FOUND'}")
-                print(f"   OOC Channel ID: {ooc_channel[0] if ooc_channel else 'NOT FOUND'}")
+                print(f"\n" + "=" * 60)
+                print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
+                print(f"=" * 60)
+                print(f"Campaign ID:      test-campaign-001")
+                print(f"Story Channel ID: {story_channel[0] if story_channel else 'NOT FOUND'}")
+                print(f"OOC Channel ID:   {ooc_channel[0] if ooc_channel else 'NOT FOUND'}")
+                print(f"=" * 60)
 
             return
 
@@ -72,10 +76,13 @@ with engine.connect() as conn:
             story_channel = next((c for c in channels if c[2] == 'story'), None)
             ooc_channel = next((c for c in channels if c[2] == 'ooc'), None)
 
-            print(f"\n📋 USE THESE IDS FOR TESTING:")
-            print(f"   Campaign ID: test-campaign-001")
-            print(f"   Story Channel ID: {story_channel[0] if story_channel else 'NOT FOUND'}")
-            print(f"   OOC Channel ID: {ooc_channel[0] if ooc_channel else 'NOT FOUND'}")
+            print(f"\n" + "=" * 60)
+            print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
+            print(f"=" * 60)
+            print(f"Campaign ID:      test-campaign-001")
+            print(f"Story Channel ID: {story_channel[0] if story_channel else 'NOT FOUND'}")
+            print(f"OOC Channel ID:   {ooc_channel[0] if ooc_channel else 'NOT FOUND'}")
+            print(f"=" * 60)
         else:
             print("\n⚠️ No channels auto-created! Creating manually...")
 
@@ -116,10 +123,13 @@ with engine.connect() as conn:
             story_channel = next((c for c in channels if c[2] == 'story'), None)
             ooc_channel = next((c for c in channels if c[2] == 'ooc'), None)
 
-            print(f"\n📋 USE THESE IDS FOR TESTING:")
-            print(f"   Campaign ID: test-campaign-001")
-            print(f"   Story Channel ID: {story_channel[0]}")
-            print(f"   OOC Channel ID: {ooc_channel[0]}")
+            print(f"\n" + "=" * 60)
+            print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
+            print(f"=" * 60)
+            print(f"Campaign ID:      test-campaign-001")
+            print(f"Story Channel ID: {story_channel[0]}")
+            print(f"OOC Channel ID:   {ooc_channel[0]}")
+            print(f"=" * 60)
 
     except Exception as e:
         print(f"\n❌ Error: {e}")

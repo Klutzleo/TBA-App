@@ -1,60 +1,37 @@
-"""Fix the trigger to not insert story_weaver_id at all"""
+"""Fix the trigger to not use story_weaver_id"""
 import os
-import sys
 from sqlalchemy import create_engine, text
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 if not DATABASE_URL:
     print("❌ DATABASE_URL not set")
-    sys.exit(1)
+    exit(1)
 
 engine = create_engine(DATABASE_URL)
 
 trigger_sql = """
--- Drop existing trigger and function
-DROP TRIGGER IF EXISTS create_default_campaign_channels_trigger ON campaigns;
-DROP FUNCTION IF EXISTS create_default_campaign_channels();
+-- Drop existing trigger and function WITH CASCADE
+DROP TRIGGER IF EXISTS create_default_campaign_channels_trigger ON campaigns CASCADE;
+DROP FUNCTION IF EXISTS create_default_campaign_channels() CASCADE;
 
 -- Recreate function WITHOUT story_weaver_id
 CREATE OR REPLACE FUNCTION create_default_campaign_channels()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Create Story channel (no story_weaver_id needed - it's a campaign-level role)
+    -- Create Story channel (no story_weaver_id - it's campaign-level)
     INSERT INTO parties (
-        id,
-        campaign_id,
-        name,
-        description,
-        party_type,
-        created_by_id,
-        is_active
+        id, campaign_id, name, description, party_type, created_by_id, is_active
     ) VALUES (
-        gen_random_uuid()::text,
-        NEW.id,
-        NEW.name || ' - Story',
-        'Main story channel for ' || NEW.name,
-        'story',
-        NEW.created_by_id,
-        TRUE
+        gen_random_uuid()::text, NEW.id, NEW.name || ' - Story',
+        'Main story channel for ' || NEW.name, 'story', NEW.created_by_id, TRUE
     );
 
     -- Create OOC channel
     INSERT INTO parties (
-        id,
-        campaign_id,
-        name,
-        description,
-        party_type,
-        created_by_id,
-        is_active
+        id, campaign_id, name, description, party_type, created_by_id, is_active
     ) VALUES (
-        gen_random_uuid()::text,
-        NEW.id,
-        NEW.name || ' - OOC',
-        'Out-of-character chat for ' || NEW.name,
-        'ooc',
-        NEW.created_by_id,
-        TRUE
+        gen_random_uuid()::text, NEW.id, NEW.name || ' - OOC',
+        'Out-of-character chat for ' || NEW.name, 'ooc', NEW.created_by_id, TRUE
     );
 
     RETURN NEW;
@@ -76,5 +53,5 @@ try:
         conn.commit()
         print("✅ Trigger fixed!")
 except Exception as e:
-    print(f"❌ Error fixing trigger: {e}")
-    sys.exit(1)
+    print(f"⚠️ Trigger fix failed (non-blocking): {e}")
+    print("   Continuing with bootstrap...")

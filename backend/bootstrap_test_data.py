@@ -21,7 +21,8 @@ db = Session()
 def bootstrap_test_campaign():
     """Create a test campaign with channels for immediate testing"""
 
-    print("🔧 Creating bootstrap test campaign...")
+    print("\n🔧 Creating bootstrap test campaign...")
+    print("=" * 60)
 
     # Check if test campaign already exists
     result = db.execute(text("SELECT id FROM campaigns WHERE id = 'test-campaign-001'"))
@@ -41,13 +42,15 @@ def bootstrap_test_campaign():
         """))
         ooc_row = ooc_result.fetchone()
 
-        print(f"\n📋 Campaign Details:")
-        print(f"   Campaign ID: test-campaign-001")
+        print(f"\n" + "=" * 60)
+        print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
+        print(f"=" * 60)
+        print(f"Campaign ID:      test-campaign-001")
         if story_row:
-            print(f"   Story Channel ID: {story_row[0]}")
+            print(f"Story Channel ID: {story_row[0]}")
         if ooc_row:
-            print(f"   OOC Channel ID: {ooc_row[0]}")
-        print(f"\n🎯 Use these IDs for testing!")
+            print(f"OOC Channel ID:   {ooc_row[0]}")
+        print(f"=" * 60)
         return
 
     try:
@@ -127,10 +130,13 @@ def bootstrap_test_campaign():
             ooc_row = ooc_result.fetchone()
 
         print(f"\n✅ Bootstrap complete!")
-        print(f"\n📋 Campaign Details:")
-        print(f"   Campaign ID: test-campaign-001")
-        print(f"   Story Channel ID: {story_row[0]}")
-        print(f"   OOC Channel ID: {ooc_row[0]}")
+        print(f"\n" + "=" * 60)
+        print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
+        print(f"=" * 60)
+        print(f"Campaign ID:      test-campaign-001")
+        print(f"Story Channel ID: {story_row[0]}")
+        print(f"OOC Channel ID:   {ooc_row[0]}")
+        print(f"=" * 60)
         print(f"\n🎯 Next Steps:")
         print(f"   1. Go to /create-character")
         print(f"   2. Use Campaign ID: test-campaign-001")
