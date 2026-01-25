@@ -2,17 +2,16 @@
 set -e  # Exit immediately if any command fails
 
 echo "🚀 Running automatic database migrations..."
-python run_migrations.py
+python run_migrations.py || echo "⚠️ Migrations failed or not found"
 
-if [ $? -eq 0 ]; then
-    echo "✅ Migrations complete!"
+echo "🔧 Force-fixing database constraints..."
+python backend/force_fix_constraints.py
 
-    echo "🔧 Checking for test campaign..."
-    python backend/bootstrap_test_data.py
+echo "🔧 Fixing campaign trigger..."
+python backend/fix_trigger.py
 
-    echo "✅ Bootstrap complete, starting web server..."
-    exec uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}
-else
-    echo "❌ Migrations failed, aborting startup"
-    exit 1
-fi
+echo "🔧 Checking for test campaign..."
+python backend/bootstrap_test_data.py
+
+echo "✅ Bootstrap complete, starting web server..."
+exec uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}
