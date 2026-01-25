@@ -35,11 +35,11 @@ try:
         conn.commit()
         print("   ✅ campaigns.created_by_id is now nullable")
 
-        # Fix 4: Make characters.campaign_id nullable
-        print("   Making characters.campaign_id nullable...")
-        conn.execute(text("ALTER TABLE characters ALTER COLUMN campaign_id DROP NOT NULL"))
-        conn.commit()
-        print("   ✅ characters.campaign_id is now nullable")
+        # Fix 4: Make characters.campaign_id nullable (SKIP - column doesn't exist yet)
+        # print("   Making characters.campaign_id nullable...")
+        # conn.execute(text("ALTER TABLE characters ALTER COLUMN campaign_id DROP NOT NULL"))
+        # conn.commit()
+        # print("   ✅ characters.campaign_id is now nullable")
 
         # Verify the fix
         result = conn.execute(text("""
