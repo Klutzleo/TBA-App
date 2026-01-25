@@ -186,7 +186,9 @@ class Party(Base):
 
     # Legacy relationships to Character
     story_weaver = relationship("Character", foreign_keys=[story_weaver_id])
-    creator = relationship("Character", foreign_keys=[created_by_id])
+    # TEMPORARY: Disabled until user auth migration (FK was dropped for bootstrap)
+    # TODO: Re-enable when created_by_id points to users table
+    # creator = relationship("Character", foreign_keys=[created_by_id])
 
     def __repr__(self):
         return f"<Party(id={self.id[:8]}..., name={self.name}, type={self.party_type}, campaign={self.campaign_id[:8] if self.campaign_id else None}...)>"
