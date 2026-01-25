@@ -34,9 +34,11 @@ def check_migration_needed() -> bool:
     Returns True if migrations are needed, False if already applied.
     """
     # Check if new tables exist
-    if table_exists('parties') and table_exists('party_members') and table_exists('abilities'):
+    if table_exists('parties') and table_exists('abilities'):
         # Tables exist, check if characters has new columns
-        if column_exists('characters', 'notes') and column_exists('characters', 'status'):
+        if (column_exists('characters', 'notes') and
+            column_exists('characters', 'status') and
+            column_exists('party_memberships', 'left_at')):
             logger.info("✅ Phase 2d migrations already applied")
             return False
 
@@ -173,7 +175,8 @@ def run_migrations():
         '002_add_party_members.sql',
         '003_update_characters.sql',
         '004_add_abilities.sql',
-        '005_update_messages.sql'
+        '005_update_messages.sql',
+        '006_add_left_at_column.sql'
     ]
 
     migrations_dir = Path(__file__).parent
