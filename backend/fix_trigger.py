@@ -1,4 +1,4 @@
-"""Fix the trigger to not use story_weaver_id"""
+"""Fix the trigger to not use story_weaver_id OR created_by_id"""
 import os
 from sqlalchemy import create_engine, text
 
@@ -14,24 +14,32 @@ trigger_sql = """
 DROP TRIGGER IF EXISTS create_default_campaign_channels_trigger ON campaigns CASCADE;
 DROP FUNCTION IF EXISTS create_default_campaign_channels() CASCADE;
 
--- Recreate function WITHOUT story_weaver_id
+-- Recreate function WITHOUT story_weaver_id OR created_by_id
 CREATE OR REPLACE FUNCTION create_default_campaign_channels()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Create Story channel (no story_weaver_id - it's campaign-level)
+    -- Create Story channel (no FKs - they're campaign-level concepts)
     INSERT INTO parties (
-        id, campaign_id, name, description, party_type, created_by_id, is_active
+        id, campaign_id, name, description, party_type, is_active
     ) VALUES (
-        gen_random_uuid()::text, NEW.id, NEW.name || ' - Story',
-        'Main story channel for ' || NEW.name, 'story', NEW.created_by_id, TRUE
+        gen_random_uuid()::text,
+        NEW.id,
+        NEW.name || ' - Story',
+        'Main story channel for ' || NEW.name,
+        'story',
+        TRUE
     );
 
     -- Create OOC channel
     INSERT INTO parties (
-        id, campaign_id, name, description, party_type, created_by_id, is_active
+        id, campaign_id, name, description, party_type, is_active
     ) VALUES (
-        gen_random_uuid()::text, NEW.id, NEW.name || ' - OOC',
-        'Out-of-character chat for ' || NEW.name, 'ooc', NEW.created_by_id, TRUE
+        gen_random_uuid()::text,
+        NEW.id,
+        NEW.name || ' - OOC',
+        'Out-of-character chat for ' || NEW.name,
+        'ooc',
+        TRUE
     );
 
     RETURN NEW;
@@ -45,7 +53,7 @@ CREATE TRIGGER create_default_campaign_channels_trigger
     EXECUTE FUNCTION create_default_campaign_channels();
 """
 
-print("🔧 Fixing trigger to not use story_weaver_id...")
+print("🔧 Fixing trigger to not use FKs...")
 
 try:
     with engine.connect() as conn:

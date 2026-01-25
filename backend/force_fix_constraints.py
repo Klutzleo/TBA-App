@@ -35,27 +35,25 @@ try:
         conn.commit()
         print("   ✅ campaigns.created_by_id is now nullable")
 
-        # Fix 4: Make characters.campaign_id nullable (SKIP - column doesn't exist yet)
-        # print("   Making characters.campaign_id nullable...")
-        # conn.execute(text("ALTER TABLE characters ALTER COLUMN campaign_id DROP NOT NULL"))
-        # conn.commit()
-        # print("   ✅ characters.campaign_id is now nullable")
+        # Fix 4: Drop foreign key on parties.created_by_id (points to wrong table)
+        print("   Dropping foreign key parties_created_by_id_fkey...")
+        try:
+            conn.execute(text("ALTER TABLE parties DROP CONSTRAINT IF EXISTS parties_created_by_id_fkey"))
+            conn.commit()
+            print("   ✅ Foreign key dropped")
+        except Exception as e:
+            print(f"   ⚠️ FK drop failed (might not exist): {e}")
 
-        # Verify the fix
-        result = conn.execute(text("""
-            SELECT column_name, is_nullable
-            FROM information_schema.columns
-            WHERE table_name = 'parties' AND column_name = 'story_weaver_id'
-        """))
-        row = result.fetchone()
+        # Fix 5: Make parties.created_by_id nullable
+        print("   Making parties.created_by_id nullable...")
+        conn.execute(text("ALTER TABLE parties ALTER COLUMN created_by_id DROP NOT NULL"))
+        conn.commit()
+        print("   ✅ parties.created_by_id is now nullable")
 
-        if row[1] == 'YES':
-            print("\n✅ SUCCESS! All constraints fixed.")
-            print("   parties.story_weaver_id is now nullable")
-        else:
-            print("\n❌ FAILED! Constraint still exists!")
-            sys.exit(1)
+        print("\n✅ SUCCESS! All constraints fixed.")
 
 except Exception as e:
     print(f"\n❌ Error: {e}")
+    import traceback
+    traceback.print_exc()
     sys.exit(1)

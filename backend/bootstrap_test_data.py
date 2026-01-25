@@ -62,7 +62,7 @@ def bootstrap_test_campaign():
                 'Test Campaign',
                 'Bootstrap campaign for development and testing',
                 NULL,
-                'bootstrap-user',
+                NULL,
                 TRUE
             )
         """))
@@ -89,27 +89,23 @@ def bootstrap_test_campaign():
             print("⚠️ Channels not auto-created by trigger, creating manually...")
 
             db.execute(text("""
-                INSERT INTO parties (id, name, campaign_id, party_type, story_weaver_id, created_by_id, is_active)
+                INSERT INTO parties (id, name, campaign_id, party_type, is_active)
                 VALUES (
                     gen_random_uuid()::text,
                     'Test Campaign - Story',
                     'test-campaign-001',
                     'story',
-                    NULL,
-                    'bootstrap-user',
                     TRUE
                 )
             """))
 
             db.execute(text("""
-                INSERT INTO parties (id, name, campaign_id, party_type, story_weaver_id, created_by_id, is_active)
+                INSERT INTO parties (id, name, campaign_id, party_type, is_active)
                 VALUES (
                     gen_random_uuid()::text,
                     'Test Campaign - OOC',
                     'test-campaign-001',
                     'ooc',
-                    NULL,
-                    'bootstrap-user',
                     TRUE
                 )
             """))

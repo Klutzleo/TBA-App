@@ -1,137 +1,101 @@
 """Manual bootstrap - run this if automatic bootstrap fails"""
 import os
+import sys
 from sqlalchemy import create_engine, text
 
 DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    print("❌ DATABASE_URL not set")
+    sys.exit(1)
+
 engine = create_engine(DATABASE_URL)
 
-print("\n🔧 Manually creating test campaign...")
-print("=" * 60)
+print("="*70)
+print("🔧 MANUAL BOOTSTRAP - Creating test campaign...")
+print("="*70)
 
-with engine.connect() as conn:
-    try:
-        # Check if campaign already exists
+try:
+    with engine.connect() as conn:
+        # Check if already exists
         result = conn.execute(text("SELECT id FROM campaigns WHERE id = 'test-campaign-001'"))
         if result.fetchone():
             print("✅ Test campaign already exists!")
 
             # Get channel IDs
-            result = conn.execute(text("""
+            channels = conn.execute(text("""
                 SELECT id, name, party_type
                 FROM parties
                 WHERE campaign_id = 'test-campaign-001'
-                ORDER BY party_type
             """))
 
-            channels = result.fetchall()
+            for channel in channels:
+                print(f"   {channel[2]}: {channel[0]}")
 
-            if channels:
-                print(f"\n✅ Found {len(channels)} channels:")
-                for channel in channels:
-                    print(f"   {channel[2]}: {channel[0]} ({channel[1]})")
-
-                story_channel = next((c for c in channels if c[2] == 'story'), None)
-                ooc_channel = next((c for c in channels if c[2] == 'ooc'), None)
-
-                print(f"\n" + "=" * 60)
-                print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
-                print(f"=" * 60)
-                print(f"Campaign ID:      test-campaign-001")
-                print(f"Story Channel ID: {story_channel[0] if story_channel else 'NOT FOUND'}")
-                print(f"OOC Channel ID:   {ooc_channel[0] if ooc_channel else 'NOT FOUND'}")
-                print(f"=" * 60)
-
-            return
+            sys.exit(0)
 
         # Create campaign
+        print("Creating campaign...")
         conn.execute(text("""
             INSERT INTO campaigns (id, name, description, story_weaver_id, created_by_id, is_active)
-            VALUES (
-                'test-campaign-001',
-                'Test Campaign',
-                'Bootstrap campaign for testing',
-                NULL,
-                'bootstrap-user',
-                TRUE
-            )
+            VALUES ('test-campaign-001', 'Test Campaign', 'Bootstrap', NULL, NULL, TRUE)
         """))
         conn.commit()
         print("✅ Campaign created!")
 
-        # Check if channels were auto-created by trigger
+        # Check if channels were auto-created
         result = conn.execute(text("""
             SELECT id, name, party_type
             FROM parties
             WHERE campaign_id = 'test-campaign-001'
-            ORDER BY party_type
         """))
 
-        channels = result.fetchall()
+        channels = list(result.fetchall())
 
         if channels:
-            print(f"\n✅ Found {len(channels)} auto-created channels:")
-            for channel in channels:
-                print(f"   {channel[2]}: {channel[0]} ({channel[1]})")
-
-            story_channel = next((c for c in channels if c[2] == 'story'), None)
-            ooc_channel = next((c for c in channels if c[2] == 'ooc'), None)
-
-            print(f"\n" + "=" * 60)
-            print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
-            print(f"=" * 60)
-            print(f"Campaign ID:      test-campaign-001")
-            print(f"Story Channel ID: {story_channel[0] if story_channel else 'NOT FOUND'}")
-            print(f"OOC Channel ID:   {ooc_channel[0] if ooc_channel else 'NOT FOUND'}")
-            print(f"=" * 60)
+            print(f"✅ Found {len(channels)} auto-created channels")
         else:
-            print("\n⚠️ No channels auto-created! Creating manually...")
+            print("⚠️ No channels auto-created, creating manually...")
 
             conn.execute(text("""
-                INSERT INTO parties (id, name, campaign_id, party_type, created_by_id, is_active)
-                VALUES (
-                    gen_random_uuid()::text,
-                    'Test Campaign - Story',
-                    'test-campaign-001',
-                    'story',
-                    'bootstrap-user',
-                    TRUE
-                )
+                INSERT INTO parties (id, name, campaign_id, party_type, is_active)
+                VALUES (gen_random_uuid()::text, 'Test Campaign - Story', 'test-campaign-001', 'story', TRUE)
             """))
 
             conn.execute(text("""
-                INSERT INTO parties (id, name, campaign_id, party_type, created_by_id, is_active)
-                VALUES (
-                    gen_random_uuid()::text,
-                    'Test Campaign - OOC',
-                    'test-campaign-001',
-                    'ooc',
-                    'bootstrap-user',
-                    TRUE
-                )
+                INSERT INTO parties (id, name, campaign_id, party_type, is_active)
+                VALUES (gen_random_uuid()::text, 'Test Campaign - OOC', 'test-campaign-001', 'ooc', TRUE)
             """))
 
             conn.commit()
 
-            # Fetch again
             result = conn.execute(text("""
                 SELECT id, name, party_type
                 FROM parties
                 WHERE campaign_id = 'test-campaign-001'
             """))
+            channels = list(result.fetchall())
 
-            channels = result.fetchall()
-            story_channel = next((c for c in channels if c[2] == 'story'), None)
-            ooc_channel = next((c for c in channels if c[2] == 'ooc'), None)
+        # Print results
+        print("\n" + "="*70)
+        print("✅ BOOTSTRAP COMPLETE!")
+        print("="*70)
+        print(f"\n📋 Campaign ID: test-campaign-001")
 
-            print(f"\n" + "=" * 60)
-            print(f"📋 CAMPAIGN DETAILS - USE THESE IDS FOR TESTING:")
-            print(f"=" * 60)
-            print(f"Campaign ID:      test-campaign-001")
-            print(f"Story Channel ID: {story_channel[0]}")
-            print(f"OOC Channel ID:   {ooc_channel[0]}")
-            print(f"=" * 60)
+        for channel in channels:
+            if channel[2] == 'story':
+                print(f"📖 Story Channel ID: {channel[0]}")
+            elif channel[2] == 'ooc':
+                print(f"💬 OOC Channel ID: {channel[0]}")
 
-    except Exception as e:
-        print(f"\n❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
+        print("\n🎯 Next Steps:")
+        print("   1. Go to /create-character")
+        print("   2. Use Campaign ID: test-campaign-001")
+        print("   3. Create 2 characters")
+        print("   4. Connect to chat with Story Channel ID above")
+        print("="*70)
+
+except Exception as e:
+    print(f"\n❌ Error: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
