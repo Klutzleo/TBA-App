@@ -56,8 +56,9 @@ class Character(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False, index=True)
-    owner_id = Column(String, nullable=False, index=True)  # User who created this character
-    
+    owner_id = Column(String, nullable=False, index=True)  # Legacy field - kept for backward compatibility
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # User who owns this character
+
     # Core stats (1-3 each, must sum to 6)
     level = Column(Integer, nullable=False, default=1)  # 1-10
     pp = Column(Integer, nullable=False)  # Physical Power
@@ -94,6 +95,7 @@ class Character(Base):
     in_calling = Column(Boolean, nullable=False, default=False)  # Currently in The Calling state (at -10 DP)
 
     # Relationships
+    user = relationship("User", back_populates="characters", foreign_keys=[user_id])
     party_memberships = relationship("PartyMembership", back_populates="character")
     abilities = relationship("Ability", back_populates="character", cascade="all, delete-orphan")
 
@@ -121,8 +123,9 @@ class Campaign(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
 
-    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)
-    created_by_id = Column(String, nullable=False, index=True)
+    # User ownership and permissions
+    created_by_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    story_weaver_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     is_active = Column(Boolean, nullable=False, default=True)
     archived_at = Column(DateTime, nullable=True)
@@ -132,7 +135,8 @@ class Campaign(Base):
 
     # Relationships
     channels = relationship("Party", back_populates="campaign", foreign_keys="Party.campaign_id")
-    story_weaver = relationship("Character", foreign_keys=[story_weaver_id])
+    creator = relationship("User", back_populates="created_campaigns", foreign_keys=[created_by_user_id])
+    story_weaver = relationship("User", back_populates="story_weaver_campaigns", foreign_keys=[story_weaver_id])
 
     def __repr__(self):
         return f"<Campaign(id={self.id[:8]}..., name={self.name}, sw={self.story_weaver_id[:8] if self.story_weaver_id else None}...)>"

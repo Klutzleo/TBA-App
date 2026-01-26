@@ -4,6 +4,9 @@ set -e  # Exit immediately if any command fails
 echo "🚀 Running automatic database migrations..."
 python run_migrations.py || echo "⚠️ Migrations failed or not found"
 
+echo "🔐 Running authentication migration..."
+python backend/migrations/add_auth_tables.py
+
 echo "🔧 Force-fixing database constraints..."
 python backend/force_fix_constraints.py
 
