@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from backend.magic_logic import resolve_spellcast
 from backend.db import SessionLocal
-from backend.models import Character, Party, NPC, PartyMembership, CombatTurn, Ability, Campaign
+from backend.models import Character, Party, NPC, PartyMembership, CombatTurn, Ability, Campaign, Message
 from routes.schemas.chat import ChatMessageSchema
 from routes.schemas.resolve import ResolveRollSchema
 from typing import Dict, Any, Optional, List
@@ -478,6 +478,64 @@ class ConnectionManager:
 
 # Global connection manager instance
 connection_manager = ConnectionManager()
+
+
+# ============================================================================
+# MESSAGE PERSISTENCE (Save chat to database)
+# ============================================================================
+
+def save_message_to_db(
+    party_id: str,
+    character_id: Optional[str],
+    character_name: str,
+    message_text: str,
+    message_type: str = 'chat',
+    chat_mode: Optional[str] = None
+) -> Optional[str]:
+    """
+    Save a chat message to the database for persistence.
+
+    Args:
+        party_id: Party UUID
+        character_id: Character ID who sent the message (or None for system)
+        character_name: Display name of the sender
+        message_text: The message content
+        message_type: Type of message (chat, combat, system, narration)
+        chat_mode: Chat mode (ic, ooc, whisper)
+
+    Returns:
+        Message ID if saved successfully, None otherwise
+    """
+    db = SessionLocal()
+    try:
+        # Get party to find campaign_id
+        party = db.query(Party).filter(Party.id == party_id).first()
+        if not party or not party.campaign_id:
+            logger.warning(f"Cannot save message: party {party_id} not found or has no campaign")
+            return None
+
+        # Create message record
+        message = Message(
+            campaign_id=party.campaign_id,
+            party_id=party_id,
+            sender_id=character_id or "system",
+            sender_name=character_name,
+            message_type=message_type,
+            mode=chat_mode,
+            content=message_text
+        )
+
+        db.add(message)
+        db.commit()
+        db.refresh(message)
+
+        return message.id
+    except Exception as e:
+        logger.error(f"Failed to save message to database: {e}")
+        db.rollback()
+        return None
+    finally:
+        db.close()
 
 
 # ============================================================================
@@ -1245,14 +1303,15 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                     "party_id": party_id
                 }
 
-            # Check if defender is alive
-            if defender_data.get("dp", 0) <= 0:
-                return {
-                    "type": "system",
-                    "actor": "system",
-                    "text": f"{target_name} is already defeated (DP: {defender_data.get('dp', 0)}).",
-                    "party_id": party_id
-                }
+            # DISABLED: Allow attacking unconscious characters to reach -10 DP for The Calling
+            # Characters can take damage below 0 DP to trigger The Calling at -10 DP
+            # if defender_data.get("dp", 0) <= 0:
+            #     return {
+            #         "type": "system",
+            #         "actor": "system",
+            #         "text": f"{target_name} is already defeated (DP: {defender_data.get('dp', 0)}).",
+            #         "party_id": party_id
+            #     }
 
             # Get attack and defense stats
             attacker_die = attacker_data.get("attack_style", "1d6")
@@ -1928,6 +1987,61 @@ async def party_connections(party_id: str):
         "cached_characters": list(connection_manager.character_cache.get(party_id, {}).keys())
     }
 
+
+@chat_blp.get("/chat/party/{party_id}/messages")
+async def get_party_messages(
+    party_id: str,
+    limit: int = Query(50, description="Maximum number of messages to return"),
+    offset: int = Query(0, description="Number of messages to skip")
+):
+    """
+    Get message history for a party.
+
+    Returns recent messages ordered by timestamp (oldest first).
+    Used by frontend to load chat history on connection.
+
+    Query Parameters:
+        limit: Maximum number of messages to return (default: 50)
+        offset: Number of messages to skip for pagination (default: 0)
+    """
+    db = SessionLocal()
+    try:
+        # Fetch messages for this party
+        messages = db.query(Message)\
+            .filter(Message.party_id == party_id)\
+            .order_by(Message.created_at.desc())\
+            .offset(offset)\
+            .limit(limit)\
+            .all()
+
+        # Reverse to get oldest-first ordering
+        messages = list(reversed(messages))
+
+        # Format for frontend
+        return {
+            "party_id": party_id,
+            "count": len(messages),
+            "messages": [
+                {
+                    "id": msg.id,
+                    "sender_id": msg.sender_id,
+                    "sender_name": msg.sender_name,
+                    "content": msg.content,
+                    "message_type": msg.message_type,
+                    "chat_mode": msg.mode,
+                    "timestamp": msg.created_at.isoformat(),
+                    "type": f"chat_{msg.mode}" if msg.mode else "chat"
+                }
+                for msg in messages
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch message history: {e}")
+        return {"party_id": party_id, "count": 0, "messages": [], "error": str(e)}
+    finally:
+        db.close()
+
+
 async def log_combat_event(entry: Dict[str, Any]):
     try:
         async with httpx.AsyncClient() as client:
@@ -2074,6 +2188,16 @@ async def chat_party_ws(
                     party_id, msg, whisper_targets, actor
                 )
                 logger.info(f"Whisper from {actor} to {whisper_targets}: {text[:50]}...")
+
+                # Save whisper to database
+                save_message_to_db(
+                    party_id=party_id,
+                    character_id=character_id,
+                    character_name=actor,
+                    message_text=text,
+                    message_type='chat',
+                    chat_mode='whisper'
+                )
             else:
                 # Regular message or IC/OOC (broadcast to all)
                 # Determine message type based on chat_mode for proper tab routing
@@ -2092,6 +2216,16 @@ async def chat_party_ws(
                     "chat_mode": chat_mode if chat_mode else None
                 }
                 await broadcast(party_id, msg)
+
+                # Save regular message to database
+                save_message_to_db(
+                    party_id=party_id,
+                    character_id=character_id,
+                    character_name=actor,
+                    message_text=text,
+                    message_type='chat',
+                    chat_mode=chat_mode
+                )
     except WebSocketDisconnect:
         # Notify party of leave
         if character_id and character_name != "Unknown":

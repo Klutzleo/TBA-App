@@ -1509,11 +1509,14 @@
     }
 
     // Get or create a whisper tab for a specific player
-    function getOrCreateWhisperTab(playerName) {
+    function getOrCreateWhisperTab(playerName, switchToTab = true) {
       const tabId = `whisper-${playerName.toLowerCase()}`;
 
-      // If tab already exists and is visible, return it
+      // If tab already exists and is visible, optionally switch to it
       if (whisperTabs[playerName.toLowerCase()] && whisperTabs[playerName.toLowerCase()].visible) {
+        if (switchToTab) {
+          switchTab(tabId);
+        }
         return tabId;
       }
 
@@ -1546,6 +1549,12 @@
         // Track it
         whisperTabs[playerName.toLowerCase()] = { visible: true, element: tabBtn };
         unreadCounts[tabId] = 0;
+      }
+
+      // CRITICAL FIX: Switch to this tab immediately after creating it
+      // This ensures the creator's subsequent messages go to the whisper tab, not Story
+      if (switchToTab) {
+        switchTab(tabId);
       }
 
       return tabId;
@@ -2383,7 +2392,7 @@
       try {
         ws = new WebSocket(wsUrl);
 
-        ws.onopen = () => {
+        ws.onopen = async () => {
           // Hide loading spinner
           const spinner = document.getElementById('loadingSpinner');
           if (spinner) spinner.style.display = 'none';
@@ -2393,6 +2402,42 @@
           connectBtn.disabled = true;
           disconnectBtn.disabled = false;
           sendBtn.disabled = false;
+
+          // Load message history
+          try {
+            const historyUrl = `${baseUrl}/api/chat/party/${encodeURIComponent(partyId)}/messages?limit=50`;
+            const response = await fetch(historyUrl);
+            if (response.ok) {
+              const data = await response.json();
+              if (data.messages && data.messages.length > 0) {
+                addMessage(`📜 Loading ${data.messages.length} message(s) from history...`, 'message-card message-system');
+
+                // Display each message in the correct tab
+                for (const msg of data.messages) {
+                  const messageData = {
+                    type: msg.type || 'chat',
+                    actor: msg.sender_name,
+                    text: msg.content,
+                    chat_mode: msg.chat_mode,
+                    timestamp: msg.timestamp
+                  };
+
+                  // Route message to correct tab
+                  const tab = getMessageTab(messageData);
+                  const container = document.createElement('div');
+                  container.className = 'message-historic';
+                  container.style.opacity = '0.7';
+
+                  const timestamp = new Date(msg.timestamp).toLocaleTimeString();
+                  container.innerHTML = `<span class="timestamp">[${timestamp}]</span> <strong>${msg.sender_name}:</strong> ${msg.content}`;
+
+                  addMessage(container, 'message-card', messageData);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to load message history:', err);
+          }
 
           // Note: Join notification is now handled by the backend after caching character data
           // The backend will broadcast "{character_name} joined the party" to all clients
