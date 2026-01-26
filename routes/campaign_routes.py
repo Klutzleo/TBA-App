@@ -8,7 +8,7 @@ from typing import Optional, List
 import uuid
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership
+from backend.models import Campaign, Party, Character, PartyMembership, Message
 
 router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
 
@@ -138,5 +138,47 @@ def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
                 "is_active": channel.is_active
             }
             for channel in channels
+        ]
+    }
+
+
+@router.get("/{campaign_id}/messages")
+def get_campaign_messages(
+    campaign_id: str,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Get recent message history for a campaign.
+
+    Returns messages from all channels in the campaign, sorted by timestamp.
+    Used to restore chat history when a user connects.
+    """
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Get all messages for this campaign, sorted by time
+    messages = db.query(Message)\
+        .filter(Message.campaign_id == campaign_id)\
+        .order_by(Message.created_at.asc())\
+        .limit(limit)\
+        .all()
+
+    return {
+        "campaign_id": campaign_id,
+        "messages": [
+            {
+                "id": msg.id,
+                "party_id": msg.party_id,
+                "sender_id": msg.sender_id,
+                "sender_name": msg.sender_name,
+                "content": msg.content,
+                "message_type": msg.message_type,
+                "mode": msg.mode,
+                "timestamp": msg.created_at.isoformat() if msg.created_at else None
+            }
+            for msg in messages
         ]
     }

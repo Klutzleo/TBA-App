@@ -640,14 +640,15 @@ def resolve_multi_die_attack(
     defender_stat_value,
     edge,
     bap_triggered=False,
-    weapon_bonus=0
+    weapon_bonus=0,
+    defender_dp=None
 ):
     """
     TBA v1.5 Multi-Die Attack Resolution.
-    
+
     Attacker rolls each die individually against defender's single defense die.
     Each roll generates its own margin and damage.
-    
+
     Args:
         attacker: dict with "name" key
         attacker_die_str: e.g., "3d4", "2d6", "1d8"
@@ -658,7 +659,8 @@ def resolve_multi_die_attack(
         edge: bonus from level (0-5)
         bap_triggered: bool, adds BAP bonus to each roll
         weapon_bonus: bonus to damage per roll (Phase 2, default 0)
-    
+        defender_dp: int, defender's current DP (for unconscious check)
+
     Returns:
         {
             "type": "multi_die_attack",
@@ -686,15 +688,19 @@ def resolve_multi_die_attack(
     """
     attacker_name = attacker.get("name", "Attacker")
     defender_name = defender.get("name", "Defender")
-    
+
     # Parse attacker die string (e.g., "3d4" → count=3, sides=4)
     attacker_count, attacker_sides = parse_die(attacker_die_str)
-    
+
     # Roll each attacker die separately
     attacker_rolls = roll_dice(attacker_die_str)  # Returns list of individual rolls
-    
+
     # Roll defense die once (same for all attacker rolls)
-    defense_roll = roll_die(defense_die_str)
+    # Unconscious defenders (DP <= 0) don't defend - defense_roll = 0
+    if defender_dp is not None and defender_dp <= 0:
+        defense_roll = 0  # Unconscious - no defense
+    else:
+        defense_roll = roll_die(defense_die_str)  # Conscious - roll defense
     
     # Calculate individual results
     individual_rolls = []

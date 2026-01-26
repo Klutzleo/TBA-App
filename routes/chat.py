@@ -230,6 +230,29 @@ class ConnectionManager:
             except Exception as e:
                 logger.warning(f"Whisper broadcast failed to connection: {e}")
 
+    async def send_to_character(
+        self,
+        party_id: str,
+        character_id: str,
+        message: Dict[str, Any]
+    ):
+        """
+        Send a private message to a specific character only.
+
+        Args:
+            party_id: The party ID
+            character_id: The character ID to send to
+            message: The message to send
+        """
+        for ws, char_id, _ in self.active_connections.get(party_id, []):
+            try:
+                if char_id == character_id:
+                    await ws.send_json(message)
+                    logger.debug(f"Private message sent to character {character_id}")
+                    return
+            except Exception as e:
+                logger.warning(f"Send to character failed: {e}")
+
     def get_character_stats(self, party_id: str, character_id: str) -> Optional[Dict[str, Any]]:
         """
         Get cached character stats.
@@ -904,16 +927,26 @@ async def handle_ability_macro(
         spell_base_roll = spell_roll_result["total"] - spell_roll_result["modifier"]  # Get just the dice
         spell_total = spell_base_roll + caster_stat_value + caster_edge
 
-        # Defender rolls: defense_die + PP + edge
-        defense_die = target.defense_die or "1d6"
-        defense_roll_result = parse_dice_notation(defense_die)
-        defense_base_roll = defense_roll_result["total"] - defense_roll_result["modifier"]
-        target_pp = target.pp or 1
-        target_edge = getattr(target, 'edge', 0) or 0
-        defense_total = defense_base_roll + target_pp + target_edge
-
-        # 7. Calculate damage
-        damage = max(0, spell_total - defense_total)
+        # Check if defender is unconscious (≤ 0 DP) - unconscious targets don't defend
+        target_dp = getattr(target, 'dp', 0)
+        if target_dp <= 0:
+            # Unconscious - no defense roll, attack automatically hits
+            defense_total = 0
+            defense_die = target.defense_die or "1d6"
+            defense_roll_result = {"rolls": [0], "total": 0, "modifier": 0}
+            defense_base_roll = 0
+            target_pp = target.pp or 1
+            target_edge = getattr(target, 'edge', 0) or 0
+            damage = spell_total  # Full spell damage hits
+        else:
+            # Conscious - normal defense roll: defense_die + PP + edge
+            defense_die = target.defense_die or "1d6"
+            defense_roll_result = parse_dice_notation(defense_die)
+            defense_base_roll = defense_roll_result["total"] - defense_roll_result["modifier"]
+            target_pp = target.pp or 1
+            target_edge = getattr(target, 'edge', 0) or 0
+            defense_total = defense_base_roll + target_pp + target_edge
+            damage = max(0, spell_total - defense_total)
 
         # 8. Update defender's current_dp
         old_dp = target.dp or 0
@@ -953,8 +986,11 @@ async def handle_ability_macro(
         spell_breakdown = f"{spell_die} = [{spell_rolls_str}] + {power_source.upper()}({caster_stat_value}) + Edge({caster_edge}) = {spell_total}"
 
         # Format defense roll breakdown
-        defense_rolls_str = " + ".join(map(str, defense_roll_result["rolls"]))
-        defense_breakdown = f"{defense_die} = [{defense_rolls_str}] + PP({target_pp}) + Edge({target_edge}) = {defense_total}"
+        if target_dp <= 0:
+            defense_breakdown = "No defense (unconscious)"
+        else:
+            defense_rolls_str = " + ".join(map(str, defense_roll_result["rolls"]))
+            defense_breakdown = f"{defense_die} = [{defense_rolls_str}] + PP({target_pp}) + Edge({target_edge}) = {defense_total}"
 
         # Determine outcome text
         if damage > 0:
@@ -1325,6 +1361,8 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             attacker_edge = attacker_data.get("edge", 0)
 
             # Resolve multi-die attack
+            # Pass defender_dp to check if unconscious (≤ 0 DP = no defense)
+            old_dp = defender_data.get("dp", 20)
             result = resolve_multi_die_attack(
                 attacker={"name": actor},
                 attacker_die_str=attacker_die,
@@ -1334,11 +1372,11 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 defender_stat_value=defender_pp,
                 edge=attacker_edge,
                 bap_triggered=False,
-                weapon_bonus=0
+                weapon_bonus=0,
+                defender_dp=old_dp
             )
 
             # Calculate new DP
-            old_dp = defender_data.get("dp", 20)
             new_dp = max(0, old_dp - result["total_damage"])
             defender_edge = defender_data.get("edge", 0)
 
@@ -1377,11 +1415,19 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
             attack_breakdown = f"{attacker_die} = [{attack_rolls_str}] + PP({attacker_pp}) + Edge({attacker_edge})"
 
             # Build detailed defense breakdown (for each attack roll)
+            # Unconscious defenders (≤ 0 DP) don't defend
             defense_breakdowns = []
-            for idx, roll_data in enumerate(result["individual_rolls"]):
-                defense_roll = roll_data.get("defense_roll", 0)
-                defense_breakdown = f"{defense_die} = [{defense_roll}] + PP({defender_pp}) + Edge({defender_edge})"
-                defense_breakdowns.append(defense_breakdown)
+            if old_dp <= 0:
+                # Unconscious - no defense roll
+                defense_breakdown = "No defense (unconscious)"
+                for idx, roll_data in enumerate(result["individual_rolls"]):
+                    defense_breakdowns.append(defense_breakdown)
+            else:
+                # Conscious - normal defense rolls
+                for idx, roll_data in enumerate(result["individual_rolls"]):
+                    defense_roll = roll_data.get("defense_roll", 0)
+                    defense_breakdown = f"{defense_die} = [{defense_roll}] + PP({defender_pp}) + Edge({defender_edge})"
+                    defense_breakdowns.append(defense_breakdown)
 
             # Build outcome text
             outcome_lines = []
@@ -2165,7 +2211,7 @@ async def chat_party_ws(
                     msg.get("actor") == "system" and
                     any(phrase in msg.get("text", "").lower() for phrase in [
                         "unknown command", "usage:", "not found", "error", "failed", "invalid",
-                        "only the story weaver", "cannot verify"
+                        "only the story weaver", "cannot verify", "has no ability uses"
                     ])
                 )
 
