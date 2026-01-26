@@ -880,15 +880,17 @@ async def handle_ability_macro(
                 "party_id": party_id
             }
 
-        # Check if target is already unconscious/dead
-        target_status = getattr(target, 'status', 'active')
-        if target_status in ('unconscious', 'dead'):
+        # Allow attacks even when unconscious (needed to reach -10 DP for The Calling)
+        target_dp = getattr(target, 'dp', 0)
+        if target_dp <= -10:
+            # Only block if already past The Calling threshold
             return {
                 "type": "system",
                 "actor": "system",
-                "text": f"⚠️ {target_name} is already {target_status}!",
+                "text": f"⚠️ {target_name} has already faced The Calling (DP: {target_dp}).",
                 "party_id": party_id
             }
+        # Otherwise allow the attack to continue even if unconscious
 
         # 6. Execute attack spell
         # Get power source stat value
@@ -925,7 +927,9 @@ async def handle_ability_macro(
         knocked_out = False
         calling_triggered = False
 
-        if new_dp <= 0 and target_status == 'active':
+        # Get current target status
+        current_status = getattr(target, 'status', 'active')
+        if new_dp <= 0 and current_status == 'active':
             target.status = 'unconscious'
             knocked_out = True
 

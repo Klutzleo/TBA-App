@@ -1613,8 +1613,9 @@
       if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
         const partner = getWhisperPartner(data);
         if (partner) {
-          // Get or create the whisper tab for this conversation partner
-          return getOrCreateWhisperTab(partner);
+          // Get or create the whisper tab WITHOUT switching to it (keep Story tab active)
+          // Players will see the unread badge and manually switch when they want
+          return getOrCreateWhisperTab(partner, false);
         }
         // Fallback to story if we can't determine partner
         return 'story';
