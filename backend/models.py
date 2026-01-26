@@ -124,8 +124,9 @@ class Campaign(Base):
     description = Column(String, nullable=True)
 
     # User ownership and permissions
-    created_by_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    story_weaver_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    # TODO: Migrate these to reference users table instead of characters
+    created_by_id = Column(String, nullable=False, index=True)  # Currently references characters.id
+    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)  # Currently references characters.id
 
     is_active = Column(Boolean, nullable=False, default=True)
     archived_at = Column(DateTime, nullable=True)
@@ -135,8 +136,7 @@ class Campaign(Base):
 
     # Relationships
     channels = relationship("Party", back_populates="campaign", foreign_keys="Party.campaign_id")
-    creator = relationship("User", back_populates="created_campaigns", foreign_keys=[created_by_user_id])
-    story_weaver = relationship("User", back_populates="story_weaver_campaigns", foreign_keys=[story_weaver_id])
+    story_weaver = relationship("Character", foreign_keys=[story_weaver_id])
 
     def __repr__(self):
         return f"<Campaign(id={self.id[:8]}..., name={self.name}, sw={self.story_weaver_id[:8] if self.story_weaver_id else None}...)>"
