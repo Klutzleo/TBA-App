@@ -145,18 +145,15 @@ def run_migration():
             print(f"  - System user already exists (id: {str(system_user_id)[:8]}...)")
         else:
             print(f"  - Creating system user (email: {system_email})")
-            # Generate a secure password hash for the system user
-            # User will never log in with this account, it's just for data ownership
-            # Use a simple secure password that's well under bcrypt's 72-byte limit
-            from passlib.context import CryptContext
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            # Use a fixed secure password (system user will never actually log in)
-            system_password = "system-user-no-login-" + str(uuid.uuid4())[:16]
-            system_password_hash = pwd_context.hash(system_password)
+            # Use a dummy bcrypt hash for the system user
+            # Security: Account is set to is_active=FALSE so it CAN'T log in
+            # This avoids bcrypt version compatibility issues during migration
+            # Hash format is valid but unused (bcrypt hash of "DISABLED-ACCOUNT")
+            system_password_hash = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LwKp.09E9XYzP5RKO"
 
             session.execute(text("""
                 INSERT INTO users (id, email, username, password_hash, is_active, created_at, updated_at)
-                VALUES (:id::uuid, :email, :username, :password, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                VALUES (:id::uuid, :email, :username, :password, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """), {
                 'id': str(system_user_id),
                 'email': system_email,
@@ -164,7 +161,7 @@ def run_migration():
                 'password': system_password_hash
             })
             session.commit()
-            print(f"  - System user created (id: {str(system_user_id)[:8]}...)")
+            print(f"  - System user created (id: {str(system_user_id)[:8]}...) [DISABLED]")
 
         # Step 4: Check characters.user_id (should already exist from 003_add_users.sql)
         print("\n[4/6] Checking characters.user_id...")
