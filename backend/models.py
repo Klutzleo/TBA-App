@@ -12,12 +12,112 @@ Phase 2d schema with:
 from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean, Text
 from sqlalchemy.orm import relationship
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+from passlib.context import CryptContext
 from backend.db import Base  # ✅ This works from project root
 
-# Import User and PasswordResetToken models for authentication
-from backend.models.user import User
-from backend.models.password_reset import PasswordResetToken
+# Password hashing context using bcrypt
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class User(Base):
+    """
+    User account for authentication.
+
+    Users can own characters and campaigns, and be designated as Story Weavers.
+    """
+    __tablename__ = "users"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships (will be populated when other models are updated)
+    characters = relationship("Character", back_populates="user", foreign_keys="[Character.user_id]")
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user")
+
+    def __repr__(self):
+        return f"<User(id={self.id[:8]}..., email={self.email}, username={self.username})>"
+
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """Hash a plain text password using bcrypt."""
+        return pwd_context.hash(password)
+
+    def verify_password(self, password: str) -> bool:
+        """Verify a plain text password against the hashed password."""
+        return pwd_context.verify(password, self.hashed_password)
+
+    def set_password(self, password: str):
+        """Set the user's password (hashes it automatically)."""
+        self.hashed_password = self.hash_password(password)
+
+
+class PasswordResetToken(Base):
+    """
+    Password reset token for secure password recovery.
+
+    Tokens are single-use and expire after a set time period.
+    """
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    token = Column(String, unique=True, nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("User", back_populates="password_reset_tokens")
+
+    def __repr__(self):
+        return f"<PasswordResetToken(id={self.id[:8]}..., user_id={self.user_id[:8]}..., used={self.used})>"
+
+    @staticmethod
+    def generate_token() -> str:
+        """Generate a secure random token for password reset."""
+        return str(uuid.uuid4())
+
+    @staticmethod
+    def create_for_user(user_id: str, hours_valid: int = 24) -> 'PasswordResetToken':
+        """
+        Create a new password reset token for a user.
+
+        Args:
+            user_id: The user's ID
+            hours_valid: How many hours the token should be valid (default 24)
+
+        Returns:
+            A new PasswordResetToken instance (not yet committed to database)
+        """
+        token = PasswordResetToken.generate_token()
+        expires_at = datetime.utcnow() + timedelta(hours=hours_valid)
+
+        return PasswordResetToken(
+            token=token,
+            user_id=user_id,
+            expires_at=expires_at,
+            used=False
+        )
+
+    def is_valid(self) -> bool:
+        """Check if the token is still valid (not used and not expired)."""
+        if self.used:
+            return False
+        if datetime.utcnow() > self.expires_at:
+            return False
+        return True
+
+    def mark_used(self):
+        """Mark the token as used."""
+        self.used = True
 
 
 class Echo(Base):

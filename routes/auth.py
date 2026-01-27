@@ -14,8 +14,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from backend.db import get_db
-from backend.models import User
-from backend.models.password_reset import PasswordResetToken
+from backend.models import User, PasswordResetToken
 from backend.auth.jwt import create_access_token, get_current_user
 from backend.email_service import send_password_reset_email
 
