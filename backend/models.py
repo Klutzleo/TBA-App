@@ -46,12 +46,16 @@ class User(Base):
 
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash a plain text password using bcrypt."""
-        return pwd_context.hash(password)
+        """Hash a password using bcrypt (with 72-byte limit)."""
+        # bcrypt has a 72-byte password limit, truncate if needed
+        password_bytes = password.encode('utf-8')[:72]
+        return pwd_context.hash(password_bytes.decode('utf-8'))
 
     def verify_password(self, password: str) -> bool:
-        """Verify a plain text password against the hashed password."""
-        return pwd_context.verify(password, self.hashed_password)
+        """Verify a password against the stored hash."""
+        # bcrypt has a 72-byte password limit, truncate if needed
+        password_bytes = password.encode('utf-8')[:72]
+        return pwd_context.verify(password_bytes.decode('utf-8'), self.hashed_password)
 
     def set_password(self, password: str):
         """Set the user's password (hashes it automatically)."""
