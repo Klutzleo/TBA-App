@@ -13,11 +13,11 @@ from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Bool
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime, timedelta
-from passlib.context import CryptContext
+from argon2 import PasswordHasher
 from backend.db import Base  # ✅ This works from project root
 
-# Password hashing context using bcrypt
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing using Argon2
+pwd_hasher = PasswordHasher()
 
 
 class User(Base):
@@ -46,16 +46,16 @@ class User(Base):
 
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash a password using bcrypt (with 72-byte limit)."""
-        # bcrypt has a 72-byte password limit, truncate if needed
-        password_bytes = password.encode('utf-8')[:72]
-        return pwd_context.hash(password_bytes.decode('utf-8'))
+        """Hash a password using Argon2."""
+        return pwd_hasher.hash(password)
 
     def verify_password(self, password: str) -> bool:
-        """Verify a password against the stored hash."""
-        # bcrypt has a 72-byte password limit, truncate if needed
-        password_bytes = password.encode('utf-8')[:72]
-        return pwd_context.verify(password_bytes.decode('utf-8'), self.hashed_password)
+        """Verify a password against the hash."""
+        try:
+            pwd_hasher.verify(self.hashed_password, password)
+            return True
+        except:
+            return False
 
     def set_password(self, password: str):
         """Set the user's password (hashes it automatically)."""
