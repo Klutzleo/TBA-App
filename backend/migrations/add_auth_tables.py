@@ -153,7 +153,7 @@ def run_migration():
 
             session.execute(text("""
                 INSERT INTO users (id, email, username, password_hash, is_active, created_at, updated_at)
-                VALUES (:id::uuid, :email, :username, :password, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                VALUES (CAST(:id AS uuid), :email, :username, :password, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """), {
                 'id': str(system_user_id),
                 'email': system_email,
@@ -178,7 +178,7 @@ def run_migration():
                     print(f"  - Backfilling {null_count} characters with NULL user_id")
                     session.execute(text("""
                         UPDATE characters
-                        SET user_id = :system_user_id::uuid
+                        SET user_id = CAST(:system_user_id AS uuid)
                         WHERE user_id IS NULL
                     """), {'system_user_id': str(system_user_id)})
                     session.commit()
