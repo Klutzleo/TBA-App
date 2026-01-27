@@ -107,6 +107,18 @@ def run_migration():
         else:
             print("  - ✅ users table already exists (from 003_add_users.sql)")
 
+            # Add is_active column if it doesn't exist
+            if not column_exists(engine, 'users', 'is_active'):
+                print("  - Adding is_active column to users table")
+                session.execute(text("""
+                    ALTER TABLE users
+                    ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE
+                """))
+                session.commit()
+                print("  - is_active column added")
+            else:
+                print("  - is_active column already exists")
+
         # Step 2: Create password_reset_tokens table with UUID
         print("\n[2/6] Creating password_reset_tokens table...")
         if not table_exists(engine, 'password_reset_tokens'):
