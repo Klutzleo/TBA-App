@@ -223,7 +223,7 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register campaign_router: {e}")
 
 try:
-    from backend.routes.auth import auth_router
+    from routes.auth import auth_router
 
     application.include_router(auth_router, tags=["Authentication"])
     logger.info("✅ Registered auth_router")
