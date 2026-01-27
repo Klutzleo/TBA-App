@@ -15,6 +15,10 @@ import uuid
 from datetime import datetime
 from backend.db import Base  # ✅ This works from project root
 
+# Import User and PasswordResetToken models for authentication
+from backend.models.user import User
+from backend.models.password_reset import PasswordResetToken
+
 
 class Echo(Base):
     """Legacy echo storage for schema payloads."""

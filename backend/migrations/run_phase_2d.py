@@ -34,12 +34,17 @@ def check_migration_needed() -> bool:
     Returns True if migrations are needed, False if already applied.
     """
     # Check if new tables exist
-    if table_exists('parties') and table_exists('abilities'):
+    if (table_exists('parties') and
+        table_exists('abilities') and
+        table_exists('users') and
+        table_exists('password_reset_tokens')):
         # Tables exist, check if characters has new columns
         if (column_exists('characters', 'notes') and
             column_exists('characters', 'status') and
-            column_exists('party_memberships', 'left_at')):
-            logger.info("✅ Phase 2d migrations already applied")
+            column_exists('party_memberships', 'left_at') and
+            column_exists('users', 'hashed_password') and
+            column_exists('users', 'is_active')):
+            logger.info("✅ Phase 2d migrations already applied (including auth system)")
             return False
 
     logger.info("🔄 Phase 2d migrations needed")
@@ -174,9 +179,17 @@ def run_migrations():
         '001_add_parties.sql',
         '002_add_party_members.sql',
         '003_update_characters.sql',
+        '003_add_users.sql',  # User authentication system
         '004_add_abilities.sql',
         '005_update_messages.sql',
-        '006_add_left_at_column.sql'
+        '006_add_left_at_column.sql',
+        '006_add_calling_flag.sql',  # The Calling system
+        '007_create_campaigns.sql',
+        '008_make_story_weaver_nullable.sql',
+        '009_fix_campaign_trigger.sql',
+        '010_make_columns_nullable.sql',
+        '011_add_password_reset_tokens.sql',  # Password reset functionality
+        '012_fix_users_table_schema.sql'  # Fix users table to match User model
     ]
 
     migrations_dir = Path(__file__).parent
