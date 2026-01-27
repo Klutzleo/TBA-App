@@ -145,11 +145,14 @@ def run_migration():
             print(f"  - System user already exists (id: {str(system_user_id)[:8]}...)")
         else:
             print(f"  - Creating system user (email: {system_email})")
-            # Generate a secure random password hash for the system user
+            # Generate a secure password hash for the system user
             # User will never log in with this account, it's just for data ownership
+            # Use a simple secure password that's well under bcrypt's 72-byte limit
             from passlib.context import CryptContext
             pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            system_password_hash = pwd_context.hash(str(uuid.uuid4()))
+            # Use a fixed secure password (system user will never actually log in)
+            system_password = "system-user-no-login-" + str(uuid.uuid4())[:16]
+            system_password_hash = pwd_context.hash(system_password)
 
             session.execute(text("""
                 INSERT INTO users (id, email, username, password_hash, is_active, created_at, updated_at)
