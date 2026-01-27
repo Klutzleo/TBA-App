@@ -164,16 +164,16 @@ async def register(
     db.commit()
     db.refresh(new_user)
 
-    # Generate JWT token
+    # Generate JWT token (convert UUID to string for JSON serialization)
     access_token = create_access_token(
-        user_id=new_user.id,
+        user_id=str(new_user.id),
         email=new_user.email,
         username=new_user.username
     )
 
     return LoginResponse(
         access_token=access_token,
-        user_id=new_user.id,
+        user_id=str(new_user.id),
         username=new_user.username,
         email=new_user.email
     )
@@ -218,16 +218,16 @@ async def login(
     user.last_login = datetime.utcnow()
     db.commit()
 
-    # Generate JWT token
+    # Generate JWT token (convert UUID to string for JSON serialization)
     access_token = create_access_token(
-        user_id=user.id,
+        user_id=str(user.id),
         email=user.email,
         username=user.username
     )
 
     return LoginResponse(
         access_token=access_token,
-        user_id=user.id,
+        user_id=str(user.id),
         username=user.username,
         email=user.email
     )
@@ -249,7 +249,7 @@ async def get_profile(
         401: Invalid or missing token
     """
     return UserProfileResponse(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         username=current_user.username,
         email=current_user.email,
         created_at=current_user.created_at
