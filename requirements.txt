@@ -10,12 +10,14 @@ asyncpg==0.30.0
 aiosqlite==0.20.0
 
 # Data serialization
-pydantic==2.8.2
+pydantic[email]==2.8.2
 python-multipart==0.0.7
 
 # Authentication
 passlib[bcrypt]>=1.7.4
 python-jose[cryptography]>=3.3.0
+slowapi>=0.1.9
+sendgrid>=6.10.0
 
 # Env vars & utilities
 python-dotenv==1.0.1

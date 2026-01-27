@@ -10,6 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.openapi.utils import get_openapi
 from pathlib import Path
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from backend.db import init_db
 
@@ -26,6 +29,9 @@ start_time = time.time()
 
 # Get API key from env
 API_KEY = os.getenv("API_KEY", "default-dev-key")
+
+# Initialize rate limiter for authentication routes
+limiter = Limiter(key_func=get_remote_address)
 
 
 # Lifespan context for startup/shutdown
@@ -66,6 +72,10 @@ application = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Add rate limiter to app state
+application.state.limiter = limiter
+application.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # Add CORS middleware
@@ -121,8 +131,13 @@ async def attach_request_id_and_auth(request: Request, call_next):
     # Exempt these paths from API key check
     exempt_paths = {"/health", "/docs", "/openapi.json", "/", "/redoc", "/api/characters/full"}
 
-    # Only enforce API key on /api/ routes (and not on exempt paths)
-    if request.url.path.startswith("/api/") and request.url.path not in exempt_paths:
+    # Exempt auth routes (they use JWT authentication instead)
+    auth_paths = {"/api/auth/register", "/api/auth/login", "/api/auth/logout",
+                  "/api/auth/me", "/api/auth/forgot-password", "/api/auth/reset-password",
+                  "/api/auth/change-password"}
+
+    # Only enforce API key on /api/ routes (and not on exempt paths or auth paths)
+    if request.url.path.startswith("/api/") and request.url.path not in exempt_paths and request.url.path not in auth_paths:
         provided_key = request.headers.get("X-API-Key")
         if not provided_key or provided_key != API_KEY:
             logger.warning(f"[{request_id}] Unauthorized: {request.method} {request.url.path}")
@@ -206,6 +221,14 @@ try:
     logger.info("✅ Registered campaign_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register campaign_router: {e}")
+
+try:
+    from backend.routes.auth import auth_router
+
+    application.include_router(auth_router, tags=["Authentication"])
+    logger.info("✅ Registered auth_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register auth_router: {e}")
 
 
 # Custom OpenAPI schema
