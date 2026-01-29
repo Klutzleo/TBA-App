@@ -284,10 +284,18 @@ async def create_character_form():
     except Exception:
         return HTMLResponse("<h1>Error</h1><p>Character creation form not found.</p>", status_code=404)
 
+
+@application.get("/ws-test")
+async def ws_test():
+    ws_test_path = Path("static/ws-test.html")
+    if ws_test_path.exists():
+        return HTMLResponse(ws_test_path.read_text())
+    return HTMLResponse("<h1>Error</h1><p>WebSocket test page not found.</p>", status_code=404)
+
+# Mount static files BEFORE the if __name__ block
+application.mount("/", StaticFiles(directory="static", html=True), name="static")
+
 # Entry point for dev hot-reload
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(application, host="0.0.0.0", port=8000)
-
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
