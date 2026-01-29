@@ -9,11 +9,15 @@
             max-width: 600px;
             margin: 40px auto;
             padding: 20px;
-            background: #1a1a2e;
-            color: #eee;
+            background: #1a1d29;
+            color: #e4e6eb;
         }
-        h1 { color: #00d4ff; margin-bottom: 5px; }
-        .subtitle { color: #888; margin-bottom: 30px; }
+        h1 {
+            color: #d4af37;
+            margin-bottom: 5px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .subtitle { color: #b0b3ba; margin-bottom: 30px; }
 
         /* Progress bar */
         .progress-bar {
@@ -29,15 +33,16 @@
             left: 0;
             right: 0;
             height: 2px;
-            background: #333;
+            background: #3a3f54;
             z-index: 0;
         }
         .step-indicator {
             width: 30px;
             height: 30px;
             border-radius: 50%;
-            background: #333;
-            color: #666;
+            background: #252937;
+            border: 1px solid #3a3f54;
+            color: #6b7280;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -46,12 +51,14 @@
             transition: all 0.3s;
         }
         .step-indicator.active {
-            background: #00d4ff;
-            color: #000;
+            background: #d4af37;
+            border-color: #d4af37;
+            color: #13151f;
         }
         .step-indicator.complete {
-            background: #00ff88;
-            color: #000;
+            background: #10b981;
+            border-color: #10b981;
+            color: #13151f;
         }
 
         /* Form steps */
@@ -67,7 +74,7 @@
 
         .step-title {
             font-size: 1.5em;
-            color: #00d4ff;
+            color: #d4af37;
             margin-bottom: 20px;
         }
 
@@ -78,37 +85,49 @@
         label {
             display: block;
             margin-bottom: 5px;
-            color: #aaa;
+            color: #e4e6eb;
             font-size: 0.9em;
+            font-weight: 600;
         }
         input, select {
             width: 100%;
             padding: 12px;
-            border: 1px solid #333;
-            border-radius: 6px;
-            background: #252540;
-            color: #fff;
+            border: 1px solid #3a3f54;
+            border-radius: 8px;
+            background: #13151f;
+            color: #e4e6eb;
             font-size: 1em;
+            transition: all 0.3s ease;
         }
         input:focus, select:focus {
             outline: none;
-            border-color: #00d4ff;
+            border-color: #d4af37;
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
         }
         input:disabled, select:disabled {
-            background: #1a1a2e;
-            color: #666;
+            background: #252937;
+            color: #6b7280;
+            opacity: 0.6;
         }
 
         /* Stats validation */
         .stats-total {
             padding: 10px;
-            border-radius: 6px;
+            border-radius: 8px;
             text-align: center;
             font-weight: bold;
             margin-top: 10px;
         }
-        .stats-total.valid { background: #00ff8833; color: #00ff88; }
-        .stats-total.invalid { background: #ff444433; color: #ff4444; }
+        .stats-total.valid {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            color: #10b981;
+        }
+        .stats-total.invalid {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid #dc3545;
+            color: #dc3545;
+        }
 
         /* Buttons */
         .btn-row {
@@ -120,93 +139,112 @@
             flex: 1;
             padding: 14px 20px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 1em;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            font-weight: 700;
         }
         .btn-back {
-            background: #333;
-            color: #aaa;
+            background: #252937;
+            border: 1px solid #3a3f54;
+            color: #b0b3ba;
         }
-        .btn-back:hover { background: #444; }
+        .btn-back:hover {
+            background: #2d3142;
+        }
         .btn-next {
-            background: #00d4ff;
-            color: #000;
+            background: #d4af37;
+            color: #13151f;
             font-weight: bold;
         }
-        .btn-next:hover { background: #00b8e6; }
+        .btn-next:hover {
+            background: #9d7c2f;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+        }
         .btn-next:disabled {
-            background: #333;
-            color: #666;
+            background: #252937;
+            border: 1px solid #3a3f54;
+            color: #6b7280;
             cursor: not-allowed;
+            transform: none;
         }
         .btn-create {
-            background: #00ff88;
-            color: #000;
+            background: #10b981;
+            color: #13151f;
             font-weight: bold;
         }
-        .btn-create:hover { background: #00dd77; }
+        .btn-create:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+        }
 
         /* Review section */
         .review-section {
-            background: #252540;
+            background: #252937;
+            border: 1px solid #3a3f54;
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
         }
         .review-section h4 {
-            color: #00d4ff;
+            color: #d4af37;
             margin: 0 0 10px 0;
             font-size: 0.9em;
             text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.5px;
         }
         .review-row {
             display: flex;
             justify-content: space-between;
             padding: 5px 0;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #3a3f54;
         }
         .review-row:last-child { border-bottom: none; }
-        .review-label { color: #888; }
-        .review-value { color: #fff; font-weight: bold; }
-        .review-value.calculated { color: #00ff88; }
+        .review-label { color: #b0b3ba; }
+        .review-value { color: #e4e6eb; font-weight: bold; }
+        .review-value.calculated { color: #10b981; }
 
         /* Messages */
         .error-msg {
-            background: #ff444433;
-            color: #ff4444;
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid #dc3545;
+            color: #dc3545;
             padding: 15px;
-            border-radius: 6px;
+            border-radius: 8px;
             margin-bottom: 20px;
             display: none;
         }
         .success-msg {
-            background: #00ff8833;
-            color: #00ff88;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            color: #10b981;
             padding: 15px;
-            border-radius: 6px;
+            border-radius: 8px;
             margin-bottom: 20px;
             text-align: center;
             display: none;
         }
 
         /* Helper text */
-        .helper { color: #666; font-size: 0.85em; margin-top: 5px; }
+        .helper { color: #b0b3ba; font-size: 0.85em; margin-top: 5px; }
 
         /* Ability slot cards */
         .ability-slot {
-            background: #252540;
-            border: 1px solid #333;
+            background: #252937;
+            border: 1px solid #3a3f54;
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 20px;
         }
         .ability-slot.aoe {
-            border-left: 3px solid #ff6b6b;
+            border-left: 3px solid #ef4444;
         }
         .ability-slot.single {
-            border-left: 3px solid #00d4ff;
+            border-left: 3px solid #3b82f6;
         }
         .ability-slot-header {
             display: flex;
@@ -214,25 +252,28 @@
             align-items: center;
             margin-bottom: 15px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #3a3f54;
         }
         .ability-slot-title {
             font-weight: bold;
-            color: #00d4ff;
+            color: #d4af37;
         }
         .ability-slot-badge {
             font-size: 0.75em;
             padding: 3px 8px;
             border-radius: 4px;
             text-transform: uppercase;
+            font-weight: 600;
         }
         .ability-slot-badge.single {
-            background: #00d4ff33;
-            color: #00d4ff;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
         }
         .ability-slot-badge.aoe {
-            background: #ff6b6b33;
-            color: #ff6b6b;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #ef4444;
         }
         .ability-slot .form-group {
             margin-bottom: 12px;
@@ -241,10 +282,11 @@
             margin-bottom: 0;
         }
         .ability-die-display {
-            background: #1a1a2e;
+            background: #13151f;
+            border: 1px solid #3a3f54;
             padding: 8px 12px;
             border-radius: 4px;
-            color: #00ff88;
+            color: #10b981;
             font-weight: bold;
             display: inline-block;
         }
