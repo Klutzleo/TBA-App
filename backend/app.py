@@ -149,10 +149,10 @@ async def attach_request_id_and_auth(request: Request, call_next):
     return response
 
 
-# Root endpoint
-@application.get("/")
-async def root(request: Request):
-    """API root — returns links to docs and endpoints."""
+# API info endpoint (moved from root to allow static files at /)
+@application.get("/api")
+async def api_info(request: Request):
+    """API info — returns links to docs and endpoints."""
     return {
         "message": "TBA-App API — TTRPG system with real-time multiplayer chat",
         "docs": "/docs",
