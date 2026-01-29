@@ -13,6 +13,7 @@ from pathlib import Path
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from fastapi.staticfiles import StaticFiles
 
 from backend.db import init_db
 
@@ -288,3 +289,5 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(application, host="0.0.0.0", port=8000)
+
+app.mount("/", StaticFiles(directory="static", html=True), name="static")

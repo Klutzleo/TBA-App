@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TBA - Main Game</title>
+    <script src="/js/auth-helper.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            color: white;
+        }
+        .container {
+            text-align: center;
+            background: rgba(0,0,0,0.3);
+            padding: 40px;
+            border-radius: 20px;
+        }
+        #user-info {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 TBA Main Game</h1>
+        <div id="user-info"></div>
+        <p>✅ Authentication is working!</p>
+        <p>✅ You're logged in!</p>
+        <p style="margin-top: 30px; color: #ddd;">
+            Game interface coming soon...<br>
+            (Combat, characters, WebSocket chat, etc.)
+        </p>
+    </div>
+
+    <script>
+        // Protect this page - require login
+        requireAuth();
+        
+        // Display user info with logout button
+        displayUserInfo();
+    </script>
+</body>
+</html>
