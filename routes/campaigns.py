@@ -1,130 +1,45 @@
 """
-Campaign Management Routes
-
-Handles campaign creation, browsing, joining, and management.
-Users can create campaigns, join via codes, and Story Weavers have special permissions.
+Campaign Routes - Create and manage campaigns
 """
-
-from datetime import datetime
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, field_validator
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from pydantic import BaseModel, Field
+from typing import Optional, List
+import uuid
+import random
+import string
 
 from backend.db import get_db
-from backend.models import Campaign, CampaignMembership, User, generate_join_code
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership
 from backend.auth.jwt import get_current_user
+from sqlalchemy import or_, func
 
-# Create router
-campaigns_router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
-
-
-# ==================== REQUEST/RESPONSE MODELS ====================
-
-class CreateCampaignRequest(BaseModel):
-    """Campaign creation request."""
-    name: str
-    description: str
-    is_public: bool = True
-    min_players: int = 2
-    max_players: int = 6
-    timezone: str = "America/New_York"
-    posting_frequency: str = "medium"
-
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate campaign name."""
-        if len(v) < 3 or len(v) > 100:
-            raise ValueError('Campaign name must be 3-100 characters')
-        return v
-
-    @field_validator('description')
-    @classmethod
-    def validate_description(cls, v: str) -> str:
-        """Validate campaign description."""
-        if len(v) < 10 or len(v) > 2000:
-            raise ValueError('Description must be 10-2000 characters')
-        return v
-
-    @field_validator('posting_frequency')
-    @classmethod
-    def validate_posting_frequency(cls, v: str) -> str:
-        """Validate posting frequency."""
-        if v not in ['slow', 'medium', 'high']:
-            raise ValueError('Posting frequency must be slow, medium, or high')
-        return v
-
-    @field_validator('min_players')
-    @classmethod
-    def validate_min_players(cls, v: int) -> int:
-        """Validate minimum players."""
-        if v < 2 or v > 20:
-            raise ValueError('Minimum players must be 2-20')
-        return v
-
-    @field_validator('max_players')
-    @classmethod
-    def validate_max_players(cls, v: int) -> int:
-        """Validate maximum players."""
-        if v < 2 or v > 20:
-            raise ValueError('Maximum players must be 2-20')
-        return v
+router = APIRouter(tags=["campaigns"])
 
 
-class UpdateCampaignRequest(BaseModel):
-    """Campaign update request (Story Weaver only)."""
-    name: Optional[str] = None
-    description: Optional[str] = None
-    is_public: Optional[bool] = None
-    min_players: Optional[int] = None
-    max_players: Optional[int] = None
-    timezone: Optional[str] = None
-    posting_frequency: Optional[str] = None
-    status: Optional[str] = None
-
-    @field_validator('status')
-    @classmethod
-    def validate_status(cls, v: Optional[str]) -> Optional[str]:
-        """Validate campaign status."""
-        if v is not None and v not in ['active', 'archived', 'on_break']:
-            raise ValueError('Status must be active, archived, or on_break')
-        return v
+def generate_join_code(db: Session) -> str:
+    """Generate a unique 6-character join code."""
+    while True:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        # Check if code already exists
+        existing = db.query(Campaign).filter(Campaign.join_code == code).first()
+        if not existing:
+            return code
 
 
-class JoinCampaignRequest(BaseModel):
-    """Join campaign request."""
-    join_code: str
-
-    @field_validator('join_code')
-    @classmethod
-    def validate_join_code(cls, v: str) -> str:
-        """Validate join code format."""
-        v = v.upper().strip()
-        if len(v) != 6:
-            raise ValueError('Join code must be 6 characters')
-        if not v.isalnum():
-            raise ValueError('Join code must contain only letters and numbers')
-        return v
-
-
-class KickPlayerRequest(BaseModel):
-    """Kick player request."""
-    user_id: str
-
-
-class CampaignMemberResponse(BaseModel):
-    """Campaign member info."""
-    user_id: str
-    username: str
-    email: str
-    role: str
-    joined_at: datetime
+class CampaignCreate(BaseModel):
+    """Request to create a new campaign (Phase 3)."""
+    name: str = Field(..., min_length=3, max_length=100)
+    description: str = Field(..., min_length=10, max_length=2000)
+    is_public: bool = Field(default=True)
+    posting_frequency: str = Field(..., pattern="^(slow|medium|high)$")
+    min_players: int = Field(..., ge=2, le=20)
+    max_players: int = Field(..., ge=2, le=20)
+    timezone: str = Field(..., min_length=1)
 
 
 class CampaignResponse(BaseModel):
-    """Campaign response with details."""
+    """Campaign response (Phase 3)."""
     id: str
     name: str
     description: str
@@ -135,115 +50,61 @@ class CampaignResponse(BaseModel):
     timezone: str
     posting_frequency: str
     status: str
-    created_by_user_id: str
-    story_weaver_id: Optional[str]
-    created_at: datetime
-    updated_at: datetime
-    member_count: int
-    user_role: Optional[str] = None  # User's role in this campaign
+    story_weaver_id: Optional[str] = None
+    created_by_user_id: Optional[str] = None
+    is_active: bool
+    user_role: Optional[str] = None  # 'story_weaver' or 'player'
+    member_count: Optional[int] = None  # Number of active members
+
+    class Config:
+        from_attributes = True
 
 
-class MessageResponse(BaseModel):
-    """Generic message response."""
-    message: str
-
-
-# ==================== HELPER FUNCTIONS ====================
-
-def get_user_role_in_campaign(db: Session, campaign_id: str, user_id: str) -> Optional[str]:
-    """Get user's role in a campaign (or None if not a member)."""
-    membership = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign_id,
-            CampaignMembership.user_id == user_id,
-            CampaignMembership.left_at == None
-        )
-    ).first()
-    return membership.role if membership else None
-
-
-def is_story_weaver(db: Session, campaign_id: str, user_id: str) -> bool:
-    """Check if user is the Story Weaver for this campaign."""
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-    if not campaign:
-        return False
-    return campaign.story_weaver_id == user_id
-
-
-def ensure_unique_join_code(db: Session) -> str:
-    """Generate a unique join code."""
-    for _ in range(100):  # Try up to 100 times
-        code = generate_join_code()
-        existing = db.query(Campaign).filter(Campaign.join_code == code).first()
-        if not existing:
-            return code
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Failed to generate unique join code"
-    )
-
-
-# ==================== ENDPOINTS ====================
-
-@campaigns_router.post("/create", response_model=CampaignResponse, status_code=status.HTTP_201_CREATED)
-async def create_campaign(
-    data: CreateCampaignRequest,
+@router.post("/create", response_model=CampaignResponse)
+def create_campaign(
+    req: CampaignCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create a new campaign.
+    Create a new campaign (Phase 3).
 
-    Requires: Bearer token in Authorization header
+    Requires JWT authentication. The current user becomes the Story Weaver.
 
-    Returns:
-        Campaign details with join code
-
-    Raises:
-        400: Validation error (min_players > max_players, etc.)
-        401: Invalid or missing token
+    Returns the campaign with a unique join code.
     """
-    # Validate player limits
-    if data.min_players > data.max_players:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Minimum players cannot exceed maximum players"
-        )
-
     # Generate unique join code
-    join_code = ensure_unique_join_code(db)
+    join_code = generate_join_code(db)
 
-    # Create campaign
+    # Create campaign with current user as Story Weaver
     campaign = Campaign(
-        name=data.name,
-        description=data.description,
-        created_by_user_id=current_user.id,
-        story_weaver_id=current_user.id,  # Creator is default Story Weaver
+        id=str(uuid.uuid4()),
+        name=req.name,
+        description=req.description,
         join_code=join_code,
-        is_public=data.is_public,
-        min_players=data.min_players,
-        max_players=data.max_players,
-        timezone=data.timezone,
-        posting_frequency=data.posting_frequency,
+        is_public=req.is_public,
+        min_players=req.min_players,
+        max_players=req.max_players,
+        timezone=req.timezone,
+        posting_frequency=req.posting_frequency,
         status='active',
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        story_weaver_id=current_user.id,  # Current user is the Story Weaver
+        created_by_user_id=current_user.id,
+        is_active=True
     )
 
     db.add(campaign)
-    db.commit()
-    db.refresh(campaign)
+    db.flush()  # Get the campaign.id before creating membership
 
-    # Add creator as member with story_weaver role
+    # Create CampaignMembership record for the Story Weaver
     membership = CampaignMembership(
         campaign_id=campaign.id,
         user_id=current_user.id,
-        role='story_weaver',
-        joined_at=datetime.utcnow()
+        role="story_weaver"
     )
-
     db.add(membership)
     db.commit()
+    db.refresh(campaign)
 
     return CampaignResponse(
         id=campaign.id,
@@ -256,630 +117,247 @@ async def create_campaign(
         timezone=campaign.timezone,
         posting_frequency=campaign.posting_frequency,
         status=campaign.status,
-        created_by_user_id=campaign.created_by_user_id,
-        story_weaver_id=campaign.story_weaver_id,
-        created_at=campaign.created_at,
-        updated_at=campaign.updated_at,
-        member_count=1,
-        user_role='story_weaver'
+        story_weaver_id=str(campaign.story_weaver_id) if campaign.story_weaver_id else None,
+        created_by_user_id=str(campaign.created_by_user_id) if campaign.created_by_user_id else None,
+        is_active=campaign.is_active,
+        user_role='story_weaver',  # Creator is always the Story Weaver
+        member_count=1  # Creator is the first member
     )
 
 
-@campaigns_router.get("", response_model=List[CampaignResponse])
-async def get_my_campaigns(
+@router.get("/", response_model=List[CampaignResponse])
+def list_my_campaigns(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get all campaigns the current user is a member of.
+    Get all campaigns for the current user.
 
-    Requires: Bearer token in Authorization header
-
-    Returns:
-        List of campaigns with member counts and user's role
-
-    Raises:
-        401: Invalid or missing token
+    Returns campaigns where the user is the Story Weaver OR a player (member).
+    Includes user_role field to distinguish between Story Weaver and player.
     """
-    # Get active memberships for current user
-    memberships = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.user_id == current_user.id,
-            CampaignMembership.left_at == None
-        )
+    # Debug: Print current user ID
+    print(f"DEBUG: Current user ID: {current_user.id}, type: {type(current_user.id)}")
+
+    # Get campaigns where user is Story Weaver
+    sw_campaigns = db.query(Campaign).filter(
+        Campaign.story_weaver_id == current_user.id,
+        Campaign.is_active == True
     ).all()
 
-    campaigns = []
-    for membership in memberships:
-        campaign = db.query(Campaign).filter(Campaign.id == membership.campaign_id).first()
-        if campaign:
-            # Count active members
-            member_count = db.query(CampaignMembership).filter(
-                and_(
-                    CampaignMembership.campaign_id == campaign.id,
-                    CampaignMembership.left_at == None
-                )
-            ).count()
+    # Debug: Print found campaigns
+    print(f"DEBUG: Found {len(sw_campaigns)} Story Weaver campaigns")
+    for c in sw_campaigns:
+        print(f"DEBUG: Campaign {c.id}, story_weaver_id: {c.story_weaver_id}, type: {type(c.story_weaver_id)}")
 
-            campaigns.append(CampaignResponse(
-                id=campaign.id,
-                name=campaign.name,
-                description=campaign.description,
-                join_code=campaign.join_code,
-                is_public=campaign.is_public,
-                min_players=campaign.min_players,
-                max_players=campaign.max_players,
-                timezone=campaign.timezone,
-                posting_frequency=campaign.posting_frequency,
-                status=campaign.status,
-                created_by_user_id=campaign.created_by_user_id,
-                story_weaver_id=campaign.story_weaver_id,
-                created_at=campaign.created_at,
-                updated_at=campaign.updated_at,
-                member_count=member_count,
-                user_role=membership.role
-            ))
+    # Get campaigns where user is a member (player)
+    member_campaigns = db.query(Campaign).join(
+        CampaignMembership,
+        Campaign.id == CampaignMembership.campaign_id
+    ).filter(
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None),  # Still active member
+        Campaign.is_active == True
+    ).all()
 
-    # Sort by updated_at descending (most recently updated first)
-    campaigns.sort(key=lambda c: c.updated_at, reverse=True)
+    # Build response with role info and member count
+    result = []
 
-    return campaigns
+    # Add Story Weaver campaigns
+    for c in sw_campaigns:
+        member_count = db.query(func.count(CampaignMembership.id)).filter(
+            CampaignMembership.campaign_id == c.id,
+            CampaignMembership.left_at.is_(None)
+        ).scalar()
 
-
-@campaigns_router.get("/browse", response_model=List[CampaignResponse])
-async def browse_public_campaigns(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Browse public campaigns (excluding campaigns user is already in).
-
-    Requires: Bearer token in Authorization header
-
-    Returns:
-        List of public campaigns available to join
-
-    Raises:
-        401: Invalid or missing token
-    """
-    # Get campaigns user is already in
-    user_campaign_ids = [
-        m.campaign_id for m in
-        db.query(CampaignMembership.campaign_id).filter(
-            and_(
-                CampaignMembership.user_id == current_user.id,
-                CampaignMembership.left_at == None
-            )
-        ).all()
-    ]
-
-    # Get public campaigns user is NOT in
-    query = db.query(Campaign).filter(
-        and_(
-            Campaign.is_public == True,
-            Campaign.status == 'active'
-        )
-    )
-
-    if user_campaign_ids:
-        query = query.filter(Campaign.id.notin_(user_campaign_ids))
-
-    public_campaigns = query.all()
-
-    campaigns = []
-    for campaign in public_campaigns:
-        # Count active members
-        member_count = db.query(CampaignMembership).filter(
-            and_(
-                CampaignMembership.campaign_id == campaign.id,
-                CampaignMembership.left_at == None
-            )
-        ).count()
-
-        # Skip if campaign is full
-        if member_count >= campaign.max_players:
-            continue
-
-        campaigns.append(CampaignResponse(
-            id=campaign.id,
-            name=campaign.name,
-            description=campaign.description,
-            join_code=campaign.join_code,
-            is_public=campaign.is_public,
-            min_players=campaign.min_players,
-            max_players=campaign.max_players,
-            timezone=campaign.timezone,
-            posting_frequency=campaign.posting_frequency,
-            status=campaign.status,
-            created_by_user_id=campaign.created_by_user_id,
-            story_weaver_id=campaign.story_weaver_id,
-            created_at=campaign.created_at,
-            updated_at=campaign.updated_at,
-            member_count=member_count,
-            user_role=None
+        result.append(CampaignResponse(
+            id=c.id,
+            name=c.name,
+            description=c.description,
+            join_code=c.join_code,
+            is_public=c.is_public,
+            min_players=c.min_players,
+            max_players=c.max_players,
+            timezone=c.timezone,
+            posting_frequency=c.posting_frequency,
+            status=c.status,
+            story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
+            created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+            is_active=c.is_active,
+            user_role='story_weaver',
+            member_count=member_count or 0
         ))
 
-    # Sort by created_at descending (newest first)
-    campaigns.sort(key=lambda c: c.created_at, reverse=True)
-
-    return campaigns
-
-
-@campaigns_router.post("/join", response_model=CampaignResponse)
-async def join_campaign(
-    data: JoinCampaignRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Join a campaign using a join code.
-
-    Requires: Bearer token in Authorization header
-
-    Returns:
-        Campaign details
-
-    Raises:
-        400: Invalid join code, campaign full, or already a member
-        401: Invalid or missing token
-        404: Campaign not found
-    """
-    # Find campaign by join code
-    campaign = db.query(Campaign).filter(Campaign.join_code == data.join_code).first()
-
-    if not campaign:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found with that join code"
-        )
-
-    # Check if campaign is active
-    if campaign.status != 'active':
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Campaign is {campaign.status} and not accepting new members"
-        )
-
-    # Check if already a member
-    existing_membership = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign.id,
-            CampaignMembership.user_id == current_user.id,
-            CampaignMembership.left_at == None
-        )
-    ).first()
-
-    if existing_membership:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You are already a member of this campaign"
-        )
-
-    # Count current members
-    member_count = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign.id,
-            CampaignMembership.left_at == None
-        )
-    ).count()
-
-    # Check if campaign is full
-    if member_count >= campaign.max_players:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Campaign is full ({member_count}/{campaign.max_players} players)"
-        )
-
-    # Create membership
-    membership = CampaignMembership(
-        campaign_id=campaign.id,
-        user_id=current_user.id,
-        role='player',
-        joined_at=datetime.utcnow()
-    )
-
-    db.add(membership)
-    db.commit()
-
-    return CampaignResponse(
-        id=campaign.id,
-        name=campaign.name,
-        description=campaign.description,
-        join_code=campaign.join_code,
-        is_public=campaign.is_public,
-        min_players=campaign.min_players,
-        max_players=campaign.max_players,
-        timezone=campaign.timezone,
-        posting_frequency=campaign.posting_frequency,
-        status=campaign.status,
-        created_by_user_id=campaign.created_by_user_id,
-        story_weaver_id=campaign.story_weaver_id,
-        created_at=campaign.created_at,
-        updated_at=campaign.updated_at,
-        member_count=member_count + 1,
-        user_role='player'
-    )
-
-
-@campaigns_router.delete("/{campaign_id}/leave", response_model=MessageResponse)
-async def leave_campaign(
-    campaign_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Leave a campaign.
-
-    Requires: Bearer token in Authorization header
-
-    Returns:
-        Success message
-
-    Raises:
-        400: Story Weaver cannot leave (must transfer role or delete campaign)
-        401: Invalid or missing token
-        404: Campaign not found or user is not a member
-    """
-    # Find active membership
-    membership = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign_id,
-            CampaignMembership.user_id == current_user.id,
-            CampaignMembership.left_at == None
-        )
-    ).first()
-
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="You are not a member of this campaign"
-        )
-
-    # Check if user is Story Weaver
-    if membership.role == 'story_weaver':
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Story Weaver cannot leave campaign. Transfer Story Weaver role or delete campaign instead."
-        )
-
-    # Mark membership as left
-    membership.left_at = datetime.utcnow()
-    db.commit()
-
-    return MessageResponse(message="Successfully left campaign")
-
-
-@campaigns_router.put("/{campaign_id}", response_model=CampaignResponse)
-async def update_campaign(
-    campaign_id: str,
-    data: UpdateCampaignRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Update campaign settings (Story Weaver only).
-
-    Requires: Bearer token in Authorization header + Story Weaver role
-
-    Returns:
-        Updated campaign details
-
-    Raises:
-        401: Invalid or missing token
-        403: User is not the Story Weaver
-        404: Campaign not found
-    """
-    # Find campaign
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-
-    if not campaign:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found"
-        )
-
-    # Check if user is Story Weaver
-    if not is_story_weaver(db, campaign_id, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the Story Weaver can update campaign settings"
-        )
-
-    # Update fields if provided
-    if data.name is not None:
-        campaign.name = data.name
-    if data.description is not None:
-        campaign.description = data.description
-    if data.is_public is not None:
-        campaign.is_public = data.is_public
-    if data.min_players is not None:
-        campaign.min_players = data.min_players
-    if data.max_players is not None:
-        campaign.max_players = data.max_players
-    if data.timezone is not None:
-        campaign.timezone = data.timezone
-    if data.posting_frequency is not None:
-        campaign.posting_frequency = data.posting_frequency
-    if data.status is not None:
-        campaign.status = data.status
-
-    campaign.updated_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(campaign)
-
-    # Get member count
-    member_count = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign.id,
-            CampaignMembership.left_at == None
-        )
-    ).count()
-
-    # Get user role
-    user_role = get_user_role_in_campaign(db, campaign_id, current_user.id)
-
-    return CampaignResponse(
-        id=campaign.id,
-        name=campaign.name,
-        description=campaign.description,
-        join_code=campaign.join_code,
-        is_public=campaign.is_public,
-        min_players=campaign.min_players,
-        max_players=campaign.max_players,
-        timezone=campaign.timezone,
-        posting_frequency=campaign.posting_frequency,
-        status=campaign.status,
-        created_by_user_id=campaign.created_by_user_id,
-        story_weaver_id=campaign.story_weaver_id,
-        created_at=campaign.created_at,
-        updated_at=campaign.updated_at,
-        member_count=member_count,
-        user_role=user_role
-    )
-
-
-@campaigns_router.delete("/{campaign_id}", response_model=MessageResponse)
-async def delete_campaign(
-    campaign_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Delete a campaign (creator only).
-
-    Requires: Bearer token in Authorization header + campaign creator
-
-    Returns:
-        Success message
-
-    Raises:
-        401: Invalid or missing token
-        403: User is not the creator
-        404: Campaign not found
-    """
-    # Find campaign
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-
-    if not campaign:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found"
-        )
-
-    # Check if user is creator
-    if campaign.created_by_user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the campaign creator can delete the campaign"
-        )
-
-    # Delete campaign (cascade will delete memberships)
-    db.delete(campaign)
-    db.commit()
-
-    return MessageResponse(message="Campaign deleted successfully")
-
-
-@campaigns_router.post("/{campaign_id}/kick", response_model=MessageResponse)
-async def kick_player(
-    campaign_id: str,
-    data: KickPlayerRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Kick a player from the campaign (Story Weaver only).
-
-    Requires: Bearer token in Authorization header + Story Weaver role
-
-    Returns:
-        Success message
-
-    Raises:
-        400: Cannot kick the Story Weaver
-        401: Invalid or missing token
-        403: User is not the Story Weaver
-        404: Campaign or player not found
-    """
-    # Find campaign
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-
-    if not campaign:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found"
-        )
-
-    # Check if user is Story Weaver
-    if not is_story_weaver(db, campaign_id, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the Story Weaver can kick players"
-        )
-
-    # Cannot kick yourself
-    if data.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot kick yourself from the campaign"
-        )
-
-    # Find player's membership
-    membership = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign_id,
-            CampaignMembership.user_id == data.user_id,
-            CampaignMembership.left_at == None
-        )
-    ).first()
-
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Player is not a member of this campaign"
-        )
-
-    # Mark membership as left
-    membership.left_at = datetime.utcnow()
-    db.commit()
-
-    return MessageResponse(message="Player kicked successfully")
-
-
-@campaigns_router.post("/{campaign_id}/regenerate-code", response_model=CampaignResponse)
-async def regenerate_join_code(
-    campaign_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Regenerate campaign join code (Story Weaver only).
-
-    Useful when code has been shared publicly and needs to be changed.
-
-    Requires: Bearer token in Authorization header + Story Weaver role
-
-    Returns:
-        Campaign details with new join code
-
-    Raises:
-        401: Invalid or missing token
-        403: User is not the Story Weaver
-        404: Campaign not found
-    """
-    # Find campaign
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-
-    if not campaign:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found"
-        )
-
-    # Check if user is Story Weaver
-    if not is_story_weaver(db, campaign_id, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the Story Weaver can regenerate the join code"
-        )
-
-    # Generate new unique join code
-    new_code = ensure_unique_join_code(db)
-    campaign.join_code = new_code
-    campaign.updated_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(campaign)
-
-    # Get member count
-    member_count = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign.id,
-            CampaignMembership.left_at == None
-        )
-    ).count()
-
-    # Get user role
-    user_role = get_user_role_in_campaign(db, campaign_id, current_user.id)
-
-    return CampaignResponse(
-        id=campaign.id,
-        name=campaign.name,
-        description=campaign.description,
-        join_code=campaign.join_code,
-        is_public=campaign.is_public,
-        min_players=campaign.min_players,
-        max_players=campaign.max_players,
-        timezone=campaign.timezone,
-        posting_frequency=campaign.posting_frequency,
-        status=campaign.status,
-        created_by_user_id=campaign.created_by_user_id,
-        story_weaver_id=campaign.story_weaver_id,
-        created_at=campaign.created_at,
-        updated_at=campaign.updated_at,
-        member_count=member_count,
-        user_role=user_role
-    )
-
-
-@campaigns_router.get("/{campaign_id}/members", response_model=List[CampaignMemberResponse])
-async def get_campaign_members(
-    campaign_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get list of campaign members.
-
-    Requires: Bearer token in Authorization header + campaign membership
-
-    Returns:
-        List of campaign members with roles
-
-    Raises:
-        401: Invalid or missing token
-        403: User is not a member of this campaign
-        404: Campaign not found
-    """
-    # Find campaign
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-
-    if not campaign:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found"
-        )
-
-    # Check if user is a member
-    user_role = get_user_role_in_campaign(db, campaign_id, current_user.id)
-    if not user_role:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You must be a campaign member to view members"
-        )
-
-    # Get all active members
-    memberships = db.query(CampaignMembership).filter(
-        and_(
-            CampaignMembership.campaign_id == campaign_id,
-            CampaignMembership.left_at == None
-        )
-    ).all()
-
-    members = []
-    for membership in memberships:
-        user = db.query(User).filter(User.id == membership.user_id).first()
-        if user:
-            members.append(CampaignMemberResponse(
-                user_id=user.id,
-                username=user.username,
-                email=user.email,
-                role=membership.role,
-                joined_at=membership.joined_at
+    # Add player campaigns (avoid duplicates if user is both SW and member)
+    sw_campaign_ids = {c.id for c in sw_campaigns}
+    for c in member_campaigns:
+        if c.id not in sw_campaign_ids:
+            member_count = db.query(func.count(CampaignMembership.id)).filter(
+                CampaignMembership.campaign_id == c.id,
+                CampaignMembership.left_at.is_(None)
+            ).scalar()
+
+            result.append(CampaignResponse(
+                id=c.id,
+                name=c.name,
+                description=c.description,
+                join_code=c.join_code,
+                is_public=c.is_public,
+                min_players=c.min_players,
+                max_players=c.max_players,
+                timezone=c.timezone,
+                posting_frequency=c.posting_frequency,
+                status=c.status,
+                story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
+                created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+                is_active=c.is_active,
+                user_role='player',
+                member_count=member_count or 0
             ))
 
-    # Sort by role (story_weaver first) then by joined_at
-    members.sort(key=lambda m: (m.role != 'story_weaver', m.joined_at))
+    # Sort by created_at descending (Story Weaver campaigns first, then player campaigns)
+    result.sort(key=lambda x: (x.user_role != 'story_weaver', x.created_by_user_id), reverse=True)
 
-    return members
+    return result
+
+
+@router.get("/browse", response_model=List[CampaignResponse])
+def browse_public_campaigns(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Browse all public campaigns.
+
+    Returns campaigns that are marked as public with member counts.
+    """
+    campaigns = db.query(Campaign).filter(
+        Campaign.is_public == True,
+        Campaign.is_active == True
+    ).order_by(Campaign.created_at.desc()).all()
+
+    result = []
+    for c in campaigns:
+        # Get member count for each campaign
+        member_count = db.query(func.count(CampaignMembership.id)).filter(
+            CampaignMembership.campaign_id == c.id,
+            CampaignMembership.left_at.is_(None)
+        ).scalar()
+
+        result.append(CampaignResponse(
+            id=c.id,
+            name=c.name,
+            description=c.description,
+            join_code=c.join_code,
+            is_public=c.is_public,
+            min_players=c.min_players,
+            max_players=c.max_players,
+            timezone=c.timezone,
+            posting_frequency=c.posting_frequency,
+            status=c.status,
+            story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
+            created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+            is_active=c.is_active,
+            user_role=None,  # Not showing role for browse
+            member_count=member_count or 0
+        ))
+
+    return result
+
+
+@router.get("/{campaign_id}", response_model=CampaignResponse)
+def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
+    """Get campaign details."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Get channels
+    story_channel = db.query(Party).filter(
+        Party.campaign_id == campaign_id,
+        Party.party_type == 'story'
+    ).first()
+
+    ooc_channel = db.query(Party).filter(
+        Party.campaign_id == campaign_id,
+        Party.party_type == 'ooc'
+    ).first()
+
+    return CampaignResponse(
+        id=campaign.id,
+        name=campaign.name,
+        description=campaign.description,
+        story_weaver_id=campaign.story_weaver_id,
+        created_by_id=campaign.created_by_id,
+        is_active=campaign.is_active,
+        story_channel_id=story_channel.id if story_channel else None,
+        ooc_channel_id=ooc_channel.id if ooc_channel else None
+    )
+
+
+@router.get("/{campaign_id}/channels")
+def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
+    """Get all channels for a campaign."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    channels = db.query(Party).filter(Party.campaign_id == campaign_id).all()
+
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.name,
+        "channels": [
+            {
+                "id": channel.id,
+                "name": channel.name,
+                "type": channel.party_type,
+                "is_active": channel.is_active
+            }
+            for channel in channels
+        ]
+    }
+
+
+@router.get("/{campaign_id}/messages")
+def get_campaign_messages(
+    campaign_id: str,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Get recent message history for a campaign.
+
+    Returns messages from all channels in the campaign, sorted by timestamp.
+    Used to restore chat history when a user connects.
+    """
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Get all messages for this campaign, sorted by time
+    messages = db.query(Message)\
+        .filter(Message.campaign_id == campaign_id)\
+        .order_by(Message.created_at.asc())\
+        .limit(limit)\
+        .all()
+
+    return {
+        "campaign_id": campaign_id,
+        "messages": [
+            {
+                "id": msg.id,
+                "party_id": msg.party_id,
+                "sender_id": msg.sender_id,
+                "sender_name": msg.sender_name,
+                "content": msg.content,
+                "message_type": msg.message_type,
+                "mode": msg.mode,
+                "timestamp": msg.created_at.isoformat() if msg.created_at else None
+            }
+            for msg in messages
+        ]
+    }
