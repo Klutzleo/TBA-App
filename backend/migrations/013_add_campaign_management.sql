@@ -176,31 +176,29 @@ END $$;
 -- Update story_weaver_id to reference users instead of characters
 DO $$
 BEGIN
-    -- Check if story_weaver_id currently references characters
+    -- Drop old FK to characters if exists
+    ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS fk_campaigns_story_weaver;
+    ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS campaigns_story_weaver_id_fkey;
+
+    -- Clear story_weaver_id values (will need manual migration to map characters to users)
+    UPDATE campaigns SET story_weaver_id = NULL;
+
+    -- Change column type from VARCHAR to UUID
     IF EXISTS (
-        SELECT 1 FROM information_schema.table_constraints tc
-        JOIN information_schema.constraint_column_usage ccu USING (constraint_name)
-        WHERE tc.table_name = 'campaigns'
-        AND tc.constraint_type = 'FOREIGN KEY'
-        AND ccu.table_name = 'characters'
-        AND ccu.column_name = 'id'
-        AND tc.constraint_name LIKE '%story_weaver%'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'campaigns'
+        AND column_name = 'story_weaver_id'
+        AND data_type != 'uuid'
     ) THEN
-        -- Drop old FK to characters
-        ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS fk_campaigns_story_weaver;
-        ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS campaigns_story_weaver_id_fkey;
-
-        -- Clear story_weaver_id (will need manual migration to map characters to users)
-        UPDATE campaigns SET story_weaver_id = NULL;
-
-        -- Add new FK to users
-        ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_story_weaver_user
-            FOREIGN KEY (story_weaver_id) REFERENCES users(id) ON DELETE SET NULL;
-
-        RAISE NOTICE 'Updated story_weaver_id to reference users table';
-    ELSE
-        RAISE NOTICE 'story_weaver_id already references users or no constraint exists';
+        ALTER TABLE campaigns ALTER COLUMN story_weaver_id TYPE UUID USING story_weaver_id::uuid;
+        RAISE NOTICE 'Changed story_weaver_id type to UUID';
     END IF;
+
+    -- Add new FK to users
+    ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_story_weaver_user
+        FOREIGN KEY (story_weaver_id) REFERENCES users(id) ON DELETE SET NULL;
+
+    RAISE NOTICE 'Updated story_weaver_id to reference users table';
 END $$;
 
 -- Make description TEXT instead of VARCHAR

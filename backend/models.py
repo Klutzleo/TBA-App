@@ -10,6 +10,7 @@ Phase 2d schema with:
 - NPCs and combat turns
 """
 from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean, Text, Enum
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
 import random
@@ -47,7 +48,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     username = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
@@ -94,7 +95,7 @@ class PasswordResetToken(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     token = Column(String, unique=True, nullable=False, index=True)
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False)
     used = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -186,7 +187,7 @@ class Character(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False, index=True)
     owner_id = Column(String, nullable=False, index=True)  # Legacy field - kept for backward compatibility
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # User who owns this character
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # User who owns this character
 
     # Core stats (1-3 each, must sum to 6)
     level = Column(Integer, nullable=False, default=1)  # 1-10
@@ -259,8 +260,8 @@ class Campaign(Base):
     description = Column(Text, nullable=False)
 
     # User ownership (migrated from character-based)
-    created_by_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    story_weaver_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    story_weaver_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Join settings
     join_code = Column(String(6), unique=True, nullable=False, index=True, default=generate_join_code)
@@ -305,7 +306,7 @@ class CampaignMembership(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     campaign_id = Column(String, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(Enum('player', 'story_weaver', name='campaign_role_enum'), nullable=False, default='player')
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     left_at = Column(DateTime, nullable=True)  # NULL = still active member
