@@ -134,8 +134,11 @@ async def register(
         400: Email or username already exists
         400: Validation error (weak password, invalid username)
     """
+    # Normalize email to lowercase for case-insensitive comparison
+    email_lower = data.email.lower()
+
     # Check if email already exists
-    existing_email = db.query(User).filter(User.email == data.email).first()
+    existing_email = db.query(User).filter(User.email == email_lower).first()
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -150,9 +153,9 @@ async def register(
             detail="Username already taken"
         )
 
-    # Create new user
+    # Create new user (use lowercase email)
     new_user = User(
-        email=data.email,
+        email=email_lower,
         username=data.username,
         hashed_password=User.hash_password(data.password),
         is_active=True,
@@ -197,8 +200,11 @@ async def login(
     Raises:
         401: Invalid email or password
     """
+    # Normalize email to lowercase for case-insensitive comparison
+    email_lower = data.email.lower()
+
     # Find user by email
-    user = db.query(User).filter(User.email == data.email).first()
+    user = db.query(User).filter(User.email == email_lower).first()
 
     # Verify password (use constant-time comparison to prevent timing attacks)
     if not user or not user.verify_password(data.password):
@@ -274,8 +280,11 @@ async def forgot_password(
     Returns:
         Generic success message
     """
+    # Normalize email to lowercase for case-insensitive comparison
+    email_lower = data.email.lower()
+
     # Find user by email
-    user = db.query(User).filter(User.email == data.email).first()
+    user = db.query(User).filter(User.email == email_lower).first()
 
     if user:
         # Delete any existing unused reset tokens for this user
