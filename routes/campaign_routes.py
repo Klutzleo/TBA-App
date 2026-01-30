@@ -6,71 +6,91 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import uuid
+import random
+import string
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User
+from backend.auth.jwt import get_current_user
 
 router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
 
 
+def generate_join_code(db: Session) -> str:
+    """Generate a unique 6-character join code."""
+    while True:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        # Check if code already exists
+        existing = db.query(Campaign).filter(Campaign.join_code == code).first()
+        if not existing:
+            return code
+
+
 class CampaignCreate(BaseModel):
-    """Request to create a new campaign."""
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    story_weaver_id: Optional[str] = Field(None, description="Character ID of the Story Weaver")
-    created_by_id: str = Field(..., description="User ID who is creating this campaign")
+    """Request to create a new campaign (Phase 3)."""
+    name: str = Field(..., min_length=3, max_length=100)
+    description: str = Field(..., min_length=10, max_length=2000)
+    is_public: bool = Field(default=True)
+    posting_frequency: str = Field(..., pattern="^(slow|medium|high)$")
+    min_players: int = Field(..., ge=2, le=20)
+    max_players: int = Field(..., ge=2, le=20)
+    timezone: str = Field(..., min_length=1)
 
 
 class CampaignResponse(BaseModel):
-    """Campaign response."""
+    """Campaign response (Phase 3)."""
     id: str
     name: str
-    description: Optional[str]
-    story_weaver_id: Optional[str]
-    created_by_id: str
+    description: str
+    join_code: str
+    is_public: bool
+    min_players: int
+    max_players: int
+    timezone: str
+    posting_frequency: str
+    status: str
+    story_weaver_id: Optional[str] = None
+    created_by_user_id: Optional[str] = None
     is_active: bool
-    story_channel_id: Optional[str] = None
-    ooc_channel_id: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
 @router.post("/create", response_model=CampaignResponse)
-def create_campaign(req: CampaignCreate, db: Session = Depends(get_db)):
+def create_campaign(
+    req: CampaignCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    Create a new campaign.
+    Create a new campaign (Phase 3).
 
-    Automatically creates:
-    - Story channel (main gameplay)
-    - OOC channel (out-of-character chat)
+    Requires JWT authentication. The current user becomes the Story Weaver.
 
-    Returns the campaign with channel IDs.
+    Returns the campaign with a unique join code.
     """
-    # Create campaign
+    # Generate unique join code
+    join_code = generate_join_code(db)
+
+    # Create campaign with current user as Story Weaver
     campaign = Campaign(
         id=str(uuid.uuid4()),
         name=req.name,
         description=req.description,
-        story_weaver_id=req.story_weaver_id,
-        created_by_id=req.created_by_id,
+        join_code=join_code,
+        is_public=req.is_public,
+        min_players=req.min_players,
+        max_players=req.max_players,
+        timezone=req.timezone,
+        posting_frequency=req.posting_frequency,
+        status='active',
+        story_weaver_id=current_user.id,  # Current user is the Story Weaver
+        created_by_user_id=current_user.id,
         is_active=True
     )
 
     db.add(campaign)
-    db.flush()  # Flush to trigger the auto-create channels trigger
-
-    # Query the auto-created channels
-    story_channel = db.query(Party).filter(
-        Party.campaign_id == campaign.id,
-        Party.party_type == 'story'
-    ).first()
-
-    ooc_channel = db.query(Party).filter(
-        Party.campaign_id == campaign.id,
-        Party.party_type == 'ooc'
-    ).first()
-
     db.commit()
     db.refresh(campaign)
 
@@ -78,11 +98,16 @@ def create_campaign(req: CampaignCreate, db: Session = Depends(get_db)):
         id=campaign.id,
         name=campaign.name,
         description=campaign.description,
-        story_weaver_id=campaign.story_weaver_id,
-        created_by_id=campaign.created_by_id,
-        is_active=campaign.is_active,
-        story_channel_id=story_channel.id if story_channel else None,
-        ooc_channel_id=ooc_channel.id if ooc_channel else None
+        join_code=campaign.join_code,
+        is_public=campaign.is_public,
+        min_players=campaign.min_players,
+        max_players=campaign.max_players,
+        timezone=campaign.timezone,
+        posting_frequency=campaign.posting_frequency,
+        status=campaign.status,
+        story_weaver_id=str(campaign.story_weaver_id) if campaign.story_weaver_id else None,
+        created_by_user_id=str(campaign.created_by_user_id) if campaign.created_by_user_id else None,
+        is_active=campaign.is_active
     )
 
 
