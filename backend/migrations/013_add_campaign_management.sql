@@ -157,8 +157,8 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'campaigns' AND column_name = 'created_by_user_id'
     ) THEN
-        -- Add column as nullable first
-        ALTER TABLE campaigns ADD COLUMN created_by_user_id VARCHAR;
+        -- Add column as nullable first (UUID to match users.id type)
+        ALTER TABLE campaigns ADD COLUMN created_by_user_id UUID;
 
         -- Add foreign key constraint
         ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_created_by_user
@@ -225,7 +225,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS campaign_memberships (
     id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
     campaign_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    user_id UUID NOT NULL,  -- UUID to match users.id type
     role campaign_role_enum NOT NULL DEFAULT 'player',
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     left_at TIMESTAMPTZ,
