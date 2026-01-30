@@ -241,7 +241,7 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register auth_router: {e}")
 
 try:
-    from routes.campaign_routes import router as campaigns_router
+    from routes.campaigns import router as campaigns_router
 
     application.include_router(campaigns_router, prefix="/api/campaigns", tags=["Campaigns"])
     logger.info("✅ Registered campaigns_router with /api/campaigns prefix")
