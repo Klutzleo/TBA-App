@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TBA - Campaign Management</title>
+    <script src="/js/auth-helper.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #1a1d29;
+            min-height: 100vh;
+            color: #e4e6eb;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0 30px;
+        }
+
+        h1 {
+            color: #d4af37;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .user-info {
+            font-size: 0.9rem;
+            color: #b0b3ba;
+            margin-bottom: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: #252937;
+            color: #b0b3ba;
+            border: 1px solid #3a3f54;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            background: #2d3142;
+            color: #e4e6eb;
+            transform: translateY(-2px);
+        }
+
+        .tab.active {
+            background: #d4af37;
+            color: #13151f;
+            border-color: #d4af37;
+        }
+
+        .tab-content {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: #d4af37;
+            color: #13151f;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #9d7c2f;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-secondary {
+            background: #3a3f54;
+            color: #e4e6eb;
+        }
+
+        .btn-secondary:hover {
+            background: #4a4f64;
+        }
+
+        .btn-danger {
+            background: #c74545;
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: #a73737;
+        }
+
+        .campaigns-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .campaign-card {
+            background: #252937;
+            border: 1px solid #3a3f54;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .campaign-card:hover {
+            border-color: #d4af37;
+            transform: translateY(-4px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .campaign-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .campaign-title {
+            font-size: 1.3rem;
+            color: #d4af37;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .campaign-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-sw {
+            background: #d4af37;
+            color: #13151f;
+        }
+
+        .badge-player {
+            background: #3a3f54;
+            color: #e4e6eb;
+        }
+
+        .badge-public {
+            background: #4a7c59;
+            color: #fff;
+        }
+
+        .badge-private {
+            background: #7c4a4a;
+            color: #fff;
+        }
+
+        .campaign-description {
+            color: #b0b3ba;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .campaign-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            color: #b0b3ba;
+        }
+
+        .campaign-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .campaign-code {
+            font-family: 'Courier New', monospace;
+            background: #1a1d29;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #d4af37;
+            letter-spacing: 2px;
+        }
+
+        .campaign-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        .join-form {
+            max-width: 500px;
+            margin: 0 auto;
+            background: #252937;
+            border: 1px solid #3a3f54;
+            border-radius: 12px;
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #e4e6eb;
+            font-weight: 600;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            background: #1a1d29;
+            border: 1px solid #3a3f54;
+            border-radius: 8px;
+            color: #e4e6eb;
+            font-family: inherit;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #d4af37;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #b0b3ba;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .error-message {
+            background: #c74545;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .success-message {
+            background: #4a7c59;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #252937;
+            border: 1px solid #3a3f54;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            color: #d4af37;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #b0b3ba;
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: #e4e6eb;
+            transform: none;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #b0b3ba;
+        }
+
+        @media (max-width: 768px) {
+            .campaigns-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎮 Campaign Management</h1>
+        <div id="user-info" class="user-info"></div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('my-campaigns')">My Campaigns</button>
+        <button class="tab" onclick="switchTab('browse')">Browse Public</button>
+        <button class="tab" onclick="switchTab('join')">Join with Code</button>
+    </div>
+
+    <!-- My Campaigns Tab -->
+    <div id="my-campaigns-tab" class="tab-content active">
+        <div class="actions">
+            <h2 style="color: #d4af37;">My Campaigns</h2>
+            <button class="btn" onclick="openCreateModal()">+ Create Campaign</button>
+        </div>
+        <div id="error-my" class="error-message" style="display: none;"></div>
+        <div id="success-my" class="success-message" style="display: none;"></div>
+        <div id="my-campaigns-list" class="campaigns-grid">
+            <div class="loading">Loading your campaigns...</div>
+        </div>
+    </div>
+
+    <!-- Browse Public Tab -->
+    <div id="browse-tab" class="tab-content">
+        <div class="actions">
+            <h2 style="color: #d4af37;">Browse Public Campaigns</h2>
+            <button class="btn-secondary btn" onclick="loadPublicCampaigns()">🔄 Refresh</button>
+        </div>
+        <div id="error-browse" class="error-message" style="display: none;"></div>
+        <div id="success-browse" class="success-message" style="display: none;"></div>
+        <div id="browse-campaigns-list" class="campaigns-grid">
+            <div class="loading">Loading public campaigns...</div>
+        </div>
+    </div>
+
+    <!-- Join with Code Tab -->
+    <div id="join-tab" class="tab-content">
+        <div class="join-form">
+            <h2 style="color: #d4af37; margin-bottom: 20px; text-align: center;">Join a Campaign</h2>
+            <div id="error-join" class="error-message" style="display: none;"></div>
+            <div id="success-join" class="success-message" style="display: none;"></div>
+            <div class="form-group">
+                <label for="join-code-input">Enter Join Code</label>
+                <input type="text" id="join-code-input" placeholder="e.g., A3K9M2" maxlength="6" style="text-transform: uppercase; letter-spacing: 3px; font-size: 1.3rem; text-align: center;">
+                <p style="margin-top: 8px; font-size: 0.85rem; color: #b0b3ba;">
+                    Enter the 6-character code shared by the Story Weaver
+                </p>
+            </div>
+            <button class="btn" style="width: 100%;" onclick="joinByCode()">Join Campaign</button>
+        </div>
+    </div>
+
+    <!-- Create Campaign Modal -->
+    <div id="create-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Campaign</h2>
+                <button class="close-btn" onclick="closeModal('create-modal')">&times;</button>
+            </div>
+            <form onsubmit="createCampaign(event)">
+                <div class="form-group">
+                    <label for="create-name">Campaign Name *</label>
+                    <input type="text" id="create-name" required minlength="3" maxlength="100" placeholder="My Epic Adventure">
+                </div>
+                <div class="form-group">
+                    <label for="create-description">Description *</label>
+                    <textarea id="create-description" required minlength="10" maxlength="2000" placeholder="Describe your campaign, setting, and playstyle..."></textarea>
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="create-public" checked>
+                    <label for="create-public" style="margin: 0;">Make campaign public (visible in browse list)</label>
+                </div>
+                <div class="form-group">
+                    <label for="create-posting-frequency">Posting Frequency *</label>
+                    <select id="create-posting-frequency" required>
+                        <option value="slow">Slow (1-2 posts per week)</option>
+                        <option value="medium" selected>Medium (3-5 posts per week)</option>
+                        <option value="high">High (Daily or more)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="create-min-players">Minimum Players *</label>
+                    <input type="number" id="create-min-players" required min="2" max="20" value="2">
+                </div>
+                <div class="form-group">
+                    <label for="create-max-players">Maximum Players *</label>
+                    <input type="number" id="create-max-players" required min="2" max="20" value="6">
+                </div>
+                <div class="form-group">
+                    <label for="create-timezone">Timezone *</label>
+                    <input type="text" id="create-timezone" required value="America/New_York" placeholder="e.g., America/New_York">
+                </div>
+                <button type="submit" class="btn" style="width: 100%;">Create Campaign</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Campaign Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Campaign Settings</h2>
+                <button class="close-btn" onclick="closeModal('settings-modal')">&times;</button>
+            </div>
+            <form onsubmit="updateCampaign(event)">
+                <input type="hidden" id="settings-campaign-id">
+                <div class="form-group">
+                    <label for="settings-name">Campaign Name *</label>
+                    <input type="text" id="settings-name" required minlength="3" maxlength="100">
+                </div>
+                <div class="form-group">
+                    <label for="settings-description">Description *</label>
+                    <textarea id="settings-description" required minlength="10" maxlength="2000"></textarea>
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="settings-public">
+                    <label for="settings-public" style="margin: 0;">Make campaign public</label>
+                </div>
+                <div class="form-group">
+                    <label for="settings-posting-frequency">Posting Frequency *</label>
+                    <select id="settings-posting-frequency" required>
+                        <option value="slow">Slow (1-2 posts per week)</option>
+                        <option value="medium">Medium (3-5 posts per week)</option>
+                        <option value="high">High (Daily or more)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="settings-status">Campaign Status *</label>
+                    <select id="settings-status" required>
+                        <option value="active">Active</option>
+                        <option value="on_break">On Break</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Join Code</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="campaign-code" id="settings-join-code" style="flex: 1;">------</div>
+                        <button type="button" class="btn-secondary btn btn-small" onclick="regenerateCode()">Regenerate</button>
+                    </div>
+                    <p style="margin-top: 8px; font-size: 0.85rem; color: #b0b3ba;">
+                        Share this code with players to let them join
+                    </p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn" style="flex: 1;">Save Changes</button>
+                    <button type="button" class="btn-danger btn" style="flex: 1;" onclick="deleteCampaign()">Delete Campaign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Auth check - redirect to login if not authenticated
+        requireAuth();
+        displayUserInfo();
+
+        let currentTab = 'my-campaigns';
+        let currentUser = null;
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Get current user info
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    const response = await fetch('/api/auth/me', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (response.ok) {
+                        currentUser = await response.json();
+                    }
+                } catch (error) {
+                    console.error('Failed to get user info:', error);
+                }
+            }
+
+            // Check for join code in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinCode = urlParams.get('join');
+            if (joinCode) {
+                // Switch to join tab and pre-fill code
+                switchTab('join');
+                document.getElementById('join-code-input').value = joinCode.toUpperCase();
+                // Auto-join if code is provided
+                setTimeout(() => joinByCode(), 500);
+            }
+
+            // Load initial data
+            loadMyCampaigns();
+            loadPublicCampaigns();
+        });
+
+        // Tab switching
+        function switchTab(tabName) {
+            currentTab = tabName;
+
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // Activate selected tab
+            if (tabName === 'my-campaigns') {
+                document.querySelector('.tab:nth-child(1)').classList.add('active');
+                document.getElementById('my-campaigns-tab').classList.add('active');
+            } else if (tabName === 'browse') {
+                document.querySelector('.tab:nth-child(2)').classList.add('active');
+                document.getElementById('browse-tab').classList.add('active');
+            } else if (tabName === 'join') {
+                document.querySelector('.tab:nth-child(3)').classList.add('active');
+                document.getElementById('join-tab').classList.add('active');
+            }
+        }
+
+        // Show/hide messages
+        function showError(tab, message) {
+            const errorEl = document.getElementById(`error-${tab}`);
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            setTimeout(() => errorEl.style.display = 'none', 5000);
+        }
+
+        function showSuccess(tab, message) {
+            const successEl = document.getElementById(`success-${tab}`);
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+            setTimeout(() => successEl.style.display = 'none', 5000);
+        }
+
+        // API helper
+        async function apiCall(endpoint, options = {}) {
+            const token = getAuthToken();
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            };
+
+            const response = await fetch(endpoint, {
+                ...options,
+                headers: { ...headers, ...options.headers }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Request failed');
+            }
+
+            return response.json();
+        }
+
+        // Load my campaigns
+        async function loadMyCampaigns() {
+            try {
+                const campaigns = await apiCall('/api/campaigns');
+                renderMyCampaigns(campaigns);
+            } catch (error) {
+                console.error('Failed to load campaigns:', error);
+                document.getElementById('my-campaigns-list').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <p>Failed to load campaigns: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Render my campaigns
+        function renderMyCampaigns(campaigns) {
+            const container = document.getElementById('my-campaigns-list');
+
+            if (campaigns.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📚</div>
+                        <h3>No Campaigns Yet</h3>
+                        <p>Create a new campaign or join an existing one to get started!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = campaigns.map(campaign => `
+                <div class="campaign-card">
+                    <div class="campaign-header">
+                        <div>
+                            <div class="campaign-title">${escapeHtml(campaign.name)}</div>
+                            <span class="campaign-badge ${campaign.user_role === 'story_weaver' ? 'badge-sw' : 'badge-player'}">
+                                ${campaign.user_role === 'story_weaver' ? 'Story Weaver' : 'Player'}
+                            </span>
+                        </div>
+                        <span class="campaign-badge ${campaign.is_public ? 'badge-public' : 'badge-private'}">
+                            ${campaign.is_public ? 'Public' : 'Private'}
+                        </span>
+                    </div>
+                    <div class="campaign-description">${escapeHtml(campaign.description)}</div>
+                    <div class="campaign-meta">
+                        <div class="campaign-meta-item">
+                            <span>👥</span>
+                            <span>${campaign.member_count}/${campaign.max_players}</span>
+                        </div>
+                        <div class="campaign-meta-item">
+                            <span>📅</span>
+                            <span>${campaign.posting_frequency}</span>
+                        </div>
+                        <div class="campaign-meta-item">
+                            <span>🌍</span>
+                            <span>${campaign.timezone}</span>
+                        </div>
+                        <div class="campaign-meta-item">
+                            <span>📊</span>
+                            <span>${campaign.status}</span>
+                        </div>
+                    </div>
+                    <div class="campaign-code">
+                        ${campaign.join_code}
+                    </div>
+                    <div class="campaign-actions">
+                        ${campaign.user_role === 'story_weaver'
+                            ? `<button class="btn btn-small" onclick="openSettingsModal('${campaign.id}')">⚙️ Settings</button>`
+                            : `<button class="btn-danger btn btn-small" onclick="leaveCampaign('${campaign.id}')">Leave</button>`
+                        }
+                        <button class="btn-secondary btn btn-small" onclick="copyjoinCode('${campaign.join_code}')">📋 Copy Code</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Load public campaigns
+        async function loadPublicCampaigns() {
+            try {
+                const campaigns = await apiCall('/api/campaigns/browse');
+                renderPublicCampaigns(campaigns);
+            } catch (error) {
+                console.error('Failed to load public campaigns:', error);
+                document.getElementById('browse-campaigns-list').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <p>Failed to load campaigns: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Render public campaigns
+        function renderPublicCampaigns(campaigns) {
+            const container = document.getElementById('browse-campaigns-list');
+
+            if (campaigns.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h3>No Public Campaigns Available</h3>
+                        <p>Check back later or create your own!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = campaigns.map(campaign => `
+                <div class="campaign-card">
+                    <div class="campaign-header">
+                        <div class="campaign-title">${escapeHtml(campaign.name)}</div>
+                        <span class="campaign-badge badge-public">Public</span>
+                    </div>
+                    <div class="campaign-description">${escapeHtml(campaign.description)}</div>
+                    <div class="campaign-meta">
+                        <div class="campaign-meta-item">
+                            <span>👥</span>
+                            <span>${campaign.member_count}/${campaign.max_players}</span>
+                        </div>
+                        <div class="campaign-meta-item">
+                            <span>📅</span>
+                            <span>${campaign.posting_frequency}</span>
+                        </div>
+                        <div class="campaign-meta-item">
+                            <span>🌍</span>
+                            <span>${campaign.timezone}</span>
+                        </div>
+                    </div>
+                    <div class="campaign-actions">
+                        <button class="btn btn-small" onclick="joinCampaignById('${campaign.join_code}')">Join Campaign</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Join campaign by code
+        async function joinByCode() {
+            const codeInput = document.getElementById('join-code-input');
+            const code = codeInput.value.toUpperCase().trim();
+
+            if (code.length !== 6) {
+                showError('join', 'Join code must be 6 characters');
+                return;
+            }
+
+            try {
+                await apiCall('/api/campaigns/join', {
+                    method: 'POST',
+                    body: JSON.stringify({ join_code: code })
+                });
+
+                showSuccess('join', 'Successfully joined campaign!');
+                codeInput.value = '';
+
+                // Reload my campaigns
+                loadMyCampaigns();
+
+                // Switch to my campaigns tab after 1 second
+                setTimeout(() => switchTab('my-campaigns'), 1000);
+            } catch (error) {
+                showError('join', error.message);
+            }
+        }
+
+        // Join campaign by ID (from browse)
+        async function joinCampaignById(code) {
+            try {
+                await apiCall('/api/campaigns/join', {
+                    method: 'POST',
+                    body: JSON.stringify({ join_code: code })
+                });
+
+                showSuccess('browse', 'Successfully joined campaign!');
+
+                // Reload campaigns
+                loadMyCampaigns();
+                loadPublicCampaigns();
+
+                // Switch to my campaigns tab after 1 second
+                setTimeout(() => switchTab('my-campaigns'), 1000);
+            } catch (error) {
+                showError('browse', error.message);
+            }
+        }
+
+        // Leave campaign
+        async function leaveCampaign(campaignId) {
+            if (!confirm('Are you sure you want to leave this campaign?')) return;
+
+            try {
+                await apiCall(`/api/campaigns/${campaignId}/leave`, {
+                    method: 'DELETE'
+                });
+
+                showSuccess('my', 'Successfully left campaign');
+                loadMyCampaigns();
+            } catch (error) {
+                showError('my', error.message);
+            }
+        }
+
+        // Copy join code
+        function copyjoinCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                showSuccess('my', `Copied join code: ${code}`);
+            });
+        }
+
+        // Modal functions
+        function openCreateModal() {
+            document.getElementById('create-modal').classList.add('active');
+        }
+
+        function openSettingsModal(campaignId) {
+            // Find campaign
+            apiCall(`/api/campaigns`).then(campaigns => {
+                const campaign = campaigns.find(c => c.id === campaignId);
+                if (!campaign) return;
+
+                // Fill form
+                document.getElementById('settings-campaign-id').value = campaign.id;
+                document.getElementById('settings-name').value = campaign.name;
+                document.getElementById('settings-description').value = campaign.description;
+                document.getElementById('settings-public').checked = campaign.is_public;
+                document.getElementById('settings-posting-frequency').value = campaign.posting_frequency;
+                document.getElementById('settings-status').value = campaign.status;
+                document.getElementById('settings-join-code').textContent = campaign.join_code;
+
+                document.getElementById('settings-modal').classList.add('active');
+            });
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // Create campaign
+        async function createCampaign(event) {
+            event.preventDefault();
+
+            const data = {
+                name: document.getElementById('create-name').value,
+                description: document.getElementById('create-description').value,
+                is_public: document.getElementById('create-public').checked,
+                posting_frequency: document.getElementById('create-posting-frequency').value,
+                min_players: parseInt(document.getElementById('create-min-players').value),
+                max_players: parseInt(document.getElementById('create-max-players').value),
+                timezone: document.getElementById('create-timezone').value
+            };
+
+            try {
+                await apiCall('/api/campaigns/create', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+
+                closeModal('create-modal');
+                showSuccess('my', 'Campaign created successfully!');
+                loadMyCampaigns();
+                event.target.reset();
+            } catch (error) {
+                alert('Failed to create campaign: ' + error.message);
+            }
+        }
+
+        // Update campaign
+        async function updateCampaign(event) {
+            event.preventDefault();
+
+            const campaignId = document.getElementById('settings-campaign-id').value;
+            const data = {
+                name: document.getElementById('settings-name').value,
+                description: document.getElementById('settings-description').value,
+                is_public: document.getElementById('settings-public').checked,
+                posting_frequency: document.getElementById('settings-posting-frequency').value,
+                status: document.getElementById('settings-status').value
+            };
+
+            try {
+                await apiCall(`/api/campaigns/${campaignId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(data)
+                });
+
+                closeModal('settings-modal');
+                showSuccess('my', 'Campaign updated successfully!');
+                loadMyCampaigns();
+            } catch (error) {
+                alert('Failed to update campaign: ' + error.message);
+            }
+        }
+
+        // Delete campaign
+        async function deleteCampaign() {
+            if (!confirm('Are you sure you want to delete this campaign? This cannot be undone!')) return;
+
+            const campaignId = document.getElementById('settings-campaign-id').value;
+
+            try {
+                await apiCall(`/api/campaigns/${campaignId}`, {
+                    method: 'DELETE'
+                });
+
+                closeModal('settings-modal');
+                showSuccess('my', 'Campaign deleted successfully');
+                loadMyCampaigns();
+            } catch (error) {
+                alert('Failed to delete campaign: ' + error.message);
+            }
+        }
+
+        // Regenerate join code
+        async function regenerateCode() {
+            if (!confirm('Are you sure? The old join code will stop working.')) return;
+
+            const campaignId = document.getElementById('settings-campaign-id').value;
+
+            try {
+                const campaign = await apiCall(`/api/campaigns/${campaignId}/regenerate-code`, {
+                    method: 'POST'
+                });
+
+                document.getElementById('settings-join-code').textContent = campaign.join_code;
+                showSuccess('my', 'Join code regenerated!');
+                loadMyCampaigns();
+            } catch (error) {
+                alert('Failed to regenerate code: ' + error.message);
+            }
+        }
+
+        // Utility: escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modal on background click
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal(modal.id);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

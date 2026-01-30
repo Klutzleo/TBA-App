@@ -416,10 +416,10 @@
                     username: data.username,
                     email: data.email
                 }));
-                
-                // Redirect to main app
-                window.location.href = '/';
-                
+
+                // Redirect to campaign management
+                window.location.href = '/campaigns.html';
+
             } catch (error) {
                 showError(error.message);
                 submitBtn.disabled = false;
@@ -461,10 +461,10 @@
                     username: data.username,
                     email: data.email
                 }));
-                
-                // Redirect to main app
-                window.location.href = '/';
-                
+
+                // Redirect to campaign management
+                window.location.href = '/campaigns.html';
+
             } catch (error) {
                 showError(error.message);
                 submitBtn.disabled = false;
@@ -496,8 +496,8 @@
         window.addEventListener('load', () => {
             const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
             if (token) {
-                // Already logged in, redirect to main app
-                window.location.href = '/';
+                // Already logged in, redirect to campaign management
+                window.location.href = '/campaigns.html';
             }
             
             // Check for expired token message

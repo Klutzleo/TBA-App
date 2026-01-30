@@ -37,14 +37,17 @@ def check_migration_needed() -> bool:
     if (table_exists('parties') and
         table_exists('abilities') and
         table_exists('users') and
-        table_exists('password_reset_tokens')):
-        # Tables exist, check if characters has new columns
+        table_exists('password_reset_tokens') and
+        table_exists('campaign_memberships')):
+        # Tables exist, check if new columns exist
         if (column_exists('characters', 'notes') and
             column_exists('characters', 'status') and
             column_exists('party_memberships', 'left_at') and
             column_exists('users', 'hashed_password') and
-            column_exists('users', 'is_active')):
-            logger.info("✅ Phase 2d migrations already applied (including auth system)")
+            column_exists('users', 'is_active') and
+            column_exists('campaigns', 'join_code') and
+            column_exists('campaigns', 'is_public')):
+            logger.info("✅ Phase 2d migrations already applied (including campaign management)")
             return False
 
     logger.info("🔄 Phase 2d migrations needed")
@@ -189,7 +192,8 @@ def run_migrations():
         '009_fix_campaign_trigger.sql',
         '010_make_columns_nullable.sql',
         '011_add_password_reset_tokens.sql',  # Password reset functionality
-        '012_fix_users_table_schema.sql'  # Fix users table to match User model
+        '012_fix_users_table_schema.sql',  # Fix users table to match User model
+        '013_add_campaign_management.sql'  # Campaign management with join codes
     ]
 
     migrations_dir = Path(__file__).parent

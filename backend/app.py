@@ -231,6 +231,14 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register auth_router: {e}")
 
+try:
+    from routes.campaigns import campaigns_router
+
+    application.include_router(campaigns_router, tags=["Campaigns"])
+    logger.info("✅ Registered campaigns_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register campaigns_router: {e}")
+
 
 # Custom OpenAPI schema
 def custom_openapi():
@@ -291,6 +299,30 @@ async def ws_test():
     if ws_test_path.exists():
         return HTMLResponse(ws_test_path.read_text())
     return HTMLResponse("<h1>Error</h1><p>WebSocket test page not found.</p>", status_code=404)
+
+
+@application.get("/join/{code}")
+async def direct_join_campaign(code: str):
+    """
+    Direct join link for campaigns.
+
+    Redirects to campaigns.html with join code in URL parameter.
+    Frontend will check authentication and join automatically or prompt login.
+
+    Example: /join/A3K9M2 -> /campaigns.html?join=A3K9M2
+    """
+    from fastapi.responses import RedirectResponse
+
+    # Validate join code format (6 characters, alphanumeric)
+    code = code.upper().strip()
+    if len(code) != 6 or not code.isalnum():
+        return HTMLResponse(
+            "<h1>Invalid Join Code</h1><p>Join codes must be 6 alphanumeric characters.</p>",
+            status_code=400
+        )
+
+    # Redirect to campaigns page with join code
+    return RedirectResponse(url=f"/campaigns.html?join={code}", status_code=302)
 
 # Mount static files BEFORE the if __name__ block
 application.mount("/", StaticFiles(directory="static", html=True), name="static")

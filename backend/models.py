@@ -9,15 +9,33 @@ Phase 2d schema with:
 - Messages with party routing
 - NPCs and combat turns
 """
-from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean, Text
+from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean, Text, Enum
 from sqlalchemy.orm import relationship
 import uuid
+import random
+import string
 from datetime import datetime, timedelta
 from argon2 import PasswordHasher
 from backend.db import Base  # ✅ This works from project root
 
 # Password hashing using Argon2
 pwd_hasher = PasswordHasher()
+
+
+# ==================== UTILITY FUNCTIONS ====================
+
+def generate_join_code(length: int = 6) -> str:
+    """
+    Generate a random join code for campaigns.
+
+    Args:
+        length: Length of join code (default 6)
+
+    Returns:
+        Random uppercase alphanumeric string (e.g., "A3K9M2")
+    """
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(chars, k=length))
 
 
 class User(Base):
@@ -37,9 +55,12 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # Relationships (will be populated when other models are updated)
+    # Relationships
     characters = relationship("Character", back_populates="user", foreign_keys="[Character.user_id]")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user")
+    created_campaigns = relationship("Campaign", back_populates="creator", foreign_keys="[Campaign.created_by_user_id]")
+    story_weaver_campaigns = relationship("Campaign", back_populates="story_weaver", foreign_keys="[Campaign.story_weaver_id]")
+    campaign_memberships = relationship("CampaignMembership", back_populates="user")
 
     def __repr__(self):
         return f"<User(id={self.id[:8]}..., email={self.email}, username={self.username})>"
@@ -223,19 +244,39 @@ class Campaign(Base):
     - 1 OOC channel (out-of-character chat)
     - N Whisper channels (created on-demand for private conversations)
     - N Split Group channels (when the party splits in-game)
+
+    Phase 3 Part 2 Updates:
+    - Auto-generated 6-character join codes for easy sharing
+    - Public/Private visibility options
+    - User-based ownership (migrated from character-based)
+    - Campaign settings (timezone, posting frequency, player limits)
     """
     __tablename__ = "campaigns"
     __table_args__ = {'extend_existing': True}
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
-    description = Column(String, nullable=True)
+    description = Column(Text, nullable=False)
 
-    # User ownership and permissions
-    # TODO: Migrate these to reference users table instead of characters
-    created_by_id = Column(String, nullable=False, index=True)  # Currently references characters.id
-    story_weaver_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)  # Currently references characters.id
+    # User ownership (migrated from character-based)
+    created_by_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    story_weaver_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
+    # Join settings
+    join_code = Column(String(6), unique=True, nullable=False, index=True, default=generate_join_code)
+    is_public = Column(Boolean, nullable=False, default=True)
+
+    # Player limits
+    min_players = Column(Integer, nullable=False, default=2)
+    max_players = Column(Integer, nullable=False, default=6)
+
+    # Campaign settings
+    timezone = Column(String, nullable=False, default="America/New_York")
+    posting_frequency = Column(Enum('slow', 'medium', 'high', name='posting_frequency_enum'), nullable=False, default='medium')
+    status = Column(Enum('active', 'archived', 'on_break', name='campaign_status_enum'), nullable=False, default='active')
+
+    # Legacy fields (kept for backward compatibility)
+    created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
     is_active = Column(Boolean, nullable=False, default=True)
     archived_at = Column(DateTime, nullable=True)
 
@@ -244,10 +285,38 @@ class Campaign(Base):
 
     # Relationships
     channels = relationship("Party", back_populates="campaign", foreign_keys="Party.campaign_id")
-    story_weaver = relationship("Character", foreign_keys=[story_weaver_id])
+    creator = relationship("User", back_populates="created_campaigns", foreign_keys=[created_by_user_id])
+    story_weaver = relationship("User", back_populates="story_weaver_campaigns", foreign_keys=[story_weaver_id])
+    memberships = relationship("CampaignMembership", back_populates="campaign", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Campaign(id={self.id[:8]}..., name={self.name}, sw={self.story_weaver_id[:8] if self.story_weaver_id else None}...)>"
+        return f"<Campaign(id={self.id[:8]}..., name={self.name}, code={self.join_code}, public={self.is_public})>"
+
+
+class CampaignMembership(Base):
+    """
+    Join table: which users belong to which campaigns.
+
+    Tracks membership history with joined_at and left_at timestamps.
+    Users join campaigns via join codes or direct invites.
+    """
+    __tablename__ = "campaign_memberships"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    campaign_id = Column(String, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(Enum('player', 'story_weaver', name='campaign_role_enum'), nullable=False, default='player')
+    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    left_at = Column(DateTime, nullable=True)  # NULL = still active member
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="memberships")
+    user = relationship("User", back_populates="campaign_memberships")
+
+    def __repr__(self):
+        status = "active" if self.left_at is None else "left"
+        return f"<CampaignMembership(campaign={self.campaign_id[:8]}..., user={self.user_id[:8]}..., role={self.role}, {status})>"
 
 
 class Party(Base):
