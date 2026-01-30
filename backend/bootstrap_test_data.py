@@ -54,15 +54,26 @@ def bootstrap_test_campaign():
         return
 
     try:
-        # Create test campaign
+        # Create test campaign (Phase 3 schema with join_code)
         db.execute(text("""
-            INSERT INTO campaigns (id, name, description, story_weaver_id, created_by_id, is_active)
+            INSERT INTO campaigns (
+                id, name, description, story_weaver_id, created_by_user_id,
+                join_code, is_public, min_players, max_players,
+                timezone, posting_frequency, status, is_active
+            )
             VALUES (
                 'test-campaign-001',
                 'Test Campaign',
                 'Bootstrap campaign for development and testing',
                 NULL,
                 NULL,
+                'TEST01',
+                TRUE,
+                2,
+                6,
+                'America/New_York',
+                'medium',
+                'active',
                 TRUE
             )
         """))

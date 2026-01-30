@@ -33,11 +33,29 @@ try:
 
             sys.exit(0)
 
-        # Create campaign
+        # Create campaign (Phase 3 schema with join_code)
         print("Creating campaign...")
         conn.execute(text("""
-            INSERT INTO campaigns (id, name, description, story_weaver_id, created_by_id, is_active)
-            VALUES ('test-campaign-001', 'Test Campaign', 'Bootstrap', NULL, NULL, TRUE)
+            INSERT INTO campaigns (
+                id, name, description, story_weaver_id, created_by_user_id,
+                join_code, is_public, min_players, max_players,
+                timezone, posting_frequency, status, is_active
+            )
+            VALUES (
+                'test-campaign-001',
+                'Test Campaign',
+                'Bootstrap campaign for development',
+                NULL,
+                NULL,
+                'TEST01',
+                TRUE,
+                2,
+                6,
+                'America/New_York',
+                'medium',
+                'active',
+                TRUE
+            )
         """))
         conn.commit()
         print("✅ Campaign created!")
