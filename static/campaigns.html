@@ -471,9 +471,9 @@
                 <div class="form-group">
                     <label for="create-posting-frequency">Posting Frequency *</label>
                     <select id="create-posting-frequency" required>
-                        <option value="slow">Slow (1-2 posts per week)</option>
-                        <option value="medium" selected>Medium (3-5 posts per week)</option>
-                        <option value="high">High (Daily or more)</option>
+                        <option value="slow">Slow (1-4 posts per day)</option>
+                        <option value="medium" selected>Medium (4-10 posts per day)</option>
+                        <option value="high">High (10+ posts per day)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -486,7 +486,17 @@
                 </div>
                 <div class="form-group">
                     <label for="create-timezone">Timezone *</label>
-                    <input type="text" id="create-timezone" required value="America/New_York" placeholder="e.g., America/New_York">
+                    <select id="create-timezone" required>
+                        <option value="America/New_York" selected>America/New_York (EST/EDT)</option>
+                        <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                        <option value="America/Denver">America/Denver (MST/MDT)</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                        <option value="America/Phoenix">America/Phoenix (MST - no DST)</option>
+                        <option value="Europe/London">Europe/London (GMT/BST)</option>
+                        <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                        <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                    </select>
                 </div>
                 <button type="submit" class="btn" style="width: 100%;">Create Campaign</button>
             </form>
@@ -517,9 +527,9 @@
                 <div class="form-group">
                     <label for="settings-posting-frequency">Posting Frequency *</label>
                     <select id="settings-posting-frequency" required>
-                        <option value="slow">Slow (1-2 posts per week)</option>
-                        <option value="medium">Medium (3-5 posts per week)</option>
-                        <option value="high">High (Daily or more)</option>
+                        <option value="slow">Slow (1-4 posts per day)</option>
+                        <option value="medium">Medium (4-10 posts per day)</option>
+                        <option value="high">High (10+ posts per day)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -612,6 +622,16 @@
             }
         }
 
+        // Format posting frequency for display
+        function formatPostingFrequency(frequency) {
+            const frequencyMap = {
+                'slow': 'Slow (1-4 posts/day)',
+                'medium': 'Medium (4-10 posts/day)',
+                'high': 'High (10+ posts/day)'
+            };
+            return frequencyMap[frequency] || frequency;
+        }
+
         // Show/hide messages
         function showError(tab, message) {
             const errorEl = document.getElementById(`error-${tab}`);
@@ -700,7 +720,7 @@
                         </div>
                         <div class="campaign-meta-item">
                             <span>📅</span>
-                            <span>${campaign.posting_frequency}</span>
+                            <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
                         </div>
                         <div class="campaign-meta-item">
                             <span>🌍</span>
@@ -770,7 +790,7 @@
                         </div>
                         <div class="campaign-meta-item">
                             <span>📅</span>
-                            <span>${campaign.posting_frequency}</span>
+                            <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
                         </div>
                         <div class="campaign-meta-item">
                             <span>🌍</span>
