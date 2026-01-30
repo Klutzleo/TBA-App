@@ -125,7 +125,7 @@ def create_campaign(
     )
 
 
-@router.get("/", response_model=List[CampaignResponse])
+@router.get("", response_model=List[CampaignResponse])
 def list_my_campaigns(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
