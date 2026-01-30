@@ -215,21 +215,22 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register effects_blp: {e}")
 
-try:
-    from routes.campaign_websocket import router as campaign_ws_router
+# DISABLED - Using new campaign_routes.py router instead
+# try:
+#     from routes.campaign_websocket import router as campaign_ws_router
+#
+#     application.include_router(campaign_ws_router, tags=["Campaign"])
+#     logger.info("✅ Registered campaign_websocket")
+# except Exception as e:
+#     logger.warning(f"⚠️ Failed to register campaign_websocket: {e}")
 
-    application.include_router(campaign_ws_router, tags=["Campaign"])
-    logger.info("✅ Registered campaign_websocket")
-except Exception as e:
-    logger.warning(f"⚠️ Failed to register campaign_websocket: {e}")
-
-try:
-    from routes.campaign_routes import router as campaign_router
-
-    application.include_router(campaign_router, tags=["Campaigns"])
-    logger.info("✅ Registered campaign_router")
-except Exception as e:
-    logger.warning(f"⚠️ Failed to register campaign_router: {e}")
+# try:
+#     from routes.campaign_routes import router as campaign_router
+#
+#     application.include_router(campaign_router, tags=["Campaigns"])
+#     logger.info("✅ Registered campaign_router")
+# except Exception as e:
+#     logger.warning(f"⚠️ Failed to register campaign_router: {e}")
 
 try:
     from routes.auth import auth_router
@@ -240,10 +241,10 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register auth_router: {e}")
 
 try:
-    from routes.campaigns import campaigns_router
+    from routes.campaign_routes import router as campaigns_router
 
-    application.include_router(campaigns_router, tags=["Campaigns"])
-    logger.info("✅ Registered campaigns_router")
+    application.include_router(campaigns_router, prefix="/api/campaigns", tags=["Campaigns"])
+    logger.info("✅ Registered campaigns_router with /api/campaigns prefix")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register campaigns_router: {e}")
 
