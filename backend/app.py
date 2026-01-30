@@ -137,8 +137,16 @@ async def attach_request_id_and_auth(request: Request, call_next):
                   "/api/auth/me", "/api/auth/forgot-password", "/api/auth/reset-password",
                   "/api/auth/change-password"}
 
-    # Only enforce API key on /api/ routes (and not on exempt paths or auth paths)
-    if request.url.path.startswith("/api/") and request.url.path not in exempt_paths and request.url.path not in auth_paths:
+    # Exempt campaign routes (they use JWT authentication instead)
+    jwt_protected_routes = auth_paths | {"/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse",
+                                          "/api/campaigns/join"}
+
+    # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
+    # Check if path starts with any JWT protected route
+    is_jwt_protected = any(request.url.path.startswith(route) or request.url.path == route
+                           for route in jwt_protected_routes)
+
+    if request.url.path.startswith("/api/") and request.url.path not in exempt_paths and not is_jwt_protected:
         provided_key = request.headers.get("X-API-Key")
         if not provided_key or provided_key != API_KEY:
             logger.warning(f"[{request_id}] Unauthorized: {request.method} {request.url.path}")

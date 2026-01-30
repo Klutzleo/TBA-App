@@ -176,6 +176,10 @@ END $$;
 -- Update story_weaver_id to reference users instead of characters
 DO $$
 BEGIN
+    -- Drop campaign_overview view if it exists (it depends on story_weaver_id column)
+    DROP VIEW IF EXISTS campaign_overview;
+    RAISE NOTICE 'Dropped campaign_overview view if it existed';
+
     -- Drop old FK to characters if exists
     ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS fk_campaigns_story_weaver;
     ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS campaigns_story_weaver_id_fkey;
@@ -200,6 +204,24 @@ BEGIN
 
     RAISE NOTICE 'Updated story_weaver_id to reference users table';
 END $$;
+
+-- Recreate campaign_overview view with proper user reference
+CREATE OR REPLACE VIEW campaign_overview AS
+SELECT
+    c.id,
+    c.name,
+    c.description,
+    c.created_at,
+    c.story_weaver_id,
+    u.username as story_weaver_username,
+    u.email as story_weaver_email,
+    COUNT(DISTINCT p.id) as party_count,
+    COUNT(DISTINCT pc.character_id) as character_count
+FROM campaigns c
+LEFT JOIN users u ON c.story_weaver_id = u.id
+LEFT JOIN parties p ON p.campaign_id = c.id
+LEFT JOIN party_characters pc ON pc.party_id = p.id
+GROUP BY c.id, c.name, c.description, c.created_at, c.story_weaver_id, u.username, u.email;
 
 -- Make description TEXT instead of VARCHAR
 DO $$
