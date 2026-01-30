@@ -127,11 +127,19 @@ def list_my_campaigns(
     Returns campaigns where the user is the Story Weaver OR a player (member).
     Includes user_role field to distinguish between Story Weaver and player.
     """
+    # Debug: Print current user ID
+    print(f"DEBUG: Current user ID: {current_user.id}, type: {type(current_user.id)}")
+
     # Get campaigns where user is Story Weaver
     sw_campaigns = db.query(Campaign).filter(
         Campaign.story_weaver_id == current_user.id,
         Campaign.is_active == True
     ).all()
+
+    # Debug: Print found campaigns
+    print(f"DEBUG: Found {len(sw_campaigns)} Story Weaver campaigns")
+    for c in sw_campaigns:
+        print(f"DEBUG: Campaign {c.id}, story_weaver_id: {c.story_weaver_id}, type: {type(c.story_weaver_id)}")
 
     # Get campaigns where user is a member (player)
     member_campaigns = db.query(Campaign).join(
