@@ -10,8 +10,9 @@ import random
 import string
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message, User
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership
 from backend.auth.jwt import get_current_user
+from sqlalchemy import or_, func
 
 router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
 
@@ -52,6 +53,8 @@ class CampaignResponse(BaseModel):
     story_weaver_id: Optional[str] = None
     created_by_user_id: Optional[str] = None
     is_active: bool
+    user_role: Optional[str] = None  # 'story_weaver' or 'player'
+    member_count: Optional[int] = None  # Number of active members
 
     class Config:
         from_attributes = True
@@ -107,8 +110,142 @@ def create_campaign(
         status=campaign.status,
         story_weaver_id=str(campaign.story_weaver_id) if campaign.story_weaver_id else None,
         created_by_user_id=str(campaign.created_by_user_id) if campaign.created_by_user_id else None,
-        is_active=campaign.is_active
+        is_active=campaign.is_active,
+        user_role='story_weaver',  # Creator is always the Story Weaver
+        member_count=0  # New campaign has no members yet
     )
+
+
+@router.get("/", response_model=List[CampaignResponse])
+def list_my_campaigns(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all campaigns for the current user.
+
+    Returns campaigns where the user is the Story Weaver OR a player (member).
+    Includes user_role field to distinguish between Story Weaver and player.
+    """
+    # Get campaigns where user is Story Weaver
+    sw_campaigns = db.query(Campaign).filter(
+        Campaign.story_weaver_id == current_user.id,
+        Campaign.is_active == True
+    ).all()
+
+    # Get campaigns where user is a member (player)
+    member_campaigns = db.query(Campaign).join(
+        CampaignMembership,
+        Campaign.id == CampaignMembership.campaign_id
+    ).filter(
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None),  # Still active member
+        Campaign.is_active == True
+    ).all()
+
+    # Build response with role info and member count
+    result = []
+
+    # Add Story Weaver campaigns
+    for c in sw_campaigns:
+        member_count = db.query(func.count(CampaignMembership.id)).filter(
+            CampaignMembership.campaign_id == c.id,
+            CampaignMembership.left_at.is_(None)
+        ).scalar()
+
+        result.append(CampaignResponse(
+            id=c.id,
+            name=c.name,
+            description=c.description,
+            join_code=c.join_code,
+            is_public=c.is_public,
+            min_players=c.min_players,
+            max_players=c.max_players,
+            timezone=c.timezone,
+            posting_frequency=c.posting_frequency,
+            status=c.status,
+            story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
+            created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+            is_active=c.is_active,
+            user_role='story_weaver',
+            member_count=member_count or 0
+        ))
+
+    # Add player campaigns (avoid duplicates if user is both SW and member)
+    sw_campaign_ids = {c.id for c in sw_campaigns}
+    for c in member_campaigns:
+        if c.id not in sw_campaign_ids:
+            member_count = db.query(func.count(CampaignMembership.id)).filter(
+                CampaignMembership.campaign_id == c.id,
+                CampaignMembership.left_at.is_(None)
+            ).scalar()
+
+            result.append(CampaignResponse(
+                id=c.id,
+                name=c.name,
+                description=c.description,
+                join_code=c.join_code,
+                is_public=c.is_public,
+                min_players=c.min_players,
+                max_players=c.max_players,
+                timezone=c.timezone,
+                posting_frequency=c.posting_frequency,
+                status=c.status,
+                story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
+                created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+                is_active=c.is_active,
+                user_role='player',
+                member_count=member_count or 0
+            ))
+
+    # Sort by created_at descending (Story Weaver campaigns first, then player campaigns)
+    result.sort(key=lambda x: (x.user_role != 'story_weaver', x.created_by_user_id), reverse=True)
+
+    return result
+
+
+@router.get("/browse", response_model=List[CampaignResponse])
+def browse_public_campaigns(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Browse all public campaigns.
+
+    Returns campaigns that are marked as public with member counts.
+    """
+    campaigns = db.query(Campaign).filter(
+        Campaign.is_public == True,
+        Campaign.is_active == True
+    ).order_by(Campaign.created_at.desc()).all()
+
+    result = []
+    for c in campaigns:
+        # Get member count for each campaign
+        member_count = db.query(func.count(CampaignMembership.id)).filter(
+            CampaignMembership.campaign_id == c.id,
+            CampaignMembership.left_at.is_(None)
+        ).scalar()
+
+        result.append(CampaignResponse(
+            id=c.id,
+            name=c.name,
+            description=c.description,
+            join_code=c.join_code,
+            is_public=c.is_public,
+            min_players=c.min_players,
+            max_players=c.max_players,
+            timezone=c.timezone,
+            posting_frequency=c.posting_frequency,
+            status=c.status,
+            story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
+            created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+            is_active=c.is_active,
+            user_role=None,  # Not showing role for browse
+            member_count=member_count or 0
+        ))
+
+    return result
 
 
 @router.get("/{campaign_id}", response_model=CampaignResponse)
