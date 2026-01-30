@@ -94,6 +94,15 @@ def create_campaign(
     )
 
     db.add(campaign)
+    db.flush()  # Get the campaign.id before creating membership
+
+    # Create CampaignMembership record for the Story Weaver
+    membership = CampaignMembership(
+        campaign_id=campaign.id,
+        user_id=current_user.id,
+        role="story_weaver"
+    )
+    db.add(membership)
     db.commit()
     db.refresh(campaign)
 
@@ -112,7 +121,7 @@ def create_campaign(
         created_by_user_id=str(campaign.created_by_user_id) if campaign.created_by_user_id else None,
         is_active=campaign.is_active,
         user_role='story_weaver',  # Creator is always the Story Weaver
-        member_count=0  # New campaign has no members yet
+        member_count=1  # Creator is the first member
     )
 
 
