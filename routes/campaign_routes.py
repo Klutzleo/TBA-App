@@ -14,7 +14,7 @@ from backend.models import Campaign, Party, Character, PartyMembership, Message,
 from backend.auth.jwt import get_current_user
 from sqlalchemy import or_, func
 
-router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
+router = APIRouter(tags=["campaigns"])
 
 
 def generate_join_code(db: Session) -> str:
