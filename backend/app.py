@@ -129,17 +129,19 @@ async def attach_request_id_and_auth(request: Request, call_next):
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
 
-    # Exempt these paths from API key check
-    exempt_paths = {"/health", "/docs", "/openapi.json", "/", "/redoc", "/api/characters/full"}
+    # Exempt these paths from ALL authentication (public routes only)
+    exempt_paths = {"/health", "/docs", "/openapi.json", "/", "/redoc"}
 
-    # Exempt auth routes (they use JWT authentication instead)
+    # Auth routes (JWT-based authentication)
     auth_paths = {"/api/auth/register", "/api/auth/login", "/api/auth/logout",
                   "/api/auth/me", "/api/auth/forgot-password", "/api/auth/reset-password",
                   "/api/auth/change-password"}
 
-    # Exempt campaign routes (they use JWT authentication instead)
-    jwt_protected_routes = auth_paths | {"/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse",
-                                          "/api/campaigns/join"}
+    # All routes that require JWT authentication (not API key)
+    jwt_protected_routes = auth_paths | {
+        "/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse", "/api/campaigns/join",
+        "/api/characters/full"
+    }
 
     # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
     # Check if path starts with any JWT protected route
