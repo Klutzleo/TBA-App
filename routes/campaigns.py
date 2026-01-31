@@ -60,6 +60,11 @@ class CampaignResponse(BaseModel):
         from_attributes = True
 
 
+class JoinCampaignRequest(BaseModel):
+    """Request to join a campaign by join code."""
+    join_code: str
+
+
 @router.post("/create", response_model=CampaignResponse)
 def create_campaign(
     req: CampaignCreate,
@@ -263,6 +268,53 @@ def browse_public_campaigns(
         ))
 
     return result
+
+
+@router.post("/join")
+def join_campaign(
+    req: JoinCampaignRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Join a campaign using a join code."""
+
+    # Find campaign by join code
+    campaign = db.query(Campaign).filter(
+        Campaign.join_code == req.join_code.upper()
+    ).first()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found with that join code")
+
+    # Check if already a member
+    existing = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign.id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="You are already a member of this campaign")
+
+    # Check if campaign is full
+    member_count = db.query(func.count(CampaignMembership.id)).filter(
+        CampaignMembership.campaign_id == campaign.id,
+        CampaignMembership.left_at.is_(None)
+    ).scalar()
+
+    if member_count >= campaign.max_players:
+        raise HTTPException(status_code=400, detail="Campaign is full")
+
+    # Create membership
+    membership = CampaignMembership(
+        campaign_id=campaign.id,
+        user_id=current_user.id,
+        role="player"
+    )
+    db.add(membership)
+    db.commit()
+
+    return {"success": True, "message": f"Successfully joined {campaign.name}"}
 
 
 @router.get("/{campaign_id}/check-character")
