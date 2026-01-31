@@ -39,6 +39,7 @@ class CharacterCreate(BaseModel):
     """Request to create a new character."""
     name: str = Field(..., min_length=1, max_length=100)
     owner_id: str = Field(..., description="User ID or API key identifier")
+    campaign_id: Optional[str] = Field(None, description="Optional campaign ID to link this character to")
     level: int = Field(default=1, ge=1, le=10, description="Starting level (1-10)")
     pp: int = Field(..., ge=1, le=3)
     ip: int = Field(..., ge=1, le=3)

@@ -188,6 +188,7 @@ class Character(Base):
     name = Column(String, nullable=False, index=True)
     owner_id = Column(String, nullable=False, index=True)  # Legacy field - kept for backward compatibility
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # User who owns this character
+    campaign_id = Column(String, ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True, index=True)  # Campaign this character belongs to
 
     # Core stats (1-3 each, must sum to 6)
     level = Column(Integer, nullable=False, default=1)  # 1-10
@@ -226,6 +227,7 @@ class Character(Base):
 
     # Relationships
     user = relationship("User", back_populates="characters", foreign_keys=[user_id])
+    campaign = relationship("Campaign", back_populates="characters", foreign_keys=[campaign_id])
     party_memberships = relationship("PartyMembership", back_populates="character")
     abilities = relationship("Ability", back_populates="character", cascade="all, delete-orphan")
 
@@ -289,6 +291,7 @@ class Campaign(Base):
     creator = relationship("User", back_populates="created_campaigns", foreign_keys=[created_by_user_id])
     story_weaver = relationship("User", back_populates="story_weaver_campaigns", foreign_keys=[story_weaver_id])
     memberships = relationship("CampaignMembership", back_populates="campaign", cascade="all, delete-orphan")
+    characters = relationship("Character", back_populates="campaign", foreign_keys="Character.campaign_id")
 
     def __repr__(self):
         return f"<Campaign(id={self.id[:8]}..., name={self.name}, code={self.join_code}, public={self.is_public})>"

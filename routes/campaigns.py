@@ -265,6 +265,30 @@ def browse_public_campaigns(
     return result
 
 
+@router.get("/{campaign_id}/check-character")
+def check_campaign_character(
+    campaign_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if the current user has a character in this campaign.
+
+    Returns:
+        {"has_character": True, "character_id": str} if user has character
+        {"has_character": False} if user doesn't have character
+    """
+    # Check if user has character in this campaign
+    character = db.query(Character).filter(
+        Character.user_id == current_user.id,
+        Character.campaign_id == campaign_id
+    ).first()
+
+    if character:
+        return {"has_character": True, "character_id": str(character.id)}
+    return {"has_character": False}
+
+
 @router.get("/{campaign_id}", response_model=CampaignResponse)
 def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
     """Get campaign details."""

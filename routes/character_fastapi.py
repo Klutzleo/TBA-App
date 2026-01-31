@@ -7,7 +7,8 @@ Includes full character creation with abilities and party membership.
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from backend.db import get_db
-from backend.models import Character, Party, PartyMembership, Ability
+from backend.models import Character, Party, PartyMembership, Ability, User
+from backend.auth.jwt import get_current_user
 from backend.character_utils import (
     calculate_level_stats,
     validate_stats,
@@ -68,6 +69,7 @@ async def create_character(req: CharacterCreate, request: Request, db: Session =
         character = Character(
             name=req.name,
             owner_id=req.owner_id,
+            campaign_id=req.campaign_id,  # Link to campaign if provided
             level=req.level,
             pp=req.pp,
             ip=req.ip,
@@ -97,7 +99,12 @@ async def create_character(req: CharacterCreate, request: Request, db: Session =
 
 
 @character_blp_fastapi.post("/full", response_model=FullCharacterResponse, status_code=201)
-async def create_character_full(req: FullCharacterCreate, request: Request, db: Session = Depends(get_db)):
+async def create_character_full(
+    req: FullCharacterCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Create a new character with ability and party membership (Phase 2d).
 
@@ -173,6 +180,8 @@ async def create_character_full(req: FullCharacterCreate, request: Request, db: 
         character = Character(
             name=req.name,
             owner_id=req.campaign_id,  # Use campaign_id as owner for campaign-scoped characters
+            user_id=current_user.id,  # User who owns this character
+            campaign_id=req.campaign_id,  # Link character to campaign
             level=req.level,
             pp=req.pp,
             ip=req.ip,

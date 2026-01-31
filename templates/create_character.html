@@ -1148,11 +1148,12 @@
             };
 
             try {
+                const token = localStorage.getItem('token');
                 const response = await fetch('/api/characters/full', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-API-Key': 'default-dev-key' // TODO: Get from session
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(payload)
                 });
@@ -1175,7 +1176,7 @@
 
                 // Redirect after 2 seconds
                 setTimeout(() => {
-                    const returnUrl = urlParams.get('return') || `/campaign/${campaignId}`;
+                    const returnUrl = urlParams.get('return') || `/campaigns.html`;
                     window.location.href = returnUrl;
                 }, 2000);
 

@@ -193,7 +193,13 @@ def run_migrations():
         '010_make_columns_nullable.sql',
         '011_add_password_reset_tokens.sql',  # Password reset functionality
         '012_fix_users_table_schema.sql',  # Fix users table to match User model
-        '013_add_campaign_management.sql'  # Campaign management with join codes
+        '013_add_campaign_management.sql',  # Campaign management with join codes
+        '014_fix_story_weaver_references.sql',  # Fix story_weaver_id FK
+        '015_assign_story_weavers.sql',  # Assign story weavers to campaigns
+        '016_fix_story_weaver_fk.sql',  # Additional FK fixes
+        '017_force_fix_story_weaver_fk.sql',  # Force FK constraint fix
+        '018_simple_fk_fix.sql',  # Simple FK fix (final)
+        '019_add_character_campaign_link.sql'  # Phase 3 Part 3: Link characters to campaigns
     ]
 
     migrations_dir = Path(__file__).parent

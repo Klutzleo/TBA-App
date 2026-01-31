@@ -735,6 +735,7 @@
                         ${campaign.join_code}
                     </div>
                     <div class="campaign-actions">
+                        <button class="btn btn-small" onclick="enterCampaign('${campaign.id}')">🎮 Enter</button>
                         ${campaign.user_role === 'story_weaver'
                             ? `<button class="btn btn-small" onclick="openSettingsModal('${campaign.id}')">⚙️ Settings</button>`
                             : `<button class="btn-danger btn btn-small" onclick="leaveCampaign('${campaign.id}')">Leave</button>`
@@ -867,6 +868,23 @@
                 loadMyCampaigns();
             } catch (error) {
                 showError('my', error.message);
+            }
+        }
+
+        // Enter campaign
+        async function enterCampaign(campaignId) {
+            try {
+                const response = await apiCall(`/api/campaigns/${campaignId}/check-character`);
+
+                if (response.has_character) {
+                    // Has character - enter game
+                    window.location.href = `/game.html?campaign_id=${campaignId}&character_id=${response.character_id}`;
+                } else {
+                    // No character - redirect to character creation
+                    window.location.href = `/create-character.html?campaign_id=${campaignId}`;
+                }
+            } catch (error) {
+                showError('my', `Failed to enter campaign: ${error.message}`);
             }
         }
 
