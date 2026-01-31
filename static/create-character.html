@@ -597,7 +597,7 @@
             const campaignId = new URLSearchParams(window.location.search).get('campaign_id');
             const returnUrl = campaignId ? `/create-character.html?campaign_id=${campaignId}` : '/create-character.html';
             localStorage.setItem('returnUrl', returnUrl);
-            window.location.href = '/login.html';
+            window.location.href = '/auth.html';
         }
 
         // Get campaign_id from URL params
