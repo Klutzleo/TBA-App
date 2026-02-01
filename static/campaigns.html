@@ -665,7 +665,7 @@
                 throw new Error(error.detail || 'Request failed');
             }
 
-            return response.json();
+            return await response.json();
         }
 
         // Load my campaigns
