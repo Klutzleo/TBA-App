@@ -5,7 +5,7 @@
 -- 1. Create campaigns table
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS campaigns (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     story_weaver_id VARCHAR(36) REFERENCES characters(id) ON DELETE SET NULL,
