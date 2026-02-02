@@ -44,6 +44,28 @@ async def lifespan(app: FastAPI):
         init_db()
         logger.info("✅ Database initialized")
 
+        # ================================================================
+        # TEMPORARY: Drop campaign_memberships to fix UUID type mismatch
+        # TODO: REMOVE THIS CODE AFTER ONE SUCCESSFUL DEPLOY
+        # ================================================================
+        from backend.db import engine
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("DROP TABLE IF EXISTS campaign_memberships CASCADE;"))
+                conn.commit()
+                logger.info("✅ Dropped campaign_memberships table (UUID fix)")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not drop campaign_memberships: {e}")
+
+        # Let init_db() recreate it with correct schema
+        from backend.models import Base
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ Recreated campaign_memberships with UUID type")
+        # ================================================================
+        # END TEMPORARY CODE
+        # ================================================================
+
         # Run Phase 2d schema migrations
         from backend.migrations.run_phase_2d import run_migrations
         run_migrations()
