@@ -178,7 +178,7 @@ async def campaign_websocket(
 
         # Verify user is a member of this campaign
         membership = db.query(CampaignMembership).filter(
-            CampaignMembership.campaign_id == str(campaign_id),
+            CampaignMembership.campaign_id == campaign_id,
             CampaignMembership.user_id == user.id,
             CampaignMembership.left_at.is_(None)  # Still active member
         ).first()

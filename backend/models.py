@@ -308,7 +308,7 @@ class CampaignMembership(Base):
     __table_args__ = {'extend_existing': True}
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    campaign_id = Column(String, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(Enum('player', 'story_weaver', name='campaign_role_enum'), nullable=False, default='player')
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
