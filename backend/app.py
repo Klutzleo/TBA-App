@@ -38,17 +38,13 @@ limiter = Limiter(key_func=get_remote_address)
 # Lifespan context for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup — DB init happens HERE
+    # Startup
     logger.info("🚀 FastAPI TBA-App starting")
     try:
-        init_db()
-        logger.info("✅ Database initialized")
-
         # ================================================================
-        # TEMPORARY: Drop campaign_memberships to fix UUID type mismatch
+        # TEMPORARY: Drop tables BEFORE init_db runs migrations
         # TODO: REMOVE THIS CODE AFTER ONE SUCCESSFUL DEPLOY
         # ================================================================
-        # TEMPORARY: Drop campaigns and campaign_memberships to fix UUID type mismatch
         from backend.database import engine
         from sqlalchemy import text
         try:
@@ -60,11 +56,16 @@ async def lifespan(app: FastAPI):
                 logger.info("✅ Dropped campaigns + campaign_memberships tables (UUID fix)")
         except Exception as e:
             logger.warning(f"⚠️ Could not drop tables: {e}")
-
-        # Let init_db() recreate them with correct schema
+        # ================================================================
+        
+        # NOW run init_db - migrations will recreate with correct schema
+        init_db()
+        logger.info("✅ Database initialized")
+        
+        # Force recreate with SQLAlchemy models (just to be sure)
         from backend.models import Base
         Base.metadata.create_all(bind=engine)
-        logger.info("✅ Recreated tables with UUID types")
+        logger.info("✅ Tables verified with UUID types")
         # ================================================================
         # END TEMPORARY CODE
         # ================================================================
