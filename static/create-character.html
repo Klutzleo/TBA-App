@@ -592,7 +592,7 @@
 
         // Check authentication
         console.log('CREATE-CHARACTER: Checking auth...');
-        const token = localStorage.getItem('tba_auth_token') || sessionStorage.getItem('tba_auth_token');
+        const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
         console.log('CREATE-CHARACTER: Token found?', !!token);
         console.log('CREATE-CHARACTER: Token value:', token ? 'EXISTS' : 'NULL');
 
@@ -1164,7 +1164,7 @@
             };
 
             try {
-                const token = localStorage.getItem('tba_auth_token') || sessionStorage.getItem('tba_auth_token');
+                const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
                 const response = await fetch('/api/characters/full', {
                     method: 'POST',
                     headers: {
