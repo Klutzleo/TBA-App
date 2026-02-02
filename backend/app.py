@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.staticfiles import StaticFiles
 
-from backend.db import engine
+from backend.db import engine, init_db
 
 
 # Load .env vars
