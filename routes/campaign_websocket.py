@@ -197,7 +197,7 @@ async def campaign_websocket(
         return
 
     # ===== AUTHENTICATION PASSED - Continue with existing logic =====
-    campaign_uuid = UUID(campaign_id)
+    campaign_uuid = campaign_id
 
     await manager.connect(campaign_uuid, websocket, user_uuid, display_name)
     

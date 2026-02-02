@@ -382,6 +382,55 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
         ooc_channel_id=ooc_channel.id if ooc_channel else None
     )
 
+@router.get("/{campaign_id}/members")
+async def get_campaign_members(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all members of a campaign with their characters"""
+    
+    # Verify user is a member
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+    
+    # Get all members with their characters
+    members = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id
+    ).all()
+    
+    result = []
+    for member in members:
+        user = db.query(User).filter(User.id == member.user_id).first()
+        character = db.query(Character).filter(
+            Character.campaign_id == campaign_id,
+            Character.user_id == member.user_id
+        ).first()
+        
+        result.append({
+            "user_id": str(user.id),
+            "username": user.username,
+            "role": member.role,
+            "character": {
+                "id": str(character.id),
+                "name": character.name,
+                "level": character.level,
+                "current_dp": character.current_dp,
+                "max_dp": character.max_dp,
+                "edge": character.edge,
+                "bap": character.bap,
+                "pp": character.pp,
+                "ip": character.ip,
+                "sp": character.sp
+            } if character else None
+        })
+    
+    return result
 
 @router.get("/{campaign_id}/channels")
 def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
