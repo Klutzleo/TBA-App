@@ -61,6 +61,28 @@ def create_access_token(user_id: str, email: str, username: str) -> str:
     return token
 
 
+def decode_access_token(token: str) -> Optional[dict]:
+    """
+    Decode a JWT token and return the raw payload dict.
+
+    Args:
+        token: JWT token string
+
+    Returns:
+        Dict with token payload if valid, None if invalid
+
+    Example:
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        return None
+
+
 def verify_token(token: str) -> Optional[TokenData]:
     """
     Verify and decode a JWT token.
