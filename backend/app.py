@@ -41,30 +41,6 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 FastAPI TBA-App starting")
     try:
-        # ================================================================
-        # TEMPORARY: Drop tables BEFORE init_db runs migrations
-        # TODO: REMOVE THIS CODE AFTER ONE SUCCESSFUL DEPLOY
-        # ================================================================
-        from backend.db import engine, init_db
-        from sqlalchemy import text
-        try:
-            with engine.connect() as conn:
-                # Step 1: Clear campaign references from parties (prevents FK constraint errors)
-                conn.execute(text("UPDATE parties SET campaign_id = NULL WHERE campaign_id IS NOT NULL;"))
-                
-                # Step 2: Drop FK constraint (if it exists)
-                conn.execute(text("ALTER TABLE parties DROP CONSTRAINT IF EXISTS fk_parties_campaign;"))
-                
-                # Step 3: Now safe to drop these tables
-                conn.execute(text("DROP TABLE IF EXISTS campaign_memberships CASCADE;"))
-                conn.execute(text("DROP TABLE IF EXISTS campaigns CASCADE;"))
-                
-                conn.commit()
-                logger.info("✅ Cleared campaign references and dropped tables (UUID fix)")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not drop tables: {e}")
-        # ================================================================
-        
         # NOW run init_db - migrations will recreate with correct schema
         init_db()
         logger.info("✅ Database initialized")
