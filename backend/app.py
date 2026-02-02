@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.staticfiles import StaticFiles
 
-from backend.db import init_db
+from backend.db import engine
 
 
 # Load .env vars
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
         # TEMPORARY: Drop tables BEFORE init_db runs migrations
         # TODO: REMOVE THIS CODE AFTER ONE SUCCESSFUL DEPLOY
         # ================================================================
-        from backend.database import engine
+        from backend.db import engine
         from sqlalchemy import text
         try:
             with engine.connect() as conn:
