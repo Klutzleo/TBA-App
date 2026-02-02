@@ -15,7 +15,25 @@ if not _os.path.exists("/.dockerenv"):
 
 DATABASE_URL = _os.getenv("DATABASE_URL", "sqlite:///local.db")
 
-engine = create_engine(DATABASE_URL)
+if DATABASE_URL.startswith("postgresql"):
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,      # Test connections before using
+        pool_recycle=3600,       # Recycle connections every hour
+        pool_size=5,             # Connection pool size
+        max_overflow=10,         # Max connections beyond pool_size
+        connect_args={
+            "connect_timeout": 10,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        }
+    )
+else:
+    # SQLite doesn't need these settings
+    engine = create_engine(DATABASE_URL)
+
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
