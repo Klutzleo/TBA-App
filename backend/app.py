@@ -217,14 +217,13 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register effects_blp: {e}")
 
-# DISABLED - Using new campaign_routes.py router instead
-# try:
-#     from routes.campaign_websocket import router as campaign_ws_router
-#
-#     application.include_router(campaign_ws_router, tags=["Campaign"])
-#     logger.info("✅ Registered campaign_websocket")
-# except Exception as e:
-#     logger.warning(f"⚠️ Failed to register campaign_websocket: {e}")
+try:
+    from routes.campaign_websocket import router as campaign_ws_router
+    
+    application.include_router(campaign_ws_router, tags=["Campaign"])
+    logger.info("✅ Registered campaign_websocket")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register campaign_websocket: {e}")
 
 # try:
 #     from routes.campaign_routes import router as campaign_router

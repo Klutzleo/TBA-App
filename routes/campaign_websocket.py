@@ -11,7 +11,7 @@ Handles:
 - System notifications (player join/leave)
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Dict, List
 from uuid import UUID
@@ -22,7 +22,8 @@ import re
 import random
 
 from backend.db import get_db
-from backend.models import Party, Character
+from backend.models import Party, Character, User, CampaignMembership
+from backend.auth.jwt import decode_access_token
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -138,14 +139,16 @@ manager = CampaignConnectionManager()
 async def campaign_websocket(
     websocket: WebSocket,
     campaign_id: UUID,
-    user_id: str,  # Passed as query param: ws://...?user_id=xxx&display_name=Alice
-    display_name: str
+    token: str = Query(...),  # JWT token passed as query param
+    db: Session = Depends(get_db)
 ):
     """
     WebSocket endpoint for campaign chat room.
-    
-    URL: ws://localhost:8000/api/campaign/ws/{campaign_id}?user_id={user_id}&display_name={name}
-    
+
+    URL: ws://localhost:8000/api/campaign/ws/{campaign_id}?token={jwt_token}
+
+    Requires JWT authentication. Verifies user is a member of the campaign.
+
     Handles all campaign communication:
     - Player chat (IC/OOC)
     - Whispers
@@ -154,9 +157,48 @@ async def campaign_websocket(
     - Dice rolls
     - System notifications
     """
-    user_uuid = UUID(user_id)
+    # ===== JWT AUTHENTICATION (BEFORE accepting WebSocket) =====
+    try:
+        # Decode and verify JWT token
+        payload = decode_access_token(token)
+        if not payload:
+            await websocket.close(code=1008, reason="Invalid or expired token")
+            return
+
+        user_id = payload.get("sub")
+        if not user_id:
+            await websocket.close(code=1008, reason="Invalid token payload")
+            return
+
+        # Get user from database
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            await websocket.close(code=1008, reason="User not found")
+            return
+
+        # Verify user is a member of this campaign
+        membership = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == str(campaign_id),
+            CampaignMembership.user_id == user.id,
+            CampaignMembership.left_at.is_(None)  # Still active member
+        ).first()
+
+        if not membership:
+            await websocket.close(code=1008, reason="You are not a member of this campaign")
+            return
+
+        # Authentication successful - extract user info
+        user_uuid = user.id
+        display_name = user.username
+
+    except Exception as e:
+        logger.error(f"WebSocket authentication error: {e}")
+        await websocket.close(code=1011, reason="Authentication failed")
+        return
+
+    # ===== AUTHENTICATION PASSED - Continue with existing logic =====
     campaign_uuid = UUID(campaign_id)
-    
+
     await manager.connect(campaign_uuid, websocket, user_uuid, display_name)
     
     try:
