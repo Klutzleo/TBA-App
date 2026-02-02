@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 if not os.path.exists("/.dockerenv"):
     load_dotenv()
 
-DATABASE_URL = _os.getenv("DATABASE_URL", "sqlite:///local.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///local.db")
 
 if DATABASE_URL.startswith("postgresql"):
     engine = create_engine(
