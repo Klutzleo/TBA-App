@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # provided env vars or point the app at remote DB hosts that are not
 # reachable from the local environment. Only load `.env` when not running
 # inside a container (no `/.dockerenv`).
-if not _os.path.exists("/.dockerenv"):
+if not os.path.exists("/.dockerenv"):
     load_dotenv()
 
 DATABASE_URL = _os.getenv("DATABASE_URL", "sqlite:///local.db")
