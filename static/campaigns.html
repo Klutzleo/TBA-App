@@ -872,18 +872,22 @@
         }
 
         // Enter campaign
+        // Enter campaign
         async function enterCampaign(campaignId) {
             try {
                 console.log('1. Calling check-character API...');
                 const response = await apiCall(`/api/campaigns/${campaignId}/check-character`);
                 console.log('2. API Response:', response);
-                console.log('3. has_character:', response.has_character);
                 
-                if (response.has_character) {
-                    console.log('4. Redirecting to game.html');
+                // Check if user is Story Weaver
+                if (response.role === 'story_weaver') {
+                    console.log('3. Story Weaver - going straight to game');
+                    window.location.href = `/game.html?campaign_id=${campaignId}`;
+                } else if (response.has_character) {
+                    console.log('4. Player with character - going to game');
                     window.location.href = `/game.html?campaign_id=${campaignId}&character_id=${response.character_id}`;
                 } else {
-                    console.log('5. Redirecting to create-character.html');
+                    console.log('5. Player without character - creating character');
                     window.location.href = `/create-character.html?campaign_id=${campaignId}`;
                 }
             } catch (error) {

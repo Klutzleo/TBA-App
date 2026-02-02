@@ -325,20 +325,31 @@ def check_campaign_character(
 ):
     """
     Check if the current user has a character in this campaign.
+    Also returns the user's role (story_weaver or player).
 
     Returns:
-        {"has_character": True, "character_id": str} if user has character
-        {"has_character": False} if user doesn't have character
+        {"role": "story_weaver", "has_character": False} if user is SW
+        {"role": "player", "has_character": True, "character_id": str} if player with character
+        {"role": "player", "has_character": False} if player without character
     """
+    # Check membership role first
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    
+    if membership and membership.role == "story_weaver":
+        return {"role": "story_weaver", "has_character": False}
+    
     # Check if user has character in this campaign
     character = db.query(Character).filter(
         Character.user_id == current_user.id,
         Character.campaign_id == campaign_id
     ).first()
-
+    
     if character:
-        return {"has_character": True, "character_id": str(character.id)}
-    return {"has_character": False}
+        return {"role": "player", "has_character": True, "character_id": str(character.id)}
+    return {"role": "player", "has_character": False}
 
 
 @router.get("/{campaign_id}", response_model=CampaignResponse)
