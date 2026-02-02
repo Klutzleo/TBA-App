@@ -49,9 +49,10 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import text
         try:
             with engine.connect() as conn:
-                # Drop both tables (order matters - memberships first due to foreign key)
+                # Drop all three tables for clean slate
                 conn.execute(text("DROP TABLE IF EXISTS campaign_memberships CASCADE;"))
                 conn.execute(text("DROP TABLE IF EXISTS campaigns CASCADE;"))
+                conn.execute(text("DROP TABLE IF EXISTS parties CASCADE;"))
                 conn.commit()
                 logger.info("✅ Dropped campaigns + campaign_memberships tables (UUID fix)")
         except Exception as e:
