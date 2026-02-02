@@ -167,6 +167,132 @@
       margin-bottom: 16px;
     }
 
+    /* === Character Cards === */
+    .character-card {
+      background: var(--bg-darker);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .character-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .char-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .char-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent-primary);
+    }
+
+    .char-level {
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-panel);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    .char-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .stat-item {
+      background: var(--bg-panel);
+      padding: 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .stat-value.danger {
+      color: var(--accent-danger);
+    }
+
+    .stat-value.warning {
+      color: #f59e0b;
+    }
+
+    .stat-value.success {
+      color: var(--accent-success);
+    }
+
+    .char-resources {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .resource-item {
+      background: var(--bg-panel);
+      padding: 6px;
+      border-radius: var(--radius-sm);
+      text-align: center;
+      border: 1px solid var(--border-color);
+    }
+
+    .resource-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .resource-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .back-button {
+      width: 100%;
+      padding: 12px;
+      background: var(--bg-darker);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .back-button:hover {
+      background: var(--bg-panel-hover);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
     .form-group {
       margin-bottom: 16px;
     }
@@ -1297,106 +1423,21 @@
     <div class="main-content">
       <!-- Sidebar -->
       <aside class="sidebar">
-        <!-- Connection Settings -->
+        <!-- Back Button -->
         <div class="sidebar-section">
-          <h2>Connection</h2>
-          <div class="form-group">
-            <label class="form-label">Railway Base URL</label>
-            <input
-              type="text"
-              class="form-input"
-              id="baseUrl"
-              placeholder="https://tba-app-production.up.railway.app"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">API Key</label>
-            <input
-              type="text"
-              class="form-input"
-              id="apiKey"
-              placeholder="devkey"
-            />
-            <span class="help-text">Optional authentication</span>
-          </div>
-        </div>
-
-        <!-- Party Settings -->
-        <div class="sidebar-section">
-          <h2>Party Settings</h2>
-          <div class="form-group">
-            <label class="form-label">Party ID</label>
-            <input
-              type="text"
-              class="form-input"
-              id="partyId"
-              placeholder="test-party"
-            />
-          </div>
-          <button id="copyPartyIdBtn" class="copy-id-btn">
-            📋 Copy Party ID
+          <button class="back-button" onclick="window.location.href='/campaigns.html'">
+            ← Back to Campaigns
           </button>
         </div>
 
-        <!-- Character Settings -->
+        <!-- Characters Section -->
         <div class="sidebar-section">
-          <h2>Character</h2>
-          <div class="form-group">
-            <label class="form-label">Character Name</label>
-            <input
-              type="text"
-              class="form-input"
-              id="actor"
-              placeholder="Alice"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Character ID</label>
-            <input
-              type="text"
-              class="form-input"
-              id="characterId"
-              placeholder="uuid-of-character"
-            />
-            <span class="help-text">Enables stat caching & auto role detection</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Role</label>
-            <select class="form-select" id="role">
-              <option value="Player" selected>Player</option>
-              <option value="SW">Story Weaver (SW)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Combat Settings -->
-        <div class="sidebar-section">
-          <h2>Combat Context</h2>
-          <div class="form-group">
-            <label class="form-label">Context</label>
-            <input
-              type="text"
-              class="form-input"
-              id="context"
-              placeholder="Volcanic battlefield"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Encounter ID</label>
-            <input
-              type="text"
-              class="form-input"
-              id="encounterId"
-              placeholder="enc-123"
-            />
-          </div>
-        </div>
-
-        <!-- Connection Controls -->
-        <div class="sidebar-section">
-          <div class="btn-group">
-            <button class="btn btn-primary" id="connectBtn">Connect</button>
-            <button class="btn btn-danger" id="disconnectBtn" disabled>Disconnect</button>
+          <h2>Party Members</h2>
+          <div id="charactersContainer">
+            <!-- Character cards will be populated here -->
+            <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">
+              Loading characters...
+            </div>
           </div>
         </div>
       </aside>
@@ -1445,27 +1486,36 @@
     </div>
   </div>
 
+  <script src="/js/auth-helper.js"></script>
   <script>
+    // === Authentication ===
+    requireAuth();
+    const authToken = getAuthToken();
+    const currentUser = getCurrentUser();
+
+    // === Get URL Parameters ===
+    const urlParams = new URLSearchParams(window.location.search);
+    const campaignId = urlParams.get('campaign_id');
+    const characterId = urlParams.get('character_id');
+
+    if (!campaignId) {
+      alert('No campaign ID provided');
+      window.location.href = '/campaigns.html';
+    }
+
     // === DOM Element References ===
-    const baseUrlEl = document.getElementById('baseUrl');
-    const partyIdEl = document.getElementById('partyId');
-    const actorEl = document.getElementById('actor');
-    const characterIdEl = document.getElementById('characterId');
-    const apiKeyEl = document.getElementById('apiKey');
-    const contextEl = document.getElementById('context');
-    const encounterEl = document.getElementById('encounterId');
     const contextQuickEl = document.getElementById('contextQuick');
     const encounterQuickEl = document.getElementById('encounterQuick');
-    const connectBtn = document.getElementById('connectBtn');
-    const disconnectBtn = document.getElementById('disconnectBtn');
     const sendBtn = document.getElementById('sendBtn');
     const chatMessagesEl = document.getElementById('chatMessages');
     const msgInput = document.getElementById('messageInput');
-    const roleEl = document.getElementById('role');
     const statusIndicator = document.getElementById('statusIndicator');
     const statusText = document.getElementById('statusText');
+    const charactersContainer = document.getElementById('charactersContainer');
 
     let ws = null;
+    let currentActor = currentUser.username; // Will be updated when character data loads
+    let userRole = characterId ? 'Player' : 'SW'; // Will be updated when welcome message arrives
 
     // === Tab State ===
     let activeTab = 'story';  // 'story', 'whisper-{name}', or 'ooc'
@@ -1579,7 +1629,7 @@
 
     // Get the "other party" in a whisper conversation (not the current user)
     function getWhisperPartner(data) {
-      const myName = (actorEl.value.trim() || 'User').toLowerCase();
+      const myName = (currentActor.trim() || 'User').toLowerCase();
       const sender = (data.actor || '').toLowerCase();
 
       // If I'm the sender, the partner is the target
@@ -1680,7 +1730,7 @@
 
     // === Helper Functions ===
     function isSW() {
-      return roleEl.value === 'SW';
+      return userRole === 'SW';
     }
 
     function updateConnectionStatus(connected) {
@@ -2351,43 +2401,26 @@
     }
 
     // === WebSocket Connection ===
-    function buildWSUrl(baseUrl, partyId, characterId, apiKey) {
+    function buildWSUrl(campaignId, token) {
+      const baseUrl = 'https://tba-app-production.up.railway.app';
       const url = new URL(baseUrl);
-      url.protocol = url.protocol.replace('http', 'ws');
-      url.pathname = `/api/chat/party/${encodeURIComponent(partyId)}`;
-
-      const params = new URLSearchParams();
-      if (characterId) params.append('character_id', characterId);
-      if (apiKey) params.append('api_key', apiKey);
-
-      if (params.toString()) {
-        url.search = params.toString();
-      }
-
+      url.protocol = 'wss';
+      url.pathname = `/api/campaign/ws/${campaignId}`;
+      url.searchParams.append('token', token);
       return url.toString();
     }
 
-    connectBtn.addEventListener('click', async () => {
-      const baseUrl = baseUrlEl.value.trim();
-      const partyId = partyIdEl.value.trim();
-      const actor = actorEl.value.trim() || 'User';
-      const characterId = characterIdEl.value.trim();
-      const apiKey = apiKeyEl.value.trim();
-
-      if (!baseUrl || !partyId) {
-        addMessage('Please provide base URL and party ID.', 'message-card message-error');
-        return;
-      }
-
-      const wsUrl = buildWSUrl(baseUrl, partyId, characterId, apiKey);
+    // Auto-connect on page load
+    async function connectToCampaign() {
+      const wsUrl = buildWSUrl(campaignId, authToken);
 
       // Show loading spinner
       const spinner = document.getElementById('loadingSpinner');
       if (spinner) spinner.style.display = 'flex';
 
       const statusMsg = characterId
-        ? `Connecting with character caching enabled...`
-        : `Connecting (legacy mode - no character caching)...`;
+        ? `Connecting to campaign...`
+        : `Connecting as Story Weaver...`;
       addMessage(statusMsg, 'message-card message-system');
 
       try {
@@ -2398,16 +2431,18 @@
           const spinner = document.getElementById('loadingSpinner');
           if (spinner) spinner.style.display = 'none';
 
-          addMessage('Connected to party chat.', 'message-card message-system');
+          addMessage('Connected to campaign.', 'message-card message-system');
           updateConnectionStatus(true);
-          connectBtn.disabled = true;
-          disconnectBtn.disabled = false;
           sendBtn.disabled = false;
 
           // Load message history
           try {
-            const historyUrl = `${baseUrl}/api/chat/party/${encodeURIComponent(partyId)}/messages?limit=50`;
-            const response = await fetch(historyUrl);
+            const historyUrl = `https://tba-app-production.up.railway.app/api/campaign/${campaignId}/messages?limit=50`;
+            const response = await fetch(historyUrl, {
+              headers: {
+                'Authorization': `Bearer ${authToken}`
+              }
+            });
             if (response.ok) {
               const data = await response.json();
               if (data.messages && data.messages.length > 0) {
@@ -2450,18 +2485,23 @@
 
             // Handle welcome message - update Actor field with character name
             if (data.type === 'welcome') {
+              // Update user role from server
+              if (data.role) {
+                userRole = data.role;
+              }
+
               if (data.character_name && data.character_name !== 'Unknown') {
-                actorEl.value = data.character_name;
+                currentActor = data.character_name;
                 const roleText = data.role === 'SW' ? ' (Story Weaver)' : '';
                 addMessage(`Welcome, ${data.character_name}${roleText}!`, 'message-card message-system');
               } else if (data.character_id) {
                 // Character ID provided but not found in database
                 addMessage(`⚠️ Character ID "${data.character_id}" not found. Please check your Character ID in the connection settings.`, 'message-card message-error');
-                actorEl.value = 'User'; // Set fallback
+                currentActor = 'User'; // Set fallback
               } else {
                 // No character ID provided
                 addMessage(`⚠️ Connected without a Character ID. Enter a valid Character ID in the connection settings to use your character name.`, 'message-card message-system');
-                actorEl.value = 'User'; // Set fallback
+                currentActor = 'User'; // Set fallback
               }
               return;
             }
@@ -2594,14 +2634,14 @@
               renderDiceRoll(data, '🧭');
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
               // In-Character message - skip if from self (already displayed locally)
-              const myActor = (actorEl.value.trim() || 'User').toLowerCase();
+              const myActor = (currentActor.trim() || 'User').toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
                 displayTypedMessage('ic', data.actor || 'Unknown', data.text, null, false);
               }
             } else if (data.type === 'chat_ooc' || data.chat_mode === 'ooc') {
               // Out-of-Character message - skip if from self (already displayed locally)
-              const myActor = (actorEl.value.trim() || 'User').toLowerCase();
+              const myActor = (currentActor.trim() || 'User').toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
                 displayTypedMessage('ooc', data.actor || 'Unknown', data.text, null, data.is_ooc_command || false);
@@ -2631,23 +2671,17 @@
         ws.onclose = (ev) => {
           addMessage(`Disconnected (code ${ev.code}).`, 'message-card message-system');
           updateConnectionStatus(false);
-          connectBtn.disabled = false;
-          disconnectBtn.disabled = true;
           sendBtn.disabled = true;
           ws = null;
         };
       } catch (e) {
         addMessage(`Failed to connect: ${e.message}`, 'message-card message-error');
       }
-    });
-
-    disconnectBtn.addEventListener('click', () => {
-      if (ws) ws.close(1000, 'User requested close');
-    });
+    }
 
     sendBtn.addEventListener('click', () => {
       const text = msgInput.value.trim();
-      const actor = actorEl.value.trim() || 'User';
+      const actor = currentActor.trim() || 'User';
       if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
       // Check for chat mode commands (/say, /ooc, /whisper)
@@ -2672,9 +2706,9 @@
           payload.whisper_targets = chatCmd.targets; // Array of targets
         }
 
-        // Use quick context/encounter if provided, otherwise fall back to sidebar
-        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
-        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+        // Use quick context/encounter if provided
+        const ctx = contextQuickEl.value.trim();
+        const encId = encounterQuickEl.value.trim();
         if (ctx) payload.context = ctx;
         if (encId) payload.encounter_id = encId;
 
@@ -2683,9 +2717,9 @@
         // Command (like /roll, /attack) - always goes to Story tab
         const payload = { type: 'message', actor, text };
 
-        // Use quick context/encounter if provided, otherwise fall back to sidebar
-        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
-        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+        // Use quick context/encounter if provided
+        const ctx = contextQuickEl.value.trim();
+        const encId = encounterQuickEl.value.trim();
 
         if (ctx) payload.context = ctx;
         if (encId) payload.encounter_id = encId;
@@ -2721,9 +2755,9 @@
           payload.whisper_targets = whisperTargets;
         }
 
-        // Use quick context/encounter if provided, otherwise fall back to sidebar
-        const ctx = contextQuickEl.value.trim() || contextEl.value.trim();
-        const encId = encounterQuickEl.value.trim() || encounterEl.value.trim();
+        // Use quick context/encounter if provided
+        const ctx = contextQuickEl.value.trim();
+        const encId = encounterQuickEl.value.trim();
 
         if (ctx) payload.context = ctx;
         if (encId) payload.encounter_id = encId;
@@ -2749,32 +2783,92 @@
       msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
     });
 
-    // Copy Party ID button
-    document.getElementById('copyPartyIdBtn').addEventListener('click', async () => {
-      const partyId = partyIdEl.value.trim();
-
-      if (!partyId) {
-        addMessage('Please enter a Party ID first.', 'message-card message-error');
-        return;
-      }
-
+    // === Load and Display Character Cards ===
+    async function loadCharacters() {
       try {
-        await navigator.clipboard.writeText(partyId);
+        const response = await fetch(`https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/members`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
 
-        // Show tooltip
-        const tooltip = document.createElement('div');
-        tooltip.className = 'copied-tooltip';
-        tooltip.textContent = '✓ Party ID Copied!';
-        document.body.appendChild(tooltip);
+        if (!response.ok) {
+          throw new Error('Failed to load campaign members');
+        }
 
-        // Remove after 2 seconds
-        setTimeout(() => {
-          tooltip.remove();
-        }, 2000);
-      } catch (err) {
-        addMessage('Failed to copy Party ID.', 'message-card message-error');
+        const data = await response.json();
+
+        if (!data.members || data.members.length === 0) {
+          charactersContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">No characters in this campaign yet.</div>';
+          return;
+        }
+
+        // Clear loading message
+        charactersContainer.innerHTML = '';
+
+        // Create character cards
+        data.members.forEach(member => {
+          if (!member.character) return; // Skip if no character
+
+          const char = member.character;
+          const card = document.createElement('div');
+          card.className = 'character-card';
+
+          // Determine DP color based on percentage
+          let dpClass = 'success';
+          if (char.current_dp !== undefined && char.max_dp) {
+            const dpPercent = (char.current_dp / char.max_dp) * 100;
+            if (dpPercent <= 25) dpClass = 'danger';
+            else if (dpPercent <= 50) dpClass = 'warning';
+          }
+
+          card.innerHTML = `
+            <div class="char-header">
+              <div class="char-name">${char.name}</div>
+              <div class="char-level">Lv ${char.level || 1}</div>
+            </div>
+            <div class="char-stats">
+              <div class="stat-item">
+                <div class="stat-label">DP</div>
+                <div class="stat-value ${dpClass}">${char.current_dp || 0}/${char.max_dp || 0}</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Edge</div>
+                <div class="stat-value">${char.edge || 0}</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">BAP</div>
+                <div class="stat-value">${char.bap || 0}</div>
+              </div>
+            </div>
+            <div class="char-resources">
+              <div class="resource-item">
+                <div class="resource-label">PP</div>
+                <div class="resource-value">${char.pp || 0}</div>
+              </div>
+              <div class="resource-item">
+                <div class="resource-label">IP</div>
+                <div class="resource-value">${char.ip || 0}</div>
+              </div>
+              <div class="resource-item">
+                <div class="resource-label">SP</div>
+                <div class="resource-value">${char.sp || 0}</div>
+              </div>
+            </div>
+          `;
+
+          charactersContainer.appendChild(card);
+        });
+
+      } catch (error) {
+        console.error('Error loading characters:', error);
+        charactersContainer.innerHTML = '<div style="color: var(--accent-danger); font-size: 13px; text-align: center; padding: 20px;">Failed to load characters</div>';
       }
-    });
+    }
+
+    // === Initialize on Page Load ===
+    loadCharacters();
+    connectToCampaign();
 
     // Hamburger menu toggle (mobile)
     const hamburgerBtn = document.getElementById('hamburgerBtn');
