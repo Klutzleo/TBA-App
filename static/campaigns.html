@@ -874,16 +874,20 @@
         // Enter campaign
         async function enterCampaign(campaignId) {
             try {
+                console.log('1. Calling check-character API...');
                 const response = await apiCall(`/api/campaigns/${campaignId}/check-character`);
-
+                console.log('2. API Response:', response);
+                console.log('3. has_character:', response.has_character);
+                
                 if (response.has_character) {
-                    // Has character - enter game
+                    console.log('4. Redirecting to game.html');
                     window.location.href = `/game.html?campaign_id=${campaignId}&character_id=${response.character_id}`;
                 } else {
-                    // No character - redirect to character creation
+                    console.log('5. Redirecting to create-character.html');
                     window.location.href = `/create-character.html?campaign_id=${campaignId}`;
                 }
             } catch (error) {
+                console.error('6. ERROR:', error);
                 showError('my', `Failed to enter campaign: ${error.message}`);
             }
         }

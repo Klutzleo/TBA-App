@@ -591,13 +591,19 @@
         const totalSteps = 5;
 
         // Check authentication
+        console.log('CREATE-CHARACTER: Checking auth...');
         const token = localStorage.getItem('tba_auth_token') || sessionStorage.getItem('tba_auth_token');
+        console.log('CREATE-CHARACTER: Token found?', !!token);
+        console.log('CREATE-CHARACTER: Token value:', token ? 'EXISTS' : 'NULL');
+
         if (!token) {
-            // Save intended destination with campaign_id
+            console.log('CREATE-CHARACTER: No token, redirecting to auth.html');
             const campaignId = new URLSearchParams(window.location.search).get('campaign_id');
             const returnUrl = campaignId ? `/create-character.html?campaign_id=${campaignId}` : '/create-character.html';
             localStorage.setItem('returnUrl', returnUrl);
             window.location.href = '/auth.html';
+        } else {
+            console.log('CREATE-CHARACTER: Token valid, proceeding');
         }
 
         // Get campaign_id from URL params
