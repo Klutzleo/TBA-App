@@ -1158,7 +1158,7 @@
             };
 
             try {
-                const token = localStorage.getItem('token');
+                const token = localStorage.getItem('tba_auth_token') || sessionStorage.getItem('tba_auth_token');
                 const response = await fetch('/api/characters/full', {
                     method: 'POST',
                     headers: {

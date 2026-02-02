@@ -3,7 +3,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
-import os as _os
 
 # When running inside a container (Docker, Railway), avoid loading the
 # repository `.env` file. Loading it at import-time can override platform
