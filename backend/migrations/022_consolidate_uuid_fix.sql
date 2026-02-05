@@ -341,7 +341,7 @@ BEGIN
     FROM campaigns c
     LEFT JOIN users u ON c.story_weaver_id = u.id
     LEFT JOIN parties p ON p.campaign_id = c.id
-    LEFT JOIN party_memberships pm ON pm.party_id = p.id
+    LEFT JOIN party_members pm ON pm.party_id = p.id
     GROUP BY c.id, c.name, c.description, c.story_weaver_id, c.created_by_id,
              c.is_active, c.created_at, c.join_code, c.is_public, c.status,
              u.username, u.email;

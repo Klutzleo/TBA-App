@@ -203,6 +203,8 @@ def run_migrations():
         '020_force_campaigns_uuid.sql', #Fixing UUID
         '021_fix_parties_campaign_id_uuid.sql', #fixing parties campaign
         '022_consolidate_uuid_fix.sql',  # CONSOLIDATED FIX: Properly converts all campaign_id columns to UUID
+        '023_fix_view_table_references.sql',  # Fix views to use party_members instead of party_characters
+        '024_fix_password_reset_tokens_uuid.sql',  # Fix password_reset_tokens to use UUID instead of VARCHAR
     ]
 
     migrations_dir = Path(__file__).parent
