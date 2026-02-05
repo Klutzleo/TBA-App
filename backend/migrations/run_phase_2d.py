@@ -179,6 +179,7 @@ def run_migrations():
         return
 
     migration_files = [
+        '000_create_base_schema.sql',  # MUST RUN FIRST - Creates base tables
         '001_add_parties.sql',
         '002_add_party_members.sql',
         '003_update_characters.sql',
