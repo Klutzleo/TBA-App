@@ -201,7 +201,8 @@ def run_migrations():
         '018_simple_fk_fix.sql',  # Simple FK fix (final)
         '019_add_character_campaign_link.sql',  # Phase 3 Part 3: Link characters to campaigns
         '020_force_campaigns_uuid.sql', #Fixing UUID
-        '021_fix_parties_campaign_id_uuid.sql' #fixing parties campaign
+        '021_fix_parties_campaign_id_uuid.sql', #fixing parties campaign
+        '022_consolidate_uuid_fix.sql',  # CONSOLIDATED FIX: Properly converts all campaign_id columns to UUID
     ]
 
     migrations_dir = Path(__file__).parent
