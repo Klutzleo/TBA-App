@@ -7,11 +7,11 @@ python run_migrations.py || echo "⚠️ Migrations failed or not found"
 echo "🔐 Running authentication migration..."
 python backend/migrations/add_auth_tables.py
 
-echo "🔧 Force-fixing database constraints..."
-python backend/force_fix_constraints.py
-
-echo "🔧 Fixing campaign trigger (if needed)..."
-python backend/fix_trigger.py || echo "⚠️ Trigger fix skipped"
+# Band-aid scripts removed - not needed on clean database
+# echo "🔧 Force-fixing database constraints..."
+# python backend/force_fix_constraints.py
+# echo "🔧 Fixing campaign trigger (if needed)..."
+# python backend/fix_trigger.py || echo "⚠️ Trigger fix skipped"
 
 # Disabled bootstrap test data - test real campaign creation instead
 # echo ""
