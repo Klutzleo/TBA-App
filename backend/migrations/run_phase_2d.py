@@ -253,12 +253,37 @@ def run_cleanup():
         logger.error(f"❌ Cleanup failed: {e}")
         raise
 
+def run_nuclear_reset():
+    """
+    Nuclear option: Drop ALL tables and start fresh.
+    WARNING: Destroys all data!
+    """
+    logger.warning("💥 NUCLEAR RESET: This will destroy ALL data!")
+    
+    migrations_dir = Path(__file__).parent
+    reset_file = migrations_dir / '999_nuclear_reset.sql'
+    
+    if not reset_file.exists():
+        logger.error("❌ Nuclear reset file not found")
+        return
+    
+    try:
+        with engine.connect() as conn:
+            run_sql_file(reset_file, conn)
+        logger.info("✅ Nuclear reset completed! Database is clean.")
+        logger.info("🔄 Rerunning migrations to rebuild schema...")
+        run_migrations()
+    except Exception as e:
+        logger.error(f"❌ Nuclear reset failed: {e}")
+        raise
 
 if __name__ == '__main__':
     import sys
     logging.basicConfig(level=logging.INFO)
 
-    if len(sys.argv) > 1 and sys.argv[1] == '--cleanup':
+    if len(sys.argv) > 1 and sys.argv[1] == '--nuclear':
+        run_nuclear_reset()  # Drops everything, then reruns migrations
+    elif len(sys.argv) > 1 and sys.argv[1] == '--cleanup':
         run_cleanup()
     else:
         run_migrations()
