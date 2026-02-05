@@ -199,8 +199,8 @@ def run_migrations():
         '016_fix_story_weaver_fk.sql',  # Additional FK fixes
         '017_force_fix_story_weaver_fk.sql',  # Force FK constraint fix
         '018_simple_fk_fix.sql',  # Simple FK fix (final)
-        '019_add_character_campaign_link.sql'  # Phase 3 Part 3: Link characters to campaigns
-        '020_force_campaigns_uuid.sql' #Fixing UUID
+        '019_add_character_campaign_link.sql',  # Phase 3 Part 3: Link characters to campaigns
+        '020_force_campaigns_uuid.sql', #Fixing UUID
         '021_fix_parties_campaign_id_uuid.sql' #fixing parties campaign
     ]
 
