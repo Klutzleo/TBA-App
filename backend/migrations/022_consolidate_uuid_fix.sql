@@ -16,6 +16,24 @@ DECLARE
     v_campaigns_is_uuid BOOLEAN := FALSE;
 BEGIN
     -- =====================================================================
+    -- STEP 0: Create enums if they don't exist (needed for campaigns table)
+    -- =====================================================================
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'posting_frequency_enum') THEN
+        CREATE TYPE posting_frequency_enum AS ENUM ('slow', 'medium', 'high');
+        RAISE NOTICE 'Created posting_frequency_enum';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'campaign_status_enum') THEN
+        CREATE TYPE campaign_status_enum AS ENUM ('active', 'archived', 'on_break');
+        RAISE NOTICE 'Created campaign_status_enum';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'campaign_role_enum') THEN
+        CREATE TYPE campaign_role_enum AS ENUM ('player', 'story_weaver');
+        RAISE NOTICE 'Created campaign_role_enum';
+    END IF;
+
+    -- =====================================================================
     -- STEP 1: Drop the campaign_overview view (it blocks ALTER TABLE)
     -- =====================================================================
     DROP VIEW IF EXISTS campaign_overview CASCADE;
