@@ -93,7 +93,7 @@ def run_migration():
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     email VARCHAR(255) NOT NULL UNIQUE,
                     username VARCHAR(50) NOT NULL UNIQUE,
-                    password_hash TEXT NOT NULL,
+                    hashed_password TEXT NOT NULL,
                     is_active BOOLEAN NOT NULL DEFAULT TRUE,
                     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -164,7 +164,7 @@ def run_migration():
             system_password_hash = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LwKp.09E9XYzP5RKO"
 
             session.execute(text("""
-                INSERT INTO users (id, email, username, password_hash, is_active, created_at, updated_at)
+                INSERT INTO users (id, email, username, hashed_password, is_active, created_at, updated_at)
                 VALUES (CAST(:id AS uuid), :email, :username, :password, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """), {
                 'id': str(system_user_id),
