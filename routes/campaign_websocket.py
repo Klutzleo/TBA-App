@@ -208,7 +208,7 @@ async def campaign_websocket(
             message_type = data.get("type")
             
             # Route message based on type
-            if message_type == "chat":
+            if message_type == "message":
                 await handle_chat(campaign_uuid, data)
             
             elif message_type == "whisper":
