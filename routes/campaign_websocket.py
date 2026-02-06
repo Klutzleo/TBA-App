@@ -189,7 +189,15 @@ async def campaign_websocket(
 
         # Authentication successful - extract user info
         user_uuid = user.id
-        display_name = user.username
+
+        # Look up character name for this campaign (if they have one)
+        # Story Weavers don't have characters, so they use username
+        character = db.query(Character).filter(
+            Character.user_id == user.id,
+            Character.campaign_id == campaign_id
+        ).first()
+
+        display_name = character.name if character else user.username
 
     except Exception as e:
         logger.error(f"WebSocket authentication error: {e}")
@@ -319,34 +327,15 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
 async def handle_chat(campaign_id: UUID, data: dict):
     """Handle regular chat message (IC or OOC)."""
     msg = ChatMessage(**data)
-    
-    # Look up character name from database
-    character_name = None
-    async with get_db_session() as db:
-        result = await db.execute(
-            text("""
-                SELECT c.name 
-                FROM campaign_memberships cm
-                JOIN characters c ON cm.character_id = c.id
-                WHERE cm.campaign_id = :campaign_id 
-                  AND cm.user_id = :user_id
-                  AND cm.status = 'active'
-            """),
-            {"campaign_id": campaign_id, "user_id": msg.user_id}
-        )
-        row = result.first()
-        if row:
-            character_name = row[0]
 
-    print(f"🔍 User {msg.user_id} - Character name: {character_name}, Username: {msg.sender}")
-    
-    # Use character name if available, otherwise username
-    display_name = character_name or msg.sender
-    
+    # NOTE: Display name is already set when the WebSocket connects
+    # (see line 190-199 in campaign_websocket function)
+    # It uses character name for players, username for Story Weavers
+
     # Broadcast to everyone in campaign
     await manager.broadcast(campaign_id, ChatBroadcast(
         mode=msg.mode,
-        sender=display_name,  # ← Now sends character name!
+        sender=msg.sender,  # Already contains character name from connection
         user_id=msg.user_id,
         message=msg.message,
         attachment=msg.attachment
