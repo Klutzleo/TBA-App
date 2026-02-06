@@ -22,7 +22,7 @@ import re
 import random
 
 from backend.db import get_db
-from backend.models import Party, Character, User, CampaignMembership
+from backend.models import Party, Character, User, CampaignMembership, Message
 from backend.auth.jwt import decode_access_token
 from routes.schemas.campaign import (
     ChatMessage,
@@ -206,23 +206,28 @@ async def campaign_websocket(
             # Receive message from client
             data = await websocket.receive_json()
             message_type = data.get("type")
-            
+
             # Route message based on type
-            if message_type == "chat":
+            # Support both new format (type: 'chat') and old format (type: 'message' with chat_mode)
+            if message_type == "message":
+                # Old party chat format - route based on chat_mode
+                await handle_legacy_message(campaign_uuid, data, user_uuid, display_name, db)
+
+            elif message_type == "chat":
                 await handle_chat(campaign_uuid, data)
-            
+
             elif message_type == "whisper":
                 await handle_whisper(campaign_uuid, data)
-            
+
             elif message_type == "combat_command":
                 await handle_combat_command(campaign_uuid, data, websocket)
-            
+
             elif message_type == "narration":
                 await handle_narration(campaign_uuid, data)
-            
+
             elif message_type == "dice_roll":
                 await handle_dice_roll(campaign_uuid, data)
-            
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
     
@@ -238,6 +243,78 @@ async def campaign_websocket(
 # ============================================================================
 # MESSAGE HANDLERS (Business logic for each message type)
 # ============================================================================
+
+async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, display_name: str, db: Session):
+    """
+    Handle legacy party chat format messages (type: 'message').
+
+    Routes based on chat_mode, whisper_targets, and command detection.
+    This maintains backward compatibility with the old ws-test.html format.
+    Saves all messages to the database for history.
+    """
+    text = data.get("text", "")
+    actor = data.get("actor", display_name)
+    chat_mode = data.get("chat_mode", "ic")
+    whisper_targets = data.get("whisper_targets", [])
+    message_type = "chat"
+    broadcast_type = "chat_ic"
+
+    # Determine message type and broadcast type
+    if text.startswith("/"):
+        # Commands
+        message_type = "system"
+        broadcast_type = "system"
+        broadcast_data = {
+            "type": "system",
+            "text": f"{actor}: {text}",
+            "actor": actor,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    elif whisper_targets and len(whisper_targets) > 0:
+        # Whispers
+        message_type = "chat"
+        chat_mode = "whisper"
+        broadcast_type = "chat_whisper"
+        broadcast_data = {
+            "type": "chat_whisper",
+            "chat_mode": "whisper",
+            "actor": actor,
+            "text": text,
+            "whisper_targets": whisper_targets,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    else:
+        # Regular chat (IC/OOC)
+        broadcast_type = "chat_ooc" if chat_mode == "ooc" else "chat_ic"
+        is_ooc_command = data.get("is_ooc_command", False)
+        broadcast_data = {
+            "type": broadcast_type,
+            "chat_mode": chat_mode,
+            "actor": actor,
+            "text": text,
+            "is_ooc_command": is_ooc_command,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    # Save ALL messages to database
+    try:
+        message_record = Message(
+            campaign_id=str(campaign_id),
+            sender_id=user_id,
+            sender_name=actor,
+            message_type=message_type,
+            mode=chat_mode.upper() if chat_mode else None,  # 'IC', 'OOC', 'WHISPER'
+            content=text
+        )
+        db.add(message_record)
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to save message to database: {e}")
+        db.rollback()
+
+    # Broadcast to all connected clients
+    await manager.broadcast(campaign_id, broadcast_data)
+
 
 async def handle_chat(campaign_id: UUID, data: dict):
     """Handle regular chat message (IC or OOC)."""

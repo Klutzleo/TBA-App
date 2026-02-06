@@ -461,6 +461,7 @@ def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
 def get_campaign_messages(
     campaign_id: str,
     limit: int = 100,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -468,7 +469,8 @@ def get_campaign_messages(
     Get recent message history for a campaign.
 
     Returns messages from all channels in the campaign, sorted by timestamp.
-    Used to restore chat history when a user connects.
+    Supports pagination via limit and offset parameters.
+    Used to restore chat history when a user connects and for "Load More" functionality.
     """
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
 
@@ -485,10 +487,11 @@ def get_campaign_messages(
     if not membership:
         raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
-    # Get all messages for this campaign, sorted by time
+    # Get messages for this campaign, sorted by time, with pagination
     messages = db.query(Message)\
         .filter(Message.campaign_id == campaign_id)\
         .order_by(Message.created_at.asc())\
+        .offset(offset)\
         .limit(limit)\
         .all()
 
@@ -501,8 +504,10 @@ def get_campaign_messages(
                 "sender_id": msg.sender_id,
                 "sender_name": msg.sender_name,
                 "content": msg.content,
-                "message_type": msg.message_type,
-                "mode": msg.mode,
+                "type": msg.message_type,  # Frontend expects 'type'
+                "chat_mode": msg.mode,     # Frontend expects 'chat_mode'
+                "message_type": msg.message_type,  # Keep for backward compatibility
+                "mode": msg.mode,                  # Keep for backward compatibility
                 "timestamp": msg.created_at.isoformat() if msg.created_at else None
             }
             for msg in messages
