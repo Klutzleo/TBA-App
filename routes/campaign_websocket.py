@@ -126,6 +126,17 @@ class CampaignConnectionManager:
             return []
         return [(user_id, display_name) for _, user_id, display_name in self.active_connections[campaign_id]]
 
+    def get_display_name(self, campaign_id: UUID, user_id: UUID) -> str:
+        """Get display name for a specific user in a campaign."""
+        if campaign_id not in self.active_connections:
+            return "Unknown"
+
+        for _, uid, display_name in self.active_connections[campaign_id]:
+            if uid == user_id:
+                return display_name
+
+        return "Unknown"
+
 
 # Global connection manager instance
 manager = CampaignConnectionManager()
@@ -222,7 +233,7 @@ async def campaign_websocket(
                 await handle_legacy_message(campaign_uuid, data, user_uuid, display_name, db)
 
             elif message_type == "chat":
-                await handle_chat(campaign_uuid, data)
+                await handle_chat(campaign_uuid, data, user_uuid)
 
             elif message_type == "whisper":
                 await handle_whisper(campaign_uuid, data)
@@ -324,18 +335,19 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
     await manager.broadcast(campaign_id, broadcast_data)
 
 
-async def handle_chat(campaign_id: UUID, data: dict):
+async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID):
     """Handle regular chat message (IC or OOC)."""
     msg = ChatMessage(**data)
 
-    # NOTE: Display name is already set when the WebSocket connects
-    # (see line 190-199 in campaign_websocket function)
-    # It uses character name for players, username for Story Weavers
+    # Get display name from connection manager
+    # This is the character name (for players) or username (for Story Weavers)
+    # that was looked up when the WebSocket connected
+    display_name = manager.get_display_name(campaign_id, user_id)
 
     # Broadcast to everyone in campaign
     await manager.broadcast(campaign_id, ChatBroadcast(
         mode=msg.mode,
-        sender=msg.sender,  # Already contains character name from connection
+        sender=display_name,  # Use character name from connection manager
         user_id=msg.user_id,
         message=msg.message,
         attachment=msg.attachment
