@@ -2881,10 +2881,40 @@
           return;
         }
 
-        // Then update all references from data.members to just members
-        // For example:
         for (const member of members) {
-          // existing display logic...
+          if (member.character) {
+            // Player with character - show character info
+            const char = member.character;
+            const hpPercent = (char.dp / char.max_dp) * 100;
+            
+            const characterCard = document.createElement('div');
+            characterCard.className = 'character-card';
+            characterCard.innerHTML = `
+              <div class="character-header">
+                <strong>${char.name}</strong>
+              </div>
+              <div class="character-details">
+                <div>Level ${char.level}</div>
+                <div class="hp-bar-container">
+                  <div class="hp-bar" style="width: ${hpPercent}%"></div>
+                  <span class="hp-text">${char.dp}/${char.max_dp} HP</span>
+                </div>
+              </div>
+            `;
+            charactersContainer.appendChild(characterCard);
+            
+          } else {
+            // Story Weaver without character
+            const swCard = document.createElement('div');
+            swCard.className = 'character-card story-weaver-card';
+            swCard.innerHTML = `
+              <div class="character-header">
+                <strong>${member.username}</strong>
+                <span class="badge">Story Weaver</span>
+              </div>
+            `;
+            charactersContainer.appendChild(swCard);
+          }
         }
 
         // Clear loading message
