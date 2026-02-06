@@ -2504,15 +2504,9 @@
 
                   // Route message to correct tab
                   const tab = getMessageTab(messageData);
-                  const container = document.createElement('div');
-                  container.className = 'message-historic';
-                  container.style.opacity = '0.7';
+                  const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
+                  displayTypedMessage(mode, msg.sender_name, msg.content, null, false);
 
-                  const timestamp = new Date(msg.timestamp).toLocaleTimeString();
-                  container.innerHTML = `<span class="timestamp">[${timestamp}]</span> <strong>${msg.sender_name}:</strong> ${msg.content}`;
-
-                  addMessage(container, 'message-card', messageData);
-                }
 
                 // Update offset
                 messagesOffset += data.messages.length;
