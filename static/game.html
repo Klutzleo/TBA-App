@@ -2541,8 +2541,7 @@
 
           // Note: Join notification is now handled by the backend after caching character data
           // The backend will broadcast "{character_name} joined the party" to all clients
-        };
-
+        
         ws.onmessage = (ev) => {
           try {
             const data = JSON.parse(ev.data);
