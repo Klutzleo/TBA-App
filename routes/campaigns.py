@@ -83,7 +83,7 @@ def create_campaign(
 
     # Create campaign with current user as Story Weaver
     campaign = Campaign(
-        id=str(uuid.uuid4()),
+        id=str(uuid4()),
         name=req.name,
         description=req.description,
         join_code=join_code,
