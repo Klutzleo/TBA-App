@@ -40,7 +40,7 @@ class CampaignCreate(BaseModel):
 
 class CampaignResponse(BaseModel):
     """Campaign response (Phase 3)."""
-    id: str
+    id: UUID
     name: str
     description: str
     join_code: str
