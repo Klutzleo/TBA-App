@@ -50,17 +50,17 @@ class CampaignConnectionManager:
     """Manages WebSocket connections for campaign chat rooms."""
     
     def __init__(self):
-        # campaign_id → list of (websocket, user_id, display_name)
-        self.active_connections: Dict[UUID, List[tuple[WebSocket, UUID, str]]] = {}
+        # campaign_id → list of (websocket, user_id, display_name, username)
+        self.active_connections: Dict[UUID, List[tuple[WebSocket, UUID, str, str]]] = {}
     
-    async def connect(self, campaign_id: UUID, websocket: WebSocket, user_id: UUID, display_name: str):
+    async def connect(self, campaign_id: UUID, websocket: WebSocket, user_id: UUID, display_name: str, username: str):
         """Accept WebSocket connection and add to campaign room."""
         await websocket.accept()
-        
+
         if campaign_id not in self.active_connections:
             self.active_connections[campaign_id] = []
-        
-        self.active_connections[campaign_id].append((websocket, user_id, display_name))
+
+        self.active_connections[campaign_id].append((websocket, user_id, display_name, username))
         logger.info(f"User {display_name} ({user_id}) connected to campaign {campaign_id}")
         
         # Broadcast system notification
@@ -75,14 +75,14 @@ class CampaignConnectionManager:
             # Find and remove this connection
             for conn in self.active_connections[campaign_id]:
                 if conn[0] == websocket:
-                    display_name = conn[2]
+                    display_name = conn[2]  # Character name or username
                     self.active_connections[campaign_id].remove(conn)
                     logger.info(f"User {display_name} disconnected from campaign {campaign_id}")
-                    
+
                     # Clean up empty campaign rooms
                     if not self.active_connections[campaign_id]:
                         del self.active_connections[campaign_id]
-                    
+
                     return display_name
         return None
     
@@ -90,15 +90,15 @@ class CampaignConnectionManager:
         """Send message to all connections in a campaign."""
         if campaign_id not in self.active_connections:
             return
-        
+
         disconnected = []
-        for websocket, user_id, display_name in self.active_connections[campaign_id]:
+        for websocket, user_id, display_name, username in self.active_connections[campaign_id]:
             try:
                 await websocket.send_json(message)
             except Exception as e:
                 logger.warning(f"Failed to send to {display_name}: {e}")
-                disconnected.append((websocket, user_id, display_name))
-        
+                disconnected.append((websocket, user_id, display_name, username))
+
         # Clean up dead connections
         for conn in disconnected:
             if conn in self.active_connections[campaign_id]:
@@ -108,8 +108,8 @@ class CampaignConnectionManager:
         """Send message to a specific user in a campaign (for whispers)."""
         if campaign_id not in self.active_connections:
             return False
-        
-        for websocket, user_id, display_name in self.active_connections[campaign_id]:
+
+        for websocket, user_id, display_name, username in self.active_connections[campaign_id]:
             if user_id == target_user_id:
                 try:
                     await websocket.send_json(message)
@@ -117,23 +117,34 @@ class CampaignConnectionManager:
                 except Exception as e:
                     logger.warning(f"Failed to whisper to {display_name}: {e}")
                     return False
-        
+
         return False
     
     def get_connected_users(self, campaign_id: UUID) -> List[tuple[UUID, str]]:
         """Get list of (user_id, display_name) for all connected users."""
         if campaign_id not in self.active_connections:
             return []
-        return [(user_id, display_name) for _, user_id, display_name in self.active_connections[campaign_id]]
+        return [(user_id, display_name) for _, user_id, display_name, _ in self.active_connections[campaign_id]]
 
     def get_display_name(self, campaign_id: UUID, user_id: UUID) -> str:
-        """Get display name for a specific user in a campaign."""
+        """Get display name (character name or username) for a specific user."""
         if campaign_id not in self.active_connections:
             return "Unknown"
 
-        for _, uid, display_name in self.active_connections[campaign_id]:
+        for _, uid, display_name, _ in self.active_connections[campaign_id]:
             if uid == user_id:
                 return display_name
+
+        return "Unknown"
+
+    def get_username(self, campaign_id: UUID, user_id: UUID) -> str:
+        """Get username for a specific user."""
+        if campaign_id not in self.active_connections:
+            return "Unknown"
+
+        for _, uid, _, username in self.active_connections[campaign_id]:
+            if uid == user_id:
+                return username
 
         return "Unknown"
 
@@ -218,7 +229,7 @@ async def campaign_websocket(
     # ===== AUTHENTICATION PASSED - Continue with existing logic =====
     campaign_uuid = campaign_id
 
-    await manager.connect(campaign_uuid, websocket, user_uuid, display_name)
+    await manager.connect(campaign_uuid, websocket, user_uuid, display_name, user.username)
     
     try:
         while True:
@@ -236,7 +247,7 @@ async def campaign_websocket(
                 await handle_chat(campaign_uuid, data, user_uuid)
 
             elif message_type == "whisper":
-                await handle_whisper(campaign_uuid, data)
+                await handle_whisper(campaign_uuid, data, user_uuid)
 
             elif message_type == "combat_command":
                 await handle_combat_command(campaign_uuid, data, websocket)
@@ -339,28 +350,42 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID):
     """Handle regular chat message (IC or OOC)."""
     msg = ChatMessage(**data)
 
-    # Get display name from connection manager
-    # This is the character name (for players) or username (for Story Weavers)
-    # that was looked up when the WebSocket connected
-    display_name = manager.get_display_name(campaign_id, user_id)
+    # Get display name and username from connection manager
+    display_name = manager.get_display_name(campaign_id, user_id)  # Character name or username
+    username = manager.get_username(campaign_id, user_id)
+
+    # Format sender name based on mode
+    if msg.mode.upper() == 'IC':
+        # IC: Just character name (e.g., "Tanion")
+        sender = display_name
+    else:
+        # OOC: Username - "Character name" (e.g., "JGerm - \"Tanion\"")
+        # If display_name == username (Story Weaver with no character), just show username
+        if display_name == username:
+            sender = username
+        else:
+            sender = f'{username} - "{display_name}"'
 
     # Broadcast to everyone in campaign
     await manager.broadcast(campaign_id, ChatBroadcast(
         mode=msg.mode,
-        sender=display_name,  # Use character name from connection manager
+        sender=sender,
         user_id=msg.user_id,
         message=msg.message,
         attachment=msg.attachment
     ).model_dump(mode='json'))
 
 
-async def handle_whisper(campaign_id: UUID, data: dict):
+async def handle_whisper(campaign_id: UUID, data: dict, user_id: UUID):
     """Handle private whisper message."""
     msg = WhisperMessage(**data)
-    
+
+    # Get display name from connection manager
+    display_name = manager.get_display_name(campaign_id, user_id)
+
     # Send to recipient only
     success = await manager.send_to_user(campaign_id, msg.recipient_user_id, WhisperBroadcast(
-        sender=msg.sender,
+        sender=display_name,  # Use character name from connection manager
         message=msg.message
     ).model_dump(mode='json'))
     
