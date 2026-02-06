@@ -67,7 +67,7 @@ class CampaignConnectionManager:
         await self.broadcast(campaign_id, SystemNotification(
             event="player_joined",
             message=f"{display_name} joined the campaign"
-        ).model_dump())
+        ).model_dump(mode='json'))
     
     def disconnect(self, campaign_id: UUID, websocket: WebSocket):
         """Remove WebSocket connection from campaign room."""
@@ -232,7 +232,7 @@ async def campaign_websocket(
             await manager.broadcast(campaign_uuid, SystemNotification(
                 event="player_left",
                 message=f"{display_name} left the campaign"
-            ).model_dump())
+            ).model_dump(mode='json'))
 
 
 # ============================================================================
@@ -250,7 +250,7 @@ async def handle_chat(campaign_id: UUID, data: dict):
         user_id=msg.user_id,
         message=msg.message,
         attachment=msg.attachment
-    ).model_dump())
+    ).model_dump(mode='json'))
 
 
 async def handle_whisper(campaign_id: UUID, data: dict):
@@ -261,7 +261,7 @@ async def handle_whisper(campaign_id: UUID, data: dict):
     success = await manager.send_to_user(campaign_id, msg.recipient_user_id, WhisperBroadcast(
         sender=msg.sender,
         message=msg.message
-    ).model_dump())
+    ).model_dump(mode='json'))
     
     if not success:
         logger.warning(f"Failed to deliver whisper from {msg.sender} to {msg.recipient_user_id}")
@@ -281,7 +281,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
     await manager.broadcast(campaign_id, SystemNotification(
         event="combat_started",
         message=f"Combat command received: {cmd.command} (integration pending)"
-    ).model_dump())
+    ).model_dump(mode='json'))
     
     # TODO: Call internal combat resolution and broadcast result
 
@@ -294,7 +294,7 @@ async def handle_narration(campaign_id: UUID, data: dict):
     await manager.broadcast(campaign_id, NarrationBroadcast(
         text=narration.text,
         attachment=narration.attachment
-    ).model_dump())
+    ).model_dump(mode='json'))
 
 
 async def handle_dice_roll(campaign_id: UUID, data: dict):
@@ -311,7 +311,7 @@ async def handle_dice_roll(campaign_id: UUID, data: dict):
         result=result,
         breakdown=breakdown,
         reason=roll_req.reason
-    ).model_dump())
+    ).model_dump(mode='json'))
 
 
 # ============================================================================
@@ -365,7 +365,7 @@ async def broadcast_combat_result(campaign_id: UUID, combat_result: dict):
         narrative=combat_result["narrative"],
         individual_rolls=combat_result["individual_rolls"],
         outcome=combat_result["outcome"]
-    ).model_dump())
+    ).model_dump(mode='json'))
 
 
 async def broadcast_initiative(campaign_id: UUID, initiative_result: dict):
@@ -376,5 +376,5 @@ async def broadcast_initiative(campaign_id: UUID, initiative_result: dict):
     """
     await manager.broadcast(campaign_id, InitiativeResultBroadcast(
         order=initiative_result["initiative_order"],
-        rolls=[r.model_dump() for r in initiative_result["rolls"]]
-    ).model_dump())
+        rolls=[r.model_dump(mode='json') for r in initiative_result["rolls"]]
+    ).model_dump(mode='json'))

@@ -420,7 +420,7 @@ async def get_campaign_members(
                 "id": str(character.id),
                 "name": character.name,
                 "level": character.level,
-                "current_dp": character.current_dp,
+                "dp": character.dp,
                 "max_dp": character.max_dp,
                 "edge": character.edge,
                 "bap": character.bap,
@@ -461,6 +461,7 @@ def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
 def get_campaign_messages(
     campaign_id: str,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -473,6 +474,16 @@ def get_campaign_messages(
 
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Verify user is a member of this campaign
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
     # Get all messages for this campaign, sorted by time
     messages = db.query(Message)\
