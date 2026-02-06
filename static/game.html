@@ -2871,6 +2871,7 @@
         }
 
         const data = await response.json();
+        console.log('🔍 MEMBERS API RESPONSE:', data);
 
         if (!data.members || data.members.length === 0) {
           charactersContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">No characters in this campaign yet.</div>';
