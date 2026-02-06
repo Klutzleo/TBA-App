@@ -12,6 +12,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from uuid import UUID
 
 from backend.db import get_db
 from backend.models import User, PasswordResetToken
@@ -62,14 +63,14 @@ class LoginResponse(BaseModel):
     """Login/registration response with JWT token."""
     access_token: str
     token_type: str = "bearer"
-    user_id: str
+    user_id: UUID
     username: str
     email: str
 
 
 class UserProfileResponse(BaseModel):
     """User profile response."""
-    user_id: str
+    user_id: UUID
     username: str
     email: str
     created_at: datetime

@@ -1,5 +1,6 @@
 from typing import Dict, Optional, List, Any
 from pydantic import BaseModel, Field, ConfigDict
+from uuid import UUID
 
 
 # ============================================================================
@@ -101,7 +102,7 @@ class AttackRequest(BaseModel):
     technique_name: str = Field(description="e.g., 'Slash', 'Fireball', 'Persuade'")
     stat_type: str = Field(description="Stat type: 'PP' | 'IP' | 'SP'")
     bap_triggered: bool = Field(default=False, description="Trigger BAP bonus?")
-    party_id: Optional[str] = Field(default=None, description="If provided, broadcast combat event to this party chat")
+    party_id: Optional[UUID] = Field(default=None, description="If provided, broadcast combat event to this party chat")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {

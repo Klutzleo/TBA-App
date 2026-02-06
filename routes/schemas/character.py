@@ -5,6 +5,7 @@ Pydantic schemas for Character and Party management (TBA v1.5).
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List, Union
 from datetime import datetime
+from uuid import UUID
 
 
 class CharacterStats(BaseModel):
@@ -39,7 +40,7 @@ class CharacterCreate(BaseModel):
     """Request to create a new character."""
     name: str = Field(..., min_length=1, max_length=100)
     owner_id: str = Field(..., description="User ID or API key identifier")
-    campaign_id: Optional[str] = Field(None, description="Optional campaign ID to link this character to")
+    campaign_id: Optional[UUID] = Field(None, description="Optional campaign ID to link this character to")
     level: int = Field(default=1, ge=1, le=10, description="Starting level (1-10)")
     pp: int = Field(..., ge=1, le=3)
     ip: int = Field(..., ge=1, le=3)
@@ -89,7 +90,7 @@ class CharacterUpdate(BaseModel):
 
 class CharacterResponse(BaseModel):
     """Character response (from DB)."""
-    id: str
+    id: UUID
     name: str
     owner_id: str
     level: int
@@ -127,11 +128,11 @@ class PartyCreate(BaseModel):
 
 class PartyResponse(BaseModel):
     """Party response (from DB)."""
-    id: str
+    id: UUID
     name: str
     description: Optional[str] = None
-    story_weaver_id: str
-    created_by_id: str
+    story_weaver_id: UUID
+    created_by_id: UUID
     session_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -141,7 +142,7 @@ class PartyResponse(BaseModel):
 
 class PartyMemberAdd(BaseModel):
     """Request to add a character to a party."""
-    character_id: str = Field(..., description="Character UUID to add")
+    character_id: UUID = Field(..., description="Character UUID to add")
 
 
 class PartyMemberResponse(BaseModel):
@@ -204,8 +205,8 @@ class AbilityCreate(BaseModel):
 
 class AbilityResponse(BaseModel):
     """Ability response from database."""
-    id: str
-    character_id: str
+    id: UUID
+    character_id: UUID
     slot_number: int
     ability_type: str
     display_name: str
@@ -228,7 +229,7 @@ class FullCharacterCreate(BaseModel):
     the campaign's Story and OOC parties.
     """
     # Campaign association
-    campaign_id: str = Field(..., description="Campaign ID to join")
+    campaign_id: UUID = Field(..., description="Campaign ID to join")
 
     # Character basics
     name: str = Field(..., min_length=1, max_length=100)
@@ -297,7 +298,7 @@ class FullCharacterCreate(BaseModel):
 
 class FullCharacterResponse(BaseModel):
     """Full character response with abilities and party info."""
-    id: str
+    id: UUID
     name: str
     owner_id: str
     level: int
@@ -325,7 +326,7 @@ class FullCharacterResponse(BaseModel):
     abilities: list[AbilityResponse] = []
 
     # Campaign info
-    campaign_id: Optional[str] = None
+    campaign_id: Optional[UUID] = None
     party_ids: list[str] = []  # IDs of parties the character was added to
 
     created_at: datetime
