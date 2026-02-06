@@ -2881,6 +2881,9 @@
           return;
         }
 
+        // Clear loading message
+        charactersContainer.innerHTML = '';
+
         for (const member of members) {
           if (member.character) {
             // Player with character - show character info
@@ -2917,63 +2920,7 @@
           }
         }
 
-        // Clear loading message
-        charactersContainer.innerHTML = '';
-
-        // Create character cards
-        data.members.forEach(member => {
-          if (!member.character) return; // Skip if no character
-
-          const char = member.character;
-          const card = document.createElement('div');
-          card.className = 'character-card';
-
-          // Determine DP color based on percentage
-          let dpClass = 'success';
-          if (char.current_dp !== undefined && char.max_dp) {
-            const dpPercent = (char.current_dp / char.max_dp) * 100;
-            if (dpPercent <= 25) dpClass = 'danger';
-            else if (dpPercent <= 50) dpClass = 'warning';
-          }
-
-          card.innerHTML = `
-            <div class="char-header">
-              <div class="char-name">${char.name}</div>
-              <div class="char-level">Lv ${char.level || 1}</div>
-            </div>
-            <div class="char-stats">
-              <div class="stat-item">
-                <div class="stat-label">DP</div>
-                <div class="stat-value ${dpClass}">${char.current_dp || 0}/${char.max_dp || 0}</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-label">Edge</div>
-                <div class="stat-value">${char.edge || 0}</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-label">BAP</div>
-                <div class="stat-value">${char.bap || 0}</div>
-              </div>
-            </div>
-            <div class="char-resources">
-              <div class="resource-item">
-                <div class="resource-label">PP</div>
-                <div class="resource-value">${char.pp || 0}</div>
-              </div>
-              <div class="resource-item">
-                <div class="resource-label">IP</div>
-                <div class="resource-value">${char.ip || 0}</div>
-              </div>
-              <div class="resource-item">
-                <div class="resource-label">SP</div>
-                <div class="resource-value">${char.sp || 0}</div>
-              </div>
-            </div>
-          `;
-
-          charactersContainer.appendChild(card);
-        });
-
+        
       } catch (error) {
         console.error('Error loading characters:', error);
         charactersContainer.innerHTML = '<div style="color: var(--accent-danger); font-size: 13px; text-align: center; padding: 20px;">Failed to load characters</div>';
