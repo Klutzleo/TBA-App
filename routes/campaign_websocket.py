@@ -320,10 +320,31 @@ async def handle_chat(campaign_id: UUID, data: dict):
     """Handle regular chat message (IC or OOC)."""
     msg = ChatMessage(**data)
     
+    # Look up character name from database
+    character_name = None
+    async with get_db_session() as db:
+        result = await db.execute(
+            text("""
+                SELECT c.name 
+                FROM campaign_memberships cm
+                JOIN characters c ON cm.character_id = c.id
+                WHERE cm.campaign_id = :campaign_id 
+                  AND cm.user_id = :user_id
+                  AND cm.status = 'active'
+            """),
+            {"campaign_id": campaign_id, "user_id": msg.user_id}
+        )
+        row = result.first()
+        if row:
+            character_name = row[0]
+    
+    # Use character name if available, otherwise username
+    display_name = character_name or msg.sender
+    
     # Broadcast to everyone in campaign
     await manager.broadcast(campaign_id, ChatBroadcast(
         mode=msg.mode,
-        sender=msg.sender,
+        sender=display_name,  # ← Now sends character name!
         user_id=msg.user_id,
         message=msg.message,
         attachment=msg.attachment
