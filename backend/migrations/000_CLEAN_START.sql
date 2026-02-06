@@ -236,6 +236,22 @@ CREATE TABLE IF NOT EXISTS campaign_memberships (
 CREATE INDEX IF NOT EXISTS idx_campaign_memberships_campaign_id ON campaign_memberships(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_memberships_user_id ON campaign_memberships(user_id);
 
+-- Roll logs for audit/replay
+CREATE TABLE IF NOT EXISTS roll_logs (
+    id SERIAL PRIMARY KEY,
+    actor VARCHAR(255),
+    target VARCHAR(255),
+    roll_type VARCHAR(50),
+    roll_mode VARCHAR(50),
+    triggered_by VARCHAR(255),
+    result JSON,
+    modifiers JSON,
+    session_id VARCHAR(36),
+    encounter_id VARCHAR(36)
+);
+CREATE INDEX IF NOT EXISTS idx_roll_logs_session_id ON roll_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_roll_logs_encounter_id ON roll_logs(encounter_id);
+
 -- =====================================================================
 -- 7. Create view
 -- =====================================================================
