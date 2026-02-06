@@ -337,6 +337,8 @@ async def handle_chat(campaign_id: UUID, data: dict):
         row = result.first()
         if row:
             character_name = row[0]
+
+    print(f"🔍 User {msg.user_id} - Character name: {character_name}, Username: {msg.sender}")
     
     # Use character name if available, otherwise username
     display_name = character_name or msg.sender
