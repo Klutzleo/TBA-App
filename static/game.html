@@ -1924,7 +1924,12 @@
     function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false) {
       const container = document.createElement('div');
 
-      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const timestamp = new Date().toLocaleString([], { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
       const timestampSpan = document.createElement('span');
       timestampSpan.className = 'timestamp';
       timestampSpan.textContent = `[${timestamp}] `;
