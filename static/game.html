@@ -1924,12 +1924,21 @@
     function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false) {
       const container = document.createElement('div');
 
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const timestampSpan = document.createElement('span');
+      timestampSpan.className = 'timestamp';
+      timestampSpan.textContent = `[${timestamp}] `;
+      timestampSpan.style.color = 'var(--text-muted)';
+      timestampSpan.style.fontSize = '0.85em';
+      timestampSpan.style.marginRight = '8px';
+
       if (mode === 'ic') {
         container.className = 'message-ic';
 
         const label = document.createElement('div');
         label.className = 'mode-label';
         label.textContent = '🎭 In Character';
+        container.appendChild(timestampSpan);
         container.appendChild(label);
 
         const actorSpan = document.createElement('span');
@@ -1948,6 +1957,7 @@
         const label = document.createElement('div');
         label.className = 'mode-label';
         label.textContent = '💬 Out of Character';
+        container.appendChild(timestampSpan);
         container.appendChild(label);
 
         const content = document.createElement('div');
@@ -1968,6 +1978,7 @@
         const label = document.createElement('div');
         label.className = 'mode-label';
         label.textContent = '🤫 Whisper';
+        container.appendChild(timestampSpan);
         container.appendChild(label);
 
         const actorSpan = document.createElement('span');
