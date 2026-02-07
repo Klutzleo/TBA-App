@@ -2878,6 +2878,16 @@
         // Clear loading message
         charactersContainer.innerHTML = '';
 
+        // Find current user in members and set currentActor to their character name
+        const currentMember = members.find(m => m.user_id === currentUser.id);
+        if (currentMember && currentMember.character) {
+          currentActor = currentMember.character.name;
+          console.log('✅ Set currentActor to character name:', currentActor);
+        } else {
+          currentActor = currentUser.username;
+          console.log('✅ No character found, using username:', currentActor);
+        }
+
         for (const member of members) {
           if (member.character) {
             // Player with character - show character info
