@@ -221,11 +221,6 @@ async def campaign_websocket(
 
         display_name = character.name if character else user.username
 
-        # Debug logging
-        logger.info(f"🔍 User {user.username} ({user.id}) connecting to campaign {campaign_id}")
-        logger.info(f"🔍 Character found: {character.name if character else 'None'}")
-        logger.info(f"🔍 Display name will be: {display_name}")
-
     except Exception as e:
         logger.error(f"WebSocket authentication error: {e}")
         await websocket.close(code=1011, reason="Authentication failed")
@@ -370,9 +365,6 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID):
             sender = username
         else:
             sender = f'{username} - "{display_name}"'
-
-    # Debug logging
-    logger.info(f"💬 Chat message: mode={msg.mode}, display_name={display_name}, username={username}, sender={sender}")
 
     # Broadcast to everyone in campaign
     await manager.broadcast(campaign_id, ChatBroadcast(
