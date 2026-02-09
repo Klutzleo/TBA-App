@@ -22,7 +22,7 @@ import re
 import random
 
 from backend.db import get_db
-from backend.models import Party, Character, User, CampaignMembership, Message
+from backend.models import Party, Character, User, CampaignMembership, CampaignMessage
 from backend.auth.jwt import decode_access_token
 from routes.schemas.campaign import (
     ChatMessage,
