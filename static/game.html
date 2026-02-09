@@ -2509,20 +2509,39 @@
                 const scrollHeightBefore = chatMessagesEl.scrollHeight;
 
                 // Display each message in the correct tab
-                for (const msg of data.messages) {
-                  const messageData = {
-                    type: msg.type || 'chat',
-                    actor: msg.sender_name,
-                    text: msg.content,
-                    chat_mode: msg.chat_mode,
-                    timestamp: msg.timestamp
-                  };
+        for (const msg of data.messages) {
+          // ✅ Handle dice rolls from database
+          if (msg.message_type === 'dice_roll_result') {
+            const container = document.createElement('div');
+            container.className = 'msg dice_roll';
 
-                  // Route message to correct tab
-                  const tab = getMessageTab(messageData);
-                  const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
-                  displayTypedMessage(mode, msg.sender_name, msg.content, null, false);
-                }
+            const header = document.createElement('div');
+            header.textContent = `🎲 ${msg.sender_name}: ${msg.content}`;
+            container.appendChild(header);
+
+            // Note: Database doesn't store breakdown, just show summary
+            const tabIndicator = document.createElement('span');
+            tabIndicator.className = 'message-tab-indicator';
+            tabIndicator.textContent = 'STORY';
+            container.appendChild(tabIndicator);
+
+            storeAndDisplayMessage(container, { type: 'dice_roll_result', actor: msg.sender_name, ...msg });
+          }
+          // ✅ Handle regular chat messages
+          else {
+            const messageData = {
+              type: msg.type || 'chat',
+              actor: msg.sender_name,
+              text: msg.content,
+              chat_mode: msg.chat_mode,
+              timestamp: msg.timestamp
+            };
+
+            const tab = getMessageTab(messageData);
+            const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
+            displayTypedMessage(mode, msg.sender_name, msg.content, null, false);
+          }
+        }
 
                 // Update offset
                 messagesOffset += data.messages.length;
