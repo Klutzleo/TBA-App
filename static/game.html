@@ -2620,7 +2620,7 @@
               else {
                 displaySystemMessage(text);
               }
-            } else if (data.type === 'dice_roll') {
+            } else if (data.type === 'dice_roll_result') {  // ✅ Changed from 'dice_roll'
               // Render dice expression, equation text, and breakdown
               const container = document.createElement('div');
               container.className = 'msg dice_roll';
@@ -2659,6 +2659,8 @@
               tabIndicator.className = 'message-tab-indicator';
               tabIndicator.textContent = 'STORY';
               container.appendChild(tabIndicator);
+
+              storeAndDisplayMessage(container, data);
 
               storeAndDisplayMessage(container, data);
             } else if (data.type === 'stat_roll') {
