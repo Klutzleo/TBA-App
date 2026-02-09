@@ -2456,6 +2456,138 @@
       storeAndDisplayMessage(container, { type: 'spell_cast', ...data });
     }
 
+    // === Message History Loading ===
+    // Function to load message history (initial or more)
+    async function loadMessageHistory(append = false) {
+      try {
+        const historyUrl = `https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/messages?limit=${messagesLimit}&offset=${messagesOffset}`;
+        const response = await fetch(historyUrl, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.messages && data.messages.length > 0) {
+            if (!append) {
+              addMessage(`📜 Loading ${data.messages.length} message(s) from history...`, 'message-card message-system');
+            }
+
+            // Get scroll position before adding messages
+            const shouldScrollToBottom = !append;
+            const scrollHeightBefore = chatMessagesEl.scrollHeight;
+
+            // Reverse messages so they display in chronological order (API returns newest first)
+            const messagesInOrder = data.messages.reverse();
+
+            // Display each message in the correct tab
+            for (const msg of messagesInOrder) {
+              // ✅ Handle dice rolls from database
+              if (msg.message_type === 'dice_roll_result') {
+                console.log('🎲 Loading dice roll from history:', msg);
+                console.log('  extra_data:', msg.extra_data);
+
+                const container = document.createElement('div');
+                container.className = 'msg dice_roll';
+
+                // Format timestamp from database
+                const msgTimestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : '';
+                const timestampStr = msgTimestamp ? `[${msgTimestamp}] ` : '';
+
+                const header = document.createElement('div');
+                const timestampSpan = document.createElement('span');
+                timestampSpan.style.color = 'var(--text-muted)';
+                timestampSpan.style.fontSize = '0.85em';
+                timestampSpan.style.marginRight = '8px';
+                timestampSpan.textContent = timestampStr;
+
+                const messageText = document.createTextNode(`🎲 ${msg.sender_name}: ${msg.content}`);
+                header.appendChild(timestampSpan);
+                header.appendChild(messageText);
+
+                // ✅ Check if extra_data exists with breakdown
+                if (msg.extra_data && msg.extra_data.breakdown) {
+                  console.log('  ✅ Found breakdown:', msg.extra_data.breakdown);
+                  const bd = document.createElement('div');
+                  bd.style.fontFamily = 'monospace';
+                  bd.style.fontSize = '12px';
+                  bd.style.marginLeft = '16px';
+                  bd.style.display = isSW() ? 'block' : 'none';
+                  bd.textContent = `Rolls: ${msg.extra_data.breakdown.join(' + ')} → Total ${msg.extra_data.total}`;
+
+                  const toggle = document.createElement('a');
+                  toggle.href = '#';
+                  toggle.style.fontSize = '12px';
+                  toggle.style.marginLeft = '8px';
+                  toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+                  toggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const showing = bd.style.display !== 'none';
+                    bd.style.display = showing ? 'none' : 'block';
+                    toggle.textContent = showing ? 'Show details' : 'Hide details';
+                  });
+
+                  header.appendChild(toggle);
+                  container.appendChild(header);
+                  container.appendChild(bd);
+                } else {
+                  console.log('  ⚠️ No extra_data.breakdown found for this roll');
+                  container.appendChild(header);
+                }
+
+                const tabIndicator = document.createElement('span');
+                tabIndicator.className = 'message-tab-indicator';
+                tabIndicator.textContent = 'STORY';
+                container.appendChild(tabIndicator);
+
+                storeAndDisplayMessage(container, { type: 'dice_roll_result', actor: msg.sender_name, ...msg });
+              }
+              // ✅ Handle regular chat messages
+              else {
+                const messageData = {
+                  type: msg.type || 'chat',
+                  actor: msg.sender_name,
+                  text: msg.content,
+                  chat_mode: msg.chat_mode,
+                  timestamp: msg.timestamp
+                };
+
+                const tab = getMessageTab(messageData);
+                const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
+                displayTypedMessage(mode, msg.sender_name, msg.content, null, false);
+              }
+            }
+
+            // Update offset
+            messagesOffset += data.messages.length;
+
+            // Show "Load More" button if we got exactly messagesLimit messages (might be more)
+            if (data.messages.length === messagesLimit) {
+              loadMoreBtn.style.display = 'block';
+            } else {
+              loadMoreBtn.style.display = 'none'; // No more messages
+            }
+
+            // Maintain scroll position when loading older messages
+            if (append) {
+              const scrollHeightAfter = chatMessagesEl.scrollHeight;
+              chatMessagesEl.scrollTop = scrollHeightAfter - scrollHeightBefore;
+            }
+          } else {
+            // No messages found
+            loadMoreBtn.style.display = 'none';
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load message history:', err);
+      }
+    }
+
     // === WebSocket Connection ===
     function buildWSUrl(campaignId, token) {
       const baseUrl = 'https://tba-app-production.up.railway.app';
@@ -2495,140 +2627,9 @@
           await loadMessageHistory();
         };
 
-        // Function to load message history (initial or more)
-        async function loadMessageHistory(append = false) {
-          try {
-            const historyUrl = `https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/messages?limit=${messagesLimit}&offset=${messagesOffset}`;
-            const response = await fetch(historyUrl, {
-              headers: {
-                'Authorization': `Bearer ${authToken}`
-              }
-            });
-            if (response.ok) {
-              const data = await response.json();
-              if (data.messages && data.messages.length > 0) {
-                if (!append) {
-                  addMessage(`📜 Loading ${data.messages.length} message(s) from history...`, 'message-card message-system');
-                }
+        // Note: Join notification is now handled by the backend after caching character data
+        // The backend will broadcast "{character_name} joined the party" to all clients
 
-                // Get scroll position before adding messages
-                const shouldScrollToBottom = !append;
-                const scrollHeightBefore = chatMessagesEl.scrollHeight;
-
-                // Reverse messages so they display in chronological order (API returns newest first)
-                const messagesInOrder = data.messages.reverse();
-
-                // Display each message in the correct tab
-        for (const msg of messagesInOrder) {
-          // ✅ Handle dice rolls from database
-          if (msg.message_type === 'dice_roll_result') {
-            console.log('🎲 Loading dice roll from history:', msg);
-            console.log('  extra_data:', msg.extra_data);
-
-            const container = document.createElement('div');
-            container.className = 'msg dice_roll';
-
-            // Format timestamp from database
-            const msgTimestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString([], {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            }) : '';
-            const timestampStr = msgTimestamp ? `[${msgTimestamp}] ` : '';
-
-            const header = document.createElement('div');
-            const timestampSpan = document.createElement('span');
-            timestampSpan.style.color = 'var(--text-muted)';
-            timestampSpan.style.fontSize = '0.85em';
-            timestampSpan.style.marginRight = '8px';
-            timestampSpan.textContent = timestampStr;
-
-            const messageText = document.createTextNode(`🎲 ${msg.sender_name}: ${msg.content}`);
-            header.appendChild(timestampSpan);
-            header.appendChild(messageText);
-
-            // ✅ Check if extra_data exists with breakdown
-            if (msg.extra_data && msg.extra_data.breakdown) {
-              console.log('  ✅ Found breakdown:', msg.extra_data.breakdown);
-              const bd = document.createElement('div');
-              bd.style.fontFamily = 'monospace';
-              bd.style.fontSize = '12px';
-              bd.style.marginLeft = '16px';
-              bd.style.display = isSW() ? 'block' : 'none';
-              bd.textContent = `Rolls: ${msg.extra_data.breakdown.join(' + ')} → Total ${msg.extra_data.total}`;
-
-              const toggle = document.createElement('a');
-              toggle.href = '#';
-              toggle.style.fontSize = '12px';
-              toggle.style.marginLeft = '8px';
-              toggle.textContent = isSW() ? 'Hide details' : 'Show details';
-              toggle.addEventListener('click', (e) => {
-                e.preventDefault();
-                const showing = bd.style.display !== 'none';
-                bd.style.display = showing ? 'none' : 'block';
-                toggle.textContent = showing ? 'Show details' : 'Hide details';
-              });
-
-              header.appendChild(toggle);
-              container.appendChild(header);
-              container.appendChild(bd);
-            } else {
-              console.log('  ⚠️ No extra_data.breakdown found for this roll');
-              container.appendChild(header);
-            }
-
-            const tabIndicator = document.createElement('span');
-            tabIndicator.className = 'message-tab-indicator';
-            tabIndicator.textContent = 'STORY';
-            container.appendChild(tabIndicator);
-
-            storeAndDisplayMessage(container, { type: 'dice_roll_result', actor: msg.sender_name, ...msg });
-          }
-          // ✅ Handle regular chat messages
-          else {
-            const messageData = {
-              type: msg.type || 'chat',
-              actor: msg.sender_name,
-              text: msg.content,
-              chat_mode: msg.chat_mode,
-              timestamp: msg.timestamp
-            };
-
-            const tab = getMessageTab(messageData);
-            const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
-            displayTypedMessage(mode, msg.sender_name, msg.content, null, false);
-          }
-        }
-
-                // Update offset
-                messagesOffset += data.messages.length;
-
-                // Show "Load More" button if we got exactly messagesLimit messages (might be more)
-                if (data.messages.length === messagesLimit) {
-                  loadMoreBtn.style.display = 'block';
-                } else {
-                  loadMoreBtn.style.display = 'none'; // No more messages
-                }
-
-                // Maintain scroll position when loading older messages
-                if (append) {
-                  const scrollHeightAfter = chatMessagesEl.scrollHeight;
-                  chatMessagesEl.scrollTop = scrollHeightAfter - scrollHeightBefore;
-                }
-              } else {
-                // No messages found
-                loadMoreBtn.style.display = 'none';
-              }
-            }
-          } catch (err) {
-            console.warn('Failed to load message history:', err);
-          }
-        }
-
-          // Note: Join notification is now handled by the backend after caching character data
-          // The backend will broadcast "{character_name} joined the party" to all clients
-        
         ws.onmessage = (ev) => {
           try {
             const data = JSON.parse(ev.data);
