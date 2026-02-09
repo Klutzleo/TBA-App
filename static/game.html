@@ -2512,6 +2512,9 @@
         for (const msg of data.messages) {
           // ✅ Handle dice rolls from database
           if (msg.message_type === 'dice_roll_result') {
+            console.log('🎲 Loading dice roll from history:', msg);
+            console.log('  extra_data:', msg.extra_data);
+
             const container = document.createElement('div');
             container.className = 'msg dice_roll';
 
@@ -2520,6 +2523,7 @@
 
             // ✅ Check if extra_data exists with breakdown
             if (msg.extra_data && msg.extra_data.breakdown) {
+              console.log('  ✅ Found breakdown:', msg.extra_data.breakdown);
               const bd = document.createElement('div');
               bd.style.fontFamily = 'monospace';
               bd.style.fontSize = '12px';
@@ -2543,6 +2547,7 @@
               container.appendChild(header);
               container.appendChild(bd);
             } else {
+              console.log('  ⚠️ No extra_data.breakdown found for this roll');
               container.appendChild(header);
             }
 
