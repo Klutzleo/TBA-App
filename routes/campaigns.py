@@ -508,6 +508,7 @@ def get_campaign_messages(
                 "chat_mode": msg.mode,     # Frontend expects 'chat_mode'
                 "message_type": msg.message_type,  # Keep for backward compatibility
                 "mode": msg.mode,                  # Keep for backward compatibility
+                "metadata": msg.metadata,          # Include metadata (dice roll breakdowns, etc.)
                 "timestamp": msg.created_at.isoformat() if msg.created_at else None
             }
             for msg in messages
