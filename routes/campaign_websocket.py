@@ -577,18 +577,18 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID):
     # Get display name from connection manager
     display_name = manager.get_display_name(campaign_id, user_id)
     
-    # Extract dice notation from data (don't use DiceRollRequest schema)
+    # Extract dice notation from data
     dice_notation = data.get("dice", "1d6")
     reason = data.get("reason", "")
     
     # Parse dice notation (e.g., "3d6+2")
-    result, breakdown = roll_dice(dice_notation)
+    total, breakdown = roll_dice(dice_notation)  # ✅ Changed 'result' to 'total'
     
     # Broadcast result to everyone
     await manager.broadcast(campaign_id, DiceRollBroadcast(
-        roller=display_name,  # Character name from WebSocket
+        roller=display_name,
         dice=dice_notation,
-        result=result,
+        result=total,          # ✅ Now correctly using 'total'
         breakdown=breakdown,
         reason=reason
     ).model_dump(mode='json'))
