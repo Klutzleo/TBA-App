@@ -2786,8 +2786,35 @@
         if (encId) payload.encounter_id = encId;
 
         ws.send(JSON.stringify(payload));
+      } else if (text.startsWith('/attack')) {
+        // Combat command - send to combat handler
+        const payload = { 
+          type: 'combat_command', 
+          command: text 
+        };
+        ws.send(JSON.stringify(payload));
+
+      } else if (text.startsWith('/cast') || text.startsWith('/technique')) {
+        // Magic/technique commands (future combat commands)
+        const payload = { 
+          type: 'combat_command', 
+          command: text 
+        };
+        ws.send(JSON.stringify(payload));
+
+      } else if (text.startsWith('/roll')) {
+        // Dice roll command
+        const diceNotation = text.replace('/roll ', '').trim();
+        const payload = { 
+          type: 'dice_roll',
+          dice: diceNotation,
+          roller: actor,
+          reason: ''  // Could add reason field later
+        };
+        ws.send(JSON.stringify(payload));
+
       } else if (text.startsWith('/')) {
-        // Command (like /roll, /attack) - always goes to Story tab
+        // Other commands - send as legacy message (for backwards compatibility)
         const payload = { type: 'message', actor, text };
 
         // Use quick context/encounter if provided
