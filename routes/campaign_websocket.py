@@ -605,7 +605,7 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
         reason=reason
     )
     
-    # ✅ PERSIST TO DATABASE with metadata
+    # ✅ PERSIST TO DATABASE with extra_data
     message_record = Message(
         campaign_id=str(campaign_id),
         party_id=None,  # Dice rolls visible to all tabs for now
@@ -613,7 +613,7 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
         sender_name=display_name,
         content=f"{result_text} ({dice_notation})",  # Include dice notation in content
         message_type="dice_roll_result",
-        metadata={
+        extra_data={
             "breakdown": breakdown,  # [3, 5, 2]
             "dice_notation": dice_notation,  # "3d6"
             "total": total,  # 10

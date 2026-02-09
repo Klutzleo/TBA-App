@@ -535,7 +535,7 @@ class Message(Base):
     mode = Column(String, nullable=True)  # 'IC' (in-character) or 'OOC' (out-of-character)
     content = Column(Text, nullable=False)  # Message body
     attachment_url = Column(String, nullable=True)  # Optional image/file URL
-    metadata = Column(JSON, nullable=True)  # Structured data (e.g., dice roll breakdown: {"breakdown": [3, 5, 2]})
+    extra_data = Column(JSON, nullable=True)  # Structured data (e.g., dice roll breakdown: {"breakdown": [3, 5, 2]})
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
