@@ -2315,10 +2315,17 @@
     function renderDiceRoll(data, icon = '🎲') {
       const container = document.createElement('div');
 
+      // Format timestamp
+      const timestamp = new Date().toLocaleString([], {  month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
       const header = document.createElement('div');
       header.className = 'message-header';
       const diceExpr = data.dice ? ` (${data.dice})` : '';
-      header.innerHTML = `<span class="icon">${icon}</span><span>${data.actor}${diceExpr}: ${data.text}</span>`;
+      header.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85em; margin-right: 8px;">[${timestamp}]</span><span class="icon">${icon}</span><span>${data.actor}${diceExpr}: ${data.text}</span>`;
 
       if (Array.isArray(data.breakdown)) {
         const bd = document.createElement('div');
@@ -2508,8 +2515,11 @@
                 const shouldScrollToBottom = !append;
                 const scrollHeightBefore = chatMessagesEl.scrollHeight;
 
+                // Reverse messages so they display in chronological order (API returns newest first)
+                const messagesInOrder = data.messages.reverse();
+
                 // Display each message in the correct tab
-        for (const msg of data.messages) {
+        for (const msg of messagesInOrder) {
           // ✅ Handle dice rolls from database
           if (msg.message_type === 'dice_roll_result') {
             console.log('🎲 Loading dice roll from history:', msg);
@@ -2518,8 +2528,25 @@
             const container = document.createElement('div');
             container.className = 'msg dice_roll';
 
+            // Format timestamp from database
+            const msgTimestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString([], {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : '';
+            const timestampStr = msgTimestamp ? `[${msgTimestamp}] ` : '';
+
             const header = document.createElement('div');
-            header.textContent = `🎲 ${msg.sender_name}: ${msg.content}`;
+            const timestampSpan = document.createElement('span');
+            timestampSpan.style.color = 'var(--text-muted)';
+            timestampSpan.style.fontSize = '0.85em';
+            timestampSpan.style.marginRight = '8px';
+            timestampSpan.textContent = timestampStr;
+
+            const messageText = document.createTextNode(`🎲 ${msg.sender_name}: ${msg.content}`);
+            header.appendChild(timestampSpan);
+            header.appendChild(messageText);
 
             // ✅ Check if extra_data exists with breakdown
             if (msg.extra_data && msg.extra_data.breakdown) {

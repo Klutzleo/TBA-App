@@ -487,10 +487,10 @@ def get_campaign_messages(
     if not membership:
         raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
-    # Get messages for this campaign, sorted by time, with pagination
+    # Get messages for this campaign, sorted by time (newest first), with pagination
     messages = db.query(Message)\
         .filter(Message.campaign_id == campaign_id)\
-        .order_by(Message.created_at.asc())\
+        .order_by(Message.created_at.desc())\
         .offset(offset)\
         .limit(limit)\
         .all()
