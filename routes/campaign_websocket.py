@@ -250,7 +250,7 @@ async def campaign_websocket(
                 await handle_whisper(campaign_uuid, data, user_uuid)
 
             elif message_type == "combat_command":
-                await handle_combat_command(campaign_uuid, data, websocket)
+                await handle_combat_command(campaign_uuid, data, websocket, user_uuid, db)
 
             elif message_type == "narration":
                 await handle_narration(campaign_uuid, data)
@@ -393,23 +393,171 @@ async def handle_whisper(campaign_id: UUID, data: dict, user_id: UUID):
         logger.warning(f"Failed to deliver whisper from {msg.sender} to {msg.recipient_user_id}")
 
 
-async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSocket):
+async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSocket, user_id: UUID, db: Session):
     """
-    Handle combat command (/attack, /cast, etc.).
+    Handle combat command (/attack @Target).
     
-    This triggers the actual combat resolution via internal HTTP call.
-    Result is broadcast to all players.
+    Parses command, looks up characters, resolves combat, updates DB, broadcasts result.
     """
-    # This is a placeholder—we'll integrate with combat_fastapi.py endpoints
-    # For now, just broadcast that a command was received
-    cmd = CombatCommand(**data)
+    request_id = "websocket"  # Could pass from main handler if you add request tracking
     
-    await manager.broadcast(campaign_id, SystemNotification(
-        event="combat_started",
-        message=f"Combat command received: {cmd.command} (integration pending)"
-    ).model_dump(mode='json'))
+    try:
+        # Parse command
+        cmd = CombatCommand(**data)
+        command_text = cmd.command.strip()
+        
+        # Parse /attack @TargetName
+        if not command_text.startswith("/attack"):
+            await manager.broadcast(campaign_id, SystemNotification(
+                event="error",
+                message="Unknown combat command. Use: /attack @TargetName"
+            ).model_dump(mode='json'))
+            return
+        
+        # Extract target name (supports both "@Name" and "Name")
+        match = re.match(r'/attack\s+@?(.+)', command_text, re.IGNORECASE)
+        if not match:
+            await manager.broadcast(campaign_id, SystemNotification(
+                event="error",
+                message="Invalid attack syntax. Use: /attack @TargetName"
+            ).model_dump(mode='json'))
+            return
+        
+        target_name = match.group(1).strip()
+        
+        # =====================================================================
+        # Look up attacker (user's character in this campaign)
+        # =====================================================================
+        attacker = db.query(Character).filter(
+            Character.user_id == user_id,
+            Character.campaign_id == campaign_id
+        ).first()
+        
+        if not attacker:
+            await manager.broadcast(campaign_id, SystemNotification(
+                event="error",
+                message="You don't have a character in this campaign"
+            ).model_dump(mode='json'))
+            return
+        
+        # Check if attacker is alive
+        if attacker.dp <= 0:
+            await manager.broadcast(campaign_id, SystemNotification(
+                event="error",
+                message=f"{attacker.name} is unconscious (DP: {attacker.dp})"
+            ).model_dump(mode='json'))
+            return
+        
+        # =====================================================================
+        # Look up defender (by character name in this campaign)
+        # =====================================================================
+        defender = db.query(Character).filter(
+            Character.campaign_id == campaign_id,
+            Character.name.ilike(target_name)  # Case-insensitive match
+        ).first()
+        
+        if not defender:
+            await manager.broadcast(campaign_id, SystemNotification(
+                event="error",
+                message=f"Character '{target_name}' not found in this campaign"
+            ).model_dump(mode='json'))
+            return
+        
+        # Check if defender is alive
+        if defender.dp <= 0:
+            await manager.broadcast(campaign_id, SystemNotification(
+                event="error",
+                message=f"{defender.name} is already unconscious (DP: {defender.dp})"
+            ).model_dump(mode='json'))
+            return
+        
+        # Can't attack yourself
+        if attacker.id == defender.id:
+            await manager.broadcast(campaign_id, SystemNotification(
+                event="error",
+                message="You can't attack yourself!"
+            ).model_dump(mode='json'))
+            return
+        
+        # =====================================================================
+        # Resolve combat (reuse logic from combat_fastapi.py)
+        # =====================================================================
+        from backend.roll_logic import resolve_multi_die_attack
+        
+        # Use Physical for basic attacks (default)
+        stat_type = "pp"
+        attacker_stat_value = attacker.pp
+        defender_stat_value = defender.pp
+        
+        # Get weapon bonus
+        weapon_bonus = 0
+        if attacker.weapon and isinstance(attacker.weapon, dict):
+            weapon_bonus = attacker.weapon.get("bonus_damage", 0)
+        
+        # Resolve multi-die attack
+        result = resolve_multi_die_attack(
+            attacker={"name": attacker.name},
+            attacker_die_str=attacker.attack_style,
+            attacker_stat_value=attacker_stat_value,
+            defender={"name": defender.name},
+            defense_die_str=defender.defense_die,
+            defender_stat_value=defender_stat_value,
+            edge=attacker.edge,
+            bap_triggered=False,  # TODO: Add BAP detection later
+            weapon_bonus=weapon_bonus
+        )
+        
+        # =====================================================================
+        # Apply damage and persist to database
+        # =====================================================================
+        old_dp = defender.dp
+        defender.dp = max(0, defender.dp - result["total_damage"])
+        db.commit()
+        
+        logger.info(
+            f"[{request_id}] {attacker.name} dealt {result['total_damage']} damage "
+            f"to {defender.name} (DP: {old_dp} → {defender.dp}) [PERSISTED]"
+        )
+        
+        # =====================================================================
+        # Broadcast combat result to all players
+        # =====================================================================
+        await manager.broadcast(campaign_id, CombatResultBroadcast(
+            attacker=attacker.name,
+            defender=defender.name,
+            technique="Attack",  # Default technique name
+            damage=result["total_damage"],
+            defender_new_dp=defender.dp,
+            narrative=result["narrative"],
+            individual_rolls=result["individual_rolls"],
+            outcome=result["outcome"]
+        ).model_dump(mode='json'))
+        
+        # =====================================================================
+        # Check for knockout / The Challenge
+        # =====================================================================
+        if defender.dp <= 0:
+            if defender.dp <= -10:
+                # The Challenge triggered!
+                await manager.broadcast(campaign_id, SystemNotification(
+                    event="the_challenge",
+                    message=f"💀 {defender.name} has entered The Challenge! (DP: {defender.dp})"
+                ).model_dump(mode='json'))
+            else:
+                # Just knocked out
+                await manager.broadcast(campaign_id, SystemNotification(
+                    event="knockout",
+                    message=f"💥 {defender.name} is knocked out! (DP: {defender.dp})"
+                ).model_dump(mode='json'))
     
-    # TODO: Call internal combat resolution and broadcast result
+    except Exception as e:
+        logger.error(f"Combat command error: {str(e)}", exc_info=True)
+        await manager.broadcast(campaign_id, SystemNotification(
+            event="error",
+            message=f"Combat error: {str(e)}"
+        ).model_dump(mode='json'))
+    
+    
 
 
 async def handle_narration(campaign_id: UUID, data: dict):
