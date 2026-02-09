@@ -586,10 +586,11 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID):
     
     # Broadcast result to everyone
     await manager.broadcast(campaign_id, DiceRollBroadcast(
-        roller=display_name,
+        actor=display_name,
         dice=dice_notation,
         result=total,          # ✅ Now correctly using 'total'
         breakdown=breakdown,
+        text=f"rolled {total}", 
         reason=reason
     ).model_dump(mode='json'))
 

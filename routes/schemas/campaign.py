@@ -53,11 +53,11 @@ class GMNarration(BaseModel):
 
 class DiceRollRequest(BaseModel):
     """Player requests a dice roll (for skill checks, etc.)."""
-    type: Literal["dice_roll"] = "dice_roll"
-    roller: str  # Character or player name
-    user_id: UUID
-    dice: str  # e.g., "3d6+2", "1d20"
-    reason: Optional[str] = None  # "Perception check", "Intimidation", etc.
+    type: Literal["dice_roll"] = "dice_roll"  # ✅ Request type
+    roller: str
+    dice: str
+    reason: Optional[str] = None
+    user_id: Optional[UUID] = None  # Make optional (server will provide)
 
 
 # ============================================================================
@@ -106,14 +106,15 @@ class NarrationBroadcast(BaseModel):
 
 
 class DiceRollBroadcast(BaseModel):
-    """Server broadcasts dice roll result."""
-    type: Literal["dice_roll"] = "dice_roll"
-    roller: str
+    """Broadcast dice roll result to all players."""
+    type: Literal["dice_roll_result"] = "dice_roll_result"  # ✅ Result type (different!)
+    actor: str
     dice: str
     result: int
-    breakdown: List[int]  # Individual die results
-    reason: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.now)
+    breakdown: List[int]
+    text: str = ""
+    reason: Optional[str] = ""
+    timestamp: Optional[str] = None
 
 
 class SystemNotification(BaseModel):
