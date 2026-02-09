@@ -10,7 +10,7 @@ Phase 2d schema with:
 - NPCs and combat turns
 """
 from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean, Text, Enum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
 import random
@@ -535,7 +535,7 @@ class Message(Base):
     mode = Column(String, nullable=True)  # 'IC' (in-character) or 'OOC' (out-of-character)
     content = Column(Text, nullable=False)  # Message body
     attachment_url = Column(String, nullable=True)  # Optional image/file URL
-    extra_data = Column(JSON, nullable=True)  # Structured data (e.g., dice roll breakdown: {"breakdown": [3, 5, 2]})
+    extra_data = Column(JSONB, nullable=True)  # Structured data (e.g., dice roll breakdown: {"breakdown": [3, 5, 2]})
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
