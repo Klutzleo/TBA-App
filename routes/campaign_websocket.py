@@ -411,7 +411,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if not command_text.startswith("/attack"):
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "content": "❌ Unknown combat command. Use: /attack @TargetName"
+                "text": "❌ Unknown combat command. Use: /attack @TargetName"
             })
             return
 
@@ -420,7 +420,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if not match:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "content": "❌ Invalid attack syntax. Use: /attack @TargetName"
+                "text": "❌ Invalid attack syntax. Use: /attack @TargetName"
             })
             return
 
@@ -437,7 +437,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if not attacker:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "content": "❌ You don't have a character in this campaign"
+                "text": "❌ You don't have a character in this campaign"
             })
             return
 
@@ -445,7 +445,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if attacker.dp <= 0:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "content": f"❌ {attacker.name} is unconscious (DP: {attacker.dp})"
+                "text": f"❌ {attacker.name} is unconscious (DP: {attacker.dp})"
             })
             return
 
@@ -460,7 +460,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if not defender:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "content": f"❌ Character '{target_name}' not found in this campaign"
+                "text": f"❌ Character '{target_name}' not found in this campaign"
             })
             return
 
@@ -468,7 +468,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if defender.dp <= 0:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "content": f"❌ {defender.name} is already unconscious (DP: {defender.dp})"
+                "text": f"❌ {defender.name} is already unconscious (DP: {defender.dp})"
             })
             return
 
@@ -476,7 +476,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if attacker.id == defender.id:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "content": "❌ You can't attack yourself!"
+                "text": "❌ You can't attack yourself!"
             })
             return
         
@@ -542,20 +542,20 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 # The Challenge triggered!
                 await manager.broadcast(campaign_id, {
                     "type": "system",
-                    "content": f"💀 {defender.name} has entered The Challenge! (DP: {defender.dp})"
+                    "text": f"💀 {defender.name} has entered The Challenge! (DP: {defender.dp})"
                 })
             else:
                 # Just knocked out
                 await manager.broadcast(campaign_id, {
                     "type": "system",
-                    "content": f"💥 {defender.name} is knocked out! (DP: {defender.dp})"
+                    "text": f"💥 {defender.name} is knocked out! (DP: {defender.dp})"
                 })
 
     except Exception as e:
         logger.error(f"Combat command error: {str(e)}", exc_info=True)
         await manager.broadcast(campaign_id, {
             "type": "system",
-            "content": f"❌ Combat error: {str(e)}"
+            "text": f"❌ Combat error: {str(e)}"
         })
     
     
@@ -587,8 +587,7 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
         error_msg = f"❌ Invalid dice notation '{dice_notation}'. Use format like 2d6, 3d4, 1d12."
         await manager.broadcast(campaign_id, {
             "type": "system",
-            "content": error_msg,
-            "timestamp": datetime.utcnow().isoformat()
+            "text": error_msg
         })
         return  # Stop processing
     
