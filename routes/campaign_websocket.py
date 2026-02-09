@@ -256,7 +256,7 @@ async def campaign_websocket(
                 await handle_narration(campaign_uuid, data)
 
             elif message_type == "dice_roll":
-                await handle_dice_roll(campaign_uuid, data, user_uuid)  # Pass user_id from WebSocket
+                await handle_dice_roll(campaign_uuid, data, user_uuid, db)  # Pass user_id from WebSocket
 
             else:
                 logger.warning(f"Unknown message type: {message_type}")
@@ -571,28 +571,45 @@ async def handle_narration(campaign_id: UUID, data: dict):
     ).model_dump(mode='json'))
 
 
-async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID):
-    """Handle dice roll request (e.g., '3d6+2')."""
-    
-    # Get display name from connection manager
+async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Session):
     display_name = manager.get_display_name(campaign_id, user_id)
-    
-    # Extract dice notation from data
     dice_notation = data.get("dice", "1d6")
     reason = data.get("reason", "")
     
-    # Parse dice notation (e.g., "3d6+2")
-    total, breakdown = roll_dice(dice_notation)  # ✅ Changed 'result' to 'total'
+    total, breakdown = roll_dice(dice_notation)
     
-    # Broadcast result to everyone
-    await manager.broadcast(campaign_id, DiceRollBroadcast(
+    # Format the result text
+    result_text = f"rolled {total}"
+    
+    # Build broadcast message
+    broadcast_data = DiceRollBroadcast(
         actor=display_name,
         dice=dice_notation,
-        result=total,          # ✅ Now correctly using 'total'
+        result=total,
         breakdown=breakdown,
-        text=f"rolled {total}", 
+        text=result_text,
         reason=reason
-    ).model_dump(mode='json'))
+    )
+    
+    # ✅ PERSIST TO DATABASE
+    message_record = CampaignMessage(
+        campaign_id=campaign_id,
+        sender_id=user_id,
+        sender_name=display_name,
+        content=result_text,
+        type="dice_roll_result",
+        metadata={
+            "dice": dice_notation,
+            "result": total,
+            "breakdown": breakdown,
+            "reason": reason
+        }
+    )
+    db.add(message_record)
+    db.commit()
+    
+    # Broadcast to all clients
+    await manager.broadcast(campaign_id, broadcast_data.model_dump(mode='json'))
 
 
 # ============================================================================
