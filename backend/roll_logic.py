@@ -13,7 +13,26 @@ def parse_die(die_str):
     return int(match.group(1)), int(match.group(2))
 
 def roll_dice(die_str):
-    count, sides = parse_die(die_str)
+    """
+    Roll dice from notation like '2d6', '3d4', '1d12'.
+    
+    Returns list of individual die rolls.
+    
+    Raises:
+        ValueError: If notation is invalid
+    """
+    try:
+        count, sides = parse_die(die_str)
+    except ValueError:
+        # parse_die already raises good error messages
+        raise
+    
+    # Sanity checks
+    if count < 1 or count > 100:
+        raise ValueError(f"Invalid dice count: {count} (must be 1-100)")
+    if sides < 1 or sides > 1000:
+        raise ValueError(f"Invalid die size: {sides} (must be 1-1000)")
+    
     return [random.randint(1, sides) for _ in range(count)]
 
 def roll_die(die_str):

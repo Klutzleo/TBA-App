@@ -24,6 +24,7 @@ import random
 from backend.db import get_db
 from backend.models import Party, Character, User, CampaignMembership, Message
 from backend.auth.jwt import decode_access_token
+from backend.roll_logic import roll_dice
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -572,11 +573,24 @@ async def handle_narration(campaign_id: UUID, data: dict):
 
 
 async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Session):
+    """Handle dice roll requests with error handling for invalid notation."""
     display_name = manager.get_display_name(campaign_id, user_id)
     dice_notation = data.get("dice", "1d6")
     reason = data.get("reason", "")
     
-    total, breakdown = roll_dice(dice_notation)
+    # ✅ Use roll_dice for breakdown, sum for total
+    try:
+        breakdown = roll_dice(dice_notation)  # [3, 5] 
+        total = sum(breakdown)  # 8
+    except ValueError as e:
+        # Invalid dice notation - send error message
+        error_msg = f"❌ Invalid dice notation '{dice_notation}'. Use format like 2d6, 3d4, 1d12."
+        await manager.broadcast(campaign_id, {
+            "type": "system",
+            "content": error_msg,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        return  # Stop processing
     
     # Format the result text
     result_text = f"rolled {total}"
@@ -611,13 +625,6 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
 # HELPER FUNCTIONS
 # ============================================================================
 
-def roll_dice(dice_notation: str) -> tuple[int, List[int]]:
-    """
-    Parse and roll dice notation (e.g., '3d6+2', '1d20', '2d10-3').
-    
-    Returns:
-        (total, breakdown): e.g., (15, [4, 6, 3]) for "3d6+2"
-    """
     # Parse notation: XdY+Z or XdY-Z
     match = re.match(r'(\d+)d(\d+)(([+\-])(\d+))?', dice_notation.lower())
     if not match:
