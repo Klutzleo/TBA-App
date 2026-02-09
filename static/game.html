@@ -2517,9 +2517,35 @@
 
             const header = document.createElement('div');
             header.textContent = `🎲 ${msg.sender_name}: ${msg.content}`;
-            container.appendChild(header);
 
-            // Note: Database doesn't store breakdown, just show summary
+            // ✅ Check if extra_data exists with breakdown
+            if (msg.extra_data && msg.extra_data.breakdown) {
+              const bd = document.createElement('div');
+              bd.style.fontFamily = 'monospace';
+              bd.style.fontSize = '12px';
+              bd.style.marginLeft = '16px';
+              bd.style.display = isSW() ? 'block' : 'none';
+              bd.textContent = `Rolls: ${msg.extra_data.breakdown.join(' + ')} → Total ${msg.extra_data.total}`;
+
+              const toggle = document.createElement('a');
+              toggle.href = '#';
+              toggle.style.fontSize = '12px';
+              toggle.style.marginLeft = '8px';
+              toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+              toggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                const showing = bd.style.display !== 'none';
+                bd.style.display = showing ? 'none' : 'block';
+                toggle.textContent = showing ? 'Show details' : 'Hide details';
+              });
+
+              header.appendChild(toggle);
+              container.appendChild(header);
+              container.appendChild(bd);
+            } else {
+              container.appendChild(header);
+            }
+
             const tabIndicator = document.createElement('span');
             tabIndicator.className = 'message-tab-indicator';
             tabIndicator.textContent = 'STORY';
