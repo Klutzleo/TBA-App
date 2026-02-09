@@ -2741,6 +2741,85 @@
               storeAndDisplayMessage(container, data);
 
               storeAndDisplayMessage(container, data);
+            } else if (data.type === 'combat_result') {
+              // Combat result display
+              const container = document.createElement('div');
+              container.className = 'msg combat_result';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.marginBottom = '4px';
+
+              // Display outcome with color coding
+              let outcomeEmoji = '⚔️';
+              let outcomeColor = '#fff';
+              if (data.outcome === 'hit') {
+                outcomeEmoji = '✅';
+                outcomeColor = '#4ade80';
+              } else if (data.outcome === 'miss') {
+                outcomeEmoji = '❌';
+                outcomeColor = '#f87171';
+              }
+
+              header.innerHTML = `<span style="color: ${outcomeColor}">${outcomeEmoji} ${data.attacker}</span> attacks <span style="color: #60a5fa">${data.defender}</span>`;
+              container.appendChild(header);
+
+              // Narrative
+              const narrative = document.createElement('div');
+              narrative.style.fontStyle = 'italic';
+              narrative.style.marginBottom = '4px';
+              narrative.textContent = data.narrative;
+              container.appendChild(narrative);
+
+              // Damage and DP
+              const damageInfo = document.createElement('div');
+              damageInfo.style.fontFamily = 'monospace';
+              damageInfo.textContent = `💥 ${data.damage} damage → ${data.defender} now at ${data.defender_new_dp} DP`;
+              container.appendChild(damageInfo);
+
+              // Detailed rolls (collapsible)
+              if (Array.isArray(data.individual_rolls) && data.individual_rolls.length > 0) {
+                const detailsDiv = document.createElement('div');
+                detailsDiv.style.fontFamily = 'monospace';
+                detailsDiv.style.fontSize = '11px';
+                detailsDiv.style.marginTop = '4px';
+                detailsDiv.style.paddingLeft = '8px';
+                detailsDiv.style.borderLeft = '2px solid var(--border-color)';
+                detailsDiv.style.display = 'none';
+
+                data.individual_rolls.forEach((roll, idx) => {
+                  const rollLine = document.createElement('div');
+                  rollLine.textContent = `Strike ${idx + 1}: Attack ${roll.attacker_roll} vs Defense ${roll.defense_roll} (margin: ${roll.margin >= 0 ? '+' : ''}${roll.margin}) = ${roll.damage} dmg`;
+                  detailsDiv.appendChild(rollLine);
+                });
+
+                const toggleDetails = document.createElement('a');
+                toggleDetails.href = '#';
+                toggleDetails.style.fontSize = '11px';
+                toggleDetails.style.marginTop = '4px';
+                toggleDetails.style.display = 'block';
+                toggleDetails.textContent = 'Show roll details';
+                toggleDetails.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  const showing = detailsDiv.style.display !== 'none';
+                  detailsDiv.style.display = showing ? 'none' : 'block';
+                  toggleDetails.textContent = showing ? 'Show roll details' : 'Hide roll details';
+                });
+
+                container.appendChild(toggleDetails);
+                container.appendChild(detailsDiv);
+              }
+
+              // Add tab indicator
+              const tabIndicator = document.createElement('span');
+              tabIndicator.className = 'message-tab-indicator';
+              tabIndicator.textContent = 'STORY';
+              container.appendChild(tabIndicator);
+
+              storeAndDisplayMessage(container, data);
+
+              // Update character sheet for the defender
+              updateCharacterSheet(data.defender, data.defender_new_dp);
             } else if (data.type === 'stat_roll') {
               // Render stat roll with expression and breakdown similar to dice_roll
               const container = document.createElement('div');
@@ -3051,6 +3130,44 @@
       } catch (error) {
         console.error('Error loading characters:', error);
         charactersContainer.innerHTML = '<div style="color: var(--accent-danger); font-size: 13px; text-align: center; padding: 20px;">Failed to load characters</div>';
+      }
+    }
+
+    // === Update Character HP in Real-Time ===
+    function updateCharacterSheet(characterName, newDP) {
+      // Find all character cards
+      const characterCards = charactersContainer.querySelectorAll('.character-card');
+
+      for (const card of characterCards) {
+        const nameElement = card.querySelector('.character-header strong');
+        if (nameElement && nameElement.textContent === characterName) {
+          // Find the HP bar and text
+          const hpText = card.querySelector('.hp-text');
+          const hpBar = card.querySelector('.hp-bar');
+
+          if (hpText && hpBar) {
+            // Extract max HP from current text (e.g., "10/10 HP" -> maxHP = 10)
+            const hpMatch = hpText.textContent.match(/(\d+)\/(\d+)/);
+            if (hpMatch) {
+              const maxHP = parseInt(hpMatch[2]);
+              const hpPercent = (newDP / maxHP) * 100;
+
+              // Update display
+              hpText.textContent = `${newDP}/${maxHP} HP`;
+              hpBar.style.width = `${hpPercent}%`;
+
+              // Optional: Flash the HP bar to indicate change
+              card.style.transition = 'background-color 0.3s';
+              card.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+              setTimeout(() => {
+                card.style.backgroundColor = '';
+              }, 300);
+
+              console.log(`✅ Updated ${characterName} HP: ${newDP}/${maxHP}`);
+            }
+          }
+          break;
+        }
       }
     }
 
