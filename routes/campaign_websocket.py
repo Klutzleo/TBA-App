@@ -22,7 +22,7 @@ import re
 import random
 
 from backend.db import get_db
-from backend.models import Party, Character, User, CampaignMembership, CampaignMessage
+from backend.models import Party, Character, User, CampaignMembership, Message
 from backend.auth.jwt import decode_access_token
 from routes.schemas.campaign import (
     ChatMessage,
@@ -592,18 +592,13 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
     )
     
     # ✅ PERSIST TO DATABASE
-    message_record = CampaignMessage(
-        campaign_id=campaign_id,
-        sender_id=user_id,
+    message_record = Message(
+        campaign_id=str(campaign_id),
+        party_id=None,  # Dice rolls visible to all tabs for now
+        sender_id=str(user_id),
         sender_name=display_name,
-        content=result_text,
-        type="dice_roll_result",
-        metadata={
-            "dice": dice_notation,
-            "result": total,
-            "breakdown": breakdown,
-            "reason": reason
-        }
+        content=f"{result_text} ({dice_notation})",  # Include dice notation in content
+        message_type="dice_roll_result"
     )
     db.add(message_record)
     db.commit()
