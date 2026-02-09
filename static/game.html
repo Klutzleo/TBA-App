@@ -2868,17 +2868,17 @@
         ws.send(JSON.stringify(payload));
       } else if (text.startsWith('/attack')) {
         // Combat command - send to combat handler
-        const payload = { 
-          type: 'combat_command', 
-          command: text 
+        const payload = {
+          type: 'combat_command',
+          raw_command: text  // Send full command for backend to parse
         };
         ws.send(JSON.stringify(payload));
 
       } else if (text.startsWith('/cast') || text.startsWith('/technique')) {
         // Magic/technique commands (future combat commands)
-        const payload = { 
-          type: 'combat_command', 
-          command: text 
+        const payload = {
+          type: 'combat_command',
+          raw_command: text  // Send full command for backend to parse
         };
         ws.send(JSON.stringify(payload));
 

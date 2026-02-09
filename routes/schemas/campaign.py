@@ -35,12 +35,8 @@ class WhisperMessage(BaseModel):
 class CombatCommand(BaseModel):
     """Player issues a combat command (/attack, /cast, /defend)."""
     type: Literal["combat_command"] = "combat_command"
-    command: Literal["attack", "cast", "defend", "item"]
-    attacker_id: UUID  # Character performing action
-    target_id: Optional[UUID] = None  # Target character (None for self-buffs)
-    technique_name: str = "Slash"
-    stat_type: Literal["PP", "IP", "SP"] = "PP"
-    bap_triggered: bool = False
+    raw_command: str  # Full command text (e.g., "/attack @TargetName")
+    # Backend will parse this to extract command type and target
 
 
 class GMNarration(BaseModel):

@@ -397,35 +397,35 @@ async def handle_whisper(campaign_id: UUID, data: dict, user_id: UUID):
 async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSocket, user_id: UUID, db: Session):
     """
     Handle combat command (/attack @Target).
-    
+
     Parses command, looks up characters, resolves combat, updates DB, broadcasts result.
     """
     request_id = "websocket"  # Could pass from main handler if you add request tracking
-    
+
     try:
         # Parse command
         cmd = CombatCommand(**data)
-        command_text = cmd.command.strip()
-        
+        command_text = cmd.raw_command.strip()
+
         # Parse /attack @TargetName
         if not command_text.startswith("/attack"):
-            await manager.broadcast(campaign_id, SystemNotification(
-                event="error",
-                message="Unknown combat command. Use: /attack @TargetName"
-            ).model_dump(mode='json'))
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "content": "❌ Unknown combat command. Use: /attack @TargetName"
+            })
             return
-        
+
         # Extract target name (supports both "@Name" and "Name")
         match = re.match(r'/attack\s+@?(.+)', command_text, re.IGNORECASE)
         if not match:
-            await manager.broadcast(campaign_id, SystemNotification(
-                event="error",
-                message="Invalid attack syntax. Use: /attack @TargetName"
-            ).model_dump(mode='json'))
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "content": "❌ Invalid attack syntax. Use: /attack @TargetName"
+            })
             return
-        
+
         target_name = match.group(1).strip()
-        
+
         # =====================================================================
         # Look up attacker (user's character in this campaign)
         # =====================================================================
@@ -433,22 +433,22 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             Character.user_id == user_id,
             Character.campaign_id == campaign_id
         ).first()
-        
+
         if not attacker:
-            await manager.broadcast(campaign_id, SystemNotification(
-                event="error",
-                message="You don't have a character in this campaign"
-            ).model_dump(mode='json'))
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "content": "❌ You don't have a character in this campaign"
+            })
             return
-        
+
         # Check if attacker is alive
         if attacker.dp <= 0:
-            await manager.broadcast(campaign_id, SystemNotification(
-                event="error",
-                message=f"{attacker.name} is unconscious (DP: {attacker.dp})"
-            ).model_dump(mode='json'))
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "content": f"❌ {attacker.name} is unconscious (DP: {attacker.dp})"
+            })
             return
-        
+
         # =====================================================================
         # Look up defender (by character name in this campaign)
         # =====================================================================
@@ -456,28 +456,28 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             Character.campaign_id == campaign_id,
             Character.name.ilike(target_name)  # Case-insensitive match
         ).first()
-        
+
         if not defender:
-            await manager.broadcast(campaign_id, SystemNotification(
-                event="error",
-                message=f"Character '{target_name}' not found in this campaign"
-            ).model_dump(mode='json'))
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "content": f"❌ Character '{target_name}' not found in this campaign"
+            })
             return
-        
+
         # Check if defender is alive
         if defender.dp <= 0:
-            await manager.broadcast(campaign_id, SystemNotification(
-                event="error",
-                message=f"{defender.name} is already unconscious (DP: {defender.dp})"
-            ).model_dump(mode='json'))
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "content": f"❌ {defender.name} is already unconscious (DP: {defender.dp})"
+            })
             return
-        
+
         # Can't attack yourself
         if attacker.id == defender.id:
-            await manager.broadcast(campaign_id, SystemNotification(
-                event="error",
-                message="You can't attack yourself!"
-            ).model_dump(mode='json'))
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "content": "❌ You can't attack yourself!"
+            })
             return
         
         # =====================================================================
@@ -540,23 +540,23 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         if defender.dp <= 0:
             if defender.dp <= -10:
                 # The Challenge triggered!
-                await manager.broadcast(campaign_id, SystemNotification(
-                    event="the_challenge",
-                    message=f"💀 {defender.name} has entered The Challenge! (DP: {defender.dp})"
-                ).model_dump(mode='json'))
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "content": f"💀 {defender.name} has entered The Challenge! (DP: {defender.dp})"
+                })
             else:
                 # Just knocked out
-                await manager.broadcast(campaign_id, SystemNotification(
-                    event="knockout",
-                    message=f"💥 {defender.name} is knocked out! (DP: {defender.dp})"
-                ).model_dump(mode='json'))
-    
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "content": f"💥 {defender.name} is knocked out! (DP: {defender.dp})"
+                })
+
     except Exception as e:
         logger.error(f"Combat command error: {str(e)}", exc_info=True)
-        await manager.broadcast(campaign_id, SystemNotification(
-            event="error",
-            message=f"Combat error: {str(e)}"
-        ).model_dump(mode='json'))
+        await manager.broadcast(campaign_id, {
+            "type": "system",
+            "content": f"❌ Combat error: {str(e)}"
+        })
     
     
 
