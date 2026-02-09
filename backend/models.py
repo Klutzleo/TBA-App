@@ -64,7 +64,7 @@ class User(Base):
     campaign_memberships = relationship("CampaignMembership", back_populates="user")
 
     def __repr__(self):
-        return f"<User(id={self.id[:8]}..., email={self.email}, username={self.username})>"
+        return f"<User(id={str(self.id)[:8]}..., email={self.email}, username={self.username})>"
 
     @staticmethod
     def hash_password(password: str) -> str:
@@ -104,7 +104,7 @@ class PasswordResetToken(Base):
     user = relationship("User", back_populates="password_reset_tokens")
 
     def __repr__(self):
-        return f"<PasswordResetToken(id={self.id[:8]}..., user_id={self.user_id[:8]}..., used={self.used})>"
+        return f"<PasswordResetToken(id={str(self.id)[:8]}..., user_id={str(self.user_id)[:8]}..., used={self.used})>"
 
     @staticmethod
     def generate_token() -> str:
@@ -157,7 +157,7 @@ class Echo(Base):
     payload = Column(JSON)
 
     def __repr__(self):
-        return f"<Echo(id={self.id[:8]}..., schema_type={self.schema_type})>"
+        return f"<Echo(id={str(self.id)[:8]}..., schema_type={self.schema_type})>"
 
 class RollLog(Base):
     """Log of dice rolls for audit/replay."""
@@ -232,7 +232,7 @@ class Character(Base):
     abilities = relationship("Ability", back_populates="character", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Character(id={self.id[:8]}..., name={self.name}, level={self.level}, status={self.status})>"
+        return f"<Character(id={str(self.id)[:8]}..., name={self.name}, level={self.level}, status={self.status})>"
 
 
 class Campaign(Base):
@@ -294,7 +294,7 @@ class Campaign(Base):
     characters = relationship("Character", back_populates="campaign", foreign_keys="Character.campaign_id")
 
     def __repr__(self):
-        return f"<Campaign(id={self.id[:8]}..., name={self.name}, code={self.join_code}, public={self.is_public})>"
+        return f"<Campaign(id={str(self.id)[:8]}..., name={self.name}, code={self.join_code}, public={self.is_public})>"
 
 
 class CampaignMembership(Base):
@@ -320,7 +320,7 @@ class CampaignMembership(Base):
 
     def __repr__(self):
         status = "active" if self.left_at is None else "left"
-        return f"<CampaignMembership(campaign={self.campaign_id[:8]}..., user={self.user_id[:8]}..., role={self.role}, {status})>"
+        return f"<CampaignMembership(campaign={str(self.campaign_id)[:8]}..., user={str(self.user_id)[:8]}..., role={self.role}, {status})>"
 
 
 class Party(Base):
@@ -376,7 +376,7 @@ class Party(Base):
     # creator = relationship("Character", foreign_keys=[created_by_id])
 
     def __repr__(self):
-        return f"<Party(id={self.id[:8]}..., name={self.name}, type={self.party_type}, campaign={self.campaign_id[:8] if self.campaign_id else None}...)>"
+        return f"<Party(id={str(self.id)[:8]}..., name={self.name}, type={self.party_type}, campaign={str(self.campaign_id)[:8] if self.campaign_id else None}...)>"
 
 
 class PartyMembership(Base):
@@ -400,7 +400,7 @@ class PartyMembership(Base):
 
     def __repr__(self):
         status = "active" if self.left_at is None else "left"
-        return f"<PartyMembership(party={self.party_id[:8]}..., character={self.character_id[:8]}..., {status})>"
+        return f"<PartyMembership(party={str(self.party_id)[:8]}..., character={str(self.character_id)[:8]}..., {status})>"
 
 
 class NPC(Base):
@@ -444,7 +444,7 @@ class NPC(Base):
     creator = relationship("Character", foreign_keys=[created_by])
 
     def __repr__(self):
-        return f"<NPC(id={self.id[:8]}..., name={self.name}, type={self.npc_type}, dp={self.dp}/{self.max_dp})>"
+        return f"<NPC(id={str(self.id)[:8]}..., name={self.name}, type={self.npc_type}, dp={self.dp}/{self.max_dp})>"
 
 
 class CombatTurn(Base):
@@ -476,7 +476,7 @@ class CombatTurn(Base):
     party = relationship("Party", back_populates="combat_turns")
 
     def __repr__(self):
-        return f"<CombatTurn(id={self.id[:8]}..., turn={self.turn_number}, combatant={self.combatant_name}, action={self.action_type})>"
+        return f"<CombatTurn(id={str(self.id)[:8]}..., turn={self.turn_number}, combatant={self.combatant_name}, action={self.action_type})>"
 
 
 class Ability(Base):
@@ -508,7 +508,7 @@ class Ability(Base):
     character = relationship("Character", back_populates="abilities")
 
     def __repr__(self):
-        return f"<Ability(id={self.id[:8]}..., name={self.display_name}, slot={self.slot_number}, type={self.ability_type})>"
+        return f"<Ability(id={str(self.id)[:8]}..., name={self.display_name}, slot={self.slot_number}, type={self.ability_type})>"
 
 
 class Message(Base):
@@ -544,4 +544,4 @@ class Message(Base):
 
     def __repr__(self):
         preview = self.content[:20] + "..." if len(self.content) > 20 else self.content
-        return f"<Message(id={self.id[:8]}..., sender={self.sender_name}, type={self.message_type}, preview='{preview}')>"
+        return f"<Message(id={str(self.id)[:8]}..., sender={self.sender_name}, type={self.message_type}, preview='{preview}')>"
