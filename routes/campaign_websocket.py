@@ -256,7 +256,7 @@ async def campaign_websocket(
                 await handle_narration(campaign_uuid, data)
 
             elif message_type == "dice_roll":
-                await handle_dice_roll(campaign_uuid, data)
+                await handle_dice_roll(campaign_uuid, data, user_uuid)  # Pass user_id from WebSocket
 
             else:
                 logger.warning(f"Unknown message type: {message_type}")
@@ -571,20 +571,26 @@ async def handle_narration(campaign_id: UUID, data: dict):
     ).model_dump(mode='json'))
 
 
-async def handle_dice_roll(campaign_id: UUID, data: dict):
+async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID):
     """Handle dice roll request (e.g., '3d6+2')."""
-    roll_req = DiceRollRequest(**data)
+    
+    # Get display name from connection manager
+    display_name = manager.get_display_name(campaign_id, user_id)
+    
+    # Extract dice notation from data (don't use DiceRollRequest schema)
+    dice_notation = data.get("dice", "1d6")
+    reason = data.get("reason", "")
     
     # Parse dice notation (e.g., "3d6+2")
-    result, breakdown = roll_dice(roll_req.dice)
+    result, breakdown = roll_dice(dice_notation)
     
     # Broadcast result to everyone
     await manager.broadcast(campaign_id, DiceRollBroadcast(
-        roller=roll_req.roller,
-        dice=roll_req.dice,
+        roller=display_name,  # Character name from WebSocket
+        dice=dice_notation,
         result=result,
         breakdown=breakdown,
-        reason=roll_req.reason
+        reason=reason
     ).model_dump(mode='json'))
 
 
