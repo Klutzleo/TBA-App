@@ -270,6 +270,48 @@
       color: var(--text-primary);
     }
 
+    /* === HP/DP Bar for Character Cards === */
+    .hp-bar-container {
+      position: relative;
+      width: 100%;
+      height: 24px;
+      background: #333;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .hp-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-success), #14b8a6);
+      transition: width 0.5s ease, background 0.3s ease;
+      border-radius: var(--radius-sm);
+    }
+
+    .hp-bar[style*="width: 0%"],
+    .hp-bar[style*="width: 1%"],
+    .hp-bar[style*="width: 2%"],
+    .hp-bar[style*="width: 3%"],
+    .hp-bar[style*="width: 4%"],
+    .hp-bar[style*="width: 5%"] {
+      background: linear-gradient(90deg, var(--accent-danger), #dc2626);
+    }
+
+    .hp-text {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      line-height: 24px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      z-index: 1;
+    }
+
     .back-button {
       width: 100%;
       padding: 12px;
@@ -2557,7 +2599,21 @@
 
                 const header = document.createElement('div');
                 header.style.fontWeight = 'bold';
-                header.style.marginBottom = '4px';
+                header.style.marginBottom = '8px';
+
+                // Add timestamp from database
+                const msgTimestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : '';
+                const timestampStr = msgTimestamp ? `[${msgTimestamp}] ` : '';
+                const timestampSpan = document.createElement('span');
+                timestampSpan.style.color = 'var(--text-muted)';
+                timestampSpan.style.fontSize = '0.85em';
+                timestampSpan.style.marginRight = '8px';
+                timestampSpan.textContent = timestampStr;
 
                 // Display outcome with color coding
                 let outcomeEmoji = '⚔️';
@@ -2570,20 +2626,84 @@
                   outcomeColor = '#f87171';
                 }
 
-                header.innerHTML = `<span style="color: ${outcomeColor}">${outcomeEmoji} ${data.attacker}</span> attacks <span style="color: #60a5fa">${data.defender}</span>`;
+                const attackText = document.createElement('span');
+                attackText.innerHTML = `<span style="color: ${outcomeColor}">${outcomeEmoji} ${data.attacker}</span> attacks <span style="color: #60a5fa">${data.defender}</span>`;
+                header.appendChild(timestampSpan);
+                header.appendChild(attackText);
                 container.appendChild(header);
 
                 // Narrative
                 const narrative = document.createElement('div');
                 narrative.style.fontStyle = 'italic';
-                narrative.style.marginBottom = '4px';
+                narrative.style.marginBottom = '8px';
                 narrative.textContent = data.narrative || '';
                 container.appendChild(narrative);
 
-                // Damage and DP
+                // DP Bar Visualization
+                const oldDP = data.defender_new_dp + data.damage;
+                const hpBarContainer = document.createElement('div');
+                hpBarContainer.style.marginBottom = '8px';
+                hpBarContainer.style.padding = '8px';
+                hpBarContainer.style.background = 'rgba(0,0,0,0.3)';
+                hpBarContainer.style.borderRadius = '4px';
+
+                const dpLabel = document.createElement('div');
+                dpLabel.style.fontSize = '11px';
+                dpLabel.style.color = 'var(--text-muted)';
+                dpLabel.style.marginBottom = '4px';
+                dpLabel.textContent = `${data.defender} Damage Points`;
+                hpBarContainer.appendChild(dpLabel);
+
+                const dpBarOuter = document.createElement('div');
+                dpBarOuter.style.width = '100%';
+                dpBarOuter.style.height = '20px';
+                dpBarOuter.style.background = '#333';
+                dpBarOuter.style.borderRadius = '4px';
+                dpBarOuter.style.overflow = 'hidden';
+                dpBarOuter.style.position = 'relative';
+
+                const maxDP = Math.max(oldDP, data.defender_new_dp, 10);
+                const oldPercent = (oldDP / maxDP) * 100;
+                const newPercent = (data.defender_new_dp / maxDP) * 100;
+
+                const dpBarOld = document.createElement('div');
+                dpBarOld.style.position = 'absolute';
+                dpBarOld.style.left = '0';
+                dpBarOld.style.top = '0';
+                dpBarOld.style.height = '100%';
+                dpBarOld.style.width = `${oldPercent}%`;
+                dpBarOld.style.background = '#666';
+
+                const dpBarNew = document.createElement('div');
+                dpBarNew.style.position = 'absolute';
+                dpBarNew.style.left = '0';
+                dpBarNew.style.top = '0';
+                dpBarNew.style.height = '100%';
+                dpBarNew.style.width = `${newPercent}%`;
+                dpBarNew.style.background = newPercent > 50 ? '#10b981' : (newPercent > 20 ? '#f59e0b' : '#ef4444');
+
+                const dpText = document.createElement('div');
+                dpText.style.position = 'absolute';
+                dpText.style.width = '100%';
+                dpText.style.textAlign = 'center';
+                dpText.style.lineHeight = '20px';
+                dpText.style.fontSize = '12px';
+                dpText.style.fontWeight = 'bold';
+                dpText.style.color = '#fff';
+                dpText.style.textShadow = '0 1px 2px rgba(0,0,0,0.8)';
+                dpText.textContent = `${oldDP} → ${data.defender_new_dp} DP`;
+
+                dpBarOuter.appendChild(dpBarOld);
+                dpBarOuter.appendChild(dpBarNew);
+                dpBarOuter.appendChild(dpText);
+                hpBarContainer.appendChild(dpBarOuter);
+                container.appendChild(hpBarContainer);
+
+                // Damage info
                 const damageInfo = document.createElement('div');
                 damageInfo.style.fontFamily = 'monospace';
-                damageInfo.textContent = `💥 ${data.damage} damage → ${data.defender} now at ${data.defender_new_dp} DP`;
+                damageInfo.style.marginBottom = '4px';
+                damageInfo.textContent = `💥 ${data.damage} damage dealt`;
                 container.appendChild(damageInfo);
 
                 // Detailed rolls (collapsible)
@@ -2828,7 +2948,16 @@
 
               const header = document.createElement('div');
               header.style.fontWeight = 'bold';
-              header.style.marginBottom = '4px';
+              header.style.marginBottom = '8px';
+
+              // Add timestamp
+              const now = new Date();
+              const timestampStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const timestampSpan = document.createElement('span');
+              timestampSpan.style.color = 'var(--text-muted)';
+              timestampSpan.style.fontSize = '0.85em';
+              timestampSpan.style.marginRight = '8px';
+              timestampSpan.textContent = `[${timestampStr}] `;
 
               // Display outcome with color coding
               let outcomeEmoji = '⚔️';
@@ -2841,20 +2970,88 @@
                 outcomeColor = '#f87171';
               }
 
-              header.innerHTML = `<span style="color: ${outcomeColor}">${outcomeEmoji} ${data.attacker}</span> attacks <span style="color: #60a5fa">${data.defender}</span>`;
+              const attackText = document.createElement('span');
+              attackText.innerHTML = `<span style="color: ${outcomeColor}">${outcomeEmoji} ${data.attacker}</span> attacks <span style="color: #60a5fa">${data.defender}</span>`;
+              header.appendChild(timestampSpan);
+              header.appendChild(attackText);
               container.appendChild(header);
 
               // Narrative
               const narrative = document.createElement('div');
               narrative.style.fontStyle = 'italic';
-              narrative.style.marginBottom = '4px';
+              narrative.style.marginBottom = '8px';
               narrative.textContent = data.narrative;
               container.appendChild(narrative);
 
-              // Damage and DP
+              // DP Bar Visualization
+              const oldDP = data.defender_new_dp + data.damage;
+              const hpBarContainer = document.createElement('div');
+              hpBarContainer.style.marginBottom = '8px';
+              hpBarContainer.style.padding = '8px';
+              hpBarContainer.style.background = 'rgba(0,0,0,0.3)';
+              hpBarContainer.style.borderRadius = '4px';
+
+              const dpLabel = document.createElement('div');
+              dpLabel.style.fontSize = '11px';
+              dpLabel.style.color = 'var(--text-muted)';
+              dpLabel.style.marginBottom = '4px';
+              dpLabel.textContent = `${data.defender} Damage Points`;
+              hpBarContainer.appendChild(dpLabel);
+
+              const dpBarOuter = document.createElement('div');
+              dpBarOuter.style.width = '100%';
+              dpBarOuter.style.height = '20px';
+              dpBarOuter.style.background = '#333';
+              dpBarOuter.style.borderRadius = '4px';
+              dpBarOuter.style.overflow = 'hidden';
+              dpBarOuter.style.position = 'relative';
+
+              // Assume max DP is a reasonable value (we'll need to get this from character data ideally)
+              // For now, use old DP as a baseline
+              const maxDP = Math.max(oldDP, data.defender_new_dp, 10);
+              const oldPercent = (oldDP / maxDP) * 100;
+              const newPercent = (data.defender_new_dp / maxDP) * 100;
+
+              const dpBarOld = document.createElement('div');
+              dpBarOld.style.position = 'absolute';
+              dpBarOld.style.left = '0';
+              dpBarOld.style.top = '0';
+              dpBarOld.style.height = '100%';
+              dpBarOld.style.width = `${oldPercent}%`;
+              dpBarOld.style.background = '#666';
+              dpBarOld.style.transition = 'width 0.3s ease';
+
+              const dpBarNew = document.createElement('div');
+              dpBarNew.style.position = 'absolute';
+              dpBarNew.style.left = '0';
+              dpBarNew.style.top = '0';
+              dpBarNew.style.height = '100%';
+              dpBarNew.style.width = `${newPercent}%`;
+              dpBarNew.style.background = newPercent > 50 ? '#10b981' : (newPercent > 20 ? '#f59e0b' : '#ef4444');
+              dpBarNew.style.transition = 'width 0.5s ease';
+
+              const dpText = document.createElement('div');
+              dpText.style.position = 'absolute';
+              dpText.style.width = '100%';
+              dpText.style.textAlign = 'center';
+              dpText.style.lineHeight = '20px';
+              dpText.style.fontSize = '12px';
+              dpText.style.fontWeight = 'bold';
+              dpText.style.color = '#fff';
+              dpText.style.textShadow = '0 1px 2px rgba(0,0,0,0.8)';
+              dpText.textContent = `${oldDP} → ${data.defender_new_dp} DP`;
+
+              dpBarOuter.appendChild(dpBarOld);
+              dpBarOuter.appendChild(dpBarNew);
+              dpBarOuter.appendChild(dpText);
+              hpBarContainer.appendChild(dpBarOuter);
+              container.appendChild(hpBarContainer);
+
+              // Damage info
               const damageInfo = document.createElement('div');
               damageInfo.style.fontFamily = 'monospace';
-              damageInfo.textContent = `💥 ${data.damage} damage → ${data.defender} now at ${data.defender_new_dp} DP`;
+              damageInfo.style.marginBottom = '4px';
+              damageInfo.textContent = `💥 ${data.damage} damage dealt`;
               container.appendChild(damageInfo);
 
               // Detailed rolls (collapsible)
@@ -3186,7 +3383,7 @@
                 <div>Level ${char.level}</div>
                 <div class="hp-bar-container">
                   <div class="hp-bar" style="width: ${hpPercent}%"></div>
-                  <span class="hp-text">${char.dp}/${char.max_dp} HP</span>
+                  <span class="hp-text">${char.dp}/${char.max_dp} DP</span>
                 </div>
               </div>
             `;
@@ -3226,24 +3423,33 @@
           const hpBar = card.querySelector('.hp-bar');
 
           if (hpText && hpBar) {
-            // Extract max HP from current text (e.g., "10/10 HP" -> maxHP = 10)
+            // Extract max DP from current text (e.g., "10/10 DP" -> maxDP = 10)
             const hpMatch = hpText.textContent.match(/(\d+)\/(\d+)/);
             if (hpMatch) {
-              const maxHP = parseInt(hpMatch[2]);
-              const hpPercent = (newDP / maxHP) * 100;
+              const maxDP = parseInt(hpMatch[2]);
+              const dpPercent = (newDP / maxDP) * 100;
 
               // Update display
-              hpText.textContent = `${newDP}/${maxHP} HP`;
-              hpBar.style.width = `${hpPercent}%`;
+              hpText.textContent = `${newDP}/${maxDP} DP`;
+              hpBar.style.width = `${dpPercent}%`;
 
-              // Optional: Flash the HP bar to indicate change
+              // Color the bar based on DP percentage
+              if (dpPercent > 50) {
+                hpBar.style.background = 'linear-gradient(90deg, var(--accent-success), #14b8a6)';
+              } else if (dpPercent > 20) {
+                hpBar.style.background = 'linear-gradient(90deg, #f59e0b, #fb923c)';
+              } else {
+                hpBar.style.background = 'linear-gradient(90deg, var(--accent-danger), #dc2626)';
+              }
+
+              // Optional: Flash the card to indicate change
               card.style.transition = 'background-color 0.3s';
               card.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
               setTimeout(() => {
                 card.style.backgroundColor = '';
               }, 300);
 
-              console.log(`✅ Updated ${characterName} HP: ${newDP}/${maxHP}`);
+              console.log(`✅ Updated ${characterName} DP: ${newDP}/${maxDP}`);
             }
           }
           break;
