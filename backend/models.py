@@ -93,7 +93,7 @@ class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     token = Column(String, unique=True, nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False)
@@ -151,7 +151,7 @@ class Echo(Base):
     __tablename__ = "echoes"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     timestamp = Column(DateTime, default=datetime.utcnow)
     schema_type = Column(String)
     payload = Column(JSON)
@@ -183,12 +183,12 @@ class Character(Base):
     """TBA v1.5 Character model (persistent storage)."""
     __tablename__ = "characters"
     __table_args__ = {'extend_existing': True}
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False, index=True)
     owner_id = Column(String, nullable=False, index=True)  # Legacy field - kept for backward compatibility
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # User who owns this character
-    campaign_id = Column(String, ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True, index=True)  # Campaign this character belongs to
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True, index=True)  # Campaign this character belongs to
 
     # Core stats (1-3 each, must sum to 6)
     level = Column(Integer, nullable=False, default=1)  # 1-10
@@ -307,7 +307,7 @@ class CampaignMembership(Base):
     __tablename__ = "campaign_memberships"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(Enum('player', 'story_weaver', name='campaign_role_enum'), nullable=False, default='player')
@@ -340,13 +340,13 @@ class Party(Base):
     __tablename__ = "parties"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     session_id = Column(String, nullable=True)  # Active session ID (for WebSocket routing)
 
     # Campaign relationship
-    campaign_id = Column(String, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Channel type
     party_type = Column(String, nullable=False, default='story')  # 'story', 'ooc', 'whisper', 'split_group', 'spectator'
@@ -388,9 +388,9 @@ class PartyMembership(Base):
     __tablename__ = "party_memberships"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    party_id = Column(String, ForeignKey("parties.id"), nullable=False, index=True)
-    character_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    party_id = Column(UUID(as_uuid=True), ForeignKey("parties.id"), nullable=False, index=True)
+    character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id"), nullable=False, index=True)
     joined_at = Column(DateTime, default=datetime.utcnow)
     left_at = Column(DateTime, nullable=True)  # NULL = still active member
 
@@ -413,8 +413,8 @@ class NPC(Base):
     __tablename__ = "npcs"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    party_id = Column(String, ForeignKey("parties.id"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    party_id = Column(UUID(as_uuid=True), ForeignKey("parties.id"), nullable=False, index=True)
     name = Column(String, nullable=False, index=True)  # Unique per party enforced at application level
 
     # Character stats (same as Character model)
@@ -456,11 +456,11 @@ class CombatTurn(Base):
     __tablename__ = "combat_turns"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    party_id = Column(String, ForeignKey("parties.id"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    party_id = Column(UUID(as_uuid=True), ForeignKey("parties.id"), nullable=False, index=True)
 
     # Combatant identification (can be Character or NPC)
-    combatant_id = Column(String, nullable=False, index=True)  # Character.id or NPC.id
+    combatant_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Character.id or NPC.id
     combatant_name = Column(String, nullable=False)  # Display name for chat/logs
 
     # Turn metadata
@@ -551,8 +551,8 @@ class Ability(Base):
     __tablename__ = "abilities"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    character_id = Column(String, ForeignKey("characters.id"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id"), nullable=False, index=True)
     slot_number = Column(Integer, nullable=False)  # 1-5, determines hotkey/UI position
     ability_type = Column(String, nullable=False)  # 'spell', 'technique', 'special'
     display_name = Column(String, nullable=False)  # Human-readable name
@@ -587,12 +587,12 @@ class Message(Base):
     __tablename__ = "messages"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    campaign_id = Column(String, nullable=False, index=True)  # Campaign this message belongs to
-    party_id = Column(String, ForeignKey("parties.id"), nullable=True, index=True)  # Tab/channel (nullable for legacy)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Campaign this message belongs to
+    party_id = Column(UUID(as_uuid=True), ForeignKey("parties.id"), nullable=True, index=True)  # Tab/channel (nullable for legacy)
 
     # Sender info
-    sender_id = Column(String, nullable=False, index=True)  # Character ID or system
+    sender_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Character ID or system
     sender_name = Column(String, nullable=False)  # Display name
 
     # Message content
