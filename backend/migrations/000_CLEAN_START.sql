@@ -72,7 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_join_code ON campaigns(join_code);
 -- 3. Create characters table
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS characters (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     owner_id VARCHAR(255) NOT NULL,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -111,12 +111,12 @@ CREATE INDEX IF NOT EXISTS idx_characters_status ON characters(status);
 -- 4. Create parties table (campaign_id is UUID from start!)
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS parties (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     session_id VARCHAR(255),
-    story_weaver_id VARCHAR(36),
-    created_by_id VARCHAR(36) NOT NULL,
+    story_weaver_id UUID,
+    created_by_id UUID NOT NULL,
     campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE,
     party_type VARCHAR(20) NOT NULL DEFAULT 'standard',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -132,9 +132,9 @@ CREATE INDEX IF NOT EXISTS idx_parties_active ON parties(is_active);
 -- 5. Create party_members table
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS party_members (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    party_id VARCHAR(36) NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-    character_id VARCHAR(36) NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     left_at TIMESTAMPTZ NULL
 );
@@ -148,8 +148,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_party_members_active_unique
 -- 6. Create other tables
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS abilities (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    character_id VARCHAR(36) NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     slot_number INTEGER NOT NULL,
     ability_type VARCHAR(50) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
@@ -164,8 +164,8 @@ CREATE TABLE IF NOT EXISTS abilities (
 CREATE INDEX IF NOT EXISTS idx_abilities_character_id ON abilities(character_id);
 
 CREATE TABLE IF NOT EXISTS npcs (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    party_id VARCHAR(36) NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     level INTEGER NOT NULL DEFAULT 1,
     pp INTEGER NOT NULL DEFAULT 2,
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS npcs (
     attack_style VARCHAR(50) NOT NULL DEFAULT '1d4',
     defense_die VARCHAR(50) NOT NULL DEFAULT '1d4',
     visible_to_players BOOLEAN NOT NULL DEFAULT TRUE,
-    created_by VARCHAR(36) NOT NULL,
+    created_by UUID NOT NULL,
     npc_type VARCHAR(20) NOT NULL DEFAULT 'neutral',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -186,10 +186,10 @@ CREATE TABLE IF NOT EXISTS npcs (
 CREATE INDEX IF NOT EXISTS idx_npcs_party_id ON npcs(party_id);
 
 CREATE TABLE IF NOT EXISTS messages (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     campaign_id UUID NOT NULL,
-    party_id VARCHAR(36) REFERENCES parties(id) ON DELETE SET NULL,
-    sender_id VARCHAR(36) NOT NULL,
+    party_id UUID REFERENCES parties(id) ON DELETE SET NULL,
+    sender_id UUID NOT NULL,
     sender_name VARCHAR(255) NOT NULL,
     message_type VARCHAR(50) NOT NULL DEFAULT 'chat',
     mode VARCHAR(10),
@@ -201,9 +201,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_campaign_id ON messages(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_messages_party_id ON messages(party_id);
 
 CREATE TABLE IF NOT EXISTS combat_turns (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    party_id VARCHAR(36) NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-    combatant_id VARCHAR(36) NOT NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+    combatant_id UUID NOT NULL,
     combatant_name VARCHAR(255) NOT NULL,
     turn_number INTEGER NOT NULL,
     action_type VARCHAR(50) NOT NULL,
@@ -226,7 +226,7 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tok
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 
 CREATE TABLE IF NOT EXISTS campaign_memberships (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role campaign_role_enum NOT NULL DEFAULT 'player',
@@ -246,8 +246,8 @@ CREATE TABLE IF NOT EXISTS roll_logs (
     triggered_by VARCHAR(255),
     result JSON,
     modifiers JSON,
-    session_id VARCHAR(36),
-    encounter_id VARCHAR(36)
+    session_id UUID,
+    encounter_id UUID
 );
 CREATE INDEX IF NOT EXISTS idx_roll_logs_session_id ON roll_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_roll_logs_encounter_id ON roll_logs(encounter_id);
