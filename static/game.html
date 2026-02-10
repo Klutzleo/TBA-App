@@ -2747,6 +2747,88 @@
 
                 storeAndDisplayMessage(container, { type: 'combat_result', ...data });
               }
+              // ✅ Handle stat rolls from database
+              else if (msg.message_type === 'stat_roll') {
+                console.log('📊 Loading stat roll from history:', msg);
+                const data = msg.extra_data || {};
+
+                const container = document.createElement('div');
+                container.className = 'msg dice_roll';
+
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.textContent = `📊 ${msg.sender_name} - ${data.stat_name || data.stat} Check: ${data.total}`;
+                container.appendChild(header);
+
+                // Show breakdown with math
+                if (data.breakdown) {
+                  const bd = document.createElement('div');
+                  bd.style.fontFamily = 'monospace';
+                  bd.style.fontSize = '12px';
+                  bd.style.marginLeft = '16px';
+                  bd.style.marginTop = '4px';
+                  bd.style.color = 'var(--text-secondary)';
+                  bd.style.display = isSW() ? 'block' : 'none';
+                  bd.textContent = data.breakdown;
+
+                  const toggle = document.createElement('a');
+                  toggle.href = '#';
+                  toggle.style.fontSize = '11px';
+                  toggle.style.marginLeft = '8px';
+                  toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+                  toggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const showing = bd.style.display !== 'none';
+                    bd.style.display = showing ? 'none' : 'block';
+                    toggle.textContent = showing ? 'Show details' : 'Hide details';
+                  });
+
+                  header.appendChild(toggle);
+                  container.appendChild(bd);
+                }
+
+                const tabIndicator = document.createElement('span');
+                tabIndicator.className = 'message-tab-indicator';
+                tabIndicator.textContent = 'STORY';
+                container.appendChild(tabIndicator);
+
+                storeAndDisplayMessage(container, { type: 'stat_roll', ...data });
+              }
+              // ✅ Handle ability casts from database
+              else if (msg.message_type === 'ability_cast') {
+                console.log('✨ Loading ability cast from history:', msg);
+                const data = msg.extra_data || {};
+
+                const container = document.createElement('div');
+                container.className = 'message-card message-combat';
+
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.style.marginBottom = '8px';
+                header.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
+                container.appendChild(header);
+
+                // Narrative
+                const narrative = document.createElement('div');
+                narrative.style.fontStyle = 'italic';
+                narrative.style.marginBottom = '8px';
+                narrative.textContent = data.narrative || '';
+                container.appendChild(narrative);
+
+                // Uses remaining
+                const usesInfo = document.createElement('div');
+                usesInfo.style.fontSize = '12px';
+                usesInfo.style.color = 'var(--text-muted)';
+                usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
+                container.appendChild(usesInfo);
+
+                const tabIndicator = document.createElement('span');
+                tabIndicator.className = 'message-tab-indicator';
+                tabIndicator.textContent = 'STORY';
+                container.appendChild(tabIndicator);
+
+                storeAndDisplayMessage(container, { type: 'ability_cast', ...data });
+              }
               // ✅ Handle regular chat messages
               else {
                 const messageData = {
@@ -3141,6 +3223,46 @@
               container.appendChild(tabIndicator);
 
               storeAndDisplayMessage(container, data);
+            } else if (data.type === 'ability_cast') {
+              // Ability/spell/technique cast result
+              const container = document.createElement('div');
+              container.className = 'message-card message-combat';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.marginBottom = '8px';
+              header.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
+              container.appendChild(header);
+
+              // Narrative
+              const narrative = document.createElement('div');
+              narrative.style.fontStyle = 'italic';
+              narrative.style.marginBottom = '8px';
+              narrative.textContent = data.narrative || '';
+              container.appendChild(narrative);
+
+              // Uses remaining
+              const usesInfo = document.createElement('div');
+              usesInfo.style.fontSize = '12px';
+              usesInfo.style.color = 'var(--text-muted)';
+              usesInfo.textContent = `Uses remaining: ${data.uses_remaining}`;
+              container.appendChild(usesInfo);
+
+              const tabIndicator = document.createElement('span');
+              tabIndicator.className = 'message-tab-indicator';
+              tabIndicator.textContent = 'STORY';
+              container.appendChild(tabIndicator);
+
+              storeAndDisplayMessage(container, data);
+
+              // Update character sheets for healing effects
+              if (data.effect_type === 'heal' && Array.isArray(data.results)) {
+                data.results.forEach(result => {
+                  if (result.success && result.new_dp !== undefined) {
+                    updateCharacterSheet(result.target, result.new_dp);
+                  }
+                });
+              }
             } else if (data.type === 'initiative') {
               renderDiceRoll(data, '🧭');
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
