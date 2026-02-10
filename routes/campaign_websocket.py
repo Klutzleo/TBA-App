@@ -995,9 +995,9 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Se
         })
         return
 
-    # Roll 1d6
+    # Roll 1d6 (returns list of rolls, e.g., [4])
     roll_result = roll_dice("1d6")
-    die_roll = roll_result["total"]
+    die_roll = sum(roll_result)  # Sum the list to get the roll value
 
     # Calculate total: 1d6 + stat + edge
     edge = character.edge
