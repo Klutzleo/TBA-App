@@ -54,11 +54,12 @@ The UI and hosting layers will follow once the emotional and mechanical foundati
 
 - ✅ **Phase 1 MVP:** Multi-die combat resolution, FastAPI endpoints, Railway deployment
 - ✅ **Phase 2a:** Real-time WebSocket party chat (working on Railway)
-- 🔄 **Phase 2b:** System macros (`/roll`, `/attack`), combat event broadcasting, persistent chat
-- 💬 **Phase 2c:** Emotional tone indicators, message reactions, markdown support
-- 🎭 **Phase 2d:** Custom user macros, image attachments, advanced filtering
+- ✅ **Phase 2b:** System macros (`/roll`, `/attack`, `/pp`/`/ip`/`/sp`), combat broadcasting, persistent chat
+- ✅ **Phase 2d:** Custom ability macros, initiative & encounter system, usage tracking (3 per level per encounter)
+- 🔄 **Phase 2c:** Emotional tone indicators, message reactions, markdown support
+- 🔄 **Phase 3:** Character builder UI improvements, ability slot management
 - 🧍 **Alpha Testing:** Chat tabs (IC/OOC/DMs), spectator integration (Discord/Twitch)
-- 🚀 **Beta:** Character builder UI, encounter manager, full campaign persistence
+- 🚀 **Beta:** Full encounter manager UI, campaign persistence, cross-platform spectator mode
 
 ---
 
@@ -132,36 +133,81 @@ wscat -c wss://tba-app-production.up.railway.app/api/chat/party/test-party
 
 **Endpoint:** `wss://<url>/api/chat/party/{party_id}` — broadcasts to all party members
 
-### Upcoming Chat Features (Phase 2b-d)
+### Quick Start Examples
 
-**The Living Table** — Chat is the central hub for everything. Upcoming features:
+**Combat Flow:**
+```
+Alice: /initiative                    # Everyone rolls
+Bob: /initiative
+SW: /initiative @Goblin              # SW rolls for NPCs
+SW: /initiative show                 # See turn order
+Alice: /fireball @Goblin             # Cast custom ability
+Bob: /heal @Alice                    # Heal teammate
+SW: /attack @Alice target:Bob        # SW controls NPC attack
+SW: /initiative end                  # End combat, restore abilities
+```
 
-**System Macros** (Phase 2b)
-- `/roll 3d6+2` — Execute dice rolls from chat
-- `/pp`, `/ip`, `/sp` — Quick stat rolls
-- `/attack [target]` — Trigger combat
-- `/initiative` — Roll party initiative
-- Combat results broadcast to all party members
+**Stat Checks:**
+```
+Alice: /pp                           # Physical check
+Output: 📊 Alice - PP Check: 9
+        1d6(4) + PP(3) + Edge(2) = 9
+```
 
-**Emotional Expression** (Phase 2c)
-- **Tone indicators** — IC messages can have emotional tone (happy, sad, angry, excited)
-- **Color-coded bubbles** — UI renders chat bubbles based on tone (blue=sad, red=angry, yellow=happy)
-- **Message reactions** — React with emoji (👍🔥😊); persists across sessions
-- **Spectator reactions** — Discord/Twitch viewers can react to in-game moments
+**Ability Usage:**
+- Create abilities in Character Builder (slots 1-5)
+- Each ability has: name, macro command, die, effect type, power source
+- Example: "Healing Touch" → `/heal` → 2d6 → heal → IP
+- Uses: 3 × character level per encounter
+- Auto-restores when `/initiative end` is used
 
-**Custom Macros** (Phase 2d)
-- Players create character-specific macros (e.g., `/fireball`, `/slash`)
-- Party-level shared macros for encounters
-- Macro editor UI for easy management
+### Live Chat Features ✨
 
-**Chat Tabs** (Alpha milestone)
-- IC/OOC/DMs/System Log with filtering
-- Private DM channels
-- Message search and history
+**The Living Table** — Chat is the central hub for everything.
 
-**Markdown & Media**
-- Safe markdown subset (**bold**, *italic*, `code`, links)
-- Image attachments for maps and character art
+**✅ System Commands (Phase 2b - LIVE)**
+- `/roll XdY+Z` — Execute dice rolls from chat
+- `/pp`, `/ip`, `/sp` — Stat checks with full math breakdown (1d6 + stat + Edge)
+- `/attack @target` — Trigger combat resolution
+- `/who` — List party members and stats
+- All combat results broadcast in real-time
+
+**✅ Initiative & Encounter System (NEW)**
+- `/initiative` — Roll your initiative (1d20)
+- `/initiative show` — Display current turn order
+- `/initiative @target` (SW) — Roll initiative for someone else
+- `/initiative silent @target` (SW) — Hidden rolls for surprise encounters
+- `/initiative end` (SW) — End encounter & restore all ability uses
+- `/initiative clear` (SW) — Clear initiative without ending
+- Turn order filters by role (players only see visible rolls)
+- Full persistence across page refreshes
+
+**✅ Custom Ability Macros (Phase 2d - LIVE)**
+- **Create character-specific abilities** via character builder
+- **Universal macro system** — `/heal`, `/fireball`, `/shield`, `/stealth`, etc.
+- **Six effect types:**
+  - Single-target damage (attack roll + defense)
+  - Single-target healing (auto-success)
+  - AOE damage (specify multiple targets: `/fireball @Enemy1 @Enemy2`)
+  - AOE healing (heal multiple allies)
+  - Buffs (contested roll for success)
+  - Debuffs (contested roll for success)
+- **Usage tracking:** 3 uses per encounter per character level
+- **Smart targeting:** Self-targeting default, @ mentions for others
+- **Power sources:** PP (Physical), IP (Intellect), SP (Social)
+- Auto-decrements uses, auto-restores on encounter end
+
+**✅ Real-Time Combat Integration**
+- Damage/healing updates character DP bars instantly
+- Full narrative descriptions for every ability cast
+- Math breakdowns for attack/defense rolls
+- Persistent combat log (survives page reload)
+
+**🔄 Upcoming Features (Phase 2c-3)**
+- **Emotional Expression** — Tone indicators, color-coded bubbles, message reactions
+- **Chat Tabs** — IC/OOC/DMs/System Log with filtering
+- **Markdown & Media** — Safe markdown, image attachments
+- **Spectator Mode** — Discord/Twitch integration with live reactions
 
 ## 🧪 Local Development
 
