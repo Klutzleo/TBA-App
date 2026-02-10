@@ -523,7 +523,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         # =====================================================================
         # Broadcast combat result to all players
         # =====================================================================
-        await manager.broadcast(campaign_id, CombatResultBroadcast(
+        combat_broadcast = CombatResultBroadcast(
             attacker=attacker.name,
             defender=defender.name,
             technique="Attack",  # Default technique name
@@ -532,8 +532,33 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             narrative=result["narrative"],
             individual_rolls=result["individual_rolls"],
             outcome=result["outcome"]
-        ).model_dump(mode='json'))
-        
+        )
+        await manager.broadcast(campaign_id, combat_broadcast.model_dump(mode='json'))
+
+        # =====================================================================
+        # Persist combat result to database
+        # =====================================================================
+        combat_message = Message(
+            campaign_id=str(campaign_id),
+            party_id=None,  # Combat visible to all tabs
+            sender_id=str(user_id),
+            sender_name=attacker.name,
+            content=f"{attacker.name} attacks {defender.name} - {result['total_damage']} damage",
+            message_type="combat_result",
+            extra_data={
+                "attacker": attacker.name,
+                "defender": defender.name,
+                "technique": "Attack",
+                "damage": result["total_damage"],
+                "defender_new_dp": defender.dp,
+                "narrative": result["narrative"],
+                "individual_rolls": result["individual_rolls"],
+                "outcome": result["outcome"]
+            }
+        )
+        db.add(combat_message)
+        db.commit()
+
         # =====================================================================
         # Check for knockout / The Challenge
         # =====================================================================
