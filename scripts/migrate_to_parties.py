@@ -368,7 +368,7 @@ async def migrate_campaign(session: AsyncSession, campaign_id: str) -> dict:
         "errors": []
     }
 
-    print(f"\n  Processing campaign: {campaign_id[:8]}...")
+    print(f"\n  Processing campaign: {str(campaign_id)[:8]}...")
 
     # Get Story Weaver for this campaign
     story_weaver_id = await get_story_weaver_for_campaign(session, campaign_id)
@@ -377,29 +377,29 @@ async def migrate_campaign(session: AsyncSession, campaign_id: str) -> dict:
         print(f"    ERROR: No Story Weaver found for campaign")
         return summary
 
-    print(f"    Story Weaver: {story_weaver_id[:8]}...")
+    print(f"    Story Weaver: {str(story_weaver_id)[:8]}...")
 
     # Create or get Story party
     story_party_id = await party_exists(session, campaign_id, "story")
     if story_party_id:
-        print(f"    Story party already exists: {story_party_id[:8]}...")
+        print(f"    Story party already exists: {str(story_party_id)[:8]}...")
     else:
         story_party_id = await create_party(
             session, campaign_id, "Story", "story", story_weaver_id
         )
         summary["story_party_created"] = True
-        print(f"    Created Story party: {story_party_id[:8]}...")
+        print(f"    Created Story party: {str(story_party_id)[:8]}...")
 
     # Create or get OOC party
     ooc_party_id = await party_exists(session, campaign_id, "ooc")
     if ooc_party_id:
-        print(f"    OOC party already exists: {ooc_party_id[:8]}...")
+        print(f"    OOC party already exists: {str(ooc_party_id)[:8]}...")
     else:
         ooc_party_id = await create_party(
             session, campaign_id, "OOC", "ooc", story_weaver_id
         )
         summary["ooc_party_created"] = True
-        print(f"    Created OOC party: {ooc_party_id[:8]}...")
+        print(f"    Created OOC party: {str(ooc_party_id)[:8]}...")
 
     # Get characters for this campaign
     characters = await get_campaign_characters(session, campaign_id)
