@@ -22,7 +22,7 @@ import re
 import random
 
 from backend.db import get_db
-from backend.models import Party, Character, User, CampaignMembership, Message, Ability
+from backend.models import Party, Character, User, CampaignMembership, Message, Ability, Encounter, InitiativeRoll, NPC, Campaign
 from backend.auth.jwt import decode_access_token
 from backend.roll_logic import roll_dice
 from routes.schemas.campaign import (
@@ -266,6 +266,9 @@ async def campaign_websocket(
 
             elif message_type == "stat_check":
                 await handle_stat_check(campaign_uuid, data, user_uuid, db)
+
+            elif message_type == "initiative_command":
+                await handle_initiative_command(campaign_uuid, data, websocket, user_uuid, db)
 
             else:
                 logger.warning(f"Unknown message type: {message_type}")
@@ -1074,10 +1077,637 @@ async def broadcast_combat_result(campaign_id: UUID, combat_result: dict):
 async def broadcast_initiative(campaign_id: UUID, initiative_result: dict):
     """
     Broadcast initiative order to all players.
-    
+
     Called when combat starts.
     """
     await manager.broadcast(campaign_id, InitiativeResultBroadcast(
         order=initiative_result["initiative_order"],
         rolls=[r.model_dump(mode='json') for r in initiative_result["rolls"]]
     ).model_dump(mode='json'))
+
+
+# ============================================================================
+# INITIATIVE & ENCOUNTER SYSTEM
+# ============================================================================
+
+async def is_story_weaver(campaign_uuid: UUID, user_uuid: UUID, db: Session) -> bool:
+    """Check if user is the Story Weaver for this campaign."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+    if not campaign:
+        return False
+
+    # Get user's character in this campaign
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == user_uuid
+    ).first()
+
+    if not membership:
+        return False
+
+    # Check if their character is the story weaver
+    return str(membership.character_id) == str(campaign.story_weaver_id)
+
+
+async def get_or_create_active_encounter(campaign_uuid: UUID, db: Session) -> Encounter:
+    """Get the active encounter for a campaign, or create one if none exists."""
+    encounter = db.query(Encounter).filter(
+        Encounter.campaign_id == campaign_uuid,
+        Encounter.is_active == True
+    ).first()
+
+    if not encounter:
+        encounter = Encounter(
+            campaign_id=campaign_uuid,
+            is_active=True,
+            started_at=datetime.now()
+        )
+        db.add(encounter)
+        db.commit()
+        db.refresh(encounter)
+
+    return encounter
+
+
+async def roll_initiative_self(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    Player rolls initiative for themselves.
+    Command: /initiative
+    """
+    try:
+        # Get user's character
+        membership = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_uuid,
+            CampaignMembership.user_id == user_uuid
+        ).first()
+
+        if not membership:
+            await websocket.send_json({
+                "type": "error",
+                "message": "You don't have a character in this campaign"
+            })
+            return
+
+        character = db.query(Character).filter(Character.id == membership.character_id).first()
+        if not character:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Character not found"
+            })
+            return
+
+        # Get or create active encounter
+        encounter = await get_or_create_active_encounter(campaign_uuid, db)
+
+        # Check if character already rolled initiative
+        existing = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id,
+            InitiativeRoll.character_id == character.id
+        ).first()
+
+        if existing:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"You already rolled initiative this encounter ({existing.roll_result})"
+            })
+            return
+
+        # Roll 1d20
+        roll_result_list = roll_dice("1d20")
+        roll_total = sum(roll_result_list)
+
+        # Create initiative roll
+        initiative_roll = InitiativeRoll(
+            encounter_id=encounter.id,
+            character_id=character.id,
+            name=character.name,
+            roll_result=roll_total,
+            is_silent=False,
+            rolled_by_sw=False
+        )
+        db.add(initiative_roll)
+        db.commit()
+
+        # Broadcast to all players
+        await manager.broadcast(campaign_uuid, {
+            "type": "initiative_roll",
+            "actor": character.name,
+            "roll": roll_total,
+            "is_silent": False,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # Persist message
+        msg = Message(
+            campaign_id=campaign_uuid,
+            party_id=None,  # Initiative is campaign-wide
+            sender_id=character.id,
+            sender_name=character.name,
+            message_type="initiative_roll",
+            content=f"{character.name} rolled {roll_total} for initiative",
+            extra_data={
+                "actor": character.name,
+                "roll": roll_total,
+                "is_silent": False
+            }
+        )
+        db.add(msg)
+        db.commit()
+
+    except Exception as e:
+        logger.error(f"Initiative self-roll error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Initiative roll failed: {str(e)}"
+        })
+
+
+async def roll_initiative_target(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    target_name: str,
+    is_silent: bool,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    Story Weaver rolls initiative for a target (PC or NPC).
+    Commands: /initiative @Target, /initiative silent @Target
+    """
+    try:
+        # Verify user is Story Weaver
+        if not await is_story_weaver(campaign_uuid, user_uuid, db):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Only the Story Weaver can roll initiative for others"
+            })
+            return
+
+        # Get or create active encounter
+        encounter = await get_or_create_active_encounter(campaign_uuid, db)
+
+        # Try to find target as character
+        character = db.query(Character).filter(
+            Character.name.ilike(f"%{target_name}%")
+        ).first()
+
+        npc = None
+        if not character:
+            # Try to find as NPC
+            npc = db.query(NPC).filter(
+                NPC.campaign_id == campaign_uuid,
+                NPC.name.ilike(f"%{target_name}%")
+            ).first()
+
+        if not character and not npc:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Target '{target_name}' not found (searched PCs and NPCs)"
+            })
+            return
+
+        # Check if already rolled
+        if character:
+            existing = db.query(InitiativeRoll).filter(
+                InitiativeRoll.encounter_id == encounter.id,
+                InitiativeRoll.character_id == character.id
+            ).first()
+            name = character.name
+            entity_id = character.id
+            entity_type = "character"
+        else:
+            existing = db.query(InitiativeRoll).filter(
+                InitiativeRoll.encounter_id == encounter.id,
+                InitiativeRoll.npc_id == npc.id
+            ).first()
+            name = npc.name
+            entity_id = npc.id
+            entity_type = "npc"
+
+        if existing:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"{name} already rolled initiative this encounter ({existing.roll_result})"
+            })
+            return
+
+        # Roll 1d20
+        roll_result_list = roll_dice("1d20")
+        roll_total = sum(roll_result_list)
+
+        # Create initiative roll
+        initiative_roll = InitiativeRoll(
+            encounter_id=encounter.id,
+            character_id=character.id if character else None,
+            npc_id=npc.id if npc else None,
+            name=name,
+            roll_result=roll_total,
+            is_silent=is_silent,
+            rolled_by_sw=True
+        )
+        db.add(initiative_roll)
+        db.commit()
+
+        # Broadcast to players (filtered by is_silent)
+        broadcast_data = {
+            "type": "initiative_roll",
+            "actor": name,
+            "roll": roll_total if not is_silent else "???",
+            "is_silent": is_silent,
+            "rolled_by_sw": True,
+            "timestamp": datetime.now().isoformat()
+        }
+        await manager.broadcast(campaign_uuid, broadcast_data)
+
+        # Persist message
+        msg = Message(
+            campaign_id=campaign_uuid,
+            party_id=None,
+            sender_id=entity_id,
+            sender_name=name,
+            message_type="initiative_roll",
+            content=f"{name} rolled {roll_total if not is_silent else '???'} for initiative (SW rolled)",
+            extra_data={
+                "actor": name,
+                "roll": roll_total,  # Always store actual roll
+                "is_silent": is_silent,
+                "rolled_by_sw": True,
+                "entity_type": entity_type
+            }
+        )
+        db.add(msg)
+        db.commit()
+
+    except Exception as e:
+        logger.error(f"Initiative target-roll error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Initiative roll failed: {str(e)}"
+        })
+
+
+async def show_initiative_order(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    Display current initiative order.
+    Command: /initiative show
+
+    Filters silent rolls based on user role:
+    - Story Weaver sees everything
+    - Players only see non-silent rolls
+    """
+    try:
+        # Check if user is Story Weaver
+        is_sw = await is_story_weaver(campaign_uuid, user_uuid, db)
+
+        # Get active encounter
+        encounter = db.query(Encounter).filter(
+            Encounter.campaign_id == campaign_uuid,
+            Encounter.is_active == True
+        ).first()
+
+        if not encounter:
+            await websocket.send_json({
+                "type": "error",
+                "message": "No active encounter"
+            })
+            return
+
+        # Get all initiative rolls for this encounter
+        rolls_query = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id
+        ).order_by(InitiativeRoll.roll_result.desc())
+
+        all_rolls = rolls_query.all()
+
+        if not all_rolls:
+            await websocket.send_json({
+                "type": "error",
+                "message": "No initiative rolls yet"
+            })
+            return
+
+        # Filter based on user role
+        if is_sw:
+            # SW sees everything, including silent rolls
+            visible_rolls = [
+                {
+                    "name": roll.name,
+                    "roll": roll.roll_result,
+                    "is_silent": roll.is_silent,
+                    "rolled_by_sw": roll.rolled_by_sw
+                }
+                for roll in all_rolls
+            ]
+        else:
+            # Players only see non-silent rolls
+            visible_rolls = [
+                {
+                    "name": roll.name,
+                    "roll": roll.roll_result,
+                    "is_silent": False,
+                    "rolled_by_sw": roll.rolled_by_sw
+                }
+                for roll in all_rolls
+                if not roll.is_silent
+            ]
+
+        # Broadcast initiative order
+        await manager.broadcast(campaign_uuid, {
+            "type": "initiative_order",
+            "rolls": visible_rolls,
+            "encounter_id": str(encounter.id),
+            "timestamp": datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Show initiative error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to show initiative: {str(e)}"
+        })
+
+
+async def end_encounter(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    End the current encounter.
+    Command: /initiative end
+
+    - Marks encounter as inactive
+    - Restores all ability uses for all characters in the campaign
+    - Broadcasts encounter end message
+    """
+    try:
+        # Verify user is Story Weaver
+        if not await is_story_weaver(campaign_uuid, user_uuid, db):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Only the Story Weaver can end encounters"
+            })
+            return
+
+        # Get active encounter
+        encounter = db.query(Encounter).filter(
+            Encounter.campaign_id == campaign_uuid,
+            Encounter.is_active == True
+        ).first()
+
+        if not encounter:
+            await websocket.send_json({
+                "type": "error",
+                "message": "No active encounter to end"
+            })
+            return
+
+        # Mark encounter as ended
+        encounter.is_active = False
+        encounter.ended_at = datetime.now()
+        db.commit()
+
+        # Restore all ability uses for characters in this campaign
+        # Get all characters in the campaign
+        memberships = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_uuid
+        ).all()
+
+        character_ids = [m.character_id for m in memberships]
+
+        # Restore ability uses (set uses_remaining = max_uses)
+        abilities = db.query(Ability).filter(
+            Ability.character_id.in_(character_ids)
+        ).all()
+
+        restored_count = 0
+        for ability in abilities:
+            ability.uses_remaining = ability.max_uses
+            restored_count += 1
+
+        db.commit()
+
+        # Broadcast encounter end
+        await manager.broadcast(campaign_uuid, {
+            "type": "encounter_end",
+            "message": f"Encounter ended. {restored_count} abilities restored.",
+            "encounter_id": str(encounter.id),
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # Persist message
+        sw_membership = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_uuid,
+            CampaignMembership.user_id == user_uuid
+        ).first()
+
+        if sw_membership:
+            sw_character = db.query(Character).filter(
+                Character.id == sw_membership.character_id
+            ).first()
+
+            msg = Message(
+                campaign_id=campaign_uuid,
+                party_id=None,
+                sender_id=sw_character.id if sw_character else None,
+                sender_name=sw_character.name if sw_character else "Story Weaver",
+                message_type="encounter_end",
+                content=f"Encounter ended. All abilities restored.",
+                extra_data={
+                    "encounter_id": str(encounter.id),
+                    "abilities_restored": restored_count
+                }
+            )
+            db.add(msg)
+            db.commit()
+
+    except Exception as e:
+        logger.error(f"End encounter error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to end encounter: {str(e)}"
+        })
+
+
+async def clear_initiative(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    Clear initiative without ending the encounter.
+    Command: /initiative clear
+
+    - Deletes all initiative rolls for the active encounter
+    - Does NOT restore ability uses
+    - Useful for restarting initiative order
+    """
+    try:
+        # Verify user is Story Weaver
+        if not await is_story_weaver(campaign_uuid, user_uuid, db):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Only the Story Weaver can clear initiative"
+            })
+            return
+
+        # Get active encounter
+        encounter = db.query(Encounter).filter(
+            Encounter.campaign_id == campaign_uuid,
+            Encounter.is_active == True
+        ).first()
+
+        if not encounter:
+            await websocket.send_json({
+                "type": "error",
+                "message": "No active encounter"
+            })
+            return
+
+        # Delete all initiative rolls for this encounter
+        deleted_count = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id
+        ).delete()
+
+        db.commit()
+
+        # Broadcast clear
+        await manager.broadcast(campaign_uuid, {
+            "type": "initiative_clear",
+            "message": f"Initiative cleared. {deleted_count} rolls removed.",
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # Persist message
+        sw_membership = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_uuid,
+            CampaignMembership.user_id == user_uuid
+        ).first()
+
+        if sw_membership:
+            sw_character = db.query(Character).filter(
+                Character.id == sw_membership.character_id
+            ).first()
+
+            msg = Message(
+                campaign_id=campaign_uuid,
+                party_id=None,
+                sender_id=sw_character.id if sw_character else None,
+                sender_name=sw_character.name if sw_character else "Story Weaver",
+                message_type="initiative_clear",
+                content=f"Initiative cleared. Roll again!",
+                extra_data={
+                    "rolls_cleared": deleted_count
+                }
+            )
+            db.add(msg)
+            db.commit()
+
+    except Exception as e:
+        logger.error(f"Clear initiative error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to clear initiative: {str(e)}"
+        })
+
+
+async def handle_initiative_command(
+    campaign_uuid: UUID,
+    data: dict,
+    websocket: WebSocket,
+    user_uuid: UUID,
+    db: Session
+):
+    """
+    Main router for initiative commands.
+
+    Commands:
+    - /initiative              -> roll_initiative_self()
+    - /initiative @Target      -> roll_initiative_target()
+    - /initiative silent @Target -> roll_initiative_target(is_silent=True)
+    - /initiative show         -> show_initiative_order()
+    - /initiative end          -> end_encounter()
+    - /initiative clear        -> clear_initiative()
+    """
+    try:
+        raw_command = data.get("raw_command", "").strip()
+
+        if not raw_command:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Invalid initiative command"
+            })
+            return
+
+        # Parse command
+        parts = raw_command.split()
+
+        # /initiative (self-roll)
+        if len(parts) == 1:
+            await roll_initiative_self(campaign_uuid, user_uuid, db, websocket)
+            return
+
+        subcommand = parts[1].lower()
+
+        # /initiative show
+        if subcommand == "show":
+            await show_initiative_order(campaign_uuid, user_uuid, db, websocket)
+            return
+
+        # /initiative end
+        if subcommand == "end":
+            await end_encounter(campaign_uuid, user_uuid, db, websocket)
+            return
+
+        # /initiative clear
+        if subcommand == "clear":
+            await clear_initiative(campaign_uuid, user_uuid, db, websocket)
+            return
+
+        # /initiative silent @Target
+        if subcommand == "silent":
+            if len(parts) < 3:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Usage: /initiative silent @TargetName"
+                })
+                return
+
+            target_name = parts[2].lstrip("@")
+            await roll_initiative_target(
+                campaign_uuid, user_uuid, target_name, is_silent=True, db=db, websocket=websocket
+            )
+            return
+
+        # /initiative @Target
+        if subcommand.startswith("@"):
+            target_name = subcommand.lstrip("@")
+            await roll_initiative_target(
+                campaign_uuid, user_uuid, target_name, is_silent=False, db=db, websocket=websocket
+            )
+            return
+
+        # Unknown subcommand
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Unknown initiative command: {subcommand}\nUse: /initiative, /initiative show, /initiative end, /initiative clear, /initiative @Target, /initiative silent @Target"
+        })
+
+    except Exception as e:
+        logger.error(f"Initiative command error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Initiative command failed: {str(e)}"
+        })

@@ -479,6 +479,67 @@ class CombatTurn(Base):
         return f"<CombatTurn(id={str(self.id)[:8]}..., turn={self.turn_number}, combatant={self.combatant_name}, action={self.action_type})>"
 
 
+class Encounter(Base):
+    """
+    Combat encounter tracking with initiative system.
+
+    Each encounter represents a distinct combat/challenge that has its own
+    initiative order and ability use tracking.
+    """
+    __tablename__ = "encounters"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
+
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ended_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    initiative_rolls = relationship("InitiativeRoll", back_populates="encounter", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        status = "active" if self.is_active else "ended"
+        return f"<Encounter(id={str(self.id)[:8]}..., campaign={str(self.campaign_id)[:8]}..., status={status})>"
+
+
+class InitiativeRoll(Base):
+    """
+    Individual initiative roll within an encounter.
+
+    Tracks each participant's initiative order, supporting both PCs and NPCs.
+    Can be silent (hidden from players) for surprise encounters.
+    """
+    __tablename__ = "initiative_rolls"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    encounter_id = Column(String, ForeignKey("encounters.id"), nullable=False, index=True)
+    character_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)
+    npc_id = Column(String, ForeignKey("npcs.id"), nullable=True, index=True)
+
+    name = Column(String, nullable=False)  # Cached display name
+    roll_result = Column(Integer, nullable=False, index=True)
+    is_silent = Column(Boolean, nullable=False, default=False)  # Hidden from players
+    rolled_by_sw = Column(Boolean, nullable=False, default=False)  # Forced roll vs self-roll
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    encounter = relationship("Encounter", back_populates="initiative_rolls")
+    character = relationship("Character")
+    npc = relationship("NPC")
+
+    def __repr__(self):
+        entity = f"char={str(self.character_id)[:8]}" if self.character_id else f"npc={str(self.npc_id)[:8]}"
+        silent = " [SILENT]" if self.is_silent else ""
+        return f"<InitiativeRoll(id={str(self.id)[:8]}..., {entity}, roll={self.roll_result}{silent})>"
+
+
 class Ability(Base):
     """
     Custom spells, techniques, and abilities for characters.

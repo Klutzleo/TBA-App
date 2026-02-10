@@ -550,6 +550,27 @@
       padding: 16px;
     }
 
+    .initiative-roll {
+      background: rgba(147, 51, 234, 0.1);
+      border-left-color: #9333ea;
+    }
+
+    .initiative-order {
+      background: rgba(59, 130, 246, 0.1);
+      border-left-color: #3b82f6;
+      padding: 16px;
+    }
+
+    .encounter-end {
+      background: rgba(76, 175, 80, 0.1);
+      border-left-color: #4CAF50;
+    }
+
+    .initiative-clear {
+      background: rgba(156, 163, 175, 0.1);
+      border-left-color: #9ca3af;
+    }
+
     .message-header {
       font-weight: 600;
       margin-bottom: 8px;
@@ -2829,6 +2850,73 @@
 
                 storeAndDisplayMessage(container, { type: 'ability_cast', ...data });
               }
+              // ✅ Handle initiative rolls from database
+              else if (msg.message_type === 'initiative_roll') {
+                console.log('🎲 Loading initiative roll from history:', msg);
+                const data = msg.extra_data || {};
+
+                const container = document.createElement('div');
+                container.className = 'message-card initiative-roll';
+
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.textContent = `🎲 ${data.actor} rolled initiative: ${data.roll}`;
+
+                if (data.is_silent) {
+                  header.textContent = `🔒 ${data.actor} rolled initiative (hidden)`;
+                }
+
+                if (data.rolled_by_sw) {
+                  const swTag = document.createElement('span');
+                  swTag.style.fontSize = '10px';
+                  swTag.style.color = 'var(--text-muted)';
+                  swTag.style.marginLeft = '8px';
+                  swTag.textContent = '(SW rolled)';
+                  header.appendChild(swTag);
+                }
+
+                container.appendChild(header);
+                storeAndDisplayMessage(container, { type: 'initiative_roll', ...data });
+              }
+              // ✅ Handle encounter end from database
+              else if (msg.message_type === 'encounter_end') {
+                console.log('🏁 Loading encounter end from history:', msg);
+                const data = msg.extra_data || {};
+
+                const container = document.createElement('div');
+                container.className = 'message-card encounter-end';
+
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.style.fontSize = '16px';
+                header.style.color = 'var(--success, #4CAF50)';
+                header.style.textAlign = 'center';
+                header.style.padding = '12px';
+                header.style.borderRadius = '8px';
+                header.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+                header.textContent = `🏁 ${msg.content}`;
+                container.appendChild(header);
+
+                storeAndDisplayMessage(container, { type: 'encounter_end', ...data });
+              }
+              // ✅ Handle initiative clear from database
+              else if (msg.message_type === 'initiative_clear') {
+                console.log('🔄 Loading initiative clear from history:', msg);
+                const data = msg.extra_data || {};
+
+                const container = document.createElement('div');
+                container.className = 'message-card initiative-clear';
+
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.style.textAlign = 'center';
+                header.style.padding = '8px';
+                header.style.color = 'var(--text-muted)';
+                header.textContent = `🔄 ${msg.content}`;
+                container.appendChild(header);
+
+                storeAndDisplayMessage(container, { type: 'initiative_clear', ...data });
+              }
               // ✅ Handle regular chat messages
               else {
                 const messageData = {
@@ -3263,8 +3351,111 @@
                   }
                 });
               }
+
+            } else if (data.type === 'initiative_roll') {
+              // Single initiative roll
+              const container = document.createElement('div');
+              container.className = 'message-card initiative-roll';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.textContent = `🎲 ${data.actor} rolled initiative: ${data.roll}`;
+
+              if (data.is_silent) {
+                header.textContent = `🔒 ${data.actor} rolled initiative (hidden)`;
+              }
+
+              if (data.rolled_by_sw) {
+                const swTag = document.createElement('span');
+                swTag.style.fontSize = '10px';
+                swTag.style.color = 'var(--text-muted)';
+                swTag.style.marginLeft = '8px';
+                swTag.textContent = '(SW rolled)';
+                header.appendChild(swTag);
+              }
+
+              container.appendChild(header);
+              storeAndDisplayMessage(container, data);
+
+            } else if (data.type === 'initiative_order') {
+              // Initiative order display
+              const container = document.createElement('div');
+              container.className = 'message-card initiative-order';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.fontSize = '16px';
+              header.style.marginBottom = '12px';
+              header.style.borderBottom = '2px solid var(--primary)';
+              header.style.paddingBottom = '8px';
+              header.textContent = '⚔️ Initiative Order';
+              container.appendChild(header);
+
+              const orderList = document.createElement('div');
+              orderList.style.fontFamily = 'monospace';
+              orderList.style.fontSize = '14px';
+
+              data.rolls.forEach((roll, index) => {
+                const entry = document.createElement('div');
+                entry.style.padding = '4px 8px';
+                entry.style.margin = '2px 0';
+                entry.style.borderRadius = '4px';
+                entry.style.backgroundColor = index % 2 === 0 ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)';
+
+                const position = index + 1;
+                const name = roll.name.padEnd(20, ' ');
+                const rollValue = roll.is_silent ? '???' : roll.roll.toString().padStart(2, ' ');
+
+                entry.textContent = `${position}. ${name} [${rollValue}]`;
+
+                if (roll.is_silent) {
+                  entry.style.fontStyle = 'italic';
+                  entry.style.color = 'var(--text-muted)';
+                }
+
+                orderList.appendChild(entry);
+              });
+
+              container.appendChild(orderList);
+              storeAndDisplayMessage(container, data);
+
+            } else if (data.type === 'encounter_end') {
+              // Encounter ended
+              const container = document.createElement('div');
+              container.className = 'message-card encounter-end';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.fontSize = '16px';
+              header.style.color = 'var(--success, #4CAF50)';
+              header.style.textAlign = 'center';
+              header.style.padding = '12px';
+              header.style.borderRadius = '8px';
+              header.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+              header.textContent = `🏁 ${data.message}`;
+              container.appendChild(header);
+
+              storeAndDisplayMessage(container, data);
+
+            } else if (data.type === 'initiative_clear') {
+              // Initiative cleared
+              const container = document.createElement('div');
+              container.className = 'message-card initiative-clear';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.textAlign = 'center';
+              header.style.padding = '8px';
+              header.style.color = 'var(--text-muted)';
+              header.textContent = `🔄 ${data.message}`;
+              container.appendChild(header);
+
+              storeAndDisplayMessage(container, data);
+
             } else if (data.type === 'initiative') {
+              // Legacy initiative (fallback)
               renderDiceRoll(data, '🧭');
+
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
               // In-Character message - skip if from self (already displayed locally)
               const myActor = (currentActor.trim() || 'User').toLowerCase();
@@ -3386,9 +3577,17 @@
         // Rest command - restore ability uses (placeholder for now)
         ws.send(JSON.stringify({ type: 'message', actor, text }));
 
+      } else if (text.startsWith('/initiative') || text.startsWith('/init')) {
+        // Initiative command - send to new initiative handler
+        const payload = {
+          type: 'initiative_command',
+          raw_command: text
+        };
+        ws.send(JSON.stringify(payload));
+
       } else if (text.startsWith('/')) {
         // Check if it's a known system command
-        const knownCommands = ['/who', '/help', '/status', '/init', '/initiative'];
+        const knownCommands = ['/who', '/help', '/status'];
         const command = text.split(' ')[0].toLowerCase();
 
         if (knownCommands.includes(command)) {
