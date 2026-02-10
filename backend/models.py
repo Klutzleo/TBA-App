@@ -501,6 +501,10 @@ class Ability(Base):
     die = Column(String, nullable=False)  # Dice expression (e.g., 2d6, 3d4)
     is_aoe = Column(Boolean, nullable=False, default=False)  # Area of effect
 
+    # Usage tracking (3 uses per encounter per character level)
+    max_uses = Column(Integer, nullable=False, default=3)  # Total charges per encounter
+    uses_remaining = Column(Integer, nullable=False, default=3)  # Current charges
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -3241,7 +3241,7 @@
       } else if (text.startsWith('/roll')) {
         // Dice roll command
         const diceNotation = text.replace('/roll ', '').trim();
-        const payload = { 
+        const payload = {
           type: 'dice_roll',
           dice: diceNotation,
           roller: actor,
@@ -3249,18 +3249,42 @@
         };
         ws.send(JSON.stringify(payload));
 
-      } else if (text.startsWith('/')) {
-        // Other commands - send as legacy message (for backwards compatibility)
-        const payload = { type: 'message', actor, text };
-
-        // Use quick context/encounter if provided
-        const ctx = contextQuickEl.value.trim();
-        const encId = encounterQuickEl.value.trim();
-
-        if (ctx) payload.context = ctx;
-        if (encId) payload.encounter_id = encId;
-
+      } else if (text.startsWith('/pp') || text.startsWith('/ip') || text.startsWith('/sp')) {
+        // Stat check macros - send as dice rolls with stat context
+        const stat = text.substring(1, 3).toUpperCase(); // Extract "PP", "IP", or "SP"
+        const payload = {
+          type: 'dice_roll',
+          dice: '1d6',
+          roller: actor,
+          reason: `${stat} Check`
+        };
         ws.send(JSON.stringify(payload));
+
+      } else if (text.startsWith('/rest')) {
+        // Rest command - restore ability uses (placeholder for now)
+        ws.send(JSON.stringify({ type: 'message', actor, text }));
+
+      } else if (text.startsWith('/')) {
+        // Check if it's a known system command
+        const knownCommands = ['/who', '/help', '/status', '/init', '/initiative'];
+        const command = text.split(' ')[0].toLowerCase();
+
+        if (knownCommands.includes(command)) {
+          // System command - send as legacy message
+          const payload = { type: 'message', actor, text };
+          const ctx = contextQuickEl.value.trim();
+          const encId = encounterQuickEl.value.trim();
+          if (ctx) payload.context = ctx;
+          if (encId) payload.encounter_id = encId;
+          ws.send(JSON.stringify(payload));
+        } else {
+          // Unknown command - assume it's a custom ability/spell/technique
+          const payload = {
+            type: 'ability_cast',
+            raw_command: text
+          };
+          ws.send(JSON.stringify(payload));
+        }
       } else {
         // Regular message - use active tab to determine chat mode
         let chatMode = 'ic'; // default

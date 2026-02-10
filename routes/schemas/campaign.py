@@ -56,6 +56,12 @@ class DiceRollRequest(BaseModel):
     user_id: Optional[UUID] = None  # Make optional (server will provide)
 
 
+class AbilityCastCommand(BaseModel):
+    """Player casts an ability/spell/technique via macro command."""
+    type: Literal["ability_cast"] = "ability_cast"
+    raw_command: str  # Full command text (e.g., "/heal @TargetName" or "/fireball @Enemy1 @Enemy2")
+
+
 # ============================================================================
 # OUTGOING MESSAGES (Server → Clients)
 # ============================================================================
@@ -90,6 +96,19 @@ class CombatResultBroadcast(BaseModel):
     narrative: str
     individual_rolls: List[Dict[str, Any]]  # Detailed roll breakdown
     outcome: str  # "hit", "partial_hit", "miss"
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class AbilityCastBroadcast(BaseModel):
+    """Server broadcasts ability/spell/technique cast result."""
+    type: Literal["ability_cast"] = "ability_cast"
+    caster: str  # Character name
+    ability_name: str  # Display name of ability
+    effect_type: str  # "damage", "heal", "buff", "debuff"
+    targets: List[str]  # Target character names
+    results: List[Dict[str, Any]]  # Per-target results (damage/healing amounts, rolls)
+    narrative: str  # Descriptive outcome text
+    uses_remaining: int  # Remaining charges for this ability
     timestamp: datetime = Field(default_factory=datetime.now)
 
 

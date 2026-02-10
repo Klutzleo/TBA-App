@@ -22,7 +22,7 @@ import re
 import random
 
 from backend.db import get_db
-from backend.models import Party, Character, User, CampaignMembership, Message
+from backend.models import Party, Character, User, CampaignMembership, Message, Ability
 from backend.auth.jwt import decode_access_token
 from backend.roll_logic import roll_dice
 from routes.schemas.campaign import (
@@ -31,9 +31,11 @@ from routes.schemas.campaign import (
     CombatCommand,
     GMNarration,
     DiceRollRequest,
+    AbilityCastCommand,
     ChatBroadcast,
     WhisperBroadcast,
     CombatResultBroadcast,
+    AbilityCastBroadcast,
     NarrationBroadcast,
     DiceRollBroadcast,
     SystemNotification,
@@ -252,6 +254,9 @@ async def campaign_websocket(
 
             elif message_type == "combat_command":
                 await handle_combat_command(campaign_uuid, data, websocket, user_uuid, db)
+
+            elif message_type == "ability_cast":
+                await handle_ability_cast(campaign_uuid, data, websocket, user_uuid, db)
 
             elif message_type == "narration":
                 await handle_narration(campaign_uuid, data)
@@ -582,8 +587,304 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             "type": "system",
             "text": f"❌ Combat error: {str(e)}"
         })
-    
-    
+
+
+
+async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocket, user_id: UUID, db: Session):
+    """
+    Handle custom ability/spell/technique casting.
+
+    Supports:
+    - Single target damage/heal
+    - AOE damage/heal (multiple targets)
+    - Buffs (self or target)
+    - Debuffs (contested roll)
+
+    Usage tracking: 3 uses per encounter per character level
+    """
+    request_id = "ability_cast"
+
+    try:
+        # Parse command
+        cmd = AbilityCastCommand(**data)
+        command_text = cmd.raw_command.strip()
+
+        # Extract macro and targets (e.g., "/heal @Target" or "/fireball @E1 @E2")
+        parts = command_text.split()
+        if not parts or not parts[0].startswith("/"):
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": "❌ Invalid ability command format. Use: /ability @Target"
+            })
+            return
+
+        macro_command = parts[0].lower()  # e.g., "/heal"
+        target_names = [p.lstrip("@") for p in parts[1:] if p.startswith("@")]
+
+        # Get caster's character
+        caster = db.query(Character).filter(
+            Character.user_id == str(user_id)
+        ).first()
+
+        if not caster:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": "❌ You need a character to cast abilities"
+            })
+            return
+
+        # Look up ability
+        ability = db.query(Ability).filter(
+            Ability.character_id == caster.id,
+            Ability.macro_command == macro_command
+        ).first()
+
+        if not ability:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": f"❌ Ability '{macro_command}' not found for {caster.name}"
+            })
+            return
+
+        # Check uses remaining
+        if ability.uses_remaining <= 0:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": f"❌ {ability.display_name} has no uses remaining! ({ability.uses_remaining}/{ability.max_uses})"
+            })
+            return
+
+        # Get caster's power stat (PP, IP, or SP)
+        power_stat = 0
+        if ability.power_source == "PP":
+            power_stat = caster.pp
+        elif ability.power_source == "IP":
+            power_stat = caster.ip
+        elif ability.power_source == "SP":
+            power_stat = caster.sp
+
+        # Execute based on effect type
+        results = []
+        narrative_parts = []
+
+        if ability.effect_type == "damage":
+            # Damage ability (single target or AOE)
+            if not target_names:
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": f"❌ {ability.display_name} requires at least one target. Use: {macro_command} @Target"
+                })
+                return
+
+            for target_name in target_names:
+                # Find target character
+                target = db.query(Character).filter(
+                    Character.name == target_name,
+                    Character.campaign_id == str(campaign_id)
+                ).first()
+
+                if not target:
+                    results.append({
+                        "target": target_name,
+                        "success": False,
+                        "message": "Target not found"
+                    })
+                    continue
+
+                # Roll attack: ability die + power stat + edge
+                attack_dice = ability.die  # e.g., "2d6"
+                attack_roll_result = roll_dice(attack_dice)
+                attack_total = attack_roll_result["total"] + power_stat + caster.edge
+
+                # Roll defense: target's defense die + PP
+                defense_roll_result = roll_dice(target.defense_die)
+                defense_total = defense_roll_result["total"] + target.pp
+
+                # Calculate damage
+                margin = attack_total - defense_total
+                damage = max(0, margin)
+
+                # Apply damage
+                old_dp = target.dp
+                target.dp = max(0, target.dp - damage)
+                db.commit()
+
+                outcome = "hit" if damage > 0 else "miss"
+                results.append({
+                    "target": target_name,
+                    "success": True,
+                    "damage": damage,
+                    "old_dp": old_dp,
+                    "new_dp": target.dp,
+                    "attack_roll": attack_total,
+                    "defense_roll": defense_total,
+                    "margin": margin,
+                    "outcome": outcome
+                })
+
+                if damage > 0:
+                    narrative_parts.append(f"{target_name} takes {damage} damage (DP: {old_dp} → {target.dp})")
+                else:
+                    narrative_parts.append(f"{target_name} dodges the attack!")
+
+        elif ability.effect_type == "heal":
+            # Healing ability (single target or AOE)
+            # If no targets specified, heal self
+            if not target_names:
+                target_names = [caster.name]
+
+            for target_name in target_names:
+                # Find target character
+                target = db.query(Character).filter(
+                    Character.name == target_name,
+                    Character.campaign_id == str(campaign_id)
+                ).first()
+
+                if not target:
+                    results.append({
+                        "target": target_name,
+                        "success": False,
+                        "message": "Target not found"
+                    })
+                    continue
+
+                # Roll healing: ability die + power stat
+                heal_roll_result = roll_dice(ability.die)
+                healing = heal_roll_result["total"] + power_stat
+
+                # Apply healing
+                old_dp = target.dp
+                target.dp = min(target.max_dp, target.dp + healing)
+                actual_healing = target.dp - old_dp
+                db.commit()
+
+                results.append({
+                    "target": target_name,
+                    "success": True,
+                    "healing": actual_healing,
+                    "old_dp": old_dp,
+                    "new_dp": target.dp,
+                    "roll": heal_roll_result["total"]
+                })
+
+                narrative_parts.append(f"{target_name} restores {actual_healing} DP (DP: {old_dp} → {target.dp})")
+
+        elif ability.effect_type == "buff":
+            # Buff ability (self or target)
+            # If no target, buff self
+            if not target_names:
+                target_names = [caster.name]
+
+            # Roll for buff strength/duration
+            buff_roll = roll_dice(ability.die)
+            buff_value = buff_roll["total"] + power_stat
+
+            for target_name in target_names:
+                results.append({
+                    "target": target_name,
+                    "success": True,
+                    "buff_value": buff_value,
+                    "roll": buff_roll["total"]
+                })
+                narrative_parts.append(f"{target_name} receives {ability.display_name}! (Power: {buff_value})")
+
+        elif ability.effect_type == "debuff":
+            # Debuff ability (contested roll required)
+            if not target_names:
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": f"❌ {ability.display_name} requires a target. Use: {macro_command} @Target"
+                })
+                return
+
+            for target_name in target_names:
+                # Find target
+                target = db.query(Character).filter(
+                    Character.name == target_name,
+                    Character.campaign_id == str(campaign_id)
+                ).first()
+
+                if not target:
+                    results.append({
+                        "target": target_name,
+                        "success": False,
+                        "message": "Target not found"
+                    })
+                    continue
+
+                # Contested roll: caster's ability vs target's defense
+                caster_roll = roll_dice(ability.die)
+                caster_total = caster_roll["total"] + power_stat + caster.edge
+
+                defense_roll = roll_dice(target.defense_die)
+                defense_total = defense_roll["total"] + target.pp
+
+                margin = caster_total - defense_total
+                success = margin > 0
+
+                results.append({
+                    "target": target_name,
+                    "success": success,
+                    "caster_roll": caster_total,
+                    "defense_roll": defense_total,
+                    "margin": margin,
+                    "debuff_strength": max(0, margin)
+                })
+
+                if success:
+                    narrative_parts.append(f"{target_name} is afflicted by {ability.display_name}! (Strength: {margin})")
+                else:
+                    narrative_parts.append(f"{target_name} resists {ability.display_name}!")
+
+        # Decrement uses
+        ability.uses_remaining -= 1
+        db.commit()
+
+        # Generate narrative
+        narrative = f"{caster.name} casts {ability.display_name}! " + " ".join(narrative_parts)
+
+        # Broadcast result
+        broadcast = AbilityCastBroadcast(
+            caster=caster.name,
+            ability_name=ability.display_name,
+            effect_type=ability.effect_type,
+            targets=target_names,
+            results=results,
+            narrative=narrative,
+            uses_remaining=ability.uses_remaining
+        )
+        await manager.broadcast(campaign_id, broadcast.model_dump(mode='json'))
+
+        # Persist to database
+        ability_message = Message(
+            campaign_id=str(campaign_id),
+            party_id=None,  # Visible to all tabs
+            sender_id=str(user_id),
+            sender_name=caster.name,
+            content=f"{caster.name} casts {ability.display_name}",
+            message_type="ability_cast",
+            extra_data={
+                "caster": caster.name,
+                "ability_name": ability.display_name,
+                "effect_type": ability.effect_type,
+                "targets": target_names,
+                "results": results,
+                "narrative": narrative,
+                "uses_remaining": ability.uses_remaining,
+                "max_uses": ability.max_uses
+            }
+        )
+        db.add(ability_message)
+        db.commit()
+
+        logger.info(f"[{request_id}] {caster.name} cast {ability.display_name} ({ability.uses_remaining}/{ability.max_uses} uses left)")
+
+    except Exception as e:
+        logger.error(f"Ability cast error: {str(e)}", exc_info=True)
+        await manager.broadcast(campaign_id, {
+            "type": "system",
+            "text": f"❌ Ability cast error: {str(e)}"
+        })
 
 
 async def handle_narration(campaign_id: UUID, data: dict):
