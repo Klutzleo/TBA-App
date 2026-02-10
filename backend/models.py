@@ -489,8 +489,8 @@ class Encounter(Base):
     __tablename__ = "encounters"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=False, index=True)
 
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     ended_at = Column(DateTime, nullable=True)
@@ -517,10 +517,10 @@ class InitiativeRoll(Base):
     __tablename__ = "initiative_rolls"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    encounter_id = Column(String, ForeignKey("encounters.id"), nullable=False, index=True)
-    character_id = Column(String, ForeignKey("characters.id"), nullable=True, index=True)
-    npc_id = Column(String, ForeignKey("npcs.id"), nullable=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    encounter_id = Column(UUID(as_uuid=True), ForeignKey("encounters.id"), nullable=False, index=True)
+    character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id"), nullable=True, index=True)
+    npc_id = Column(UUID(as_uuid=True), ForeignKey("npcs.id"), nullable=True, index=True)
 
     name = Column(String, nullable=False)  # Cached display name
     roll_result = Column(Integer, nullable=False, index=True)

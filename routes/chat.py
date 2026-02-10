@@ -1891,18 +1891,26 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
     if cmd == "/combat-help":
         help_text = """⚔️ **Combat System Guide**
 
-**Starting Combat:**
-• `/start-combat` (SW only) - Begin encounter
-• `/initiative` - Roll your initiative (1d6 + PP + Edge)
-• `/turn-order` - Lock in and display turn order
+**Initiative & Encounters:**
+• `/initiative` - Roll your initiative (1d20)
+• `/initiative show` - Display initiative order
+• `/initiative @target` (SW) - Roll for someone else
+• `/initiative silent @target` (SW) - Hidden roll for NPCs
+• `/initiative end` (SW) - End encounter & restore ability uses
+• `/initiative clear` (SW) - Clear initiative
 
-**During Combat:**
+**Abilities & Powers:**
+• Custom macros (e.g., `/heal`, `/fireball`, `/shield`)
+• 3 uses per encounter per character level
+• Target with `@name` for specific targets
+• Restored automatically when encounter ends
+
+**Combat Actions:**
 • `/attack @target` - Attack a target
   → Defense is auto-rolled for the defender
   → Multi-die weapons (2d4, 2d6) make multiple attacks
 • `/defend` - Manually roll defense (optional)
-• `/next-turn` (SW only) - Advance to next player
-• `/turn-order` - See current turn order
+• `/pp`, `/ip`, `/sp` - Roll stat checks
 
 **Combat Info:**
 • `/who` - See everyone's DP, weapons, and status
@@ -1911,11 +1919,11 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 • At 0 DP, you're knocked out
 • At -10 DP, you face The Calling
 
-**Ending Combat:**
-• `/end-combat` (SW only) - End the encounter
-• `/end-encounter` (SW only) - End encounter & restore all ability uses
-
-**Tie-Breakers:** Initiative ties are broken by PP > IP > SP > coin flip"""
+**Legacy Commands:**
+• `/start-combat` (SW) - Old combat system
+• `/turn-order` - Old turn tracking
+• `/next-turn` (SW) - Old turn advance
+• `/end-combat` (SW) - Old combat end"""
 
         return {
             "type": "system",
@@ -1970,21 +1978,28 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 • `/whisper @player <message>` - Private message (purple)
 • `/w @player <message>` - Whisper shorthand
 
-**Dice & Actions:**
+**Dice & Stat Checks:**
 • `/roll XdY+Z` - Roll dice (e.g., /roll 2d6+3)
-• `/pp`, `/ip`, `/sp` - Roll stat checks
+• `/pp`, `/ip`, `/sp` - Roll stat checks (1d6 + stat + Edge)
 • `/who` - List party members with stats
 
-**Combat:**
+**Abilities & Macros:**
+• `/<custom>` - Cast abilities/spells/techniques (e.g., /heal, /fireball)
+• `/<custom> @target` - Cast on specific target(s)
+• Uses: 3 per encounter per character level
+
+**Initiative & Encounters:**
+• `/initiative` - Roll your initiative (1d20)
+• `/initiative show` - Display initiative order
+• `/initiative @target` (SW) - Roll for someone else
+• `/initiative silent @target` (SW) - Hidden roll for NPCs
+• `/initiative end` (SW) - End encounter & restore ability uses
+• `/initiative clear` (SW) - Clear initiative without ending
+
+**Combat (Legacy):**
 • `/combat-help` - Full combat guide
-• `/start-combat` (SW) - Begin combat
-• `/initiative` - Roll initiative (1d6 + PP + Edge)
 • `/attack @target` - Attack someone
 • `/defend` - Roll defense manually
-• `/turn-order` - View turn order
-• `/next-turn` (SW) - Advance turn
-• `/end-combat` (SW) - End combat
-• `/end-encounter` (SW) - End & restore ability uses
 
 **Legend:** (SW) = Story Weaver only"""
 
