@@ -264,6 +264,9 @@ async def campaign_websocket(
             elif message_type == "dice_roll":
                 await handle_dice_roll(campaign_uuid, data, user_uuid, db)  # Pass user_id from WebSocket
 
+            elif message_type == "stat_check":
+                await handle_stat_check(campaign_uuid, data, user_uuid, db)
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
     
@@ -952,29 +955,96 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
     await manager.broadcast(campaign_id, broadcast_data.model_dump(mode='json'))
 
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
+async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Session):
+    """
+    Handle stat check macros (/pp, /ip, /sp).
 
-    # Parse notation: XdY+Z or XdY-Z
-    match = re.match(r'(\d+)d(\d+)(([+\-])(\d+))?', dice_notation.lower())
-    if not match:
-        raise ValueError(f"Invalid dice notation: {dice_notation}")
-    
-    num_dice = int(match.group(1))
-    die_sides = int(match.group(2))
-    modifier = 0
-    
-    if match.group(3):
-        sign = match.group(4)
-        mod_value = int(match.group(5))
-        modifier = mod_value if sign == '+' else -mod_value
-    
-    # Roll dice
-    rolls = [random.randint(1, die_sides) for _ in range(num_dice)]
-    total = sum(rolls) + modifier
-    
-    return total, rolls
+    Rolls 1d6 + stat value + edge, shows full breakdown.
+    Formula: 1d6 + PP/IP/SP + Edge = Total
+    """
+    display_name = manager.get_display_name(campaign_id, user_id)
+    stat_type = data.get("stat", "PP").upper()  # "PP", "IP", or "SP"
+
+    # Get character
+    character = db.query(Character).filter(
+        Character.user_id == str(user_id)
+    ).first()
+
+    if not character:
+        await manager.broadcast(campaign_id, {
+            "type": "system",
+            "text": f"❌ {display_name} needs a character to perform stat checks"
+        })
+        return
+
+    # Get stat value
+    stat_value = 0
+    if stat_type == "PP":
+        stat_value = character.pp
+        stat_name = "Physical"
+    elif stat_type == "IP":
+        stat_value = character.ip
+        stat_name = "Intellect"
+    elif stat_type == "SP":
+        stat_value = character.sp
+        stat_name = "Social"
+    else:
+        await manager.broadcast(campaign_id, {
+            "type": "system",
+            "text": f"❌ Invalid stat type: {stat_type}. Use PP, IP, or SP."
+        })
+        return
+
+    # Roll 1d6
+    roll_result = roll_dice("1d6")
+    die_roll = roll_result["total"]
+
+    # Calculate total: 1d6 + stat + edge
+    edge = character.edge
+    total = die_roll + stat_value + edge
+
+    # Build breakdown text showing the math
+    breakdown_text = f"1d6({die_roll}) + {stat_type}({stat_value}) + Edge({edge}) = {total}"
+    result_text = f"{stat_name} Check: {total}"
+
+    # Broadcast with detailed breakdown
+    broadcast_data = {
+        "type": "stat_roll",
+        "actor": character.name,
+        "stat": stat_type,
+        "stat_name": stat_name,
+        "die_roll": die_roll,
+        "stat_value": stat_value,
+        "edge": edge,
+        "total": total,
+        "text": result_text,
+        "breakdown": breakdown_text
+    }
+
+    # Persist to database
+    message_record = Message(
+        campaign_id=str(campaign_id),
+        party_id=None,  # Visible to all tabs
+        sender_id=str(user_id),
+        sender_name=character.name,
+        content=f"{stat_name} Check: {total}",
+        message_type="stat_roll",
+        extra_data={
+            "stat": stat_type,
+            "stat_name": stat_name,
+            "die_roll": die_roll,
+            "stat_value": stat_value,
+            "edge": edge,
+            "total": total,
+            "breakdown": breakdown_text
+        }
+    )
+    db.add(message_record)
+    db.commit()
+
+    # Broadcast result
+    await manager.broadcast(campaign_id, broadcast_data)
+    logger.info(f"[stat_check] {character.name} {stat_type} check: {total} ({breakdown_text})")
 
 
 # ============================================================================

@@ -3098,27 +3098,29 @@
               // Update character sheet for the defender
               updateCharacterSheet(data.defender, data.defender_new_dp);
             } else if (data.type === 'stat_roll') {
-              // Render stat roll with expression and breakdown similar to dice_roll
+              // Render stat roll with full breakdown: 1d6 + stat + edge
               const container = document.createElement('div');
               container.className = 'msg dice_roll';
 
               const header = document.createElement('div');
-              const stat = data.stat ? ` ${data.stat}` : '';
-              const diceExpr = data.dice ? ` (${data.dice})` : '';
-              header.textContent = `📊 ${data.actor}${stat}${diceExpr}: ${data.text}`;
+              header.style.fontWeight = 'bold';
+              header.textContent = `📊 ${data.actor} - ${data.stat_name || data.stat} Check: ${data.total}`;
               container.appendChild(header);
 
-              if (Array.isArray(data.breakdown)) {
+              // Show breakdown with math
+              if (data.breakdown) {
                 const bd = document.createElement('div');
                 bd.style.fontFamily = 'monospace';
                 bd.style.fontSize = '12px';
                 bd.style.marginLeft = '16px';
+                bd.style.marginTop = '4px';
+                bd.style.color = 'var(--text-secondary)';
                 bd.style.display = isSW() ? 'block' : 'none';
-                bd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
+                bd.textContent = data.breakdown; // e.g., "1d6(4) + PP(3) + Edge(2) = 9"
 
                 const toggle = document.createElement('a');
                 toggle.href = '#';
-                toggle.style.fontSize = '12px';
+                toggle.style.fontSize = '11px';
                 toggle.style.marginLeft = '8px';
                 toggle.textContent = isSW() ? 'Hide details' : 'Show details';
                 toggle.addEventListener('click', (e) => {
@@ -3250,13 +3252,11 @@
         ws.send(JSON.stringify(payload));
 
       } else if (text.startsWith('/pp') || text.startsWith('/ip') || text.startsWith('/sp')) {
-        // Stat check macros - send as dice rolls with stat context
+        // Stat check macros - send as stat_check with full calculation
         const stat = text.substring(1, 3).toUpperCase(); // Extract "PP", "IP", or "SP"
         const payload = {
-          type: 'dice_roll',
-          dice: '1d6',
-          roller: actor,
-          reason: `${stat} Check`
+          type: 'stat_check',
+          stat: stat  // Backend will add: 1d6 + stat value + edge
         };
         ws.send(JSON.stringify(payload));
 
