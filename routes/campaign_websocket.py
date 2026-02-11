@@ -1744,8 +1744,8 @@ async def send_help_text(websocket: WebSocket):
 **Legend:** (SW) = Story Weaver only"""
 
     await websocket.send_json({
-        "type": "system",
-        "message": help_text,
+        "type": "help_text",
+        "text": help_text,
         "timestamp": datetime.now().isoformat()
     })
 

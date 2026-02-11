@@ -3540,6 +3540,22 @@
 
               storeAndDisplayMessage(container, data);
 
+            } else if (data.type === 'help_text') {
+              // Help text display
+              const container = document.createElement('div');
+              container.className = 'message-card help-text';
+              container.style.whiteSpace = 'pre-wrap';
+              container.style.fontFamily = 'monospace';
+              container.style.fontSize = '13px';
+              container.style.lineHeight = '1.6';
+              container.style.padding = '16px';
+              container.style.backgroundColor = 'rgba(100, 100, 100, 0.05)';
+              container.style.border = '1px solid rgba(100, 100, 100, 0.2)';
+              container.style.borderRadius = '8px';
+              container.textContent = data.text;
+
+              storeAndDisplayMessage(container, data);
+
             } else if (data.type === 'initiative') {
               // Legacy initiative (fallback)
               renderDiceRoll(data, '🧭');
