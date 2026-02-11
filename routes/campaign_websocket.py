@@ -1418,7 +1418,7 @@ async def start_encounter(
         msg = Message(
             campaign_id=campaign_uuid,
             party_id=None,
-            sender_id=sw_character.id if sw_character else None,
+            sender_id=str(sw_character.id) if sw_character else str(user_uuid),  # Use user_uuid if no character
             sender_name=sw_character.name if sw_character else "Story Weaver",
             message_type="encounter_start",
             content="⚔️ Combat has begun! Roll for initiative!",
@@ -1601,7 +1601,7 @@ async def end_encounter(
         msg = Message(
             campaign_id=campaign_uuid,
             party_id=None,
-            sender_id=sw_character.id if sw_character else None,
+            sender_id=str(sw_character.id) if sw_character else str(user_uuid),
             sender_name=sw_character.name if sw_character else "Story Weaver",
             message_type="encounter_end",
             content=f"Encounter ended. All abilities restored.",
@@ -1680,7 +1680,7 @@ async def clear_initiative(
         msg = Message(
             campaign_id=campaign_uuid,
             party_id=None,
-            sender_id=sw_character.id if sw_character else None,
+            sender_id=str(sw_character.id) if sw_character else str(user_uuid),
             sender_name=sw_character.name if sw_character else "Story Weaver",
             message_type="initiative_clear",
             content=f"Initiative cleared. Roll again!",
@@ -1802,7 +1802,7 @@ async def restore_all_abilities(
         msg = Message(
             campaign_id=campaign_uuid,
             party_id=None,
-            sender_id=sw_character.id if sw_character else None,
+            sender_id=str(sw_character.id) if sw_character else str(user_uuid),
             sender_name=sw_character.name if sw_character else "Story Weaver",
             message_type="abilities_restored",
             content=f"🛏️ The party rests. All abilities restored.",
