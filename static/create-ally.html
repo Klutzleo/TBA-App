@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Create Character - TBA</title>
+    <title>Create Ally - TBA</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -293,8 +293,8 @@
     </style>
 </head>
 <body>
-    <h1>Create Character</h1>
-    <p class="subtitle">TBA v1.5 Character Creation</p>
+    <h1>🤝 Create Ally</h1>
+    <p class="subtitle">Build Your Bonded Companion (Uses Ally Leveling Table)</p>
 
     <!-- Progress Bar -->
     <div class="progress-bar">
@@ -574,8 +574,8 @@
 
         // Helper to get spell die for a specific slot at a specific level
         function getSpellDie(slotNum, level) {
-            const slotDice = SPELL_DIE_BY_SLOT_AND_LEVEL[slotNum];
-            return slotDice ? (slotDice[level] || '1d6') : '1d6';
+            const slotDice = ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL[slotNum];
+            return slotDice ? (slotDice[level] || '1d8') : '1d8';
         }
 
         // Uses per encounter (3 * level)
@@ -962,7 +962,7 @@
             // Update weapon options
             const weaponSelect = document.getElementById('weapon_die');
             weaponSelect.innerHTML = '';
-            const options = WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+            const options = ALLY_WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
             options.forEach(opt => {
                 const option = document.createElement('option');
                 option.value = opt;
@@ -994,9 +994,15 @@
 
         // Get available slots for a level
         function getAvailableSlots(level) {
-            return Object.entries(ABILITY_SLOTS)
-                .filter(([slot, config]) => level >= config.unlockLevel)
-                .map(([slot, config]) => ({ slot: parseInt(slot), ...config }));
+            // Allies get abilities at different levels than PCs
+            const slots = [];
+            if (level >= 3) {
+                slots.push({ slot: 1, type: 'single', label: 'Slot 1 (Single Target)', unlockLevel: 3 });
+            }
+            if (level >= 7) {
+                slots.push({ slot: 2, type: 'aoe', label: 'Slot 2 (AOE)', unlockLevel: 7 });
+            }
+            return slots;
         }
 
         // Generate ability slot HTML
@@ -1004,8 +1010,8 @@
             const isAoe = config.type === 'aoe';
             const spellDie = getSpellDie(slotNum, level);
 
-            // Special handling for Slot 1 - can be Technique, Ally, or Summon
-            if (slotNum === 1) {
+            // Allies don't get special slot 1 options - just regular abilities
+            if (false) {  // Disabled for Allies
                 return `
                     <div class="ability-slot ${config.type}" data-slot="${slotNum}">
                         <div class="ability-slot-header">
@@ -1207,10 +1213,12 @@
 
             // Update helper text
             const helperText = document.getElementById('abilities_helper');
-            if (availableSlots.length === 1) {
-                helperText.textContent = 'Create your starting ability (more slots unlock at higher levels)';
+            if (availableSlots.length === 0) {
+                helperText.textContent = 'Allies unlock abilities at level 3+ (Slot 1: Single) and level 7+ (Slot 2: AOE)';
+            } else if (availableSlots.length === 1) {
+                helperText.textContent = 'Create your Ally\'s ability (Slot 2 unlocks at level 7)';
             } else {
-                helperText.textContent = `Create your ${availableSlots.length} starting abilities`;
+                helperText.textContent = `Create your Ally's ${availableSlots.length} abilities`;
             }
 
             // Generate slot HTML
@@ -1267,50 +1275,11 @@
             // Abilities - dynamically build based on available slots
             const abilitiesContainer = document.getElementById('review_abilities_container');
             const availableSlots = getAvailableSlots(level);
-            const slot1Type = document.getElementById('slot1_type')?.value || 'technique';
 
             abilitiesContainer.innerHTML = availableSlots.map(slot => {
                 const slotNum = slot.slot;
 
-                // Special handling for slot 1
-                if (slotNum === 1) {
-                    if (slot1Type === 'ally') {
-                        return `
-                            <div style="margin-bottom: 10px; padding: 8px; background: #1a1a2e; border-radius: 4px; border-left: 3px solid #10b981;">
-                                <div class="review-row">
-                                    <span class="review-label">Slot 1 (Ally)</span>
-                                    <span class="review-value" style="color: #10b981;">🤝 Ally - Bonded Companion</span>
-                                </div>
-                                <div class="review-row">
-                                    <span class="review-label">Details</span>
-                                    <span class="review-value">Will be created after main character</span>
-                                </div>
-                            </div>
-                        `;
-                    } else if (slot1Type === 'summon') {
-                        const summonName = document.getElementById('summon_name')?.value || 'Unnamed Summon';
-                        const summonDesc = document.getElementById('summon_description')?.value || '-';
-                        const summonMacro = document.getElementById('summon_macro')?.value || '/summon';
-                        return `
-                            <div style="margin-bottom: 10px; padding: 8px; background: #1a1a2e; border-radius: 4px; border-left: 3px solid #d4af37;">
-                                <div class="review-row">
-                                    <span class="review-label">Slot 1 (Summon)</span>
-                                    <span class="review-value" style="color: #d4af37;">✨ ${summonName}</span>
-                                </div>
-                                <div class="review-row">
-                                    <span class="review-label">Command</span>
-                                    <span class="review-value">${summonMacro}</span>
-                                </div>
-                                <div class="review-row">
-                                    <span class="review-label">Description</span>
-                                    <span class="review-value" style="font-size: 12px; font-style: italic;">${summonDesc}</span>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
-
-                // Regular technique/spell
+                // All Ally abilities are regular techniques/spells
                 const abilityName = document.getElementById(`ability_name_${slotNum}`)?.value || '-';
                 const macro = document.getElementById(`macro_command_${slotNum}`)?.value || '-';
                 const powerSource = document.getElementById(`power_source_${slotNum}`)?.value || 'PP';
@@ -1337,9 +1306,9 @@
             }).join('');
 
             // Auto-calculated
-            document.getElementById('review_dp').textContent = DP_BY_LEVEL[level] || 10;
-            document.getElementById('review_edge').textContent = EDGE_BY_LEVEL[level] || 0;
-            document.getElementById('review_bap').textContent = BAP_BY_LEVEL[level] || 1;
+            document.getElementById('review_dp').textContent = ALLY_DP_BY_LEVEL[level] || 5;
+            document.getElementById('review_edge').textContent = ALLY_EDGE_BY_LEVEL[level] || 0;
+            document.getElementById('review_bap').textContent = ALLY_BAP_BY_LEVEL[level] || 1;
             document.getElementById('review_uses').textContent = USES_BY_LEVEL[level] || 3;
         }
 
@@ -1351,68 +1320,41 @@
             hideError();
 
             const campaignId = document.getElementById('campaign_id').value;
+            const parentId = urlParams.get('parent_id');
+
             if (!campaignId) {
-                showError('No campaign ID provided. Please access this page from your campaign.');
+                showError('No campaign ID provided.');
+                return;
+            }
+
+            if (!parentId) {
+                showError('No parent character ID provided. Allies must be linked to a parent character.');
                 return;
             }
 
             const level = parseInt(document.getElementById('level').value);
             const availableSlots = getAvailableSlots(level);
 
-            // Check slot 1 type (if available)
-            const slot1Type = document.getElementById('slot1_type')?.value || 'technique';
-            const hasAlly = slot1Type === 'ally';
-            const hasSummon = slot1Type === 'summon';
-
             // Build abilities array from all available slots
             const abilities = availableSlots.map(slot => {
                 const slotNum = slot.slot;
 
-                // Handle slot 1 special types
-                if (slotNum === 1) {
-                    if (slot1Type === 'ally') {
-                        // Mark slot 1 as reserved for Ally
-                        return {
-                            slot_number: 1,
-                            display_name: 'Ally (Reserved)',
-                            macro_command: '/ally',
-                            power_source: 'PP',
-                            effect_type: 'utility',
-                            die: getSpellDie(1, level),
-                            is_aoe: false,
-                            is_ally_slot: true
-                        };
-                    } else if (slot1Type === 'summon') {
-                        // Save summon details
-                        return {
-                            slot_number: 1,
-                            display_name: document.getElementById('summon_name').value.trim(),
-                            macro_command: document.getElementById('summon_macro').value.trim(),
-                            power_source: 'IP', // Summons use Intellect
-                            effect_type: 'utility',
-                            die: getSpellDie(1, level),
-                            is_aoe: false,
-                            is_summon: true,
-                            description: document.getElementById('summon_description').value.trim()
-                        };
-                    }
-                }
-
-                // Regular technique/spell
+                // Regular technique/spell (Allies don't have special slot 1 options)
                 return {
                     slot_number: slotNum,
-                    display_name: document.getElementById(`ability_name_${slotNum}`).value.trim(),
-                    macro_command: document.getElementById(`macro_command_${slotNum}`).value.trim(),
-                    power_source: document.getElementById(`power_source_${slotNum}`).value,
-                    effect_type: document.getElementById(`effect_type_${slotNum}`).value,
+                    display_name: document.getElementById(`ability_name_${slotNum}`)?.value?.trim() || '',
+                    macro_command: document.getElementById(`macro_command_${slotNum}`)?.value?.trim() || '',
+                    power_source: document.getElementById(`power_source_${slotNum}`)?.value || 'PP',
+                    effect_type: document.getElementById(`effect_type_${slotNum}`)?.value || 'damage',
                     die: getSpellDie(slotNum, level),
                     is_aoe: slot.type === 'aoe'
                 };
-            });
+            }).filter(a => a.display_name); // Only include abilities with names
 
             // Send all abilities as an array
             const payload = {
                 campaign_id: campaignId,
+                parent_id: parentId,  // Link to parent character
                 name: document.getElementById('name').value.trim(),
                 notes: document.getElementById('notes').value.trim() || null,
                 level: level,
@@ -1428,7 +1370,7 @@
 
             try {
                 const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
-                const response = await fetch('/api/characters/full', {
+                const response = await fetch(`/api/campaigns/${campaignId}/characters/${parentId}/ally`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1440,41 +1382,24 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    showError(data.detail || 'Failed to create character');
+                    showError(data.detail || 'Failed to create Ally');
                     return;
                 }
 
                 // Success!
                 const abilityCount = abilities.length;
+                document.getElementById('successMsg').textContent =
+                    `Ally "${data.name}" created with ${abilityCount} ${abilityCount === 1 ? 'ability' : 'abilities'}! Redirecting...`;
+                document.getElementById('successMsg').style.display = 'block';
 
-                // Check if we need to create an Ally
-                if (hasAlly) {
-                    document.getElementById('successMsg').textContent =
-                        `Character "${data.name}" created! Redirecting to Ally creation...`;
-                    document.getElementById('successMsg').style.display = 'block';
+                // Hide form
+                document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
 
-                    // Hide form
-                    document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
-
-                    // Redirect to Ally creation with parent character ID
-                    setTimeout(() => {
-                        const allyCreationUrl = `/create-ally.html?campaign_id=${campaignId}&parent_id=${data.id}&return=${encodeURIComponent(urlParams.get('return') || '/campaigns.html')}`;
-                        window.location.href = allyCreationUrl;
-                    }, 2000);
-                } else {
-                    document.getElementById('successMsg').textContent =
-                        `Character "${data.name}" created with ${abilityCount} ${abilityCount === 1 ? 'ability' : 'abilities'}! Redirecting...`;
-                    document.getElementById('successMsg').style.display = 'block';
-
-                    // Hide form
-                    document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
-
-                    // Redirect after 2 seconds
-                    setTimeout(() => {
-                        const returnUrl = urlParams.get('return') || `/campaigns.html`;
-                        window.location.href = returnUrl;
-                    }, 2000);
-                }
+                // Redirect after 2 seconds
+                setTimeout(() => {
+                    const returnUrl = urlParams.get('return') || `/campaigns.html`;
+                    window.location.href = returnUrl;
+                }, 2000);
 
             } catch (err) {
                 showError('Network error: ' + err.message);

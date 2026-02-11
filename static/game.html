@@ -1593,6 +1593,52 @@
       color: var(--accent-primary);
     }
 
+    /* === Ability Slot Styles (for NPC edit panel) === */
+    .ability-slot {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ability-slot-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .ability-slot-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-primary);
+    }
+
+    .ability-slot-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .ability-slot-badge.single {
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+    }
+
+    .ability-slot-badge.aoe {
+      background: rgba(255, 107, 107, 0.2);
+      color: #ff6b6b;
+    }
+
+    .ability-die-display {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
     /* === Modal Styles === */
     .modal {
       display: none;
@@ -1944,6 +1990,16 @@
             <option value="1d12">1d12 (Max Variance)</option>
           </select>
         </div>
+
+        <!-- Abilities Section -->
+        <div class="form-group" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+          <label class="form-label" style="font-size: 16px; color: var(--accent-primary);">Abilities</label>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">NPCs get abilities at level 3+ (Slot 1: Single) and level 7+ (Slot 2: AOE)</p>
+          <div id="editNpcAbilitiesContainer">
+            <!-- Dynamically populated based on level -->
+          </div>
+        </div>
+
         <div class="form-actions">
           <button type="button" class="btn btn-danger" onclick="deleteNpc()">Delete NPC</button>
           <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -1996,6 +2052,40 @@
     let activeSpeaker = null;  // { id, name, type: 'pc'|'npc'|'ally'|'narrator' }
     let playerCharacters = [];  // Player's PC and Ally (if any)
     let campaignNPCs = [];  // All NPCs for this campaign (SW only)
+
+    // === Ally/NPC Leveling Tables ===
+    // NPCs and Allies use the same leveling table (lower DP, different spell progression)
+    const ALLY_DP_BY_LEVEL = {
+      1: 5, 2: 7, 3: 10, 4: 12, 5: 15,
+      6: 17, 7: 20, 8: 22, 9: 25, 10: 27
+    };
+    const ALLY_EDGE_BY_LEVEL = {
+      1: 0, 2: 0, 3: 1, 4: 1, 5: 1,
+      6: 2, 7: 2, 8: 2, 9: 3, 10: 3
+    };
+    const ALLY_BAP_BY_LEVEL = {
+      1: 1, 2: 1, 3: 2, 4: 2, 5: 3,
+      6: 3, 7: 4, 8: 4, 9: 5, 10: 5
+    };
+    const ALLY_WEAPON_OPTIONS_BY_LEVEL = {
+      1: ['1d4'], 2: ['1d4'],
+      3: ['1d6'], 4: ['1d6'],
+      5: ['1d8'], 6: ['1d8'],
+      7: ['1d10'], 8: ['1d10'],
+      9: ['1d12'], 10: ['1d12']
+    };
+    const ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL = {
+      // Slot 1 (Single): Unlocks L3
+      1: { 3: '1d8', 4: '1d8', 5: '1d10', 6: '1d10', 7: '1d12', 8: '1d12', 9: '2d8', 10: '2d8' },
+      // Slot 2 (AOE): Unlocks L7
+      2: { 7: '1d8', 8: '1d8', 9: '1d10', 10: '1d10' }
+    };
+    function getAllyAvailableSlots(level) {
+      const slots = [];
+      if (level >= 3) slots.push({ slot: 1, type: 'single', die: ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL[1][level] });
+      if (level >= 7) slots.push({ slot: 2, type: 'aoe', die: ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL[2][level] });
+      return slots;
+    }
 
     // === Tab Functions ===
     function switchTab(tab) {
@@ -2414,15 +2504,101 @@
       const npc = campaignNPCs.find(n => n.id === npcId);
       if (!npc) return;
 
-      // Populate edit form
+      // Populate basic edit form
       document.getElementById('editNpcId').value = npcId;
       document.getElementById('editNpcName').value = npc.name;
       document.getElementById('editNpcLevel').value = npc.level;
       document.getElementById('editNpcDP').value = npc.dp;
       document.getElementById('editNpcAttackStyle').value = npc.attack_style;
 
+      // Load and render abilities
+      await loadNpcAbilities(npcId, npc.level);
+
       // Show edit panel
       document.getElementById('npcEditPanel').classList.add('active');
+    }
+
+    async function loadNpcAbilities(npcId, level) {
+      try {
+        // Fetch NPC's abilities from backend
+        const response = await fetch(`/api/characters/${npcId}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+          console.error('Failed to load NPC abilities');
+          renderNpcAbilitySlots(level, []);
+          return;
+        }
+
+        const npcData = await response.json();
+        const abilities = npcData.abilities || [];
+
+        // Render ability slots with existing data
+        renderNpcAbilitySlots(level, abilities);
+      } catch (error) {
+        console.error('Error loading NPC abilities:', error);
+        renderNpcAbilitySlots(level, []);
+      }
+    }
+
+    function renderNpcAbilitySlots(level, existingAbilities) {
+      const container = document.getElementById('editNpcAbilitiesContainer');
+      const availableSlots = getAllyAvailableSlots(level);
+
+      if (availableSlots.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No ability slots available at this level (abilities unlock at level 3+)</p>';
+        return;
+      }
+
+      container.innerHTML = availableSlots.map(slot => {
+        const existing = existingAbilities.find(a => a.slot_number === slot.slot);
+        const slotType = slot.type === 'aoe' ? 'AOE' : 'Single';
+
+        return `
+          <div class="ability-slot">
+            <div class="ability-slot-header">
+              <span class="ability-slot-title">Slot ${slot.slot}</span>
+              <span class="ability-slot-badge ${slot.type}">${slotType}</span>
+            </div>
+            <div class="ability-die-display">Spell/Tech Die: ${slot.die}</div>
+
+            <div class="form-group">
+              <label class="form-label">Ability Name</label>
+              <input type="text" id="editAbility_name_${slot.slot}" class="form-input"
+                     value="${existing?.display_name || ''}" placeholder="e.g., Fireball">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Macro Command</label>
+              <input type="text" id="editAbility_macro_${slot.slot}" class="form-input"
+                     value="${existing?.macro_command || ''}" placeholder="/cast or /technique">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div class="form-group">
+                <label class="form-label">Power Source</label>
+                <select id="editAbility_power_${slot.slot}" class="form-input">
+                  <option value="PP" ${existing?.power_source === 'PP' ? 'selected' : ''}>PP (Physical)</option>
+                  <option value="IP" ${existing?.power_source === 'IP' ? 'selected' : ''}>IP (Intellect)</option>
+                  <option value="SP" ${existing?.power_source === 'SP' ? 'selected' : ''}>SP (Social)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Effect Type</label>
+                <select id="editAbility_effect_${slot.slot}" class="form-input">
+                  <option value="damage" ${existing?.effect_type === 'damage' ? 'selected' : ''}>Damage</option>
+                  <option value="healing" ${existing?.effect_type === 'healing' ? 'selected' : ''}>Healing</option>
+                  <option value="buff" ${existing?.effect_type === 'buff' ? 'selected' : ''}>Buff</option>
+                  <option value="debuff" ${existing?.effect_type === 'debuff' ? 'selected' : ''}>Debuff</option>
+                  <option value="utility" ${existing?.effect_type === 'utility' ? 'selected' : ''}>Utility</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     function closeNpcEditPanel() {
@@ -2434,14 +2610,17 @@
       e.preventDefault();
 
       const npcId = document.getElementById('editNpcId').value;
+      const level = parseInt(document.getElementById('editNpcLevel').value);
+
       const updateData = {
         name: document.getElementById('editNpcName').value,
-        level: parseInt(document.getElementById('editNpcLevel').value),
+        level: level,
         dp: parseInt(document.getElementById('editNpcDP').value),
         attack_style: document.getElementById('editNpcAttackStyle').value
       };
 
       try {
+        // Update basic NPC data
         const response = await fetch(`/api/campaigns/${campaignId}/npcs/${npcId}`, {
           method: 'PUT',
           headers: {
@@ -2456,6 +2635,12 @@
           throw new Error(error.detail || 'Failed to update NPC');
         }
 
+        // Collect and save abilities
+        const availableSlots = getAllyAvailableSlots(level);
+        if (availableSlots.length > 0) {
+          await saveNpcAbilities(npcId, level, availableSlots);
+        }
+
         // Success! Reload bubble bar and close panel
         await loadBubbleBar();
         closeNpcEditPanel();
@@ -2465,6 +2650,52 @@
         alert(`Error updating NPC: ${error.message}`);
       }
     });
+
+    async function saveNpcAbilities(npcId, level, availableSlots) {
+      // Collect ability data from form
+      const abilities = availableSlots.map(slot => {
+        const name = document.getElementById(`editAbility_name_${slot.slot}`)?.value?.trim();
+        const macro = document.getElementById(`editAbility_macro_${slot.slot}`)?.value?.trim();
+        const powerSource = document.getElementById(`editAbility_power_${slot.slot}`)?.value;
+        const effectType = document.getElementById(`editAbility_effect_${slot.slot}`)?.value;
+
+        // Only save if name is provided
+        if (!name) return null;
+
+        return {
+          slot_number: slot.slot,
+          display_name: name,
+          macro_command: macro || `/ability${slot.slot}`,
+          power_source: powerSource,
+          effect_type: effectType,
+          die: slot.die,
+          is_aoe: slot.type === 'aoe'
+        };
+      }).filter(a => a !== null);
+
+      // Save abilities via character abilities endpoint
+      // Note: This requires a backend endpoint to handle bulk ability updates
+      // For now, we'll use individual updates or the character full update endpoint
+      if (abilities.length > 0) {
+        try {
+          const response = await fetch(`/api/characters/${npcId}/abilities`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ abilities })
+          });
+
+          if (!response.ok) {
+            console.warn('Failed to save NPC abilities, but NPC updated successfully');
+          }
+        } catch (error) {
+          console.error('Error saving abilities:', error);
+          // Don't fail the whole operation if abilities fail
+        }
+      }
+    }
 
     // Delete NPC
     async function deleteNpc(npcId) {
