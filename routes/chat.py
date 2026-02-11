@@ -1989,13 +1989,13 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 • Uses: 3 per encounter per character level
 
 **Initiative & Encounters:**
-• `/initiative` - Roll your initiative (1d20)
-• `/initiative show` - Display initiative order
-• `/initiative @target` (SW) - Roll for someone else
-• `/initiative silent @target` (SW) - Hidden roll for NPCs
-• `/initiative end` (SW) - End encounter & restore ability uses
-• `/initiative clear` (SW) - Clear initiative without ending
-• `/rest` (SW) - Restore all ability uses without ending encounter
+• `/initiative` - Roll your own initiative (1d20)
+• `/initiative show` - Display full initiative order
+• `/initiative @target` (SW) - Roll initiative for PC/NPC
+• `/initiative silent @target` (SW) - Hidden roll (only SW sees result)
+• `/initiative end` (SW) - End encounter & restore all ability uses
+• `/initiative clear` (SW) - Clear initiative without ending encounter
+• `/rest` (SW) - Restore all ability uses (short rest)
 
 **Combat (Legacy):**
 • `/combat-help` - Full combat guide
@@ -2221,18 +2221,19 @@ async def chat_party_ws(
                 macro_last_ts[key] = now
                 msg = await handle_macro(party_id, actor, text, ctx, enc_id, character_id)
 
-                # Check if this is an error/unknown command - send only to sender
-                is_error_message = (
+                # Check if this is an error/unknown command or help text - send only to sender
+                is_private_message = (
                     msg.get("type") == "system" and
                     msg.get("actor") == "system" and
                     any(phrase in msg.get("text", "").lower() for phrase in [
                         "unknown command", "usage:", "not found", "error", "failed", "invalid",
-                        "only the story weaver", "cannot verify", "has no ability uses"
+                        "only the story weaver", "cannot verify", "has no ability uses",
+                        "available commands", "📜"  # Help text markers
                     ])
                 )
 
-                if is_error_message:
-                    # Send error only to the sender, not to everyone
+                if is_private_message:
+                    # Send private messages (errors, help text) only to the sender
                     try:
                         await websocket.send_json(msg)
                     except Exception:

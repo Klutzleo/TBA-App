@@ -1100,16 +1100,16 @@ async def is_story_weaver(campaign_uuid: UUID, user_uuid: UUID, db: Session) -> 
         return False
 
     # Get user's character in this campaign
-    membership = db.query(CampaignMembership).filter(
-        CampaignMembership.campaign_id == campaign_uuid,
-        CampaignMembership.user_id == user_uuid
+    character = db.query(Character).filter(
+        Character.campaign_id == campaign_uuid,
+        Character.user_id == user_uuid
     ).first()
 
-    if not membership:
+    if not character:
         return False
 
     # Check if their character is the story weaver
-    return str(membership.character_id) == str(campaign.story_weaver_id)
+    return str(character.id) == str(campaign.story_weaver_id)
 
 
 async def get_or_create_active_encounter(campaign_uuid: UUID, db: Session) -> Encounter:
@@ -1143,20 +1143,12 @@ async def roll_initiative_self(
     Command: /initiative
     """
     try:
-        # Get user's character
-        membership = db.query(CampaignMembership).filter(
-            CampaignMembership.campaign_id == campaign_uuid,
-            CampaignMembership.user_id == user_uuid
+        # Get user's character in this campaign
+        character = db.query(Character).filter(
+            Character.campaign_id == campaign_uuid,
+            Character.user_id == user_uuid
         ).first()
 
-        if not membership:
-            await websocket.send_json({
-                "type": "error",
-                "message": "You don't have a character in this campaign"
-            })
-            return
-
-        character = db.query(Character).filter(Character.id == membership.character_id).first()
         if not character:
             await websocket.send_json({
                 "type": "error",
@@ -1316,16 +1308,38 @@ async def roll_initiative_target(
         db.add(initiative_roll)
         db.commit()
 
-        # Broadcast to players (filtered by is_silent)
-        broadcast_data = {
-            "type": "initiative_roll",
-            "actor": name,
-            "roll": roll_total if not is_silent else "???",
-            "is_silent": is_silent,
-            "rolled_by_sw": True,
-            "timestamp": datetime.now().isoformat()
-        }
-        await manager.broadcast(campaign_uuid, broadcast_data)
+        # Broadcast to all players
+        if is_silent:
+            # Silent roll: Send full details to SW only, broadcast hidden version to everyone
+            # Send full details to Story Weaver
+            await websocket.send_json({
+                "type": "initiative_roll",
+                "actor": name,
+                "roll": roll_total,
+                "is_silent": True,
+                "rolled_by_sw": True,
+                "sw_only": True,  # Tag for SW
+                "timestamp": datetime.now().isoformat()
+            })
+            # Broadcast hidden version to everyone else
+            await manager.broadcast(campaign_uuid, {
+                "type": "initiative_roll",
+                "actor": name,
+                "roll": "???",
+                "is_silent": True,
+                "rolled_by_sw": True,
+                "timestamp": datetime.now().isoformat()
+            })
+        else:
+            # Normal roll: Broadcast full details to everyone
+            await manager.broadcast(campaign_uuid, {
+                "type": "initiative_roll",
+                "actor": name,
+                "roll": roll_total,
+                "is_silent": False,
+                "rolled_by_sw": True,
+                "timestamp": datetime.now().isoformat()
+            })
 
         # Persist message
         msg = Message(
@@ -1483,11 +1497,11 @@ async def end_encounter(
 
         # Restore all ability uses for characters in this campaign
         # Get all characters in the campaign
-        memberships = db.query(CampaignMembership).filter(
-            CampaignMembership.campaign_id == campaign_uuid
+        characters = db.query(Character).filter(
+            Character.campaign_id == campaign_uuid
         ).all()
 
-        character_ids = [m.character_id for m in memberships]
+        character_ids = [c.id for c in characters]
 
         # Restore ability uses (set uses_remaining = max_uses)
         abilities = db.query(Ability).filter(
@@ -1510,30 +1524,25 @@ async def end_encounter(
         })
 
         # Persist message
-        sw_membership = db.query(CampaignMembership).filter(
-            CampaignMembership.campaign_id == campaign_uuid,
-            CampaignMembership.user_id == user_uuid
+        sw_character = db.query(Character).filter(
+            Character.campaign_id == campaign_uuid,
+            Character.user_id == user_uuid
         ).first()
 
-        if sw_membership:
-            sw_character = db.query(Character).filter(
-                Character.id == sw_membership.character_id
-            ).first()
-
-            msg = Message(
-                campaign_id=campaign_uuid,
-                party_id=None,
-                sender_id=sw_character.id if sw_character else None,
-                sender_name=sw_character.name if sw_character else "Story Weaver",
-                message_type="encounter_end",
-                content=f"Encounter ended. All abilities restored.",
-                extra_data={
-                    "encounter_id": str(encounter.id),
-                    "abilities_restored": restored_count
-                }
-            )
-            db.add(msg)
-            db.commit()
+        msg = Message(
+            campaign_id=campaign_uuid,
+            party_id=None,
+            sender_id=sw_character.id if sw_character else None,
+            sender_name=sw_character.name if sw_character else "Story Weaver",
+            message_type="encounter_end",
+            content=f"Encounter ended. All abilities restored.",
+            extra_data={
+                "encounter_id": str(encounter.id),
+                "abilities_restored": restored_count
+            }
+        )
+        db.add(msg)
+        db.commit()
 
     except Exception as e:
         logger.error(f"End encounter error: {e}")
@@ -1594,29 +1603,24 @@ async def clear_initiative(
         })
 
         # Persist message
-        sw_membership = db.query(CampaignMembership).filter(
-            CampaignMembership.campaign_id == campaign_uuid,
-            CampaignMembership.user_id == user_uuid
+        sw_character = db.query(Character).filter(
+            Character.campaign_id == campaign_uuid,
+            Character.user_id == user_uuid
         ).first()
 
-        if sw_membership:
-            sw_character = db.query(Character).filter(
-                Character.id == sw_membership.character_id
-            ).first()
-
-            msg = Message(
-                campaign_id=campaign_uuid,
-                party_id=None,
-                sender_id=sw_character.id if sw_character else None,
-                sender_name=sw_character.name if sw_character else "Story Weaver",
-                message_type="initiative_clear",
-                content=f"Initiative cleared. Roll again!",
-                extra_data={
-                    "rolls_cleared": deleted_count
-                }
-            )
-            db.add(msg)
-            db.commit()
+        msg = Message(
+            campaign_id=campaign_uuid,
+            party_id=None,
+            sender_id=sw_character.id if sw_character else None,
+            sender_name=sw_character.name if sw_character else "Story Weaver",
+            message_type="initiative_clear",
+            content=f"Initiative cleared. Roll again!",
+            extra_data={
+                "rolls_cleared": deleted_count
+            }
+        )
+        db.add(msg)
+        db.commit()
 
     except Exception as e:
         logger.error(f"Clear initiative error: {e}")
@@ -1647,11 +1651,11 @@ async def restore_all_abilities(
             return
 
         # Get all characters in this campaign
-        memberships = db.query(CampaignMembership).filter(
-            CampaignMembership.campaign_id == campaign_uuid
+        characters = db.query(Character).filter(
+            Character.campaign_id == campaign_uuid
         ).all()
 
-        character_ids = [m.character_id for m in memberships]
+        character_ids = [c.id for c in characters]
 
         # Restore ability uses (set uses_remaining = max_uses)
         abilities = db.query(Ability).filter(
@@ -1674,29 +1678,24 @@ async def restore_all_abilities(
         })
 
         # Persist message
-        sw_membership = db.query(CampaignMembership).filter(
-            CampaignMembership.campaign_id == campaign_uuid,
-            CampaignMembership.user_id == user_uuid
+        sw_character = db.query(Character).filter(
+            Character.campaign_id == campaign_uuid,
+            Character.user_id == user_uuid
         ).first()
 
-        if sw_membership:
-            sw_character = db.query(Character).filter(
-                Character.id == sw_membership.character_id
-            ).first()
-
-            msg = Message(
-                campaign_id=campaign_uuid,
-                party_id=None,
-                sender_id=sw_character.id if sw_character else None,
-                sender_name=sw_character.name if sw_character else "Story Weaver",
-                message_type="abilities_restored",
-                content=f"🛏️ The party rests. All abilities restored.",
-                extra_data={
-                    "abilities_restored": restored_count
-                }
-            )
-            db.add(msg)
-            db.commit()
+        msg = Message(
+            campaign_id=campaign_uuid,
+            party_id=None,
+            sender_id=sw_character.id if sw_character else None,
+            sender_name=sw_character.name if sw_character else "Story Weaver",
+            message_type="abilities_restored",
+            content=f"🛏️ The party rests. All abilities restored.",
+            extra_data={
+                "abilities_restored": restored_count
+            }
+        )
+        db.add(msg)
+        db.commit()
 
     except Exception as e:
         logger.error(f"Restore abilities error: {e}")
