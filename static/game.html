@@ -561,6 +561,11 @@
       padding: 16px;
     }
 
+    .encounter-start {
+      background: rgba(255, 152, 0, 0.1);
+      border-left-color: #ff9800;
+    }
+
     .encounter-end {
       background: rgba(76, 175, 80, 0.1);
       border-left-color: #4CAF50;
@@ -2883,6 +2888,27 @@
                 container.appendChild(header);
                 storeAndDisplayMessage(container, { type: 'initiative_roll', ...data });
               }
+              // ✅ Handle encounter start from database
+              else if (msg.message_type === 'encounter_start') {
+                console.log('⚔️ Loading encounter start from history:', msg);
+                const data = msg.extra_data || {};
+
+                const container = document.createElement('div');
+                container.className = 'message-card encounter-start';
+
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.style.fontSize = '16px';
+                header.style.color = 'var(--warning, #ff9800)';
+                header.style.textAlign = 'center';
+                header.style.padding = '12px';
+                header.style.borderRadius = '8px';
+                header.style.backgroundColor = 'rgba(255, 152, 0, 0.1)';
+                header.textContent = msg.content || '⚔️ Combat has begun!';
+                container.appendChild(header);
+
+                storeAndDisplayMessage(container, { type: 'encounter_start', ...data });
+              }
               // ✅ Handle encounter end from database
               else if (msg.message_type === 'encounter_end') {
                 console.log('🏁 Loading encounter end from history:', msg);
@@ -3445,6 +3471,24 @@
               container.appendChild(orderList);
               storeAndDisplayMessage(container, data);
 
+            } else if (data.type === 'encounter_start') {
+              // Encounter started
+              const container = document.createElement('div');
+              container.className = 'message-card encounter-start';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.fontSize = '16px';
+              header.style.color = 'var(--warning, #ff9800)';
+              header.style.textAlign = 'center';
+              header.style.padding = '12px';
+              header.style.borderRadius = '8px';
+              header.style.backgroundColor = 'rgba(255, 152, 0, 0.1)';
+              header.textContent = data.message || '⚔️ Combat has begun!';
+              container.appendChild(header);
+
+              storeAndDisplayMessage(container, data);
+
             } else if (data.type === 'encounter_end') {
               // Encounter ended
               const container = document.createElement('div');
@@ -3632,9 +3676,16 @@
         };
         ws.send(JSON.stringify(payload));
 
+      } else if (text.startsWith('/help')) {
+        // Help command - send to help handler
+        const payload = {
+          type: 'help_command'
+        };
+        ws.send(JSON.stringify(payload));
+
       } else if (text.startsWith('/')) {
         // Check if it's a known system command
-        const knownCommands = ['/who', '/help', '/status'];
+        const knownCommands = ['/who', '/status'];
         const command = text.split(' ')[0].toLowerCase();
 
         if (knownCommands.includes(command)) {

@@ -273,6 +273,9 @@ async def campaign_websocket(
             elif message_type == "rest_command":
                 await restore_all_abilities(campaign_uuid, user_uuid, db, websocket)
 
+            elif message_type == "help_command":
+                await send_help_text(websocket)
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
     
@@ -1368,6 +1371,76 @@ async def roll_initiative_target(
         })
 
 
+async def start_encounter(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    Story Weaver starts an encounter without rolling initiative.
+    Command: /initiative start
+    """
+    try:
+        # Verify user is Story Weaver
+        if not await is_story_weaver(campaign_uuid, user_uuid, db):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Only the Story Weaver can start encounters"
+            })
+            return
+
+        # Create or get active encounter
+        encounter = await get_or_create_active_encounter(campaign_uuid, db)
+
+        # Check if encounter already has initiative rolls
+        existing_rolls = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id
+        ).count()
+
+        if existing_rolls > 0:
+            await websocket.send_json({
+                "type": "info",
+                "message": f"Encounter already active with {existing_rolls} initiative rolls. Use /initiative show to see order."
+            })
+            return
+
+        # Broadcast encounter start
+        await manager.broadcast(campaign_uuid, {
+            "type": "encounter_start",
+            "message": "⚔️ Combat has begun! Roll for initiative!",
+            "encounter_id": str(encounter.id),
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # Persist message
+        sw_character = db.query(Character).filter(
+            Character.campaign_id == campaign_uuid,
+            Character.user_id == user_uuid
+        ).first()
+
+        msg = Message(
+            campaign_id=campaign_uuid,
+            party_id=None,
+            sender_id=sw_character.id if sw_character else None,
+            sender_name=sw_character.name if sw_character else "Story Weaver",
+            message_type="encounter_start",
+            content="⚔️ Combat has begun! Roll for initiative!",
+            extra_data={
+                "encounter_id": str(encounter.id)
+            }
+        )
+        db.add(msg)
+        db.commit()
+
+    except Exception as e:
+        logger.error(f"Start encounter error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to start encounter: {str(e)}"
+        })
+
+
 async def show_initiative_order(
     campaign_uuid: UUID,
     user_uuid: UUID,
@@ -1630,6 +1703,53 @@ async def clear_initiative(
         })
 
 
+async def send_help_text(websocket: WebSocket):
+    """
+    Send help text with all available commands.
+    Command: /help
+    """
+    help_text = """📜 **Available Commands:**
+
+**Chat:**
+• `/say <message>` - In-character speech (green)
+• `/ooc <message>` - Out-of-character chat (gray, goes to OOC tab)
+• `/whisper @player <message>` - Private message (purple)
+• `/w @player <message>` - Whisper shorthand
+
+**Dice & Stat Checks:**
+• `/roll XdY+Z` - Roll dice (e.g., /roll 2d6+3)
+• `/pp`, `/ip`, `/sp` - Roll stat checks (1d6 + stat + Edge)
+• `/who` - List party members with stats
+
+**Abilities & Macros:**
+• `/<custom>` - Cast abilities/spells/techniques (e.g., /heal, /fireball)
+• `/<custom> @target` - Cast on specific target(s)
+• Uses: 3 per encounter per character level
+
+**Initiative & Encounters:**
+• `/initiative` - Roll your own initiative (1d20)
+• `/initiative show` - Display full initiative order
+• `/initiative start` (SW) - Start encounter without rolling
+• `/initiative @target` (SW) - Roll initiative for PC/NPC
+• `/initiative silent @target` (SW) - Hidden roll (only SW sees result)
+• `/initiative end` (SW) - End encounter & restore all ability uses
+• `/initiative clear` (SW) - Clear initiative without ending encounter
+• `/rest` (SW) - Restore all ability uses (short rest)
+
+**Combat (Legacy):**
+• `/combat-help` - Full combat guide
+• `/attack @target` - Attack someone
+• `/defend` - Roll defense manually
+
+**Legend:** (SW) = Story Weaver only"""
+
+    await websocket.send_json({
+        "type": "system",
+        "message": help_text,
+        "timestamp": datetime.now().isoformat()
+    })
+
+
 async def restore_all_abilities(
     campaign_uuid: UUID,
     user_uuid: UUID,
@@ -1717,11 +1837,12 @@ async def handle_initiative_command(
 
     Commands:
     - /initiative              -> roll_initiative_self()
-    - /initiative @Target      -> roll_initiative_target()
-    - /initiative silent @Target -> roll_initiative_target(is_silent=True)
     - /initiative show         -> show_initiative_order()
-    - /initiative end          -> end_encounter()
-    - /initiative clear        -> clear_initiative()
+    - /initiative start (SW)   -> start_encounter()
+    - /initiative @Target (SW) -> roll_initiative_target()
+    - /initiative silent @Target (SW) -> roll_initiative_target(is_silent=True)
+    - /initiative end (SW)     -> end_encounter()
+    - /initiative clear (SW)   -> clear_initiative()
     """
     try:
         raw_command = data.get("raw_command", "").strip()
@@ -1746,6 +1867,11 @@ async def handle_initiative_command(
         # /initiative show
         if subcommand == "show":
             await show_initiative_order(campaign_uuid, user_uuid, db, websocket)
+            return
+
+        # /initiative start
+        if subcommand == "start":
+            await start_encounter(campaign_uuid, user_uuid, db, websocket)
             return
 
         # /initiative end
