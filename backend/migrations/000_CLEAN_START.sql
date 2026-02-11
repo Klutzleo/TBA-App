@@ -100,7 +100,9 @@ CREATE TABLE IF NOT EXISTS characters (
     owner_id VARCHAR(255) NOT NULL,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     campaign_id UUID REFERENCES campaigns(id) ON DELETE SET NULL,
-    is_npc BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE for NPCs, FALSE for PCs
+    is_npc BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE for NPCs, FALSE for PCs/Allies
+    is_ally BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE for Allies, FALSE for PCs/NPCs
+    parent_character_id UUID REFERENCES characters(id) ON DELETE CASCADE,  -- Parent PC for Allies (NULL for PCs/NPCs)
     level INTEGER NOT NULL DEFAULT 1,
     pp INTEGER NOT NULL,
     ip INTEGER NOT NULL,
@@ -125,12 +127,38 @@ CREATE TABLE IF NOT EXISTS characters (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Add new columns if they don't exist (for existing tables from previous deploys)
+DO $$ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_npc BOOLEAN NOT NULL DEFAULT FALSE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_ally BOOLEAN NOT NULL DEFAULT FALSE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS parent_character_id UUID REFERENCES characters(id) ON DELETE CASCADE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+-- Add comments to clarify column purposes
+COMMENT ON COLUMN characters.is_npc IS 'TRUE for NPCs created by SW, FALSE for player characters and allies';
+COMMENT ON COLUMN characters.is_ally IS 'TRUE for Ally characters, FALSE for PCs and NPCs';
+COMMENT ON COLUMN characters.parent_character_id IS 'Parent PC for Allies (NULL for PCs/NPCs)';
+
 CREATE INDEX IF NOT EXISTS idx_characters_name ON characters(name);
 CREATE INDEX IF NOT EXISTS idx_characters_owner_id ON characters(owner_id);
 CREATE INDEX IF NOT EXISTS idx_characters_user_id ON characters(user_id);
 CREATE INDEX IF NOT EXISTS idx_characters_campaign_id ON characters(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_characters_status ON characters(status);
 CREATE INDEX IF NOT EXISTS idx_characters_is_npc ON characters(campaign_id, is_npc);  -- For querying NPCs
+CREATE INDEX IF NOT EXISTS idx_characters_is_ally ON characters(campaign_id, is_ally);  -- For querying Allies
+CREATE INDEX IF NOT EXISTS idx_characters_parent_id ON characters(parent_character_id);  -- For querying Ally by parent
 
 -- =====================================================================
 -- 4. Create parties table (campaign_id is UUID from start!)

@@ -577,5 +577,390 @@ async def remove_party_member(
     
     db.delete(membership)
     db.commit()
-    
+
     logger.info(f"[{request_id}] Character removed from party: {character_id} → {party_id}")
+
+
+# ============================================================================
+# NPC ROUTES (Story Weaver only)
+# ============================================================================
+
+npc_router = APIRouter(prefix="/api/campaigns", tags=["NPCs"])
+
+
+@npc_router.get("/{campaign_id}/npcs", response_model=List[CharacterResponse])
+async def list_npcs(
+    campaign_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """List all NPCs for a campaign (Story Weaver only)."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Listing NPCs for campaign: {campaign_id}")
+
+    # Verify user is Story Weaver
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can manage NPCs")
+
+    # Get all NPCs for this campaign
+    npcs = db.query(Character).filter(
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == True
+    ).all()
+
+    logger.info(f"[{request_id}] Found {len(npcs)} NPCs")
+    return npcs
+
+
+@npc_router.post("/{campaign_id}/npcs", response_model=CharacterResponse, status_code=201)
+async def create_npc(
+    campaign_id: str,
+    req: CharacterCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new NPC (Story Weaver only)."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Creating NPC: {req.name} for campaign {campaign_id}")
+
+    # Verify user is Story Weaver
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can create NPCs")
+
+    try:
+        # Validate stats
+        validate_stats(req.pp, req.ip, req.sp)
+
+        # Validate attack style for level
+        validate_attack_style(req.level, req.attack_style)
+
+        # Calculate level-dependent stats
+        level_stats = calculate_level_stats(req.level)
+        defense_die = get_defense_die(req.level)
+
+        # Create NPC (user_id is NULL for NPCs)
+        npc = Character(
+            name=req.name,
+            owner_id=str(current_user.id),  # Track creator
+            user_id=None,  # NPCs have no user_id
+            campaign_id=campaign_uuid,
+            is_npc=True,
+            is_ally=False,
+            level=req.level,
+            pp=req.pp,
+            ip=req.ip,
+            sp=req.sp,
+            dp=level_stats["max_dp"],
+            max_dp=level_stats["max_dp"],
+            edge=level_stats["edge"],
+            bap=level_stats["bap"],
+            attack_style=req.attack_style,
+            defense_die=defense_die,
+            weapon=req.weapon.model_dump() if req.weapon else None,
+            armor=req.armor.model_dump() if req.armor else None
+        )
+
+        db.add(npc)
+        db.commit()
+        db.refresh(npc)
+
+        logger.info(f"[{request_id}] NPC created: {npc.id}")
+        return npc
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[{request_id}] NPC creation error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"NPC creation failed: {str(e)}")
+
+
+@npc_router.put("/{campaign_id}/npcs/{npc_id}", response_model=CharacterResponse)
+async def update_npc(
+    campaign_id: str,
+    npc_id: str,
+    req: CharacterUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update an NPC (Story Weaver only)."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Updating NPC: {npc_id}")
+
+    # Verify user is Story Weaver
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can update NPCs")
+
+    # Get NPC
+    npc = db.query(Character).filter(
+        Character.id == UUID(npc_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == True
+    ).first()
+
+    if not npc:
+        raise HTTPException(status_code=404, detail="NPC not found")
+
+    try:
+        # Update fields
+        if req.name is not None:
+            npc.name = req.name
+        if req.level is not None:
+            level_stats = calculate_level_stats(req.level)
+            npc.level = req.level
+            npc.max_dp = level_stats["max_dp"]
+            npc.edge = level_stats["edge"]
+            npc.bap = level_stats["bap"]
+            npc.defense_die = get_defense_die(req.level)
+        if req.dp is not None:
+            npc.dp = req.dp
+        if req.attack_style is not None:
+            validate_attack_style(npc.level, req.attack_style)
+            npc.attack_style = req.attack_style
+        if req.weapon is not None:
+            npc.weapon = req.weapon.model_dump()
+        if req.armor is not None:
+            npc.armor = req.armor.model_dump()
+
+        db.commit()
+        db.refresh(npc)
+
+        logger.info(f"[{request_id}] NPC updated: {npc_id}")
+        return npc
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[{request_id}] NPC update error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"NPC update failed: {str(e)}")
+
+
+@npc_router.delete("/{campaign_id}/npcs/{npc_id}", status_code=204)
+async def delete_npc(
+    campaign_id: str,
+    npc_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete an NPC (Story Weaver only)."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Deleting NPC: {npc_id}")
+
+    # Verify user is Story Weaver
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can delete NPCs")
+
+    # Get NPC
+    npc = db.query(Character).filter(
+        Character.id == UUID(npc_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == True
+    ).first()
+
+    if not npc:
+        raise HTTPException(status_code=404, detail="NPC not found")
+
+    db.delete(npc)
+    db.commit()
+
+    logger.info(f"[{request_id}] NPC deleted: {npc_id}")
+
+
+@npc_router.post("/{campaign_id}/npcs/{npc_id}/duplicate", response_model=CharacterResponse, status_code=201)
+async def duplicate_npc(
+    campaign_id: str,
+    npc_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Duplicate an NPC (Story Weaver only)."""
+    from backend.models import CampaignMembership
+    from uuid import UUID, uuid4
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Duplicating NPC: {npc_id}")
+
+    # Verify user is Story Weaver
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can duplicate NPCs")
+
+    # Get original NPC
+    original = db.query(Character).filter(
+        Character.id == UUID(npc_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == True
+    ).first()
+
+    if not original:
+        raise HTTPException(status_code=404, detail="NPC not found")
+
+    # Create duplicate
+    duplicate = Character(
+        id=uuid4(),
+        name=f"{original.name} (Copy)",
+        owner_id=str(current_user.id),
+        user_id=None,
+        campaign_id=campaign_uuid,
+        is_npc=True,
+        is_ally=False,
+        level=original.level,
+        pp=original.pp,
+        ip=original.ip,
+        sp=original.sp,
+        dp=original.max_dp,  # Start at full HP
+        max_dp=original.max_dp,
+        edge=original.edge,
+        bap=original.bap,
+        attack_style=original.attack_style,
+        defense_die=original.defense_die,
+        weapon=original.weapon,
+        armor=original.armor
+    )
+
+    db.add(duplicate)
+    db.commit()
+    db.refresh(duplicate)
+
+    logger.info(f"[{request_id}] NPC duplicated: {npc_id} → {duplicate.id}")
+    return duplicate
+
+
+# ============================================================================
+# ALLY ROUTES (Players only)
+# ============================================================================
+
+ally_router = APIRouter(prefix="/api/campaigns", tags=["Allies"])
+
+
+@ally_router.post("/{campaign_id}/characters/{character_id}/ally", response_model=CharacterResponse, status_code=201)
+async def create_ally(
+    campaign_id: str,
+    character_id: str,
+    req: CharacterCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create an Ally for a character (validates technique slot 1 available)."""
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Creating Ally for character: {character_id}")
+
+    # Get parent character
+    parent = db.query(Character).filter(
+        Character.id == UUID(character_id),
+        Character.user_id == current_user.id,
+        Character.campaign_id == UUID(campaign_id)
+    ).first()
+
+    if not parent:
+        raise HTTPException(status_code=404, detail="Character not found or not owned by you")
+
+    if parent.is_npc or parent.is_ally:
+        raise HTTPException(status_code=400, detail="Only player characters can have Allies")
+
+    # Check if character already has an Ally
+    existing_ally = db.query(Character).filter(
+        Character.parent_character_id == parent.id,
+        Character.is_ally == True
+    ).first()
+
+    if existing_ally:
+        raise HTTPException(status_code=400, detail="Character already has an Ally")
+
+    # TODO: Validate technique slot 1 is available (requires abilities table query)
+    # For now, we'll allow Ally creation
+
+    try:
+        # Validate stats
+        validate_stats(req.pp, req.ip, req.sp)
+
+        # Validate attack style for level
+        validate_attack_style(req.level, req.attack_style)
+
+        # Calculate level-dependent stats (Allies use different leveling table - TODO)
+        level_stats = calculate_level_stats(req.level)
+        defense_die = get_defense_die(req.level)
+
+        # Create Ally
+        ally = Character(
+            name=req.name,
+            owner_id=str(current_user.id),
+            user_id=current_user.id,  # Allies have same user_id as parent
+            campaign_id=UUID(campaign_id),
+            is_npc=False,
+            is_ally=True,
+            parent_character_id=parent.id,
+            level=req.level,
+            pp=req.pp,
+            ip=req.ip,
+            sp=req.sp,
+            dp=level_stats["max_dp"],
+            max_dp=level_stats["max_dp"],
+            edge=level_stats["edge"],
+            bap=level_stats["bap"],
+            attack_style=req.attack_style,
+            defense_die=defense_die,
+            weapon=req.weapon.model_dump() if req.weapon else None,
+            armor=req.armor.model_dump() if req.armor else None
+        )
+
+        db.add(ally)
+        db.commit()
+        db.refresh(ally)
+
+        logger.info(f"[{request_id}] Ally created: {ally.id} for parent {parent.id}")
+        return ally
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[{request_id}] Ally creation error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ally creation failed: {str(e)}")

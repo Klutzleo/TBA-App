@@ -1495,6 +1495,273 @@
         font-size: 16px;
       }
     }
+
+    /* === Bubble Bar (Character/NPC Switching) === */
+    .bubble-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-darker);
+      border-bottom: 1px solid var(--border-color);
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent-primary) var(--bg-darker);
+    }
+
+    .bubble-bar::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .bubble-bar::-webkit-scrollbar-track {
+      background: var(--bg-darker);
+    }
+
+    .bubble-bar::-webkit-scrollbar-thumb {
+      background: var(--accent-primary);
+      border-radius: 3px;
+    }
+
+    .character-bubble {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      background: var(--bg-panel);
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 80px;
+      user-select: none;
+    }
+
+    .character-bubble:hover {
+      background: var(--bg-panel-hover);
+      border-color: var(--accent-secondary);
+    }
+
+    .character-bubble.active {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      color: var(--bg-darker);
+      font-weight: 600;
+      box-shadow: 0 0 12px rgba(212, 175, 55, 0.5);
+    }
+
+    .character-bubble.npc {
+      border-color: #8b5cf6;
+    }
+
+    .character-bubble.npc.active {
+      background: #8b5cf6;
+      border-color: #8b5cf6;
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+    }
+
+    .character-bubble.ally {
+      border-color: #10b981;
+    }
+
+    .character-bubble.ally.active {
+      background: #10b981;
+      border-color: #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+    }
+
+    .bubble-avatar {
+      font-size: 24px;
+    }
+
+    .bubble-name {
+      font-size: 12px;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
+    .bubble-add {
+      background: transparent;
+      border: 2px dashed var(--border-color);
+      color: var(--text-muted);
+    }
+
+    .bubble-add:hover {
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    /* === Modal Styles === */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--bg-panel);
+      border-radius: var(--radius-lg);
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 20px;
+      color: var(--accent-primary);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 28px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s ease;
+    }
+
+    .modal-close:hover {
+      color: var(--accent-danger);
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      justify-content: flex-end;
+    }
+
+    /* === Side Panel Styles === */
+    .side-panel {
+      position: fixed;
+      top: 0;
+      right: -400px;
+      width: 400px;
+      height: 100vh;
+      background: var(--bg-panel);
+      box-shadow: -4px 0 12px rgba(0, 0, 0, 0.5);
+      z-index: 2000;
+      transition: right 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .side-panel.active {
+      right: 0;
+    }
+
+    .side-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-darker);
+    }
+
+    .side-panel-header h2 {
+      margin: 0;
+      font-size: 20px;
+      color: var(--accent-primary);
+    }
+
+    .side-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    /* === Context Menu === */
+    .context-menu {
+      display: none;
+      position: fixed;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-lg);
+      z-index: 3000;
+      min-width: 150px;
+    }
+
+    .context-menu.active {
+      display: block;
+    }
+
+    .context-menu-item {
+      display: block;
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      background: none;
+      color: var(--text-primary);
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      font-size: 14px;
+    }
+
+    .context-menu-item:hover {
+      background: var(--bg-panel-hover);
+    }
+
+    .context-menu-item.danger {
+      color: var(--accent-danger);
+    }
+
+    .context-menu-item.danger:hover {
+      background: rgba(220, 53, 69, 0.1);
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 768px) {
+      .side-panel {
+        width: 100%;
+        right: -100%;
+      }
+
+      .bubble-bar {
+        padding: 8px 12px;
+      }
+
+      .character-bubble {
+        min-width: 70px;
+        padding: 6px 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1555,6 +1822,13 @@
           </button>
         </div>
 
+        <!-- Character Bubble Bar (for active speaker switching) -->
+        <div class="bubble-bar" id="bubbleBar">
+          <!-- SW: Narrator + NPCs -->
+          <!-- Players: PC + Ally -->
+          <!-- Populated dynamically via JS -->
+        </div>
+
         <div class="chat-messages" id="chatMessages">
           <button id="loadMoreBtn" class="load-more-btn" style="display: none;">
             Load Older Messages
@@ -1586,6 +1860,95 @@
           </div>
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- NPC Creation Modal (Story Weaver only) -->
+  <div id="npcCreateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Create NPC</h2>
+        <button class="modal-close" onclick="closeNpcModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="npcCreateForm">
+          <div class="form-group">
+            <label class="form-label">Name *</label>
+            <input type="text" id="npcName" class="form-input" required placeholder="NPC Name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Level *</label>
+            <input type="number" id="npcLevel" class="form-input" min="1" max="10" value="1" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Stats (must sum to 6) *</label>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+              <div>
+                <label class="form-label" style="font-size: 12px;">PP</label>
+                <input type="number" id="npcPP" class="form-input" min="1" max="3" value="2" required>
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 12px;">IP</label>
+                <input type="number" id="npcIP" class="form-input" min="1" max="3" value="2" required>
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 12px;">SP</label>
+                <input type="number" id="npcSP" class="form-input" min="1" max="3" value="2" required>
+              </div>
+            </div>
+            <div id="npcStatsError" class="error-message" style="display: none; color: var(--accent-danger); font-size: 12px; margin-top: 4px;"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Attack Style *</label>
+            <select id="npcAttackStyle" class="form-input" required>
+              <option value="3d4">3d4 (Balanced)</option>
+              <option value="2d6">2d6 (High Variance)</option>
+              <option value="1d12">1d12 (Max Variance)</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeNpcModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create NPC</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- NPC Edit Panel (Story Weaver only) -->
+  <div id="npcEditPanel" class="side-panel">
+    <div class="side-panel-header">
+      <h2>Edit NPC</h2>
+      <button class="modal-close" onclick="closeNpcEditPanel()">&times;</button>
+    </div>
+    <div class="side-panel-body">
+      <form id="npcEditForm">
+        <input type="hidden" id="editNpcId">
+        <div class="form-group">
+          <label class="form-label">Name *</label>
+          <input type="text" id="editNpcName" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Level *</label>
+          <input type="number" id="editNpcLevel" class="form-input" min="1" max="10" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Current DP</label>
+          <input type="number" id="editNpcDP" class="form-input" min="0" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Attack Style *</label>
+          <select id="editNpcAttackStyle" class="form-input" required>
+            <option value="3d4">3d4 (Balanced)</option>
+            <option value="2d6">2d6 (High Variance)</option>
+            <option value="1d12">1d12 (Max Variance)</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" onclick="deleteNpc()">Delete NPC</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1628,6 +1991,11 @@
     let allMessages = [];     // Store all messages with their tab info
     let unreadCounts = { story: 0, ooc: 0 };  // Dynamic whisper tabs added as needed
     let whisperTabs = {};     // Track active whisper tabs: { 'playername': { visible: true, element: btn } }
+
+    // === NPC/Character Bubble Bar State ===
+    let activeSpeaker = null;  // { id, name, type: 'pc'|'npc'|'ally'|'narrator' }
+    let playerCharacters = [];  // Player's PC and Ally (if any)
+    let campaignNPCs = [];  // All NPCs for this campaign (SW only)
 
     // === Tab Functions ===
     function switchTab(tab) {
@@ -1796,6 +2164,371 @@
       // Default: Story
       return 'story';
     }
+
+    // ===================================================================
+    // BUBBLE BAR & NPC MANAGEMENT
+    // ===================================================================
+
+    // Load NPCs and player characters for bubble bar
+    async function loadBubbleBar() {
+      try {
+        // Check if user is Story Weaver
+        if (userRole === 'SW') {
+          // Load NPCs for this campaign
+          const response = await fetch(`/api/campaigns/${campaignId}/npcs`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+
+          if (response.ok) {
+            campaignNPCs = await response.json();
+          }
+
+          // SW starts with Narrator as active speaker
+          activeSpeaker = { id: null, name: 'Narrator', type: 'narrator' };
+        } else {
+          // Load player's characters (PC + Ally if exists)
+          const response = await fetch(`/api/characters?campaign_id=${campaignId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+
+          if (response.ok) {
+            const allChars = await response.json();
+            playerCharacters = allChars.filter(c =>
+              c.user_id === currentUser.id && (c.is_ally === false || c.is_ally === true)
+            );
+
+            // Set first PC as active speaker
+            const pc = playerCharacters.find(c => !c.is_ally);
+            if (pc) {
+              activeSpeaker = { id: pc.id, name: pc.name, type: 'pc' };
+            }
+          }
+        }
+
+        renderBubbleBar();
+      } catch (error) {
+        console.error('Failed to load bubble bar:', error);
+      }
+    }
+
+    // Render the bubble bar
+    function renderBubbleBar() {
+      const bubbleBar = document.getElementById('bubbleBar');
+      if (!bubbleBar) return;
+
+      bubbleBar.innerHTML = '';
+
+      if (userRole === 'SW') {
+        // Story Weaver: Narrator + NPCs + Add button
+
+        // Narrator bubble
+        const narratorBubble = createBubble({
+          id: null,
+          name: 'Narrator',
+          type: 'narrator'
+        });
+        bubbleBar.appendChild(narratorBubble);
+
+        // NPC bubbles
+        campaignNPCs.forEach(npc => {
+          const npcBubble = createBubble({
+            id: npc.id,
+            name: npc.name,
+            type: 'npc'
+          });
+          bubbleBar.appendChild(npcBubble);
+        });
+
+        // Add NPC button
+        const addButton = document.createElement('div');
+        addButton.className = 'character-bubble bubble-add';
+        addButton.innerHTML = `
+          <div class="bubble-avatar">+</div>
+          <div class="bubble-name">Add NPC</div>
+        `;
+        addButton.onclick = () => openNpcModal();
+        bubbleBar.appendChild(addButton);
+
+      } else {
+        // Player: PC + Ally (if exists)
+        playerCharacters.forEach(char => {
+          const bubble = createBubble({
+            id: char.id,
+            name: char.name,
+            type: char.is_ally ? 'ally' : 'pc'
+          });
+          bubbleBar.appendChild(bubble);
+        });
+      }
+    }
+
+    // Create a bubble element
+    function createBubble(character) {
+      const bubble = document.createElement('div');
+      bubble.className = `character-bubble ${character.type}`;
+      bubble.dataset.id = character.id || 'narrator';
+      bubble.dataset.name = character.name;
+      bubble.dataset.type = character.type;
+
+      // Set active class
+      if (activeSpeaker &&
+          activeSpeaker.type === character.type &&
+          activeSpeaker.name === character.name) {
+        bubble.classList.add('active');
+      }
+
+      // Avatar emoji based on type
+      let avatar = '👤';
+      if (character.type === 'narrator') avatar = '📖';
+      else if (character.type === 'npc') avatar = '🎭';
+      else if (character.type === 'ally') avatar = '🤝';
+
+      bubble.innerHTML = `
+        <div class="bubble-avatar">${avatar}</div>
+        <div class="bubble-name">${character.name}</div>
+      `;
+
+      // Click to set active speaker
+      bubble.onclick = () => setActiveSpeaker(character);
+
+      // Context menu (NPCs only for SW)
+      if (character.type === 'npc' && userRole === 'SW') {
+        bubble.oncontextmenu = (e) => {
+          e.preventDefault();
+          showContextMenu(e, character);
+        };
+
+        // Long-press for mobile
+        let pressTimer;
+        bubble.ontouchstart = (e) => {
+          pressTimer = setTimeout(() => {
+            showContextMenu(e.touches[0], character);
+          }, 500);
+        };
+        bubble.ontouchend = () => clearTimeout(pressTimer);
+        bubble.ontouchmove = () => clearTimeout(pressTimer);
+      }
+
+      return bubble;
+    }
+
+    // Set active speaker
+    function setActiveSpeaker(character) {
+      activeSpeaker = character;
+      renderBubbleBar();
+      console.log('Active speaker:', activeSpeaker);
+    }
+
+    // Show context menu for NPCs
+    function showContextMenu(event, character) {
+      // Remove existing context menu
+      const existing = document.querySelector('.context-menu');
+      if (existing) existing.remove();
+
+      // Create context menu
+      const menu = document.createElement('div');
+      menu.className = 'context-menu active';
+      menu.innerHTML = `
+        <button class="context-menu-item" onclick="editNpc('${character.id}')">✏️ Edit</button>
+        <button class="context-menu-item" onclick="duplicateNpc('${character.id}')">📋 Duplicate</button>
+        <button class="context-menu-item danger" onclick="deleteNpc('${character.id}')">🗑️ Delete</button>
+      `;
+
+      // Position menu
+      menu.style.left = `${event.clientX || event.pageX}px`;
+      menu.style.top = `${event.clientY || event.pageY}px`;
+
+      document.body.appendChild(menu);
+
+      // Close on click outside
+      setTimeout(() => {
+        document.addEventListener('click', () => {
+          menu.remove();
+        }, { once: true });
+      }, 100);
+    }
+
+    // NPC Modal Functions
+    function openNpcModal() {
+      document.getElementById('npcCreateModal').classList.add('active');
+    }
+
+    function closeNpcModal() {
+      document.getElementById('npcCreateModal').classList.remove('active');
+      document.getElementById('npcCreateForm').reset();
+      document.getElementById('npcStatsError').style.display = 'none';
+    }
+
+    // Handle NPC creation form
+    document.getElementById('npcCreateForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const pp = parseInt(document.getElementById('npcPP').value);
+      const ip = parseInt(document.getElementById('npcIP').value);
+      const sp = parseInt(document.getElementById('npcSP').value);
+
+      // Validate stats sum to 6
+      if (pp + ip + sp !== 6) {
+        const errorEl = document.getElementById('npcStatsError');
+        errorEl.textContent = `Stats must sum to 6 (current: ${pp + ip + sp})`;
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const npcData = {
+        name: document.getElementById('npcName').value,
+        owner_id: currentUser.id,
+        campaign_id: campaignId,
+        level: parseInt(document.getElementById('npcLevel').value),
+        pp, ip, sp,
+        attack_style: document.getElementById('npcAttackStyle').value
+      };
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/npcs`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(npcData)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to create NPC');
+        }
+
+        // Success! Reload bubble bar and close modal
+        await loadBubbleBar();
+        closeNpcModal();
+        addMessage(`Created NPC: ${npcData.name}`, 'message-card message-system');
+
+      } catch (error) {
+        alert(`Error creating NPC: ${error.message}`);
+      }
+    });
+
+    // Edit NPC
+    async function editNpc(npcId) {
+      const npc = campaignNPCs.find(n => n.id === npcId);
+      if (!npc) return;
+
+      // Populate edit form
+      document.getElementById('editNpcId').value = npcId;
+      document.getElementById('editNpcName').value = npc.name;
+      document.getElementById('editNpcLevel').value = npc.level;
+      document.getElementById('editNpcDP').value = npc.dp;
+      document.getElementById('editNpcAttackStyle').value = npc.attack_style;
+
+      // Show edit panel
+      document.getElementById('npcEditPanel').classList.add('active');
+    }
+
+    function closeNpcEditPanel() {
+      document.getElementById('npcEditPanel').classList.remove('active');
+    }
+
+    // Handle NPC edit form
+    document.getElementById('npcEditForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const npcId = document.getElementById('editNpcId').value;
+      const updateData = {
+        name: document.getElementById('editNpcName').value,
+        level: parseInt(document.getElementById('editNpcLevel').value),
+        dp: parseInt(document.getElementById('editNpcDP').value),
+        attack_style: document.getElementById('editNpcAttackStyle').value
+      };
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/npcs/${npcId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updateData)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to update NPC');
+        }
+
+        // Success! Reload bubble bar and close panel
+        await loadBubbleBar();
+        closeNpcEditPanel();
+        addMessage(`Updated NPC: ${updateData.name}`, 'message-card message-system');
+
+      } catch (error) {
+        alert(`Error updating NPC: ${error.message}`);
+      }
+    });
+
+    // Delete NPC
+    async function deleteNpc(npcId) {
+      // If called from edit panel, get ID from form
+      if (!npcId) {
+        npcId = document.getElementById('editNpcId').value;
+      }
+
+      const npc = campaignNPCs.find(n => n.id === npcId);
+      if (!npc) return;
+
+      if (!confirm(`Delete NPC "${npc.name}"? This cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/npcs/${npcId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete NPC');
+        }
+
+        // Success! Reload bubble bar
+        await loadBubbleBar();
+        closeNpcEditPanel();
+        addMessage(`Deleted NPC: ${npc.name}`, 'message-card message-system');
+
+      } catch (error) {
+        alert(`Error deleting NPC: ${error.message}`);
+      }
+    }
+
+    // Duplicate NPC
+    async function duplicateNpc(npcId) {
+      const npc = campaignNPCs.find(n => n.id === npcId);
+      if (!npc) return;
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/npcs/${npcId}/duplicate`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to duplicate NPC');
+        }
+
+        const duplicated = await response.json();
+
+        // Success! Reload bubble bar
+        await loadBubbleBar();
+        addMessage(`Duplicated NPC: ${npc.name} → ${duplicated.name}`, 'message-card message-system');
+
+      } catch (error) {
+        alert(`Error duplicating NPC: ${error.message}`);
+      }
+    }
+
+    // ===================================================================
+    // END BUBBLE BAR & NPC MANAGEMENT
+    // ===================================================================
 
     // Re-render all messages for the current active tab
     function renderMessages() {
@@ -3047,6 +3780,9 @@
 
           // Load initial message history
           await loadMessageHistory();
+
+          // Load bubble bar (NPCs for SW, PC+Ally for players)
+          await loadBubbleBar();
         };
 
         // Note: Join notification is now handled by the backend after caching character data
@@ -3609,7 +4345,8 @@
 
     sendBtn.addEventListener('click', () => {
       const text = msgInput.value.trim();
-      const actor = currentActor.trim() || 'User';
+      // Use active speaker name if set, otherwise fall back to current actor
+      const actor = (activeSpeaker ? activeSpeaker.name : currentActor.trim()) || 'User';
       if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
       // Check for chat mode commands (/say, /ooc, /whisper)
@@ -3639,6 +4376,13 @@
         const encId = encounterQuickEl.value.trim();
         if (ctx) payload.context = ctx;
         if (encId) payload.encounter_id = encId;
+
+        // Add active speaker context (for NPC/Ally/Narrator support)
+        if (activeSpeaker) {
+          payload.speaker_id = activeSpeaker.id;
+          payload.speaker_name = activeSpeaker.name;
+          payload.speaker_type = activeSpeaker.type;
+        }
 
         ws.send(JSON.stringify(payload));
       } else if (text.startsWith('/attack')) {

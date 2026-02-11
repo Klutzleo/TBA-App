@@ -189,7 +189,9 @@ class Character(Base):
     owner_id = Column(String, nullable=False, index=True)  # Legacy field - kept for backward compatibility
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)  # User who owns this character (NULL for NPCs)
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True, index=True)  # Campaign this character belongs to
-    is_npc = Column(Boolean, nullable=False, default=False, index=True)  # TRUE for NPCs, FALSE for PCs
+    is_npc = Column(Boolean, nullable=False, default=False, index=True)  # TRUE for NPCs, FALSE for PCs/Allies
+    is_ally = Column(Boolean, nullable=False, default=False, index=True)  # TRUE for Allies, FALSE for PCs/NPCs
+    parent_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=True, index=True)  # Parent PC for Allies (NULL for PCs/NPCs)
 
     # Core stats (1-3 each, must sum to 6)
     level = Column(Integer, nullable=False, default=1)  # 1-10
@@ -231,6 +233,9 @@ class Character(Base):
     campaign = relationship("Campaign", back_populates="characters", foreign_keys=[campaign_id])
     party_memberships = relationship("PartyMembership", back_populates="character")
     abilities = relationship("Ability", back_populates="character", cascade="all, delete-orphan")
+
+    # Self-referential relationship for Allies
+    parent_character = relationship("Character", remote_side=[id], foreign_keys=[parent_character_id], backref="allies")
 
     def __repr__(self):
         return f"<Character(id={str(self.id)[:8]}..., name={self.name}, level={self.level}, status={self.status})>"
