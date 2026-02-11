@@ -50,23 +50,14 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Tables verified with UUID types")
         # ================================================================
-        # END TEMPORARY CODE
+        # OLD MIGRATION CODE REMOVED
+        # All migrations now handled by 000_CLEAN_START.sql
         # ================================================================
 
-        # Run Phase 2d schema migrations
-        from backend.migrations.run_phase_2d import run_migrations
-        run_migrations()
-
-        # Run Phase 2d data migration (campaigns → parties)
-        try:
-            from scripts.migrate_to_parties import run_migration, should_run_migration
-            if await should_run_migration():
-                logger.info("🔄 Running party data migration...")
-                await run_migration()
-            else:
-                logger.info("✅ Party data migration already complete")
-        except Exception as migration_err:
-            logger.warning(f"⚠️ Party migration skipped: {migration_err}")
+        # Old migration scripts removed:
+        # - run_phase_2d.py (referenced deprecated party_memberships table)
+        # - migrate_to_parties.py (no longer needed with clean schema)
+        logger.info("✅ Using 000_CLEAN_START.sql for all migrations")
 
     except Exception as e:
         logger.warning(f"⚠️ DB init warning: {e}")
