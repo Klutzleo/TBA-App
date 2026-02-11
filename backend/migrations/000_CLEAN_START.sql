@@ -26,23 +26,27 @@ EXCEPTION
 END $$;
 
 -- =====================================================================
--- DROP ALL EXISTING TABLES (ensures clean start with correct types)
+-- DROP STATEMENTS DISABLED - Data will persist across deploys
 -- =====================================================================
-DROP TABLE IF EXISTS initiative_rolls CASCADE;
-DROP TABLE IF EXISTS encounters CASCADE;
-DROP TABLE IF EXISTS combat_turns CASCADE;
-DROP TABLE IF EXISTS messages CASCADE;
-DROP TABLE IF EXISTS abilities CASCADE;
-DROP TABLE IF EXISTS party_members CASCADE;
-DROP TABLE IF EXISTS npcs CASCADE;
-DROP TABLE IF EXISTS parties CASCADE;
-DROP TABLE IF EXISTS campaign_memberships CASCADE;
-DROP TABLE IF EXISTS password_reset_tokens CASCADE;
-DROP TABLE IF EXISTS characters CASCADE;
-DROP TABLE IF EXISTS campaigns CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS roll_logs CASCADE;
-DROP VIEW IF EXISTS campaign_overview CASCADE;
+-- IMPORTANT: These DROP statements were used for the initial schema setup.
+-- They are now commented out to preserve data on subsequent deploys.
+-- Only uncomment if you need to completely reset the database.
+--
+-- DROP TABLE IF EXISTS initiative_rolls CASCADE;
+-- DROP TABLE IF EXISTS encounters CASCADE;
+-- DROP TABLE IF EXISTS combat_turns CASCADE;
+-- DROP TABLE IF EXISTS messages CASCADE;
+-- DROP TABLE IF EXISTS abilities CASCADE;
+-- DROP TABLE IF EXISTS party_members CASCADE;
+-- DROP TABLE IF EXISTS npcs CASCADE;
+-- DROP TABLE IF EXISTS parties CASCADE;
+-- DROP TABLE IF EXISTS campaign_memberships CASCADE;
+-- DROP TABLE IF EXISTS password_reset_tokens CASCADE;
+-- DROP TABLE IF EXISTS characters CASCADE;
+-- DROP TABLE IF EXISTS campaigns CASCADE;
+-- DROP TABLE IF EXISTS users CASCADE;
+-- DROP TABLE IF EXISTS roll_logs CASCADE;
+-- DROP VIEW IF EXISTS campaign_overview CASCADE;
 
 -- =====================================================================
 -- 1. Create users table (UUID from start)
