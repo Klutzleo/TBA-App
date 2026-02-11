@@ -571,6 +571,11 @@
       border-left-color: #9ca3af;
     }
 
+    .abilities-restored {
+      background: rgba(59, 130, 246, 0.1);
+      border-left-color: #3b82f6;
+    }
+
     .message-header {
       font-weight: 600;
       margin-bottom: 8px;
@@ -2917,6 +2922,27 @@
 
                 storeAndDisplayMessage(container, { type: 'initiative_clear', ...data });
               }
+              // ✅ Handle abilities restored from database
+              else if (msg.message_type === 'abilities_restored') {
+                console.log('🛏️ Loading abilities restored from history:', msg);
+                const data = msg.extra_data || {};
+
+                const container = document.createElement('div');
+                container.className = 'message-card abilities-restored';
+
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.style.fontSize = '16px';
+                header.style.color = 'var(--info, #3b82f6)';
+                header.style.textAlign = 'center';
+                header.style.padding = '12px';
+                header.style.borderRadius = '8px';
+                header.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+                header.textContent = `${msg.content}`;
+                container.appendChild(header);
+
+                storeAndDisplayMessage(container, { type: 'abilities_restored', ...data });
+              }
               // ✅ Handle regular chat messages
               else {
                 const messageData = {
@@ -3452,6 +3478,24 @@
 
               storeAndDisplayMessage(container, data);
 
+            } else if (data.type === 'abilities_restored') {
+              // Party rest - abilities restored
+              const container = document.createElement('div');
+              container.className = 'message-card abilities-restored';
+
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.fontSize = '16px';
+              header.style.color = 'var(--info, #3b82f6)';
+              header.style.textAlign = 'center';
+              header.style.padding = '12px';
+              header.style.borderRadius = '8px';
+              header.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+              header.textContent = `${data.message}`;
+              container.appendChild(header);
+
+              storeAndDisplayMessage(container, data);
+
             } else if (data.type === 'initiative') {
               // Legacy initiative (fallback)
               renderDiceRoll(data, '🧭');
@@ -3574,8 +3618,11 @@
         ws.send(JSON.stringify(payload));
 
       } else if (text.startsWith('/rest')) {
-        // Rest command - restore ability uses (placeholder for now)
-        ws.send(JSON.stringify({ type: 'message', actor, text }));
+        // Rest command - restore ability uses for whole party
+        const payload = {
+          type: 'rest_command'
+        };
+        ws.send(JSON.stringify(payload));
 
       } else if (text.startsWith('/initiative') || text.startsWith('/init')) {
         // Initiative command - send to new initiative handler

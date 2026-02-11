@@ -1995,6 +1995,7 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
 • `/initiative silent @target` (SW) - Hidden roll for NPCs
 • `/initiative end` (SW) - End encounter & restore ability uses
 • `/initiative clear` (SW) - Clear initiative without ending
+• `/rest` (SW) - Restore all ability uses without ending encounter
 
 **Combat (Legacy):**
 • `/combat-help` - Full combat guide

@@ -270,6 +270,9 @@ async def campaign_websocket(
             elif message_type == "initiative_command":
                 await handle_initiative_command(campaign_uuid, data, websocket, user_uuid, db)
 
+            elif message_type == "rest_command":
+                await restore_all_abilities(campaign_uuid, user_uuid, db, websocket)
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
     
@@ -1620,6 +1623,86 @@ async def clear_initiative(
         await websocket.send_json({
             "type": "error",
             "message": f"Failed to clear initiative: {str(e)}"
+        })
+
+
+async def restore_all_abilities(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    Story Weaver restores all ability uses for the entire party.
+    Does NOT end the encounter - just a quick rest/restoration.
+    Command: /rest
+    """
+    try:
+        # Verify user is Story Weaver
+        if not await is_story_weaver(campaign_uuid, user_uuid, db):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Only the Story Weaver can use /rest"
+            })
+            return
+
+        # Get all characters in this campaign
+        memberships = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_uuid
+        ).all()
+
+        character_ids = [m.character_id for m in memberships]
+
+        # Restore ability uses (set uses_remaining = max_uses)
+        abilities = db.query(Ability).filter(
+            Ability.character_id.in_(character_ids)
+        ).all()
+
+        restored_count = 0
+        for ability in abilities:
+            ability.uses_remaining = ability.max_uses
+            restored_count += 1
+
+        db.commit()
+
+        # Broadcast restoration
+        await manager.broadcast(campaign_uuid, {
+            "type": "abilities_restored",
+            "message": f"🛏️ The party rests. {restored_count} abilities restored.",
+            "abilities_restored": restored_count,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # Persist message
+        sw_membership = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_uuid,
+            CampaignMembership.user_id == user_uuid
+        ).first()
+
+        if sw_membership:
+            sw_character = db.query(Character).filter(
+                Character.id == sw_membership.character_id
+            ).first()
+
+            msg = Message(
+                campaign_id=campaign_uuid,
+                party_id=None,
+                sender_id=sw_character.id if sw_character else None,
+                sender_name=sw_character.name if sw_character else "Story Weaver",
+                message_type="abilities_restored",
+                content=f"🛏️ The party rests. All abilities restored.",
+                extra_data={
+                    "abilities_restored": restored_count
+                }
+            )
+            db.add(msg)
+            db.commit()
+
+    except Exception as e:
+        logger.error(f"Restore abilities error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to restore abilities: {str(e)}"
         })
 
 

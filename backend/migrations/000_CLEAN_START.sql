@@ -177,6 +177,8 @@ CREATE TABLE IF NOT EXISTS abilities (
     effect_type VARCHAR(50) NOT NULL,
     die VARCHAR(50) NOT NULL,
     is_aoe BOOLEAN NOT NULL DEFAULT FALSE,
+    max_uses INTEGER NOT NULL DEFAULT 3,
+    uses_remaining INTEGER NOT NULL DEFAULT 3,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -214,10 +216,12 @@ CREATE TABLE IF NOT EXISTS messages (
     mode VARCHAR(10),
     content TEXT NOT NULL,
     attachment_url VARCHAR(500),
+    extra_data JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_campaign_id ON messages(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_messages_party_id ON messages(party_id);
+CREATE INDEX IF NOT EXISTS idx_messages_extra_data ON messages USING gin (extra_data);
 
 CREATE TABLE IF NOT EXISTS combat_turns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -270,6 +274,41 @@ CREATE TABLE IF NOT EXISTS roll_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_roll_logs_session_id ON roll_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_roll_logs_encounter_id ON roll_logs(encounter_id);
+
+-- =====================================================================
+-- 6b. Create encounters and initiative_rolls tables
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS encounters (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_encounters_campaign ON encounters(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_encounters_active ON encounters(campaign_id, is_active);
+
+CREATE TABLE IF NOT EXISTS initiative_rolls (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    encounter_id UUID NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+    character_id UUID REFERENCES characters(id) ON DELETE CASCADE,
+    npc_id UUID REFERENCES npcs(id) ON DELETE CASCADE,
+    name VARCHAR NOT NULL,
+    roll_result INTEGER NOT NULL,
+    is_silent BOOLEAN NOT NULL DEFAULT FALSE,
+    rolled_by_sw BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT check_one_entity CHECK (
+        (character_id IS NOT NULL AND npc_id IS NULL) OR
+        (character_id IS NULL AND npc_id IS NOT NULL)
+    )
+);
+CREATE INDEX IF NOT EXISTS idx_initiative_encounter ON initiative_rolls(encounter_id);
+CREATE INDEX IF NOT EXISTS idx_initiative_character ON initiative_rolls(character_id);
+CREATE INDEX IF NOT EXISTS idx_initiative_npc ON initiative_rolls(npc_id);
+CREATE INDEX IF NOT EXISTS idx_initiative_order ON initiative_rolls(encounter_id, roll_result DESC);
 
 -- =====================================================================
 -- 7. Create view
