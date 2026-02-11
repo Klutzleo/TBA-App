@@ -187,8 +187,9 @@ class Character(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False, index=True)
     owner_id = Column(String, nullable=False, index=True)  # Legacy field - kept for backward compatibility
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # User who owns this character
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)  # User who owns this character (NULL for NPCs)
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True, index=True)  # Campaign this character belongs to
+    is_npc = Column(Boolean, nullable=False, default=False, index=True)  # TRUE for NPCs, FALSE for PCs
 
     # Core stats (1-3 each, must sum to 6)
     level = Column(Integer, nullable=False, default=1)  # 1-10

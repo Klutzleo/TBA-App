@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS characters (
     owner_id VARCHAR(255) NOT NULL,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     campaign_id UUID REFERENCES campaigns(id) ON DELETE SET NULL,
+    is_npc BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE for NPCs, FALSE for PCs
     level INTEGER NOT NULL DEFAULT 1,
     pp INTEGER NOT NULL,
     ip INTEGER NOT NULL,
@@ -129,6 +130,7 @@ CREATE INDEX IF NOT EXISTS idx_characters_owner_id ON characters(owner_id);
 CREATE INDEX IF NOT EXISTS idx_characters_user_id ON characters(user_id);
 CREATE INDEX IF NOT EXISTS idx_characters_campaign_id ON characters(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_characters_status ON characters(status);
+CREATE INDEX IF NOT EXISTS idx_characters_is_npc ON characters(campaign_id, is_npc);  -- For querying NPCs
 
 -- =====================================================================
 -- 4. Create parties table (campaign_id is UUID from start!)
