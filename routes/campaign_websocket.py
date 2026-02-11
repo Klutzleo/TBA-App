@@ -1098,21 +1098,17 @@ async def broadcast_initiative(campaign_id: UUID, initiative_result: dict):
 
 async def is_story_weaver(campaign_uuid: UUID, user_uuid: UUID, db: Session) -> bool:
     """Check if user is the Story Weaver for this campaign."""
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
-    if not campaign:
-        return False
-
-    # Get user's character in this campaign
-    character = db.query(Character).filter(
-        Character.campaign_id == campaign_uuid,
-        Character.user_id == user_uuid
+    # Check if user has Story Weaver role in campaign membership
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == user_uuid
     ).first()
 
-    if not character:
+    if not membership:
         return False
 
-    # Check if their character is the story weaver
-    return str(character.id) == str(campaign.story_weaver_id)
+    # Check if their role is story_weaver
+    return membership.role == 'story_weaver'
 
 
 async def get_or_create_active_encounter(campaign_uuid: UUID, db: Session) -> Encounter:
