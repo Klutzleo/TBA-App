@@ -1947,9 +1947,7 @@
           <div class="form-group">
             <label class="form-label">Attack Style *</label>
             <select id="npcAttackStyle" class="form-input" required>
-              <option value="3d4">3d4 (Balanced)</option>
-              <option value="2d6">2d6 (High Variance)</option>
-              <option value="1d12">1d12 (Max Variance)</option>
+              <option value="1d4">1d4</option>
             </select>
           </div>
           <div class="form-actions">
@@ -2441,6 +2439,7 @@
     // NPC Modal Functions
     function openNpcModal() {
       document.getElementById('npcCreateModal').classList.add('active');
+      updateNpcWeaponOptions(); // Set initial weapon options for level 1
     }
 
     function closeNpcModal() {
@@ -2448,6 +2447,19 @@
       document.getElementById('npcCreateForm').reset();
       document.getElementById('npcStatsError').style.display = 'none';
     }
+
+    // Update NPC weapon options based on level
+    function updateNpcWeaponOptions() {
+      const level = parseInt(document.getElementById('npcLevel')?.value || 1);
+      const weaponSelect = document.getElementById('npcAttackStyle');
+      if (!weaponSelect) return;
+
+      const weapons = ALLY_WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+      weaponSelect.innerHTML = weapons.map(w => `<option value="${w}">${w}</option>`).join('');
+    }
+
+    // Add event listener for level changes
+    document.getElementById('npcLevel')?.addEventListener('input', updateNpcWeaponOptions);
 
     // Handle NPC creation form
     document.getElementById('npcCreateForm')?.addEventListener('submit', async (e) => {
