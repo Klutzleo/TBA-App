@@ -1171,9 +1171,9 @@ async def roll_initiative_self(
             })
             return
 
-        # Roll 1d20
-        roll_result_list = roll_dice("1d20")
-        roll_total = sum(roll_result_list)
+        # Roll 1d6 + Edge (TBA v1.5)
+        die_result = roll_dice("1d6")[0]
+        roll_total = die_result + character.edge
 
         # Create initiative roll
         initiative_roll = InitiativeRoll(
@@ -1290,9 +1290,10 @@ async def roll_initiative_target(
             })
             return
 
-        # Roll 1d20
-        roll_result_list = roll_dice("1d20")
-        roll_total = sum(roll_result_list)
+        # Roll 1d6 + Edge (TBA v1.5)
+        die_result = roll_dice("1d6")[0]
+        edge = character.edge if character else npc.edge
+        roll_total = die_result + edge
 
         # Create initiative roll
         initiative_roll = InitiativeRoll(
