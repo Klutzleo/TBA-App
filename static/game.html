@@ -2466,7 +2466,8 @@
     function closeNpcModal() {
       document.getElementById('npcCreateModal').classList.remove('active');
       document.getElementById('npcCreateForm').reset();
-      document.getElementById('npcStatsError').style.display = 'none';
+      // Reset stats validation display
+      updateNpcStatsConstraints();
     }
 
     // Update NPC weapon options based on level
