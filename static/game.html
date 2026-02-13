@@ -2507,10 +2507,18 @@
 
     // Add event listeners for level changes
     document.getElementById('npcLevel')?.addEventListener('input', updateNpcWeaponOptions);
-    document.getElementById('editNpcLevel')?.addEventListener('input', function() {
+    document.getElementById('editNpcLevel')?.addEventListener('input', async function() {
       const level = parseInt(this.value);
       const currentWeapon = document.getElementById('editNpcAttackStyle').value;
+      const npcId = document.getElementById('editNpcId').value;
+
+      // Update weapon options
       updateEditNpcWeaponOptions(level, currentWeapon);
+
+      // Update ability slots for new level
+      if (npcId) {
+        await loadNpcAbilities(npcId, level);
+      }
     });
 
     // Update NPC stats constraints - each value (1,2,3) used exactly once
