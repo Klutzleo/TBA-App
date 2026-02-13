@@ -197,6 +197,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_party_members_active_unique
     ON party_members(party_id, character_id)
     WHERE left_at IS NULL;
 
+-- Also create party_memberships (model uses this tablename)
+CREATE TABLE IF NOT EXISTS party_memberships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    left_at TIMESTAMPTZ NULL
+);
+CREATE INDEX IF NOT EXISTS idx_party_memberships_party_id ON party_memberships(party_id);
+CREATE INDEX IF NOT EXISTS idx_party_memberships_character_id ON party_memberships(character_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_party_memberships_active_unique
+    ON party_memberships(party_id, character_id)
+    WHERE left_at IS NULL;
+
+-- Fix existing party_memberships table if it has wrong types
+DO $$ BEGIN
+    ALTER TABLE party_memberships ALTER COLUMN character_id TYPE UUID USING character_id::UUID;
+EXCEPTION
+    WHEN undefined_column THEN null;
+    WHEN undefined_table THEN null;
+END $$;
+
 -- =====================================================================
 -- 6. Create other tables
 -- =====================================================================
