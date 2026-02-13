@@ -2493,6 +2493,9 @@
       const totalEl = document.getElementById('npcStatsTotal');
       const submitBtn = document.getElementById('npcCreateBtn');
 
+      // Exit if elements don't exist yet
+      if (!totalEl) return;
+
       // Validate: total must be 6 AND all three values must be unique (one of each: 1, 2, 3)
       const isValid = total === 6 && new Set(usedValues).size === 3;
 
