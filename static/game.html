@@ -1931,18 +1931,30 @@
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
               <div>
                 <label class="form-label" style="font-size: 12px;">PP</label>
-                <input type="number" id="npcPP" class="form-input" min="1" max="3" value="2" required>
+                <select id="npcPP" class="form-input" onchange="updateNpcStatsConstraints()" required>
+                  <option value="1">1 - Low</option>
+                  <option value="2" selected>2 - Average</option>
+                  <option value="3">3 - High</option>
+                </select>
               </div>
               <div>
                 <label class="form-label" style="font-size: 12px;">IP</label>
-                <input type="number" id="npcIP" class="form-input" min="1" max="3" value="2" required>
+                <select id="npcIP" class="form-input" onchange="updateNpcStatsConstraints()" required>
+                  <option value="1">1 - Low</option>
+                  <option value="2" selected>2 - Average</option>
+                  <option value="3">3 - High</option>
+                </select>
               </div>
               <div>
                 <label class="form-label" style="font-size: 12px;">SP</label>
-                <input type="number" id="npcSP" class="form-input" min="1" max="3" value="2" required>
+                <select id="npcSP" class="form-input" onchange="updateNpcStatsConstraints()" required>
+                  <option value="1">1 - Low</option>
+                  <option value="2" selected>2 - Average</option>
+                  <option value="3">3 - High</option>
+                </select>
               </div>
             </div>
-            <div id="npcStatsError" class="error-message" style="display: none; color: var(--accent-danger); font-size: 12px; margin-top: 4px;"></div>
+            <div id="npcStatsTotal" style="margin-top: 8px; font-size: 14px; font-weight: bold; color: #00ff88;">Total: 6 / 6 ✓</div>
           </div>
           <div class="form-group">
             <label class="form-label">Attack Style *</label>
@@ -1952,7 +1964,7 @@
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeNpcModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Create NPC</button>
+            <button type="submit" id="npcCreateBtn" class="btn btn-primary">Create NPC</button>
           </div>
         </form>
       </div>
@@ -2071,6 +2083,14 @@
       5: ['1d8'], 6: ['1d8'],
       7: ['1d10'], 8: ['1d10'],
       9: ['1d12'], 10: ['1d12']
+    };
+    // NPCs use PC weapon progression (multiple options per level)
+    const NPC_WEAPON_OPTIONS_BY_LEVEL = {
+      1: ['1d4'], 2: ['1d4'],
+      3: ['2d4', '1d6'], 4: ['2d4', '1d6'],
+      5: ['3d4', '2d6', '1d8'], 6: ['3d4', '2d6', '1d8'],
+      7: ['4d4', '3d6', '2d8', '1d10'], 8: ['4d4', '3d6', '2d8', '1d10'],
+      9: ['5d4', '4d6', '3d8', '2d10', '1d12'], 10: ['5d4', '4d6', '3d8', '2d10', '1d12']
     };
     const ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL = {
       // Slot 1 (Single): Unlocks L3
@@ -2454,12 +2474,59 @@
       const weaponSelect = document.getElementById('npcAttackStyle');
       if (!weaponSelect) return;
 
-      const weapons = ALLY_WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+      const weapons = NPC_WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
       weaponSelect.innerHTML = weapons.map(w => `<option value="${w}">${w}</option>`).join('');
     }
 
     // Add event listener for level changes
     document.getElementById('npcLevel')?.addEventListener('input', updateNpcWeaponOptions);
+
+    // Update NPC stats constraints - each value (1,2,3) used exactly once
+    function updateNpcStatsConstraints() {
+      const pp = parseInt(document.getElementById('npcPP')?.value);
+      const ip = parseInt(document.getElementById('npcIP')?.value);
+      const sp = parseInt(document.getElementById('npcSP')?.value);
+
+      const labels = { 1: '1 - Low', 2: '2 - Average', 3: '3 - High' };
+      const usedValues = [pp, ip, sp];
+
+      // Update each dropdown to show only unused values (plus its current value)
+      ['npcPP', 'npcIP', 'npcSP'].forEach(statId => {
+        const select = document.getElementById(statId);
+        const currentVal = parseInt(select.value);
+
+        // Show values that aren't used by OTHER dropdowns
+        const availableValues = [1, 2, 3].filter(val =>
+          val === currentVal || !usedValues.includes(val)
+        );
+
+        // Rebuild options
+        select.innerHTML = '';
+        availableValues.forEach(val => {
+          const option = document.createElement('option');
+          option.value = val;
+          option.textContent = labels[val];
+          if (val === currentVal) option.selected = true;
+          select.appendChild(option);
+        });
+      });
+
+      // Update total display
+      const total = pp + ip + sp;
+      const totalEl = document.getElementById('npcStatsTotal');
+      const submitBtn = document.getElementById('npcCreateBtn');
+
+      const isValid = total === 6 && new Set(usedValues).size === 3;
+      if (isValid) {
+        totalEl.textContent = `Total: ${total} / 6 ✓`;
+        totalEl.style.color = '#00ff88';
+        if (submitBtn) submitBtn.disabled = false;
+      } else {
+        totalEl.textContent = `Total: ${total} / 6 ✗`;
+        totalEl.style.color = '#ff6b6b';
+        if (submitBtn) submitBtn.disabled = true;
+      }
+    }
 
     // Handle NPC creation form
     document.getElementById('npcCreateForm')?.addEventListener('submit', async (e) => {
@@ -2674,6 +2741,7 @@
         // Only save if name is provided
         if (!name) return null;
 
+        const maxUses = level * 3;  // TBA v1.5: max_uses = level * 3
         return {
           slot_number: slot.slot,
           display_name: name,
@@ -2681,7 +2749,9 @@
           power_source: powerSource,
           effect_type: effectType,
           die: slot.die,
-          is_aoe: slot.type === 'aoe'
+          is_aoe: slot.type === 'aoe',
+          max_uses: maxUses,
+          uses_remaining: maxUses
         };
       }).filter(a => a !== null);
 
