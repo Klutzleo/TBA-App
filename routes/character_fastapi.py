@@ -742,11 +742,12 @@ async def update_npc(
             max_uses = req.level * 3  # TBA v1.5: max_uses_per_encounter = level * 3
             npc.level = req.level
             npc.max_dp = level_stats["max_dp"]
+            npc.dp = level_stats["max_dp"]  # Heal to full on level up
             npc.edge = level_stats["edge"]
             npc.bap = level_stats["bap"]
             npc.defense_die = get_defense_die(req.level)
             npc.max_uses_per_encounter = max_uses
-            npc.current_uses = min(npc.current_uses or 0, max_uses)  # Don't exceed new max
+            npc.current_uses = max_uses  # Restore uses on level up
         if req.dp is not None:
             npc.dp = req.dp
         if req.attack_style is not None:

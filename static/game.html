@@ -2004,7 +2004,7 @@
         <!-- Abilities Section -->
         <div class="form-group" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);">
           <label class="form-label" style="font-size: 16px; color: var(--accent-primary);">Abilities</label>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">NPCs get abilities at level 3+ (Slot 1: Single) and level 7+ (Slot 2: AOE)</p>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">NPCs get abilities at L1 (Slot 1), L3 (Slot 2), L5 (Slot 3: AOE), L7 (Slot 4: AOE), L9 (Slot 5: AOE)</p>
           <div id="editNpcAbilitiesContainer">
             <!-- Dynamically populated based on level -->
           </div>
@@ -2102,6 +2102,17 @@
       const slots = [];
       if (level >= 3) slots.push({ slot: 1, type: 'single', die: ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL[1][level] });
       if (level >= 7) slots.push({ slot: 2, type: 'aoe', die: ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL[2][level] });
+      return slots;
+    }
+
+    // NPCs use PC leveling (abilities unlock at L1, L3, L5, L7, L9)
+    function getPCAvailableSlots(level) {
+      const slots = [];
+      if (level >= 1) slots.push({ slot: 1, type: 'single', die: '1d8' });
+      if (level >= 3) slots.push({ slot: 2, type: 'single', die: '1d8' });
+      if (level >= 5) slots.push({ slot: 3, type: 'aoe', die: '1d8' });
+      if (level >= 7) slots.push({ slot: 4, type: 'aoe', die: '1d8' });
+      if (level >= 9) slots.push({ slot: 5, type: 'aoe', die: '1d8' });
       return slots;
     }
 
@@ -2627,10 +2638,10 @@
 
     function renderNpcAbilitySlots(level, existingAbilities) {
       const container = document.getElementById('editNpcAbilitiesContainer');
-      const availableSlots = getAllyAvailableSlots(level);
+      const availableSlots = getPCAvailableSlots(level);
 
       if (availableSlots.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No ability slots available at this level (abilities unlock at level 3+)</p>';
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No ability slots available at this level (abilities unlock at level 1+)</p>';
         return;
       }
 
@@ -2722,7 +2733,7 @@
         await updateAbilitiesMaxUses(npcId, level);
 
         // Collect and save abilities
-        const availableSlots = getAllyAvailableSlots(level);
+        const availableSlots = getPCAvailableSlots(level);
         if (availableSlots.length > 0) {
           await saveNpcAbilities(npcId, level, availableSlots);
         }
