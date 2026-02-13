@@ -2480,8 +2480,27 @@
       weaponSelect.innerHTML = weapons.map(w => `<option value="${w}">${w}</option>`).join('');
     }
 
-    // Add event listener for level changes
+    // Update edit panel weapon options based on level
+    function updateEditNpcWeaponOptions(level, currentWeapon) {
+      const weaponSelect = document.getElementById('editNpcAttackStyle');
+      if (!weaponSelect) return;
+
+      const weapons = NPC_WEAPON_OPTIONS_BY_LEVEL[level] || ['1d4'];
+      weaponSelect.innerHTML = weapons.map(w => `<option value="${w}">${w}</option>`).join('');
+
+      // Set current weapon if it's valid for this level
+      if (currentWeapon && weapons.includes(currentWeapon)) {
+        weaponSelect.value = currentWeapon;
+      }
+    }
+
+    // Add event listeners for level changes
     document.getElementById('npcLevel')?.addEventListener('input', updateNpcWeaponOptions);
+    document.getElementById('editNpcLevel')?.addEventListener('input', function() {
+      const level = parseInt(this.value);
+      const currentWeapon = document.getElementById('editNpcAttackStyle').value;
+      updateEditNpcWeaponOptions(level, currentWeapon);
+    });
 
     // Update NPC stats constraints - each value (1,2,3) used exactly once
     function updateNpcStatsConstraints() {
@@ -2571,7 +2590,9 @@
       document.getElementById('editNpcName').value = npc.name;
       document.getElementById('editNpcLevel').value = npc.level;
       document.getElementById('editNpcDP').value = npc.dp;
-      document.getElementById('editNpcAttackStyle').value = npc.attack_style;
+
+      // Populate weapon dropdown based on NPC's level, then set current value
+      updateEditNpcWeaponOptions(npc.level, npc.attack_style);
 
       // Load and render abilities
       await loadNpcAbilities(npcId, npc.level);
