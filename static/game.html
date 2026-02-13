@@ -1932,8 +1932,8 @@
               <div>
                 <label class="form-label" style="font-size: 12px;">PP</label>
                 <select id="npcPP" class="form-input" onchange="updateNpcStatsConstraints()" required>
-                  <option value="1">1 - Low</option>
-                  <option value="2" selected>2 - Average</option>
+                  <option value="1" selected>1 - Low</option>
+                  <option value="2">2 - Average</option>
                   <option value="3">3 - High</option>
                 </select>
               </div>
@@ -1949,8 +1949,8 @@
                 <label class="form-label" style="font-size: 12px;">SP</label>
                 <select id="npcSP" class="form-input" onchange="updateNpcStatsConstraints()" required>
                   <option value="1">1 - Low</option>
-                  <option value="2" selected>2 - Average</option>
-                  <option value="3">3 - High</option>
+                  <option value="2">2 - Average</option>
+                  <option value="3" selected>3 - High</option>
                 </select>
               </div>
             </div>
@@ -2460,6 +2460,7 @@
     function openNpcModal() {
       document.getElementById('npcCreateModal').classList.add('active');
       updateNpcWeaponOptions(); // Set initial weapon options for level 1
+      updateNpcStatsConstraints(); // Set initial stats constraints (1, 2, 3)
     }
 
     function closeNpcModal() {
@@ -2487,36 +2488,14 @@
       const ip = parseInt(document.getElementById('npcIP')?.value);
       const sp = parseInt(document.getElementById('npcSP')?.value);
 
-      const labels = { 1: '1 - Low', 2: '2 - Average', 3: '3 - High' };
-      const usedValues = [pp, ip, sp];
-
-      // Update each dropdown to show only unused values (plus its current value)
-      ['npcPP', 'npcIP', 'npcSP'].forEach(statId => {
-        const select = document.getElementById(statId);
-        const currentVal = parseInt(select.value);
-
-        // Show values that aren't used by OTHER dropdowns
-        const availableValues = [1, 2, 3].filter(val =>
-          val === currentVal || !usedValues.includes(val)
-        );
-
-        // Rebuild options
-        select.innerHTML = '';
-        availableValues.forEach(val => {
-          const option = document.createElement('option');
-          option.value = val;
-          option.textContent = labels[val];
-          if (val === currentVal) option.selected = true;
-          select.appendChild(option);
-        });
-      });
-
-      // Update total display
       const total = pp + ip + sp;
+      const usedValues = [pp, ip, sp];
       const totalEl = document.getElementById('npcStatsTotal');
       const submitBtn = document.getElementById('npcCreateBtn');
 
+      // Validate: total must be 6 AND all three values must be unique (one of each: 1, 2, 3)
       const isValid = total === 6 && new Set(usedValues).size === 3;
+
       if (isValid) {
         totalEl.textContent = `Total: ${total} / 6 ✓`;
         totalEl.style.color = '#00ff88';
