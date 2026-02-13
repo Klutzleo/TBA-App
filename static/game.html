@@ -2697,6 +2697,9 @@
           throw new Error(error.detail || 'Failed to update NPC');
         }
 
+        // Update max_uses for all existing abilities based on new level
+        await updateAbilitiesMaxUses(npcId, level);
+
         // Collect and save abilities
         const availableSlots = getAllyAvailableSlots(level);
         if (availableSlots.length > 0) {
@@ -2759,6 +2762,40 @@
           console.error('Error saving abilities:', error);
           // Don't fail the whole operation if abilities fail
         }
+      }
+    }
+
+    // Update max_uses for all existing abilities when level changes
+    async function updateAbilitiesMaxUses(npcId, newLevel) {
+      try {
+        // Fetch existing abilities
+        const response = await fetch(`/api/characters/${npcId}/abilities`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) return; // No abilities yet
+
+        const abilities = await response.json();
+        const newMaxUses = newLevel * 3;
+
+        // Update each ability's max_uses
+        for (const ability of abilities) {
+          await fetch(`/api/abilities/${ability.id}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              max_uses: newMaxUses,
+              uses_remaining: Math.min(ability.uses_remaining || 0, newMaxUses) // Don't exceed new max
+            })
+          });
+        }
+      } catch (error) {
+        console.error('Error updating abilities max_uses:', error);
+        // Don't fail the whole operation
       }
     }
 

@@ -659,6 +659,7 @@ async def create_npc(
         defense_die = get_defense_die(req.level)
 
         # Create NPC (user_id is NULL for NPCs)
+        max_uses = req.level * 3  # TBA v1.5: max_uses_per_encounter = level * 3
         npc = Character(
             name=req.name,
             owner_id=str(current_user.id),  # Track creator
@@ -677,7 +678,9 @@ async def create_npc(
             attack_style=req.attack_style,
             defense_die=defense_die,
             weapon=req.weapon.model_dump() if req.weapon else None,
-            armor=req.armor.model_dump() if req.armor else None
+            armor=req.armor.model_dump() if req.armor else None,
+            max_uses_per_encounter=max_uses,
+            current_uses=max_uses
         )
 
         db.add(npc)
@@ -736,11 +739,14 @@ async def update_npc(
             npc.name = req.name
         if req.level is not None:
             level_stats = calculate_level_stats(req.level)
+            max_uses = req.level * 3  # TBA v1.5: max_uses_per_encounter = level * 3
             npc.level = req.level
             npc.max_dp = level_stats["max_dp"]
             npc.edge = level_stats["edge"]
             npc.bap = level_stats["bap"]
             npc.defense_die = get_defense_die(req.level)
+            npc.max_uses_per_encounter = max_uses
+            npc.current_uses = min(npc.current_uses or 0, max_uses)  # Don't exceed new max
         if req.dp is not None:
             npc.dp = req.dp
         if req.attack_style is not None:
