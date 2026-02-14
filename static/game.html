@@ -2064,7 +2064,12 @@
     let campaignNPCs = [];  // All NPCs for this campaign (SW only)
 
     // === Ally/NPC Leveling Tables ===
-    // NPCs and Allies use the same leveling table (lower DP, different spell progression)
+    // PC/NPC DP progression (from Leveling Table v2.0)
+    const PC_DP_BY_LEVEL = {
+      1: 10, 2: 15, 3: 20, 4: 25, 5: 30,
+      6: 35, 7: 40, 8: 45, 9: 50, 10: 55
+    };
+    // Ally DP progression (lower than PC)
     const ALLY_DP_BY_LEVEL = {
       1: 5, 2: 7, 3: 10, 4: 12, 5: 15,
       6: 17, 7: 20, 8: 22, 9: 25, 10: 27
@@ -2107,13 +2112,22 @@
     }
 
     // NPCs use PC leveling (abilities unlock at L1, L3, L5, L7, L9)
+    // Spell/Tech dice from Leveling Table v2.0
+    const PC_SPELL_DICE = {
+      1: { 1: '1d6', 2: '1d6', 3: '1d8', 4: '1d8', 5: '1d10', 6: '1d10', 7: '1d12', 8: '1d12', 9: '2d8', 10: '2d8' },
+      2: { 3: '1d6', 4: '1d6', 5: '1d8', 6: '1d8', 7: '1d10', 8: '1d10', 9: '1d12', 10: '1d12' },
+      3: { 5: '1d6', 6: '1d6', 7: '1d8', 8: '1d8', 9: '1d10', 10: '2d6' },
+      4: { 7: '1d8', 8: '1d8', 9: '1d10', 10: '1d10' },
+      5: { 9: '1d10', 10: '1d12' }
+    };
+
     function getPCAvailableSlots(level) {
       const slots = [];
-      if (level >= 1) slots.push({ slot: 1, type: 'single', die: '1d8' });
-      if (level >= 3) slots.push({ slot: 2, type: 'single', die: '1d8' });
-      if (level >= 5) slots.push({ slot: 3, type: 'aoe', die: '1d8' });
-      if (level >= 7) slots.push({ slot: 4, type: 'aoe', die: '1d8' });
-      if (level >= 9) slots.push({ slot: 5, type: 'aoe', die: '1d8' });
+      if (level >= 1) slots.push({ slot: 1, type: 'single', die: PC_SPELL_DICE[1][level] });
+      if (level >= 3) slots.push({ slot: 2, type: 'aoe', die: PC_SPELL_DICE[2][level] });
+      if (level >= 5) slots.push({ slot: 3, type: 'single', die: PC_SPELL_DICE[3][level] });
+      if (level >= 7) slots.push({ slot: 4, type: 'aoe', die: PC_SPELL_DICE[4][level] });
+      if (level >= 9) slots.push({ slot: 5, type: 'single', die: PC_SPELL_DICE[5][level] });
       return slots;
     }
 
@@ -2512,9 +2526,19 @@
       const level = parseInt(this.value);
       const currentWeapon = document.getElementById('editNpcAttackStyle').value;
       const npcId = document.getElementById('editNpcId').value;
+      const dpInput = document.getElementById('editNpcDP');
 
       // Update weapon options
       updateEditNpcWeaponOptions(level, currentWeapon);
+
+      // Cap DP at new max_dp for this level
+      const maxDp = PC_DP_BY_LEVEL[level] || 10;
+      if (dpInput) {
+        const currentDp = parseInt(dpInput.value) || 0;
+        if (currentDp > maxDp) {
+          dpInput.value = maxDp;
+        }
+      }
 
       // Update ability slots for new level
       if (npcId) {
