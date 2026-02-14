@@ -2085,12 +2085,13 @@
       9: ['1d12'], 10: ['1d12']
     };
     // NPCs use PC weapon progression (multiple options per level)
+    // Ordered: Single large die first → Multiple small dice
     const NPC_WEAPON_OPTIONS_BY_LEVEL = {
       1: ['1d4'], 2: ['1d4'],
-      3: ['2d4', '1d6'], 4: ['2d4', '1d6'],
-      5: ['3d4', '2d6', '1d8'], 6: ['3d4', '2d6', '1d8'],
-      7: ['4d4', '3d6', '2d8', '1d10'], 8: ['4d4', '3d6', '2d8', '1d10'],
-      9: ['5d4', '4d6', '3d8', '2d10', '1d12'], 10: ['5d4', '4d6', '3d8', '2d10', '1d12']
+      3: ['1d6', '2d4'], 4: ['1d6', '2d4'],
+      5: ['1d8', '2d6', '3d4'], 6: ['1d8', '2d6', '3d4'],
+      7: ['1d10', '2d8', '3d6', '4d4'], 8: ['1d10', '2d8', '3d6', '4d4'],
+      9: ['1d12', '2d10', '3d8', '4d6', '5d4'], 10: ['1d12', '2d10', '3d8', '4d6', '5d4']
     };
     const ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL = {
       // Slot 1 (Single): Unlocks L3
