@@ -742,14 +742,17 @@ async def update_npc(
             max_uses = req.level * 3  # TBA v1.5: max_uses_per_encounter = level * 3
             npc.level = req.level
             npc.max_dp = level_stats["max_dp"]
-            npc.dp = level_stats["max_dp"]  # Heal to full on level up
             npc.edge = level_stats["edge"]
             npc.bap = level_stats["bap"]
             npc.defense_die = get_defense_die(req.level)
             npc.max_uses_per_encounter = max_uses
             npc.current_uses = max_uses  # Restore uses on level up
+            # Cap current DP at new max (don't auto-heal unless explicitly requested)
+            if npc.dp > npc.max_dp:
+                npc.dp = npc.max_dp
         if req.dp is not None:
-            npc.dp = req.dp
+            # Cap DP at max_dp
+            npc.dp = min(req.dp, npc.max_dp)
         if req.attack_style is not None:
             validate_attack_style(npc.level, req.attack_style)
             npc.attack_style = req.attack_style
@@ -971,3 +974,79 @@ async def create_ally(
     except Exception as e:
         logger.error(f"[{request_id}] Ally creation error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ally creation failed: {str(e)}")
+
+
+# =====================================================================
+# Abilities Endpoints
+# =====================================================================
+
+@character_blp_fastapi.post("/{character_id}/abilities", status_code=200)
+async def update_character_abilities(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update/create abilities for a character (PC, NPC, or Ally).
+    For NPCs: Checks if user is Story Weaver.
+    For PCs/Allies: Checks if user owns the character.
+    """
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Updating abilities for character: {character_id}")
+
+    try:
+        char_uuid = UUID(character_id)
+        character = db.query(Character).filter(Character.id == char_uuid).first()
+
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+
+        # Permission check
+        if character.is_npc:
+            # Check if user is Story Weaver
+            membership = db.query(CampaignMembership).filter(
+                CampaignMembership.campaign_id == character.campaign_id,
+                CampaignMembership.user_id == current_user.id
+            ).first()
+            if not membership or membership.role != 'story_weaver':
+                raise HTTPException(status_code=403, detail="Only Story Weaver can manage NPC abilities")
+        else:
+            # Check if user owns this character
+            if character.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="You don't own this character")
+
+        # Get abilities from request
+        abilities_data = req.get('abilities', [])
+
+        # Delete existing abilities and create new ones
+        db.query(Ability).filter(Ability.character_id == char_uuid).delete()
+
+        for ability in abilities_data:
+            new_ability = Ability(
+                character_id=char_uuid,
+                slot_number=ability['slot_number'],
+                display_name=ability['display_name'],
+                macro_command=ability['macro_command'],
+                power_source=ability.get('power_source', 'PP'),
+                effect_type=ability.get('effect_type', 'damage'),
+                die=ability.get('die', '1d8'),
+                is_aoe=ability.get('is_aoe', False),
+                max_uses=ability.get('max_uses', character.level * 3),
+                uses_remaining=ability.get('uses_remaining', ability.get('max_uses', character.level * 3))
+            )
+            db.add(new_ability)
+
+        db.commit()
+        logger.info(f"[{request_id}] Updated {len(abilities_data)} abilities for character {character_id}")
+        return {"message": "Abilities updated successfully", "count": len(abilities_data)}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[{request_id}] Ability update error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ability update failed: {str(e)}")
