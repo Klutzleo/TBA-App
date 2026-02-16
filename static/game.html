@@ -4713,14 +4713,16 @@
 
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
               // In-Character message - skip if from self (already displayed locally)
-              const myActor = (currentActor.trim() || 'User').toLowerCase();
+              // Check against active speaker if set, otherwise current actor
+              const myActor = (activeSpeaker ? activeSpeaker.name : (currentActor.trim() || 'User')).toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
                 displayTypedMessage('ic', data.actor || 'Unknown', data.text, null, false);
               }
             } else if (data.type === 'chat_ooc' || data.chat_mode === 'ooc') {
               // Out-of-Character message - skip if from self (already displayed locally)
-              const myActor = (currentActor.trim() || 'User').toLowerCase();
+              // Check against active speaker if set, otherwise current actor
+              const myActor = (activeSpeaker ? activeSpeaker.name : (currentActor.trim() || 'User')).toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
                 displayTypedMessage('ooc', data.actor || 'Unknown', data.text, null, data.is_ooc_command || false);
