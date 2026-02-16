@@ -199,11 +199,13 @@ def list_my_campaigns(
             timezone=c.timezone,
             posting_frequency=c.posting_frequency,
             status=c.status,
-            story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
-            created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+            story_weaver_id=c.story_weaver_id,
+            created_by_user_id=c.created_by_user_id,
             is_active=c.is_active,
             user_role='story_weaver',
-            member_count=member_count or 0
+            member_count=member_count or 0,
+            character_creation_mode=c.character_creation_mode,
+            max_characters_per_player=c.max_characters_per_player
         ))
 
     # Add player campaigns (avoid duplicates if user is both SW and member)
@@ -226,11 +228,13 @@ def list_my_campaigns(
                 timezone=c.timezone,
                 posting_frequency=c.posting_frequency,
                 status=c.status,
-                story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
-                created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+                story_weaver_id=c.story_weaver_id,
+                created_by_user_id=c.created_by_user_id,
                 is_active=c.is_active,
                 user_role='player',
-                member_count=member_count or 0
+                member_count=member_count or 0,
+                character_creation_mode=c.character_creation_mode,
+                max_characters_per_player=c.max_characters_per_player
             ))
 
     # Sort by created_at descending (Story Weaver campaigns first, then player campaigns)
@@ -273,11 +277,13 @@ def browse_public_campaigns(
             timezone=c.timezone,
             posting_frequency=c.posting_frequency,
             status=c.status,
-            story_weaver_id=str(c.story_weaver_id) if c.story_weaver_id else None,
-            created_by_user_id=str(c.created_by_user_id) if c.created_by_user_id else None,
+            story_weaver_id=c.story_weaver_id,
+            created_by_user_id=c.created_by_user_id,
             is_active=c.is_active,
             user_role=None,  # Not showing role for browse
-            member_count=member_count or 0
+            member_count=member_count or 0,
+            character_creation_mode=c.character_creation_mode,
+            max_characters_per_player=c.max_characters_per_player
         ))
 
     return result
