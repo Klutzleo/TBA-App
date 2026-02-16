@@ -2524,6 +2524,8 @@
     document.getElementById('npcLevel')?.addEventListener('input', updateNpcWeaponOptions);
     document.getElementById('editNpcLevel')?.addEventListener('input', async function() {
       const level = parseInt(this.value);
+      if (!level || level < 1 || level > 10) return;
+
       const currentWeapon = document.getElementById('editNpcAttackStyle').value;
       const npcId = document.getElementById('editNpcId').value;
       const dpInput = document.getElementById('editNpcDP');
@@ -2532,11 +2534,15 @@
       updateEditNpcWeaponOptions(level, currentWeapon);
 
       // Cap DP at new max_dp for this level
-      const maxDp = PC_DP_BY_LEVEL[level] || 10;
       if (dpInput) {
-        const currentDp = parseInt(dpInput.value) || 0;
+        const maxDp = PC_DP_BY_LEVEL[level];
+        const currentDp = parseInt(dpInput.value);
+
+        console.log(`Level: ${level}, Max DP: ${maxDp}, Current DP: ${currentDp}`);
+
         if (currentDp > maxDp) {
           dpInput.value = maxDp;
+          console.log(`✅ Capped DP to ${maxDp}`);
         }
       }
 
