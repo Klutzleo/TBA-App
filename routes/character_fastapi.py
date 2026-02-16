@@ -355,14 +355,18 @@ async def get_character(
     # Permission check
     if character.is_npc:
         # Check if user is Story Weaver for this campaign
+        logger.info(f"[{request_id}] NPC access check - character.campaign_id: {character.campaign_id}, current_user.id: {current_user.id}")
         membership = db.query(CampaignMembership).filter(
             CampaignMembership.campaign_id == character.campaign_id,
             CampaignMembership.user_id == current_user.id
         ).first()
+        logger.info(f"[{request_id}] Membership found: {membership is not None}, Role: {membership.role if membership else 'N/A'}")
         if not membership or membership.role != 'story_weaver':
+            logger.warning(f"[{request_id}] Access denied - membership exists: {membership is not None}, role: {membership.role if membership else 'N/A'}")
             raise HTTPException(status_code=403, detail="Only Story Weaver can access NPCs")
     else:
         # Check if user owns this character
+        logger.info(f"[{request_id}] PC access check - character.user_id: {character.user_id}, current_user.id: {current_user.id}")
         if character.user_id != current_user.id:
             raise HTTPException(status_code=403, detail="You don't own this character")
 
