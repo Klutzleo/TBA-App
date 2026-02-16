@@ -50,8 +50,8 @@ class CampaignResponse(BaseModel):
     timezone: str
     posting_frequency: str
     status: str
-    story_weaver_id: Optional[str] = None
-    created_by_user_id: Optional[str] = None
+    story_weaver_id: Optional[UUID] = None
+    created_by_user_id: Optional[UUID] = None
     is_active: bool
     user_role: Optional[str] = None  # 'story_weaver' or 'player'
     member_count: Optional[int] = None  # Number of active members
