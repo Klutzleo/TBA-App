@@ -419,6 +419,10 @@ def update_campaign(
         raise HTTPException(status_code=403, detail="Only Story Weaver can update campaign settings")
 
     # Update fields if provided
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Updating campaign {campaign_id}: character_creation_mode={updates.character_creation_mode}, max_characters={updates.max_characters_per_player}")
+
     if updates.name is not None:
         campaign.name = updates.name
     if updates.description is not None:
@@ -436,6 +440,8 @@ def update_campaign(
 
     db.commit()
     db.refresh(campaign)
+
+    logger.info(f"Campaign updated: mode={campaign.character_creation_mode}, max_chars={campaign.max_characters_per_player}")
 
     return campaign
 
