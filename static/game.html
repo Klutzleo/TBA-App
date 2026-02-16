@@ -2468,11 +2468,35 @@
         <button class="context-menu-item danger" onclick="deleteNpc('${character.id}')">🗑️ Delete</button>
       `;
 
-      // Position menu
-      menu.style.left = `${event.clientX || event.pageX}px`;
-      menu.style.top = `${event.clientY || event.pageY}px`;
-
       document.body.appendChild(menu);
+
+      // Position menu with viewport boundary checks
+      const mouseX = event.clientX || event.pageX;
+      const mouseY = event.clientY || event.pageY;
+      const menuRect = menu.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      // Calculate position
+      let left = mouseX;
+      let top = mouseY;
+
+      // Check right edge overflow
+      if (left + menuRect.width > viewportWidth) {
+        left = mouseX - menuRect.width;
+      }
+
+      // Check bottom edge overflow
+      if (top + menuRect.height > viewportHeight) {
+        top = mouseY - menuRect.height;
+      }
+
+      // Ensure menu stays within viewport (fallback)
+      left = Math.max(0, Math.min(left, viewportWidth - menuRect.width));
+      top = Math.max(0, Math.min(top, viewportHeight - menuRect.height));
+
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
 
       // Close on click outside
       setTimeout(() => {
