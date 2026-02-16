@@ -2654,7 +2654,7 @@
     async function loadNpcAbilities(npcId, level) {
       try {
         // Fetch NPC's abilities from backend
-        const response = await fetch(`/api/characters/${npcId}`, {
+        const response = await fetch(`/api/characters/${npcId}/abilities`, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
 
@@ -2664,8 +2664,8 @@
           return;
         }
 
-        const npcData = await response.json();
-        const abilities = npcData.abilities || [];
+        const data = await response.json();
+        const abilities = data.abilities || [];
 
         // Render ability slots with existing data
         renderNpcAbilitySlots(level, abilities);
@@ -2847,7 +2847,8 @@
 
         if (!response.ok) return; // No abilities yet
 
-        const abilities = await response.json();
+        const data = await response.json();
+        const abilities = data.abilities || [];
         const newMaxUses = newLevel * 3;
 
         // Update each ability's max_uses
