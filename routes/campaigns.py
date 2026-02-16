@@ -55,6 +55,8 @@ class CampaignResponse(BaseModel):
     is_active: bool
     user_role: Optional[str] = None  # 'story_weaver' or 'player'
     member_count: Optional[int] = None  # Number of active members
+    character_creation_mode: Optional[str] = 'open'  # 'open', 'approval_required', 'sw_only'
+    max_characters_per_player: Optional[int] = 1
 
     class Config:
         from_attributes = True
@@ -63,6 +65,17 @@ class CampaignResponse(BaseModel):
 class JoinCampaignRequest(BaseModel):
     """Request to join a campaign by join code."""
     join_code: str
+
+
+class CampaignUpdate(BaseModel):
+    """Request to update campaign settings."""
+    name: Optional[str] = Field(None, min_length=3, max_length=100)
+    description: Optional[str] = Field(None, min_length=10, max_length=2000)
+    is_public: Optional[bool] = None
+    posting_frequency: Optional[str] = Field(None, pattern="^(slow|medium|high)$")
+    status: Optional[str] = Field(None, pattern="^(active|archived|on_break)$")
+    character_creation_mode: Optional[str] = Field(None, pattern="^(open|approval_required|sw_only)$")
+    max_characters_per_player: Optional[int] = Field(None, ge=1, le=999)
 
 
 @router.post("/create", response_model=CampaignResponse)
@@ -381,6 +394,51 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
         story_channel_id=story_channel.id if story_channel else None,
         ooc_channel_id=ooc_channel.id if ooc_channel else None
     )
+
+
+@router.put("/{campaign_id}", response_model=CampaignResponse)
+def update_campaign(
+    campaign_id: str,
+    updates: CampaignUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update campaign settings (Story Weaver only)."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Check if user is Story Weaver
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can update campaign settings")
+
+    # Update fields if provided
+    if updates.name is not None:
+        campaign.name = updates.name
+    if updates.description is not None:
+        campaign.description = updates.description
+    if updates.is_public is not None:
+        campaign.is_public = updates.is_public
+    if updates.posting_frequency is not None:
+        campaign.posting_frequency = updates.posting_frequency
+    if updates.status is not None:
+        campaign.status = updates.status
+    if updates.character_creation_mode is not None:
+        campaign.character_creation_mode = updates.character_creation_mode
+    if updates.max_characters_per_player is not None:
+        campaign.max_characters_per_player = updates.max_characters_per_player
+
+    db.commit()
+    db.refresh(campaign)
+
+    return campaign
+
 
 @router.get("/{campaign_id}/members")
 async def get_campaign_members(

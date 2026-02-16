@@ -284,6 +284,10 @@ class Campaign(Base):
     posting_frequency = Column(Enum('slow', 'medium', 'high', name='posting_frequency_enum'), nullable=False, default='medium')
     status = Column(Enum('active', 'archived', 'on_break', name='campaign_status_enum'), nullable=False, default='active')
 
+    # Character creation governance
+    character_creation_mode = Column(String, nullable=False, default='open')  # 'open', 'approval_required', 'sw_only'
+    max_characters_per_player = Column(Integer, nullable=False, default=1)
+
     # Legacy fields (kept for backward compatibility)
     created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
     is_active = Column(Boolean, nullable=False, default=True)

@@ -540,6 +540,33 @@
                         <option value="archived">Archived</option>
                     </select>
                 </div>
+
+                <!-- Character Creation Governance -->
+                <div class="form-group">
+                    <label for="settings-character-creation-mode">Character Creation *</label>
+                    <select id="settings-character-creation-mode" required>
+                        <option value="open">Open (players can create freely)</option>
+                        <option value="approval_required">Approval Required (coming soon)</option>
+                        <option value="sw_only">SW Only (only transfers allowed)</option>
+                    </select>
+                    <p style="margin-top: 8px; font-size: 0.85rem; color: #b0b3ba;">
+                        Control who can create characters in your campaign
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label for="settings-max-characters">Max Characters Per Player *</label>
+                    <select id="settings-max-characters" required>
+                        <option value="1">1 character</option>
+                        <option value="3">3 characters</option>
+                        <option value="5">5 characters</option>
+                        <option value="999">Unlimited</option>
+                    </select>
+                    <p style="margin-top: 8px; font-size: 0.85rem; color: #b0b3ba;">
+                        Maximum number of characters each player can create
+                    </p>
+                </div>
+
                 <div class="form-group">
                     <label>Join Code</label>
                     <div style="display: flex; gap: 10px; align-items: center;">
@@ -921,6 +948,8 @@
                 document.getElementById('settings-public').checked = campaign.is_public;
                 document.getElementById('settings-posting-frequency').value = campaign.posting_frequency;
                 document.getElementById('settings-status').value = campaign.status;
+                document.getElementById('settings-character-creation-mode').value = campaign.character_creation_mode || 'open';
+                document.getElementById('settings-max-characters').value = campaign.max_characters_per_player || 1;
                 document.getElementById('settings-join-code').textContent = campaign.join_code;
 
                 document.getElementById('settings-modal').classList.add('active');
@@ -970,7 +999,9 @@
                 description: document.getElementById('settings-description').value,
                 is_public: document.getElementById('settings-public').checked,
                 posting_frequency: document.getElementById('settings-posting-frequency').value,
-                status: document.getElementById('settings-status').value
+                status: document.getElementById('settings-status').value,
+                character_creation_mode: document.getElementById('settings-character-creation-mode').value,
+                max_characters_per_player: parseInt(document.getElementById('settings-max-characters').value)
             };
 
             try {

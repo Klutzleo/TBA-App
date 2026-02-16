@@ -84,7 +84,11 @@ CREATE TABLE IF NOT EXISTS campaigns (
     timezone VARCHAR NOT NULL DEFAULT 'America/New_York',
     posting_frequency posting_frequency_enum NOT NULL DEFAULT 'medium',
     status campaign_status_enum NOT NULL DEFAULT 'active',
-    created_by_user_id UUID REFERENCES users(id) ON DELETE CASCADE
+    created_by_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+
+    -- Character creation governance
+    character_creation_mode VARCHAR NOT NULL DEFAULT 'open' CHECK (character_creation_mode IN ('open', 'approval_required', 'sw_only')),
+    max_characters_per_player INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_campaigns_story_weaver ON campaigns(story_weaver_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_created_by ON campaigns(created_by_id);

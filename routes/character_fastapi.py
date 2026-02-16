@@ -149,7 +149,50 @@ async def create_character_full(
             )
 
         # =====================================================================
-        # 4. Auto-calculate level stats
+        # 4. Campaign governance checks
+        # =====================================================================
+        from backend.models import Campaign, CampaignMembership
+
+        campaign = db.query(Campaign).filter(Campaign.id == req.campaign_id).first()
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+
+        # Check character creation mode
+        if campaign.character_creation_mode == 'sw_only':
+            # Only Story Weaver can create characters
+            membership = db.query(CampaignMembership).filter(
+                CampaignMembership.campaign_id == req.campaign_id,
+                CampaignMembership.user_id == current_user.id
+            ).first()
+
+            if not membership or membership.role != 'story_weaver':
+                raise HTTPException(
+                    status_code=403,
+                    detail="Character creation is restricted to the Story Weaver in this campaign"
+                )
+
+        elif campaign.character_creation_mode == 'approval_required':
+            # TODO: Implement approval workflow in future
+            raise HTTPException(
+                status_code=501,
+                detail="Character approval system not yet implemented. Ask your Story Weaver to change the mode to 'open'."
+            )
+
+        # Check character limit per player
+        existing_char_count = db.query(Character).filter(
+            Character.user_id == current_user.id,
+            Character.campaign_id == req.campaign_id,
+            Character.is_npc == False  # Don't count NPCs
+        ).count()
+
+        if existing_char_count >= campaign.max_characters_per_player:
+            raise HTTPException(
+                status_code=403,
+                detail=f"You've reached the character limit for this campaign ({campaign.max_characters_per_player})"
+            )
+
+        # =====================================================================
+        # 5. Auto-calculate level stats
         # =====================================================================
         level_stats = calculate_level_stats(req.level)
         defense_die = req.defense_die if req.defense_die else get_defense_die(req.level)
