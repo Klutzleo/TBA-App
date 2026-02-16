@@ -334,15 +334,38 @@ async def list_characters(owner_id: str, request: Request, db: Session = Depends
 
 
 @character_blp_fastapi.get("/{character_id}", response_model=CharacterResponse)
-async def get_character(character_id: str, request: Request, db: Session = Depends(get_db)):
-    """Get a single character by ID."""
+async def get_character(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a single character by ID. Allows Story Weavers to access NPCs in their campaigns."""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
     request_id = getattr(request.state, "request_id", "unknown")
     logger.info(f"[{request_id}] Fetching character: {character_id}")
-    
-    character = db.query(Character).filter(Character.id == character_id).first()
+
+    char_uuid = UUID(character_id)
+    character = db.query(Character).filter(Character.id == char_uuid).first()
     if not character:
         raise HTTPException(status_code=404, detail=f"Character {character_id} not found")
-    
+
+    # Permission check
+    if character.is_npc:
+        # Check if user is Story Weaver for this campaign
+        membership = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == character.campaign_id,
+            CampaignMembership.user_id == current_user.id
+        ).first()
+        if not membership or membership.role != 'story_weaver':
+            raise HTTPException(status_code=403, detail="Only Story Weaver can access NPCs")
+    else:
+        # Check if user owns this character
+        if character.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="You don't own this character")
+
     return character
 
 
