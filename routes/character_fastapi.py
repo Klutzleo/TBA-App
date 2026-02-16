@@ -1007,6 +1007,76 @@ async def create_ally(
 # Abilities Endpoints
 # =====================================================================
 
+@character_blp_fastapi.get("/{character_id}/abilities")
+async def get_character_abilities(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get abilities for a character (PC, NPC, or Ally).
+    For NPCs: Checks if user is Story Weaver.
+    For PCs/Allies: Checks if user owns the character.
+    """
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Fetching abilities for character: {character_id}")
+
+    try:
+        char_uuid = UUID(character_id)
+        character = db.query(Character).filter(Character.id == char_uuid).first()
+
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+
+        # Permission check
+        if character.is_npc:
+            # Check if user is Story Weaver
+            membership = db.query(CampaignMembership).filter(
+                CampaignMembership.campaign_id == character.campaign_id,
+                CampaignMembership.user_id == current_user.id
+            ).first()
+            if not membership or membership.role != 'story_weaver':
+                raise HTTPException(status_code=403, detail="Only Story Weaver can view NPC abilities")
+        else:
+            # Check if user owns this character
+            if character.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="You don't own this character")
+
+        # Get abilities
+        abilities = db.query(Ability).filter(Ability.character_id == char_uuid).order_by(Ability.slot_number).all()
+
+        logger.info(f"[{request_id}] Found {len(abilities)} abilities for character {character_id}")
+
+        abilities_list = []
+        for ability in abilities:
+            abilities_list.append({
+                "id": str(ability.id),
+                "character_id": str(ability.character_id),
+                "slot_number": ability.slot_number,
+                "ability_type": ability.ability_type,
+                "display_name": ability.display_name,
+                "macro_command": ability.macro_command,
+                "power_source": ability.power_source,
+                "effect_type": ability.effect_type,
+                "die": ability.die,
+                "is_aoe": ability.is_aoe,
+                "max_uses": ability.max_uses,
+                "uses_remaining": ability.uses_remaining
+            })
+
+        return {"abilities": abilities_list}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[{request_id}] Ability fetch error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ability fetch failed: {str(e)}")
+
+
 @character_blp_fastapi.post("/{character_id}/abilities", status_code=200)
 async def update_character_abilities(
     character_id: str,
@@ -1057,6 +1127,7 @@ async def update_character_abilities(
             new_ability = Ability(
                 character_id=char_uuid,
                 slot_number=ability['slot_number'],
+                ability_type=ability.get('ability_type', 'spell'),
                 display_name=ability['display_name'],
                 macro_command=ability['macro_command'],
                 power_source=ability.get('power_source', 'PP'),
