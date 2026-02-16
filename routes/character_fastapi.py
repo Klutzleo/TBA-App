@@ -878,8 +878,9 @@ async def duplicate_npc(
         raise HTTPException(status_code=404, detail="NPC not found")
 
     # Create duplicate
+    duplicate_id = uuid4()
     duplicate = Character(
-        id=uuid4(),
+        id=duplicate_id,
         name=f"{original.name} (Copy)",
         owner_id=str(current_user.id),
         user_id=None,
@@ -897,14 +898,36 @@ async def duplicate_npc(
         attack_style=original.attack_style,
         defense_die=original.defense_die,
         weapon=original.weapon,
-        armor=original.armor
+        armor=original.armor,
+        max_uses_per_encounter=original.max_uses_per_encounter,
+        current_uses=original.current_uses
     )
 
     db.add(duplicate)
+    db.flush()  # Flush to get the ID assigned
+
+    # Copy abilities
+    original_abilities = db.query(Ability).filter(Ability.character_id == UUID(npc_id)).all()
+    for orig_ability in original_abilities:
+        new_ability = Ability(
+            character_id=duplicate_id,
+            slot_number=orig_ability.slot_number,
+            ability_type=orig_ability.ability_type,
+            display_name=orig_ability.display_name,
+            macro_command=orig_ability.macro_command,
+            power_source=orig_ability.power_source,
+            effect_type=orig_ability.effect_type,
+            die=orig_ability.die,
+            is_aoe=orig_ability.is_aoe,
+            max_uses=orig_ability.max_uses,
+            uses_remaining=orig_ability.uses_remaining
+        )
+        db.add(new_ability)
+
     db.commit()
     db.refresh(duplicate)
 
-    logger.info(f"[{request_id}] NPC duplicated: {npc_id} → {duplicate.id}")
+    logger.info(f"[{request_id}] NPC duplicated: {npc_id} → {duplicate.id} with {len(original_abilities)} abilities")
     return duplicate
 
 
