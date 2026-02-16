@@ -2849,22 +2849,34 @@
 
         const data = await response.json();
         const abilities = data.abilities || [];
+
+        if (abilities.length === 0) return; // No abilities to update
+
         const newMaxUses = newLevel * 3;
 
-        // Update each ability's max_uses
-        for (const ability of abilities) {
-          await fetch(`/api/abilities/${ability.id}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              max_uses: newMaxUses,
-              uses_remaining: Math.min(ability.uses_remaining || 0, newMaxUses) // Don't exceed new max
-            })
-          });
-        }
+        // Update max_uses for each ability
+        const updatedAbilities = abilities.map(ability => ({
+          slot_number: ability.slot_number,
+          ability_type: ability.ability_type,
+          display_name: ability.display_name,
+          macro_command: ability.macro_command,
+          power_source: ability.power_source,
+          effect_type: ability.effect_type,
+          die: ability.die,
+          is_aoe: ability.is_aoe,
+          max_uses: newMaxUses,
+          uses_remaining: Math.min(ability.uses_remaining || 0, newMaxUses)
+        }));
+
+        // Save all abilities with updated max_uses
+        await fetch(`/api/characters/${npcId}/abilities`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ abilities: updatedAbilities })
+        });
       } catch (error) {
         console.error('Error updating abilities max_uses:', error);
         // Don't fail the whole operation
