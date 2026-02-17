@@ -1118,6 +1118,19 @@ async def broadcast_pc_converted_to_npc(campaign_id: UUID, character_id: str, ch
     })
 
 
+async def broadcast_pc_transferred(campaign_id: UUID, character_id: str, character_name: str, new_owner_id: str):
+    """
+    Notify all campaign members that a PC was transferred to another player.
+    The original owner is dropped to spectator; the new owner gains the character.
+    """
+    await manager.broadcast(campaign_id, {
+        "type": "pc_transferred",
+        "character_id": character_id,
+        "character_name": character_name,
+        "new_owner_id": new_owner_id
+    })
+
+
 # ============================================================================
 # INITIATIVE & ENCOUNTER SYSTEM
 # ============================================================================

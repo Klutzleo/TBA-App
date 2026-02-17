@@ -1910,6 +1910,32 @@
   </div>
 
   <!-- NPC Creation Modal (Story Weaver only) -->
+  <!-- Transfer PC to Player Modal -->
+  <div id="transferPCModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2>🔀 Transfer Character to Player</h2>
+        <button class="modal-close" onclick="closePCTransferModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="transferPCName" style="color: var(--text-muted); margin-bottom: 16px;"></p>
+        <div class="form-group">
+          <label for="transferPCTargetPlayer">Select Player</label>
+          <select id="transferPCTargetPlayer">
+            <option value="">Loading players...</option>
+          </select>
+          <p style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted);">
+            This character will be handed off to the selected player.
+          </p>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 16px;">
+          <button class="btn" style="flex: 1;" onclick="confirmPCTransfer()">Transfer</button>
+          <button class="btn-secondary btn" style="flex: 1;" onclick="closePCTransferModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Transfer NPC to Player Modal -->
   <div id="transferNpcModal" class="modal">
     <div class="modal-content" style="max-width: 400px;">
@@ -2603,6 +2629,35 @@
       }, 100);
     }
 
+    // PC Character Context Menu (SW only — shown when clicking ⚙ on a player's card)
+    function showPCContextMenu(event, charId, charName) {
+      event.stopPropagation();
+      const existing = document.querySelector('.context-menu');
+      if (existing) existing.remove();
+
+      const menu = document.createElement('div');
+      menu.className = 'context-menu active';
+      menu.innerHTML = `
+        <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
+        <button class="context-menu-item danger" onclick="convertPCtoNPC('${charId}', '${charName.replace(/'/g, "\\'")}')">🎭 Convert to NPC</button>
+      `;
+      document.body.appendChild(menu);
+
+      const mouseX = event.clientX || event.pageX;
+      const mouseY = event.clientY || event.pageY;
+      const menuRect = menu.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      let left = Math.max(0, Math.min(mouseX, viewportWidth - menuRect.width));
+      let top = Math.max(0, Math.min(mouseY, viewportHeight - menuRect.height));
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+
+      setTimeout(() => {
+        document.addEventListener('click', () => menu.remove(), { once: true });
+      }, 100);
+    }
+
     // NPC Modal Functions
     function openNpcModal() {
       document.getElementById('npcCreateModal').classList.add('active');
@@ -3199,6 +3254,68 @@
         alert(`✅ "${charName}" is now an NPC and will appear in your NPC list.`);
       } catch (err) {
         alert(`Failed to convert: ${err.message}`);
+      }
+    }
+
+    // =========================================================================
+    // PC → PC Transfer (SW only)
+    // =========================================================================
+    let transferPCId = null;
+    let transferPCName = null;
+
+    async function openPCTransferModal(charId, charName) {
+      transferPCId = charId;
+      transferPCName = charName;
+      document.getElementById('transferPCName').textContent = `Transfer "${charName}" to another player`;
+
+      const select = document.getElementById('transferPCTargetPlayer');
+      select.innerHTML = '<option value="">Loading players...</option>';
+
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/members`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) {
+          const members = await resp.json();
+          // Exclude SW and the current character's owner
+          const eligible = members.filter(m => m.role !== 'story_weaver');
+          if (!eligible.length) {
+            select.innerHTML = '<option value="">No eligible players</option>';
+          } else {
+            select.innerHTML = eligible.map(m =>
+              `<option value="${m.user_id}">${m.username}</option>`
+            ).join('');
+          }
+        }
+      } catch (e) {
+        select.innerHTML = '<option value="">Failed to load players</option>';
+      }
+
+      document.getElementById('transferPCModal').classList.add('active');
+    }
+
+    function closePCTransferModal() {
+      document.getElementById('transferPCModal').classList.remove('active');
+      transferPCId = null;
+      transferPCName = null;
+    }
+
+    async function confirmPCTransfer() {
+      const targetUserId = document.getElementById('transferPCTargetPlayer').value;
+      if (!targetUserId) { alert('Please select a player.'); return; }
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/characters/${transferPCId}/transfer-to-player`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_user_id: targetUserId })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        closePCTransferModal();
+        await loadBubbleBar();
+        await loadCharacters();
+        alert(`✅ "${transferPCName}" has been transferred.`);
+      } catch (e) {
+        alert(`Transfer failed: ${e.message}`);
       }
     }
 
@@ -4609,6 +4726,32 @@
               return;
             }
 
+            if (data.type === 'pc_transferred') {
+              if (userRole === 'SW') {
+                loadCharacters();
+              } else if (characterId && characterId === data.character_id) {
+                // This player's character was transferred away — become spectator
+                addMessage(`⚠️ Your character "${data.character_name}" has been transferred to another player by the Story Weaver.`, 'message-card message-system');
+                setTimeout(() => {
+                  window.location.href = `/game.html?campaign_id=${campaignId}&role=player&character_status=none`;
+                }, 3000);
+              } else if (currentUser && data.new_owner_id === currentUser.id) {
+                // This player just received a character — reload with it
+                (async () => {
+                  const check = await fetch(`/api/campaigns/${campaignId}/check-character`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                  });
+                  if (check.ok) {
+                    const d = await check.json();
+                    if (d.has_character && d.character_id) {
+                      window.location.href = `/game.html?campaign_id=${campaignId}&character_id=${d.character_id}`;
+                    }
+                  }
+                })();
+              }
+              return;
+            }
+
             if (data.type === 'combat_event') {
               renderCombatEvent(data);
               // Check for calling trigger
@@ -5395,7 +5538,7 @@
             characterCard.innerHTML = `
               <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <strong>${char.name}</strong>
-                ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Convert to NPC" onclick="convertPCtoNPC('${char.id}', '${char.name.replace(/'/g, "\\'")}')">⚙</button>` : ''}
+                ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}')">⚙</button>` : ''}
               </div>
               <div class="character-details">
                 <div>Level ${char.level}</div>
