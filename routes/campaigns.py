@@ -57,6 +57,9 @@ class CampaignResponse(BaseModel):
     member_count: Optional[int] = None  # Number of active members
     character_creation_mode: Optional[str] = 'open'  # 'open', 'approval_required', 'sw_only'
     max_characters_per_player: Optional[int] = 1
+    my_character_status: Optional[str] = None  # Player's character status: 'active', 'pending_approval', 'rejected'
+    my_rejection_reason: Optional[str] = None  # SW's rejection message if rejected
+    pending_approval_count: Optional[int] = 0  # SW only: number of pending character approvals
 
     class Config:
         from_attributes = True
@@ -188,6 +191,12 @@ def list_my_campaigns(
             CampaignMembership.left_at.is_(None)
         ).scalar()
 
+        pending_count = db.query(func.count(Character.id)).filter(
+            Character.campaign_id == c.id,
+            Character.status == 'pending_approval',
+            Character.is_npc == False
+        ).scalar()
+
         result.append(CampaignResponse(
             id=c.id,
             name=c.name,
@@ -205,7 +214,8 @@ def list_my_campaigns(
             user_role='story_weaver',
             member_count=member_count or 0,
             character_creation_mode=c.character_creation_mode,
-            max_characters_per_player=c.max_characters_per_player
+            max_characters_per_player=c.max_characters_per_player,
+            pending_approval_count=pending_count or 0
         ))
 
     # Add player campaigns (avoid duplicates if user is both SW and member)
@@ -216,6 +226,13 @@ def list_my_campaigns(
                 CampaignMembership.campaign_id == c.id,
                 CampaignMembership.left_at.is_(None)
             ).scalar()
+
+            # Check player's character status in this campaign
+            my_char = db.query(Character).filter(
+                Character.user_id == current_user.id,
+                Character.campaign_id == c.id,
+                Character.is_npc == False
+            ).order_by(Character.created_at.desc()).first()
 
             result.append(CampaignResponse(
                 id=c.id,
@@ -234,7 +251,9 @@ def list_my_campaigns(
                 user_role='player',
                 member_count=member_count or 0,
                 character_creation_mode=c.character_creation_mode,
-                max_characters_per_player=c.max_characters_per_player
+                max_characters_per_player=c.max_characters_per_player,
+                my_character_status=my_char.status if my_char else None,
+                my_rejection_reason=my_char.rejection_reason if my_char else None
             ))
 
     # Sort by created_at descending (Story Weaver campaigns first, then player campaigns)

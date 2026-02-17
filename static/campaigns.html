@@ -187,6 +187,21 @@
             color: #fff;
         }
 
+        .badge-pending {
+            background: #8a6d00;
+            color: #ffe066;
+        }
+
+        .badge-rejected {
+            background: #7c2a2a;
+            color: #ffb3b3;
+        }
+
+        .badge-pending-count {
+            background: #d4af37;
+            color: #13151f;
+        }
+
         .campaign-description {
             color: #b0b3ba;
             font-size: 0.9rem;
@@ -503,6 +518,19 @@
         </div>
     </div>
 
+    <!-- Character Approval Modal (SW only) -->
+    <div id="approval-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Pending Character Approvals</h2>
+                <button class="close-btn" onclick="closeModal('approval-modal')">&times;</button>
+            </div>
+            <div id="approval-list" style="max-height: 60vh; overflow-y: auto;">
+                <p style="color:#b0b3ba; text-align:center;">Loading...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Campaign Settings Modal -->
     <div id="settings-modal" class="modal">
         <div class="modal-content">
@@ -546,7 +574,7 @@
                     <label for="settings-character-creation-mode">Character Creation *</label>
                     <select id="settings-character-creation-mode" required>
                         <option value="open">Open (players can create freely)</option>
-                        <option value="approval_required">Approval Required (coming soon)</option>
+                        <option value="approval_required">Approval Required (SW reviews characters)</option>
                         <option value="sw_only">SW Only (only transfers allowed)</option>
                     </select>
                     <p style="margin-top: 8px; font-size: 0.85rem; color: #b0b3ba;">
@@ -734,6 +762,15 @@
                             <span class="campaign-badge ${campaign.user_role === 'story_weaver' ? 'badge-sw' : 'badge-player'}">
                                 ${campaign.user_role === 'story_weaver' ? 'Story Weaver' : 'Player'}
                             </span>
+                            ${campaign.user_role === 'story_weaver' && campaign.pending_approval_count > 0
+                                ? `<span class="campaign-badge badge-pending-count" style="cursor:pointer;" onclick="openApprovalPanel('${campaign.id}')">⏳ ${campaign.pending_approval_count} Pending</span>`
+                                : ''}
+                            ${campaign.user_role === 'player' && campaign.my_character_status === 'pending_approval'
+                                ? `<span class="campaign-badge badge-pending">⏳ Character Pending Approval</span>`
+                                : ''}
+                            ${campaign.user_role === 'player' && campaign.my_character_status === 'rejected'
+                                ? `<span class="campaign-badge badge-rejected" title="${escapeHtml(campaign.my_rejection_reason || 'No reason given')}">❌ Character Rejected</span>`
+                                : ''}
                         </div>
                         <span class="campaign-badge ${campaign.is_public ? 'badge-public' : 'badge-private'}">
                             ${campaign.is_public ? 'Public' : 'Private'}
@@ -958,6 +995,99 @@
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('active');
+        }
+
+        // =====================================================================
+        // Character Approval Panel (SW only)
+        // =====================================================================
+        async function openApprovalPanel(campaignId) {
+            document.getElementById('approval-modal').classList.add('active');
+            const listEl = document.getElementById('approval-list');
+            listEl.innerHTML = '<p style="color:#b0b3ba;text-align:center;">Loading...</p>';
+
+            try {
+                const pending = await apiCall(`/api/campaigns/${campaignId}/pending-characters`);
+                const chars = pending.pending_characters || [];
+
+                if (chars.length === 0) {
+                    listEl.innerHTML = '<p style="color:#b0b3ba;text-align:center;">No pending characters.</p>';
+                    return;
+                }
+
+                listEl.innerHTML = chars.map(char => `
+                    <div style="background:#1a1d2e;border:1px solid #3a3f54;border-radius:8px;padding:16px;margin-bottom:12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                            <div>
+                                <strong style="font-size:1.1rem;">${escapeHtml(char.name)}</strong>
+                                <span style="color:#b0b3ba;margin-left:8px;">Level ${char.level}</span>
+                                <div style="color:#d4af37;font-size:0.85rem;margin-top:2px;">Player: ${escapeHtml(char.player_name)}</div>
+                            </div>
+                            <div style="text-align:right;font-size:0.85rem;color:#b0b3ba;">
+                                ${new Date(char.created_at).toLocaleDateString()}
+                            </div>
+                        </div>
+                        <div style="margin:10px 0;display:flex;gap:16px;font-size:0.9rem;">
+                            <span>PP: <strong>${char.pp}</strong></span>
+                            <span>IP: <strong>${char.ip}</strong></span>
+                            <span>SP: <strong>${char.sp}</strong></span>
+                            <span>Weapon: <strong>${escapeHtml(char.attack_style)}</strong></span>
+                        </div>
+                        ${char.notes ? `<div style="color:#b0b3ba;font-size:0.85rem;margin-bottom:8px;font-style:italic;">"${escapeHtml(char.notes)}"</div>` : ''}
+                        ${char.abilities.length > 0 ? `
+                        <div style="font-size:0.85rem;margin-bottom:10px;">
+                            <strong>Abilities:</strong>
+                            ${char.abilities.map(a => `<span style="background:#252937;padding:2px 8px;border-radius:4px;margin-right:4px;">${escapeHtml(a.display_name)} (${a.macro_command})</span>`).join('')}
+                        </div>` : ''}
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                            <button class="btn btn-small" style="background:#4a7c59;" onclick="approveCharacter('${char.id}', '${campaignId}', '${escapeHtml(char.name)}')">✅ Approve</button>
+                            <button class="btn-danger btn btn-small" onclick="openRejectForm('${char.id}')">❌ Reject</button>
+                        </div>
+                        <div id="reject-form-${char.id}" style="display:none;margin-top:10px;">
+                            <textarea id="reject-reason-${char.id}" placeholder="Reason for rejection (optional)..." style="width:100%;background:#0d0e17;border:1px solid #3a3f54;border-radius:6px;padding:8px;color:#e4e6eb;resize:vertical;min-height:60px;"></textarea>
+                            <div style="display:flex;gap:8px;margin-top:8px;">
+                                <button class="btn-danger btn btn-small" onclick="rejectCharacter('${char.id}', '${campaignId}', '${escapeHtml(char.name)}')">Confirm Reject</button>
+                                <button class="btn-secondary btn btn-small" onclick="closeRejectForm('${char.id}')">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                listEl.innerHTML = `<p style="color:#e57373;">Failed to load pending characters: ${err.message}</p>`;
+            }
+        }
+
+        function openRejectForm(charId) {
+            document.getElementById(`reject-form-${charId}`).style.display = 'block';
+        }
+
+        function closeRejectForm(charId) {
+            document.getElementById(`reject-form-${charId}`).style.display = 'none';
+        }
+
+        async function approveCharacter(charId, campaignId, charName) {
+            try {
+                await apiCall(`/api/characters/${charId}/approve`, { method: 'POST' });
+                alert(`✅ "${charName}" has been approved! The player can now enter the game.`);
+                closeModal('approval-modal');
+                loadMyCampaigns(); // Refresh to update pending count badge
+            } catch (err) {
+                alert(`Failed to approve: ${err.message}`);
+            }
+        }
+
+        async function rejectCharacter(charId, campaignId, charName) {
+            const reason = document.getElementById(`reject-reason-${charId}`).value.trim();
+            try {
+                await apiCall(`/api/characters/${charId}/reject`, {
+                    method: 'POST',
+                    body: JSON.stringify({ reason })
+                });
+                alert(`❌ "${charName}" has been rejected. The player will see your feedback.`);
+                closeModal('approval-modal');
+                loadMyCampaigns();
+            } catch (err) {
+                alert(`Failed to reject: ${err.message}`);
+            }
         }
 
         // Create campaign

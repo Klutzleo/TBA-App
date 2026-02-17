@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS characters (
     is_called BOOLEAN NOT NULL DEFAULT FALSE,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     in_calling BOOLEAN NOT NULL DEFAULT FALSE,
+    rejection_reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

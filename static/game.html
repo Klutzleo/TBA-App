@@ -1936,6 +1936,19 @@
     </div>
   </div>
 
+  <!-- Character Approval Modal (SW only) -->
+  <div id="approvalModal" class="modal">
+    <div class="modal-content" style="max-width:640px;">
+      <div class="modal-header">
+        <h2>Pending Character Approvals</h2>
+        <button class="close-btn" onclick="closeApprovalModal()">&times;</button>
+      </div>
+      <div id="approvalList" style="max-height:60vh;overflow-y:auto;padding:4px 0;">
+        <p style="color:#b0b3ba;text-align:center;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
   <div id="npcCreateModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -2408,6 +2421,9 @@
         `;
         addButton.onclick = () => openNpcModal();
         bubbleBar.appendChild(addButton);
+
+        // Pending Approvals button (only shown when there are pending characters)
+        refreshPendingApprovalBadge();
 
       } else {
         // Player: PC + Ally (if exists)
@@ -2965,6 +2981,146 @@
 
       } catch (error) {
         alert(`Error deleting NPC: ${error.message}`);
+      }
+    }
+
+    // =========================================================================
+    // Character Approval System (SW only)
+    // =========================================================================
+
+    async function refreshPendingApprovalBadge() {
+      if (userRole !== 'SW') return;
+
+      const existing = document.getElementById('pendingApprovalBtn');
+      if (existing) existing.remove();
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/pending-characters`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const count = (data.pending_characters || []).length;
+        if (count === 0) return;
+
+        const bubbleBar = document.getElementById('bubbleBar');
+        if (!bubbleBar) return;
+
+        const btn = document.createElement('div');
+        btn.id = 'pendingApprovalBtn';
+        btn.className = 'character-bubble';
+        btn.style.cssText = 'border:2px solid #d4af37;cursor:pointer;';
+        btn.innerHTML = `
+          <div class="bubble-avatar" style="background:#8a6d00;font-size:1.1rem;">⏳</div>
+          <div class="bubble-name" style="color:#d4af37;">${count} Pending</div>
+        `;
+        btn.onclick = () => openApprovalModal();
+        bubbleBar.appendChild(btn);
+      } catch (e) {
+        // Silently fail — not critical
+      }
+    }
+
+    async function openApprovalModal() {
+      document.getElementById('approvalModal').classList.add('active');
+      const listEl = document.getElementById('approvalList');
+      listEl.innerHTML = '<p style="color:#b0b3ba;text-align:center;">Loading...</p>';
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/pending-characters`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await response.json();
+        const chars = data.pending_characters || [];
+
+        if (chars.length === 0) {
+          listEl.innerHTML = '<p style="color:#b0b3ba;text-align:center;">No pending characters.</p>';
+          return;
+        }
+
+        listEl.innerHTML = chars.map(char => `
+          <div style="background:#1a1d2e;border:1px solid #3a3f54;border-radius:8px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <strong style="font-size:1.05rem;">${char.name}</strong>
+                <span style="color:#b0b3ba;margin-left:8px;">Level ${char.level}</span>
+                <div style="color:#d4af37;font-size:0.85rem;margin-top:2px;">Player: ${char.player_name}</div>
+              </div>
+              <div style="font-size:0.8rem;color:#b0b3ba;">${new Date(char.created_at).toLocaleDateString()}</div>
+            </div>
+            <div style="margin:8px 0;font-size:0.9rem;display:flex;gap:12px;">
+              <span>PP:<strong>${char.pp}</strong></span>
+              <span>IP:<strong>${char.ip}</strong></span>
+              <span>SP:<strong>${char.sp}</strong></span>
+              <span>Weapon:<strong>${char.attack_style}</strong></span>
+            </div>
+            ${char.notes ? `<div style="color:#b0b3ba;font-size:0.85rem;font-style:italic;margin-bottom:8px;">"${char.notes}"</div>` : ''}
+            ${char.abilities.length > 0 ? `<div style="font-size:0.85rem;margin-bottom:10px;"><strong>Abilities:</strong> ${char.abilities.map(a => `<span style="background:#252937;padding:2px 8px;border-radius:4px;margin-right:4px;">${a.display_name} (${a.macro_command})</span>`).join('')}</div>` : ''}
+            <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+              <button class="btn" style="background:#4a7c59;padding:6px 14px;font-size:0.85rem;" onclick="swApproveChar('${char.id}', '${char.name.replace(/'/g, "\\'")}')">✅ Approve</button>
+              <button class="btn-danger btn" style="padding:6px 14px;font-size:0.85rem;" onclick="swOpenRejectForm('${char.id}')">❌ Reject</button>
+            </div>
+            <div id="sw-reject-form-${char.id}" style="display:none;margin-top:10px;">
+              <textarea id="sw-reject-reason-${char.id}" placeholder="Reason for rejection (the player will see this)..." style="width:100%;background:#0d0e17;border:1px solid #3a3f54;border-radius:6px;padding:8px;color:#e4e6eb;resize:vertical;min-height:60px;box-sizing:border-box;"></textarea>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn-danger btn" style="padding:6px 14px;font-size:0.85rem;" onclick="swRejectChar('${char.id}', '${char.name.replace(/'/g, "\\'")}')">Confirm Reject</button>
+                <button class="btn-secondary btn" style="padding:6px 14px;font-size:0.85rem;" onclick="swCloseRejectForm('${char.id}')">Cancel</button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:#e57373;">Failed to load pending characters: ${err.message}</p>`;
+      }
+    }
+
+    function closeApprovalModal() {
+      document.getElementById('approvalModal').classList.remove('active');
+    }
+
+    function swOpenRejectForm(charId) {
+      document.getElementById(`sw-reject-form-${charId}`).style.display = 'block';
+    }
+
+    function swCloseRejectForm(charId) {
+      document.getElementById(`sw-reject-form-${charId}`).style.display = 'none';
+    }
+
+    async function swApproveChar(charId, charName) {
+      try {
+        const response = await fetch(`/api/characters/${charId}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || 'Approval failed');
+        }
+        closeApprovalModal();
+        await loadBubbleBar(); // Refresh badge count
+        alert(`✅ "${charName}" has been approved! The player can now enter the game.`);
+      } catch (err) {
+        alert(`Failed to approve: ${err.message}`);
+      }
+    }
+
+    async function swRejectChar(charId, charName) {
+      const reason = document.getElementById(`sw-reject-reason-${charId}`).value.trim();
+      try {
+        const response = await fetch(`/api/characters/${charId}/reject`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || 'Rejection failed');
+        }
+        closeApprovalModal();
+        await loadBubbleBar();
+        alert(`❌ "${charName}" has been rejected. The player will see your feedback.`);
+      } catch (err) {
+        alert(`Failed to reject: ${err.message}`);
       }
     }
 

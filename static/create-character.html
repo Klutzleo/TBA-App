@@ -1444,7 +1444,21 @@
                     return;
                 }
 
-                // Success!
+                // Hide form steps
+                document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
+
+                // Pending approval — character needs SW review before going active
+                if (data.status === 'pending_approval') {
+                    const msg = document.getElementById('successMsg');
+                    msg.textContent = `⏳ Character "${data.name}" submitted for approval! Your Story Weaver will review it. You can discuss your concept in the OOC chat while you wait.`;
+                    msg.style.display = 'block';
+                    setTimeout(() => {
+                        window.location.href = urlParams.get('return') || '/campaigns.html';
+                    }, 3500);
+                    return;
+                }
+
+                // Normal success
                 const abilityCount = abilities.length;
 
                 // Check if we need to create an Ally
@@ -1452,9 +1466,6 @@
                     document.getElementById('successMsg').textContent =
                         `Character "${data.name}" created! Redirecting to Ally creation...`;
                     document.getElementById('successMsg').style.display = 'block';
-
-                    // Hide form
-                    document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
 
                     // Redirect to Ally creation with parent character ID
                     setTimeout(() => {
@@ -1465,9 +1476,6 @@
                     document.getElementById('successMsg').textContent =
                         `Character "${data.name}" created with ${abilityCount} ${abilityCount === 1 ? 'ability' : 'abilities'}! Redirecting...`;
                     document.getElementById('successMsg').style.display = 'block';
-
-                    // Hide form
-                    document.querySelectorAll('.form-step').forEach(el => el.style.display = 'none');
 
                     // Redirect after 2 seconds
                     setTimeout(() => {

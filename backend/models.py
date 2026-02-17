@@ -225,8 +225,9 @@ class Character(Base):
     armor_bonus = Column(Integer, nullable=False, default=0)  # Armor defense bonus
     times_called = Column(Integer, nullable=False, default=0)  # Times summoned/called
     is_called = Column(Boolean, nullable=False, default=False)  # Currently summoned
-    status = Column(String, nullable=False, default='active')  # 'active', 'unconscious', 'dead'
+    status = Column(String, nullable=False, default='active')  # 'active', 'unconscious', 'dead', 'pending_approval', 'rejected'
     in_calling = Column(Boolean, nullable=False, default=False)  # Currently in The Calling state (at -10 DP)
+    rejection_reason = Column(Text, nullable=True)  # Set by SW when rejecting a character in approval_required mode
 
     # Relationships
     user = relationship("User", back_populates="characters", foreign_keys=[user_id])

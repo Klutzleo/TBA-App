@@ -157,6 +157,10 @@ async def create_character_full(
         if not campaign:
             raise HTTPException(status_code=404, detail="Campaign not found")
 
+        # Determine initial status and whether to skip party assignment
+        initial_status = 'active'
+        skip_parties = False
+
         # Check character creation mode
         if campaign.character_creation_mode == 'sw_only':
             # Only Story Weaver can create characters
@@ -172,17 +176,16 @@ async def create_character_full(
                 )
 
         elif campaign.character_creation_mode == 'approval_required':
-            # TODO: Implement approval workflow in future
-            raise HTTPException(
-                status_code=501,
-                detail="Character approval system not yet implemented. Ask your Story Weaver to change the mode to 'open'."
-            )
+            # Character created in pending state - SW must approve before it becomes active
+            initial_status = 'pending_approval'
+            skip_parties = True
 
-        # Check character limit per player
+        # Check character limit per player (exclude rejected - they can retry)
         existing_char_count = db.query(Character).filter(
             Character.user_id == current_user.id,
             Character.campaign_id == req.campaign_id,
-            Character.is_npc == False  # Don't count NPCs
+            Character.is_npc == False,
+            Character.status != 'rejected'
         ).count()
 
         if existing_char_count >= campaign.max_characters_per_player:
@@ -245,7 +248,7 @@ async def create_character_full(
             armor_bonus=0,
             times_called=0,
             is_called=False,
-            status='active'
+            status=initial_status
         )
 
         db.add(character)
@@ -287,27 +290,30 @@ async def create_character_full(
             logger.info(f"[{request_id}] Ability created: {ability.display_name} ({ability.macro_command}) - Slot {ability.slot_number}")
 
         # =====================================================================
-        # 8. Add character to Story and OOC parties
+        # 8. Add character to Story and OOC parties (skipped if pending approval)
         # =====================================================================
         party_ids = []
 
-        if story_party:
-            story_membership = PartyMembership(
-                party_id=story_party.id,
-                character_id=character.id
-            )
-            db.add(story_membership)
-            party_ids.append(story_party.id)
-            logger.info(f"[{request_id}] Added to Story party: {story_party.id}")
+        if not skip_parties:
+            if story_party:
+                story_membership = PartyMembership(
+                    party_id=story_party.id,
+                    character_id=character.id
+                )
+                db.add(story_membership)
+                party_ids.append(story_party.id)
+                logger.info(f"[{request_id}] Added to Story party: {story_party.id}")
 
-        if ooc_party:
-            ooc_membership = PartyMembership(
-                party_id=ooc_party.id,
-                character_id=character.id
-            )
-            db.add(ooc_membership)
-            party_ids.append(ooc_party.id)
-            logger.info(f"[{request_id}] Added to OOC party: {ooc_party.id}")
+            if ooc_party:
+                ooc_membership = PartyMembership(
+                    party_id=ooc_party.id,
+                    character_id=character.id
+                )
+                db.add(ooc_membership)
+                party_ids.append(ooc_party.id)
+                logger.info(f"[{request_id}] Added to OOC party: {ooc_party.id}")
+        else:
+            logger.info(f"[{request_id}] Character pending approval - skipping party assignment")
 
         # =====================================================================
         # 9. Commit transaction
@@ -1297,3 +1303,169 @@ async def update_character_abilities(
     except Exception as e:
         logger.error(f"[{request_id}] Ability update error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ability update failed: {str(e)}")
+
+
+# ============================================================================
+# CHARACTER APPROVAL SYSTEM
+# ============================================================================
+
+@npc_router.get("/{campaign_id}/pending-characters")
+async def get_pending_characters(
+    campaign_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all characters pending approval for a campaign (Story Weaver only)."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can view pending characters")
+
+    pending = db.query(Character).filter(
+        Character.campaign_id == campaign_uuid,
+        Character.status == 'pending_approval',
+        Character.is_npc == False
+    ).all()
+
+    result = []
+    for char in pending:
+        abilities = db.query(Ability).filter(Ability.character_id == char.id).order_by(Ability.slot_number).all()
+        # Get player username
+        player = db.query(User).filter(User.id == char.user_id).first()
+        result.append({
+            "id": str(char.id),
+            "name": char.name,
+            "player_id": str(char.user_id) if char.user_id else None,
+            "player_name": player.username if player else char.owner_id,
+            "level": char.level,
+            "pp": char.pp,
+            "ip": char.ip,
+            "sp": char.sp,
+            "attack_style": char.attack_style,
+            "defense_die": char.defense_die,
+            "weapon": char.weapon,
+            "armor": char.armor,
+            "notes": char.notes,
+            "created_at": char.created_at.isoformat(),
+            "abilities": [
+                {
+                    "slot_number": a.slot_number,
+                    "display_name": a.display_name,
+                    "macro_command": a.macro_command,
+                    "power_source": a.power_source,
+                    "effect_type": a.effect_type,
+                    "die": a.die,
+                    "is_aoe": a.is_aoe
+                }
+                for a in abilities
+            ]
+        })
+
+    logger.info(f"[{request_id}] Found {len(result)} pending characters for campaign {campaign_id}")
+    return {"pending_characters": result}
+
+
+@character_blp_fastapi.post("/{character_id}/approve")
+async def approve_character(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Approve a pending character (Story Weaver only). Activates character and adds to campaign parties."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    char_uuid = UUID(character_id)
+
+    char = db.query(Character).filter(
+        Character.id == char_uuid,
+        Character.status == 'pending_approval'
+    ).first()
+
+    if not char:
+        raise HTTPException(status_code=404, detail="Pending character not found")
+
+    # Verify SW of this character's campaign
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can approve characters")
+
+    # Activate character
+    char.status = 'active'
+    char.rejection_reason = None
+
+    # Add to Story and OOC parties
+    story_party = db.query(Party).filter(
+        Party.campaign_id == char.campaign_id,
+        Party.party_type == 'story'
+    ).first()
+
+    ooc_party = db.query(Party).filter(
+        Party.campaign_id == char.campaign_id,
+        Party.party_type == 'ooc'
+    ).first()
+
+    if story_party:
+        db.add(PartyMembership(party_id=story_party.id, character_id=char.id))
+    if ooc_party:
+        db.add(PartyMembership(party_id=ooc_party.id, character_id=char.id))
+
+    db.commit()
+    logger.info(f"[{request_id}] Character '{char.name}' approved by SW {current_user.username}")
+    return {"message": f"Character '{char.name}' has been approved!", "character_id": str(char.id)}
+
+
+@character_blp_fastapi.post("/{character_id}/reject")
+async def reject_character(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Reject a pending character with a reason (Story Weaver only)."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    char_uuid = UUID(character_id)
+
+    char = db.query(Character).filter(
+        Character.id == char_uuid,
+        Character.status == 'pending_approval'
+    ).first()
+
+    if not char:
+        raise HTTPException(status_code=404, detail="Pending character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can reject characters")
+
+    reason = req.get("reason", "")
+    char.status = 'rejected'
+    char.rejection_reason = reason
+
+    db.commit()
+    logger.info(f"[{request_id}] Character '{char.name}' rejected by SW {current_user.username}. Reason: {reason}")
+    return {"message": f"Character '{char.name}' has been rejected.", "character_id": str(char.id)}
