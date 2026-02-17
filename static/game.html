@@ -4585,8 +4585,12 @@
                 // TODO: Show The Calling modal for this character
               }
             } else if (data.type === 'system') {
+              // Silently ignore join/leave events — too noisy in an active campaign
+              if (data.event === 'player_joined' || data.event === 'player_left') return;
+
               // Handle system messages (including commands like /attack, /roll results)
-              const text = data.text || '';
+              // SystemNotification uses 'message' field; other system events use 'text'
+              const text = data.text || data.message || '';
 
               // Check if it's an attack result
               if (text.includes('⚔️') && text.includes('attacks')) {
@@ -5347,8 +5351,8 @@
             `;
             charactersContainer.appendChild(characterCard);
             
-          } else {
-            // Story Weaver without character
+          } else if (member.role === 'story_weaver') {
+            // Story Weaver without a character
             const swCard = document.createElement('div');
             swCard.className = 'character-card story-weaver-card';
             swCard.innerHTML = `
@@ -5359,6 +5363,7 @@
             `;
             charactersContainer.appendChild(swCard);
           }
+          // Players without an active character (spectators/pending) are not shown in the party panel
         }
 
         

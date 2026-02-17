@@ -504,7 +504,8 @@ async def get_campaign_members(
         user = db.query(User).filter(User.id == member.user_id).first()
         character = db.query(Character).filter(
             Character.campaign_id == campaign_id,
-            Character.user_id == member.user_id
+            Character.user_id == member.user_id,
+            Character.status == 'active'
         ).first()
         
         result.append({
