@@ -386,8 +386,14 @@ def check_campaign_character(
     ).first()
     
     if character:
-        return {"role": "player", "has_character": True, "character_id": str(character.id)}
-    return {"role": "player", "has_character": False}
+        return {
+            "role": "player",
+            "has_character": character.status == 'active',
+            "character_id": str(character.id) if character.status == 'active' else None,
+            "character_status": character.status,
+            "rejection_reason": character.rejection_reason
+        }
+    return {"role": "player", "has_character": False, "character_status": None}
 
 
 @router.get("/{campaign_id}", response_model=CampaignResponse)

@@ -2068,6 +2068,8 @@
     const urlParams = new URLSearchParams(window.location.search);
     const campaignId = urlParams.get('campaign_id');
     const characterId = urlParams.get('character_id');
+    const urlRoleParam = urlParams.get('role');         // 'player' when entering without active character
+    const characterStatus = urlParams.get('character_status'); // 'pending_approval', 'rejected', 'none'
 
     if (!campaignId) {
       alert('No campaign ID provided');
@@ -2087,7 +2089,8 @@
 
     let ws = null;
     let currentActor = currentUser.username; // Will be updated when character data loads
-    let userRole = characterId ? 'Player' : 'SW'; // Will be updated when welcome message arrives
+    // Determine role: SW has no character_id AND no role param; players without active chars pass role=player
+    let userRole = characterId ? 'Player' : (urlRoleParam === 'player' ? 'Spectator' : 'SW');
     let messagesOffset = 0; // Track how many messages have been loaded for pagination
     const messagesLimit = 50; // How many messages to load per request
 
@@ -2358,6 +2361,10 @@
 
           // SW starts with Narrator as active speaker
           activeSpeaker = { id: null, name: 'Narrator', type: 'narrator' };
+        } else if (userRole === 'Spectator') {
+          // Spectator: no character loaded, chat as username
+          activeSpeaker = null;
+          // renderBubbleBar will show pending/rejected/create-character state
         } else {
           // Load player's characters (PC + Ally if exists)
           const response = await fetch(`/api/characters?campaign_id=${campaignId}`, {
@@ -2424,6 +2431,53 @@
 
         // Pending Approvals button (only shown when there are pending characters)
         refreshPendingApprovalBadge();
+
+      } else if (userRole === 'Spectator') {
+        // Spectator: player in the campaign but no active character yet
+        if (characterStatus === 'pending_approval') {
+          // Show pending bubble
+          const pendingBubble = document.createElement('div');
+          pendingBubble.className = 'character-bubble';
+          pendingBubble.style.cssText = 'border:2px solid #8a6d00;cursor:default;opacity:0.8;';
+          pendingBubble.innerHTML = `
+            <div class="bubble-avatar" style="background:#8a6d00;font-size:1rem;">⏳</div>
+            <div class="bubble-name" style="color:#ffe066;">Pending Approval</div>
+          `;
+          bubbleBar.appendChild(pendingBubble);
+        } else if (characterStatus === 'rejected') {
+          // Show rejected bubble + create new button
+          const rejectedBubble = document.createElement('div');
+          rejectedBubble.className = 'character-bubble';
+          rejectedBubble.style.cssText = 'border:2px solid #7c2a2a;cursor:default;opacity:0.8;';
+          rejectedBubble.innerHTML = `
+            <div class="bubble-avatar" style="background:#7c2a2a;font-size:1rem;">❌</div>
+            <div class="bubble-name" style="color:#ffb3b3;">Rejected</div>
+          `;
+          bubbleBar.appendChild(rejectedBubble);
+
+          const createBtn = document.createElement('div');
+          createBtn.className = 'character-bubble bubble-add';
+          createBtn.innerHTML = `
+            <div class="bubble-avatar">+</div>
+            <div class="bubble-name">New Character</div>
+          `;
+          createBtn.onclick = () => {
+            window.location.href = `/create-character.html?campaign_id=${campaignId}&return=${encodeURIComponent(window.location.href)}`;
+          };
+          bubbleBar.appendChild(createBtn);
+        } else {
+          // No character at all — show create button
+          const createBtn = document.createElement('div');
+          createBtn.className = 'character-bubble bubble-add';
+          createBtn.innerHTML = `
+            <div class="bubble-avatar">+</div>
+            <div class="bubble-name">Create Character</div>
+          `;
+          createBtn.onclick = () => {
+            window.location.href = `/create-character.html?campaign_id=${campaignId}&return=${encodeURIComponent(window.location.href)}`;
+          };
+          bubbleBar.appendChild(createBtn);
+        }
 
       } else {
         // Player: PC + Ally (if exists)

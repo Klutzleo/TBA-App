@@ -935,27 +935,22 @@
             }
         }
 
-        // Enter campaign
-        // Enter campaign
+        // Enter campaign — always go to game.html, players can OOC before creating a character
         async function enterCampaign(campaignId) {
             try {
-                console.log('1. Calling check-character API...');
                 const response = await apiCall(`/api/campaigns/${campaignId}/check-character`);
-                console.log('2. API Response:', response);
-                
-                // Check if user is Story Weaver
+
                 if (response.role === 'story_weaver') {
-                    console.log('3. Story Weaver - going straight to game');
                     window.location.href = `/game.html?campaign_id=${campaignId}`;
                 } else if (response.has_character) {
-                    console.log('4. Player with character - going to game');
+                    // Active character — full player mode
                     window.location.href = `/game.html?campaign_id=${campaignId}&character_id=${response.character_id}`;
                 } else {
-                    console.log('5. Player without character - creating character');
-                    window.location.href = `/create-character.html?campaign_id=${campaignId}`;
+                    // No active character (none, pending, or rejected) — enter as spectator
+                    const status = response.character_status || 'none';
+                    window.location.href = `/game.html?campaign_id=${campaignId}&role=player&character_status=${status}`;
                 }
             } catch (error) {
-                console.error('6. ERROR:', error);
                 showError('my', `Failed to enter campaign: ${error.message}`);
             }
         }
