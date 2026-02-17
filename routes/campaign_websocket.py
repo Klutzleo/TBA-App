@@ -1092,6 +1092,19 @@ async def broadcast_initiative(campaign_id: UUID, initiative_result: dict):
     ).model_dump(mode='json'))
 
 
+async def broadcast_character_approved(campaign_id: UUID, character_id: str, character_name: str):
+    """
+    Notify all campaign members that a character has been approved.
+    The player whose character was approved will auto-reload into the game.
+    Called from character_fastapi.py after approval.
+    """
+    await manager.broadcast(campaign_id, {
+        "type": "character_approved",
+        "character_id": character_id,
+        "character_name": character_name
+    })
+
+
 # ============================================================================
 # INITIATIVE & ENCOUNTER SYSTEM
 # ============================================================================

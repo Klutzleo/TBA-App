@@ -1428,6 +1428,20 @@ async def approve_character(
 
     db.commit()
     logger.info(f"[{request_id}] Character '{char.name}' approved by SW {current_user.username}")
+
+    # Broadcast approval to all campaign members so the player auto-reloads
+    try:
+        from routes.campaign_websocket import broadcast_character_approved
+        from uuid import UUID as _UUID
+        import asyncio
+        asyncio.create_task(broadcast_character_approved(
+            _UUID(str(char.campaign_id)),
+            str(char.id),
+            char.name
+        ))
+    except Exception as e:
+        logger.warning(f"Could not broadcast character approval: {e}")
+
     return {"message": f"Character '{char.name}' has been approved!", "character_id": str(char.id)}
 
 

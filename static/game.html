@@ -1941,7 +1941,7 @@
     <div class="modal-content" style="max-width:640px;">
       <div class="modal-header">
         <h2>Pending Character Approvals</h2>
-        <button class="close-btn" onclick="closeApprovalModal()">&times;</button>
+        <button class="modal-close" onclick="closeApprovalModal()">&times;</button>
       </div>
       <div id="approvalList" style="max-height:60vh;overflow-y:auto;padding:4px 0;">
         <p style="color:#b0b3ba;text-align:center;">Loading...</p>
@@ -3112,7 +3112,7 @@
             ${char.abilities.length > 0 ? `<div style="font-size:0.85rem;margin-bottom:10px;"><strong>Abilities:</strong> ${char.abilities.map(a => `<span style="background:#252937;padding:2px 8px;border-radius:4px;margin-right:4px;">${a.display_name} (${a.macro_command})</span>`).join('')}</div>` : ''}
             <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
               <button class="btn" style="background:#4a7c59;padding:6px 14px;font-size:0.85rem;" onclick="swApproveChar('${char.id}', '${char.name.replace(/'/g, "\\'")}')">✅ Approve</button>
-              <button class="btn-danger btn" style="padding:6px 14px;font-size:0.85rem;" onclick="swOpenRejectForm('${char.id}')">❌ Reject</button>
+              <button class="btn-danger btn" style="padding:6px 14px;font-size:0.85rem;" onclick="swOpenRejectForm('${char.id}')">Reject</button>
             </div>
             <div id="sw-reject-form-${char.id}" style="display:none;margin-top:10px;">
               <textarea id="sw-reject-reason-${char.id}" placeholder="Reason for rejection (the player will see this)..." style="width:100%;background:#0d0e17;border:1px solid #3a3f54;border-radius:6px;padding:8px;color:#e4e6eb;resize:vertical;min-height:60px;box-sizing:border-box;"></textarea>
@@ -4584,6 +4584,22 @@
                 console.warn(`⚠️ THE CALLING: ${data.target_name} has reached -10 DP!`);
                 // TODO: Show The Calling modal for this character
               }
+            } else if (data.type === 'character_approved') {
+              // A character was approved — if this player is a spectator, check if it's theirs
+              if (userRole === 'Spectator') {
+                (async () => {
+                  const checkResp = await fetch(`/api/campaigns/${campaignId}/check-character`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                  });
+                  if (checkResp.ok) {
+                    const checkData = await checkResp.json();
+                    if (checkData.has_character && checkData.character_id) {
+                      window.location.href = `/game.html?campaign_id=${campaignId}&character_id=${checkData.character_id}`;
+                    }
+                  }
+                })();
+              }
+
             } else if (data.type === 'system') {
               // Silently ignore join/leave events — too noisy in an active campaign
               if (data.event === 'player_joined' || data.event === 'player_left') return;
