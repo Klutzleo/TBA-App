@@ -1910,6 +1910,32 @@
   </div>
 
   <!-- NPC Creation Modal (Story Weaver only) -->
+  <!-- Transfer NPC to Player Modal -->
+  <div id="transferNpcModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2>🔀 Transfer to Player</h2>
+        <button class="modal-close" onclick="closeTransferModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="transferNpcName" style="color: var(--text-muted); margin-bottom: 16px;"></p>
+        <div class="form-group">
+          <label for="transferTargetPlayer">Select Player</label>
+          <select id="transferTargetPlayer">
+            <option value="">Loading players...</option>
+          </select>
+          <p style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted);">
+            This character will become a Player Character owned by the selected player.
+          </p>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 16px;">
+          <button class="btn" style="flex: 1;" onclick="confirmTransfer()">Transfer</button>
+          <button class="btn-secondary btn" style="flex: 1;" onclick="closeTransferModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="npcCreateModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -2465,6 +2491,7 @@
       menu.innerHTML = `
         <button class="context-menu-item" onclick="editNpc('${character.id}')">✏️ Edit</button>
         <button class="context-menu-item" onclick="duplicateNpc('${character.id}')">📋 Duplicate</button>
+        <button class="context-menu-item" onclick="openTransferModal('${character.id}', '${character.name}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="deleteNpc('${character.id}')">🗑️ Delete</button>
       `;
 
@@ -2938,6 +2965,83 @@
 
       } catch (error) {
         alert(`Error deleting NPC: ${error.message}`);
+      }
+    }
+
+    // Transfer NPC to Player
+    let transferNpcId = null;
+
+    async function openTransferModal(npcId, npcName) {
+      transferNpcId = npcId;
+      document.getElementById('transferNpcName').textContent = `Transferring: "${npcName}"`;
+
+      // Load campaign members (players only)
+      const select = document.getElementById('transferTargetPlayer');
+      select.innerHTML = '<option value="">Loading players...</option>';
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/members`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+          const members = await response.json();
+          const players = members.filter(m => m.role !== 'story_weaver');
+
+          if (players.length === 0) {
+            select.innerHTML = '<option value="">No players in campaign</option>';
+          } else {
+            select.innerHTML = players.map(m =>
+              `<option value="${m.user_id}">${m.username || m.email}</option>`
+            ).join('');
+          }
+        }
+      } catch (error) {
+        select.innerHTML = '<option value="">Failed to load players</option>';
+      }
+
+      document.getElementById('transferNpcModal').classList.add('active');
+    }
+
+    function closeTransferModal() {
+      document.getElementById('transferNpcModal').classList.remove('active');
+      transferNpcId = null;
+    }
+
+    async function confirmTransfer() {
+      const targetUserId = document.getElementById('transferTargetPlayer').value;
+      if (!targetUserId) {
+        alert('Please select a player');
+        return;
+      }
+
+      const npc = campaignNPCs.find(n => n.id === transferNpcId);
+      if (!npc) return;
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/npcs/${transferNpcId}/transfer`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ target_user_id: targetUserId })
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || 'Transfer failed');
+        }
+
+        const playerName = document.getElementById('transferTargetPlayer').selectedOptions[0].text;
+        closeTransferModal();
+
+        // Remove from NPC list and refresh bubble bar
+        await loadBubbleBar();
+        alert(`✅ "${npc.name}" has been transferred to ${playerName}!`);
+
+      } catch (error) {
+        alert(`Error transferring NPC: ${error.message}`);
       }
     }
 

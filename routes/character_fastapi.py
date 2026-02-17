@@ -885,6 +885,89 @@ async def delete_npc(
     logger.info(f"[{request_id}] NPC deleted: {npc_id}")
 
 
+@npc_router.post("/{campaign_id}/npcs/{npc_id}/transfer", response_model=CharacterResponse)
+async def transfer_npc_to_player(
+    campaign_id: str,
+    npc_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Transfer an NPC to a player (Story Weaver only). Converts NPC to a player character."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(f"[{request_id}] Transferring NPC {npc_id} to player")
+
+    # Verify user is Story Weaver
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can transfer NPCs")
+
+    # Get NPC
+    npc = db.query(Character).filter(
+        Character.id == UUID(npc_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == True
+    ).first()
+
+    if not npc:
+        raise HTTPException(status_code=404, detail="NPC not found")
+
+    # Get target user
+    target_user_id = req.get("target_user_id")
+    if not target_user_id:
+        raise HTTPException(status_code=400, detail="target_user_id is required")
+
+    target_user = db.query(User).filter(User.id == UUID(target_user_id)).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user not found")
+
+    # Verify target user is a member of this campaign
+    target_membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == UUID(target_user_id)
+    ).first()
+
+    if not target_membership:
+        raise HTTPException(status_code=400, detail="Target user is not a member of this campaign")
+
+    # Check character limit for target player
+    from backend.models import Campaign
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+    existing_count = db.query(Character).filter(
+        Character.user_id == UUID(target_user_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == False
+    ).count()
+
+    if existing_count >= campaign.max_characters_per_player:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Target player has reached the character limit ({campaign.max_characters_per_player})"
+        )
+
+    # Transfer the NPC to the player
+    old_name = npc.name
+    npc.is_npc = False
+    npc.is_ally = False
+    npc.user_id = UUID(target_user_id)
+    npc.owner_id = str(target_user_id)
+
+    db.commit()
+    db.refresh(npc)
+
+    logger.info(f"[{request_id}] NPC '{old_name}' transferred to user {target_user_id}")
+    return npc
+
+
 @npc_router.post("/{campaign_id}/npcs/{npc_id}/duplicate", response_model=CharacterResponse, status_code=201)
 async def duplicate_npc(
     campaign_id: str,
