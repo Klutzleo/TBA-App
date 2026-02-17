@@ -491,6 +491,52 @@ def update_campaign(
     return campaign
 
 
+@router.get("/{campaign_id}/orphaned-characters")
+def get_orphaned_characters(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Return active PCs in this campaign whose owner is no longer an active member.
+    SW only. Used by the settings modal rescue flow.
+    """
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Story Weaver only")
+
+    # Active member user_ids
+    active_member_ids = {
+        m.user_id for m in db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_id,
+            CampaignMembership.left_at.is_(None)
+        ).all()
+    }
+
+    # PCs whose owner is NOT in the active member set
+    orphaned = db.query(Character).filter(
+        Character.campaign_id == campaign_id,
+        Character.is_npc == False,
+        Character.status == 'active',
+        Character.user_id.is_not(None),
+        ~Character.user_id.in_(active_member_ids)
+    ).all()
+
+    result = []
+    for char in orphaned:
+        owner = db.query(User).filter(User.id == char.user_id).first()
+        result.append({
+            "id": str(char.id),
+            "name": char.name,
+            "level": char.level,
+            "former_owner": owner.username if owner else "Unknown"
+        })
+    return result
+
+
 @router.get("/{campaign_id}/members")
 async def get_campaign_members(
     campaign_id: UUID,

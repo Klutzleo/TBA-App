@@ -1105,6 +1105,19 @@ async def broadcast_character_approved(campaign_id: UUID, character_id: str, cha
     })
 
 
+async def broadcast_pc_converted_to_npc(campaign_id: UUID, character_id: str, character_name: str):
+    """
+    Notify all campaign members that a PC was converted to an NPC.
+    The SW's bubble bar will refresh to show the new NPC.
+    Called from character_fastapi.py after PC→NPC conversion.
+    """
+    await manager.broadcast(campaign_id, {
+        "type": "pc_converted_to_npc",
+        "character_id": character_id,
+        "character_name": character_name
+    })
+
+
 # ============================================================================
 # INITIATIVE & ENCOUNTER SYSTEM
 # ============================================================================

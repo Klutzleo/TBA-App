@@ -974,6 +974,64 @@ async def transfer_npc_to_player(
     return npc
 
 
+@npc_router.post("/{campaign_id}/characters/{character_id}/convert-to-npc")
+async def convert_pc_to_npc(
+    campaign_id: str,
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Convert a player character to an NPC (Story Weaver only). Keeps all stats and abilities."""
+    from backend.models import CampaignMembership
+    from uuid import UUID
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    campaign_uuid = UUID(campaign_id)
+    char_uuid = UUID(character_id)
+
+    # Verify SW
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can convert characters to NPCs")
+
+    # Get the character — must be a PC in this campaign
+    char = db.query(Character).filter(
+        Character.id == char_uuid,
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == False
+    ).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Player character not found in this campaign")
+
+    old_owner = str(char.user_id) if char.user_id else None
+    char_name = char.name
+
+    # Convert to NPC — clear ownership, flip flag
+    char.is_npc = True
+    char.is_ally = False
+    char.user_id = None
+    char.owner_id = None
+
+    db.commit()
+    db.refresh(char)
+
+    logger.info(f"[{request_id}] Character '{char_name}' (owner: {old_owner}) converted to NPC by SW {current_user.username}")
+
+    # Broadcast so the SW's bubble bar refreshes and the player loses their PC
+    try:
+        from routes.campaign_websocket import broadcast_pc_converted_to_npc
+        import asyncio
+        asyncio.create_task(broadcast_pc_converted_to_npc(campaign_uuid, str(char.id), char_name))
+    except Exception as e:
+        logger.warning(f"Could not broadcast PC→NPC conversion: {e}")
+
+    return {"message": f"'{char_name}' is now an NPC.", "character_id": str(char.id), "character_name": char_name}
+
+
 @npc_router.post("/{campaign_id}/npcs/{npc_id}/duplicate", response_model=CharacterResponse, status_code=201)
 async def duplicate_npc(
     campaign_id: str,

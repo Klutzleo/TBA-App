@@ -3178,6 +3178,30 @@
       }
     }
 
+    // =========================================================================
+    // PC → NPC Conversion (SW only)
+    // =========================================================================
+
+    async function convertPCtoNPC(charId, charName) {
+      if (!confirm(`Convert "${charName}" to an NPC?\n\nAll stats and abilities are kept. The player will become a spectator and can create a new character.`)) return;
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/characters/${charId}/convert-to-npc`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || 'Conversion failed');
+        }
+        await loadBubbleBar();
+        await loadCharacters();
+        alert(`✅ "${charName}" is now an NPC and will appear in your NPC list.`);
+      } catch (err) {
+        alert(`Failed to convert: ${err.message}`);
+      }
+    }
+
     // Transfer NPC to Player
     let transferNpcId = null;
 
@@ -4570,6 +4594,21 @@
               return;
             }
 
+            if (data.type === 'pc_converted_to_npc') {
+              if (userRole === 'SW') {
+                // Refresh bubble bar so new NPC appears immediately
+                loadBubbleBar();
+                loadCharacters();
+              } else if (characterId && characterId === data.character_id) {
+                // This player's character was just reclaimed — drop them to spectator
+                addMessage(`⚠️ Your character "${data.character_name}" has been reclaimed by the Story Weaver as an NPC.`, 'message-card message-system');
+                setTimeout(() => {
+                  window.location.href = `/game.html?campaign_id=${campaignId}&role=player&character_status=none`;
+                }, 3000);
+              }
+              return;
+            }
+
             if (data.type === 'combat_event') {
               renderCombatEvent(data);
               // Check for calling trigger
@@ -5350,12 +5389,13 @@
             // Player with character - show character info
             const char = member.character;
             const hpPercent = (char.dp / char.max_dp) * 100;
-            
+
             const characterCard = document.createElement('div');
             characterCard.className = 'character-card';
             characterCard.innerHTML = `
-              <div class="character-header">
+              <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <strong>${char.name}</strong>
+                ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Convert to NPC" onclick="convertPCtoNPC('${char.id}', '${char.name.replace(/'/g, "\\'")}')">⚙</button>` : ''}
               </div>
               <div class="character-details">
                 <div>Level ${char.level}</div>

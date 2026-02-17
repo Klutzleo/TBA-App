@@ -612,6 +612,13 @@
                     <button type="button" class="btn-danger btn" style="flex: 1;" onclick="deleteCampaign()">Delete Campaign</button>
                 </div>
             </form>
+
+            <!-- Orphaned Characters (players who left but their PC still exists) -->
+            <div id="orphaned-characters-section" style="display:none; margin-top: 24px; border-top: 1px solid #3a3f54; padding-top: 20px;">
+                <h3 style="color: #e4e6eb; margin-bottom: 8px;">⚠️ Orphaned Characters</h3>
+                <p style="color: #b0b3ba; font-size: 0.85rem; margin-bottom: 14px;">These characters belong to players who are no longer in the campaign. Reclaim them as NPCs to keep using them in your story.</p>
+                <div id="orphaned-characters-list"></div>
+            </div>
         </div>
     </div>
 
@@ -987,7 +994,52 @@
                 document.getElementById('settings-join-code').textContent = campaign.join_code;
 
                 document.getElementById('settings-modal').classList.add('active');
+
+                // Load orphaned characters for this campaign
+                loadOrphanedCharacters(campaignId);
             });
+        }
+
+        async function loadOrphanedCharacters(campaignId) {
+            const section = document.getElementById('orphaned-characters-section');
+            const listEl = document.getElementById('orphaned-characters-list');
+            try {
+                const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
+                const resp = await fetch(`/api/campaigns/${campaignId}/orphaned-characters`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!resp.ok) { section.style.display = 'none'; return; }
+                const chars = await resp.json();
+                if (!chars.length) { section.style.display = 'none'; return; }
+
+                section.style.display = 'block';
+                listEl.innerHTML = chars.map(c => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#1a1d2e;border-radius:8px;margin-bottom:8px;">
+                        <div>
+                            <strong style="color:#e4e6eb;">${c.name}</strong>
+                            <span style="color:#b0b3ba;font-size:0.85rem;margin-left:8px;">Level ${c.level} — formerly ${c.former_owner}</span>
+                        </div>
+                        <button class="btn btn-small" style="background:#4a7c59;" onclick="reclaimAsNPC('${campaignId}', '${c.id}', '${c.name.replace(/'/g, "\\'")}')">Reclaim as NPC</button>
+                    </div>
+                `).join('');
+            } catch (e) {
+                section.style.display = 'none';
+            }
+        }
+
+        async function reclaimAsNPC(campaignId, charId, charName) {
+            if (!confirm(`Reclaim "${charName}" as an NPC? They will appear in your NPC bubble bar next time you enter the game.`)) return;
+            try {
+                const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
+                const resp = await fetch(`/api/campaigns/${campaignId}/characters/${charId}/convert-to-npc`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+                await loadOrphanedCharacters(campaignId);
+            } catch (e) {
+                alert(`Failed: ${e.message}`);
+            }
         }
 
         function closeModal(modalId) {
