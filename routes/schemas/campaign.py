@@ -60,6 +60,8 @@ class AbilityCastCommand(BaseModel):
     """Player casts an ability/spell/technique via macro command."""
     type: Literal["ability_cast"] = "ability_cast"
     raw_command: str  # Full command text (e.g., "/heal @TargetName" or "/fireball @Enemy1 @Enemy2")
+    speaker_id: Optional[str] = None   # Character/NPC id when SW is casting as a specific speaker
+    speaker_type: Optional[str] = None  # 'pc' | 'npc'
 
 
 # ============================================================================

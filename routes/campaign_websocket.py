@@ -633,10 +633,15 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         macro_command = parts[0].lower()  # e.g., "/heal"
         target_names = [p.lstrip("@") for p in parts[1:] if p.startswith("@")]
 
-        # Get caster's character
-        caster = db.query(Character).filter(
-            Character.user_id == str(user_id)
-        ).first()
+        # Get caster's character (PC lookup by user_id, or NPC lookup by speaker_id)
+        if cmd.speaker_id and cmd.speaker_type == 'npc':
+            caster = db.query(Character).filter(
+                Character.id == cmd.speaker_id
+            ).first()
+        else:
+            caster = db.query(Character).filter(
+                Character.user_id == str(user_id)
+            ).first()
 
         if not caster:
             await manager.broadcast(campaign_id, {

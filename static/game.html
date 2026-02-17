@@ -5419,6 +5419,10 @@
             type: 'ability_cast',
             raw_command: text
           };
+          if (activeSpeaker && activeSpeaker.id) {
+            payload.speaker_id = activeSpeaker.id;
+            payload.speaker_type = activeSpeaker.type;
+          }
           ws.send(JSON.stringify(payload));
         }
       } else {
