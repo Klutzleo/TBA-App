@@ -1010,11 +1010,11 @@ async def convert_pc_to_npc(
     old_owner = str(char.user_id) if char.user_id else None
     char_name = char.name
 
-    # Convert to NPC — clear ownership, flip flag
+    # Convert to NPC — SW takes ownership, clear player user_id
     char.is_npc = True
     char.is_ally = False
     char.user_id = None
-    char.owner_id = None
+    char.owner_id = str(current_user.id)  # owner_id is NOT NULL; SW becomes the NPC owner
 
     db.commit()
     db.refresh(char)
