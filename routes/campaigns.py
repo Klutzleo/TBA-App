@@ -377,23 +377,37 @@ def check_campaign_character(
     ).first()
     
     if membership and membership.role == "story_weaver":
-        return {"role": "story_weaver", "has_character": False}
-    
+        return {"role": "story_weaver", "has_character": False, "can_create": False}
+
+    # Check campaign's character limit
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    max_chars = campaign.max_characters_per_player if campaign else 1
+
+    # Count non-rejected characters (matches the limit check in create_character_full)
+    existing_count = db.query(Character).filter(
+        Character.user_id == current_user.id,
+        Character.campaign_id == campaign_id,
+        Character.is_npc == False,
+        Character.status != 'rejected'
+    ).count()
+    can_create = existing_count < max_chars
+
     # Check if user has character in this campaign
     character = db.query(Character).filter(
         Character.user_id == current_user.id,
         Character.campaign_id == campaign_id
     ).first()
-    
+
     if character:
         return {
             "role": "player",
             "has_character": character.status == 'active',
             "character_id": str(character.id) if character.status == 'active' else None,
             "character_status": character.status,
-            "rejection_reason": character.rejection_reason
+            "rejection_reason": character.rejection_reason,
+            "can_create": can_create
         }
-    return {"role": "player", "has_character": False, "character_status": None}
+    return {"role": "player", "has_character": False, "character_status": None, "can_create": can_create}
 
 
 @router.get("/{campaign_id}", response_model=CampaignResponse)
