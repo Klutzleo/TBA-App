@@ -4518,7 +4518,7 @@
 
       const statusMsg = characterId
         ? `Connecting to campaign...`
-        : `Connecting as Story Weaver...`;
+        : userRole === 'SW' ? `Connecting as Story Weaver...` : `Connecting to campaign as spectator...`;
       addMessage(statusMsg, 'message-card message-system');
 
       try {
