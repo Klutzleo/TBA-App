@@ -966,8 +966,8 @@ async def handle_ability_macro(
             target.status = 'unconscious'
             knocked_out = True
 
-        # 11. Check for The Calling at -10 DP (only for Characters, not NPCs)
-        if target_type == "character" and new_dp <= -10:
+        # 11. Check for The Calling at -10 DP (only for PCs, not NPCs)
+        if target_type == "character" and new_dp <= -10 and not target.is_npc:
             if not target.in_calling:
                 target.in_calling = True
                 calling_triggered = True
@@ -1397,7 +1397,7 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                     if new_dp <= 0 and char.status == 'active':
                         char.status = 'unconscious'
                         knocked_out = True
-                    if new_dp <= -10 and not char.in_calling:
+                    if new_dp <= -10 and not char.in_calling and not char.is_npc:
                         char.in_calling = True
                         calling_triggered = True
                     db.commit()
