@@ -1382,8 +1382,8 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 defender_dp=old_dp
             )
 
-            # Calculate new DP
-            new_dp = max(0, old_dp - result["total_damage"])
+            # Calculate new DP (no floor — can go negative for The Calling)
+            new_dp = old_dp - result["total_damage"]
             defender_edge = defender_data.get("edge", 0)
 
             # Persist DP change to database and check for calling
