@@ -454,10 +454,10 @@
       flex: 1;
       min-height: 0; /* Critical: allows flex child to scroll instead of expanding */
       overflow-y: auto;
-      padding: 24px;
+      padding: 12px 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 6px;
     }
 
     .chat-messages::-webkit-scrollbar {
@@ -506,7 +506,7 @@
 
     /* === Message Cards === */
     .message-card {
-      padding: 12px 16px;
+      padding: 8px 12px;
       border-radius: var(--radius-md);
       background: var(--bg-panel);
       border-left: 3px solid transparent;
@@ -547,7 +547,7 @@
     .message-combat {
       background: rgba(239, 68, 68, 0.1);
       border-left-color: var(--accent-combat);
-      padding: 16px;
+      padding: 8px 12px;
     }
 
     .initiative-roll {
@@ -558,7 +558,7 @@
     .initiative-order {
       background: rgba(59, 130, 246, 0.1);
       border-left-color: #3b82f6;
-      padding: 16px;
+      padding: 8px 12px;
     }
 
     .encounter-start {
@@ -671,7 +671,7 @@
 
     /* === Legacy message styles (for compatibility) === */
     .msg {
-      padding: 12px 16px;
+      padding: 8px 12px;
       border-radius: var(--radius-md);
       background: var(--bg-panel);
       border-left: 3px solid transparent;
@@ -702,7 +702,7 @@
     .combat_event {
       background: rgba(239, 68, 68, 0.1);
       border-left-color: var(--accent-combat);
-      padding: 16px;
+      padding: 8px 12px;
       border-radius: var(--radius-md);
       box-shadow: var(--shadow-sm);
       animation: slideIn 0.3s ease-out;
@@ -822,7 +822,7 @@
 
     /* === Chat Mode Styles (IC/OOC/Whisper) === */
     .message-ic {
-      padding: 12px 16px;
+      padding: 7px 12px;
       border-radius: var(--radius-md);
       background: rgba(16, 185, 129, 0.1);
       border-left: 3px solid var(--accent-success);
@@ -836,20 +836,22 @@
       text-transform: uppercase;
       letter-spacing: 1px;
       color: var(--accent-success);
-      margin-bottom: 4px;
     }
 
     .message-ic .actor-name {
+      font-size: 0.9em;
+      font-weight: 600;
       color: var(--accent-success);
     }
 
     .message-ic .message-text {
       font-style: italic;
       color: var(--text-primary);
+      margin-top: 2px;
     }
 
     .message-ooc {
-      padding: 12px 16px;
+      padding: 7px 12px;
       border-radius: var(--radius-md);
       background: rgba(107, 114, 128, 0.15);
       border-left: 3px solid var(--text-muted);
@@ -863,19 +865,21 @@
       text-transform: uppercase;
       letter-spacing: 1px;
       color: var(--text-muted);
-      margin-bottom: 4px;
     }
 
     .message-ooc .actor-name {
+      font-size: 0.9em;
+      font-weight: 600;
       color: var(--text-secondary);
     }
 
     .message-ooc .message-text {
       color: var(--text-secondary);
+      margin-top: 2px;
     }
 
     .message-whisper {
-      padding: 12px 16px;
+      padding: 7px 12px;
       border-radius: var(--radius-md);
       background: rgba(139, 92, 246, 0.1);
       border-left: 3px solid #8b5cf6;
@@ -889,10 +893,11 @@
       text-transform: uppercase;
       letter-spacing: 1px;
       color: #8b5cf6;
-      margin-bottom: 4px;
     }
 
     .message-whisper .actor-name {
+      font-size: 0.9em;
+      font-weight: 600;
       color: #8b5cf6;
     }
 
@@ -905,6 +910,14 @@
     .message-whisper .message-text {
       color: var(--text-primary);
       font-style: italic;
+      margin-top: 2px;
+    }
+
+    .msg-header-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 2px;
     }
 
     /* === DP Bar Styles === */
@@ -3625,94 +3638,50 @@
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
     }
 
+    // Shared helper: compact [timestamp] · Title row with optional toggle + tab
+    function fmtNow() {
+      return new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    function fmtTs(ts) {
+      return ts ? new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    }
+    function makeHeaderRow(tsStr, titleText, { toggle = null, tab = null } = {}) {
+      const row = document.createElement('div');
+      row.className = 'msg-header-row';
+      if (tsStr) {
+        const ts = document.createElement('span');
+        ts.style.color = 'var(--text-muted)';
+        ts.style.fontSize = '0.8em';
+        ts.textContent = `[${tsStr}]`;
+        row.appendChild(ts);
+      }
+      const title = document.createElement('span');
+      title.style.fontWeight = 'bold';
+      title.textContent = titleText;
+      row.appendChild(title);
+      if (toggle) row.appendChild(toggle);
+      if (tab) {
+        const tabEl = document.createElement('span');
+        tabEl.className = 'message-tab-indicator';
+        tabEl.textContent = tab;
+        row.appendChild(tabEl);
+      }
+      return row;
+    }
+
     // Display typed message (IC, OOC, Whisper)
     // targets can be a string (single target) or array (multiple targets)
     function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false) {
       const container = document.createElement('div');
 
-      const timestamp = new Date().toLocaleString([], { 
-        month: 'short', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      const timestamp = new Date().toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       });
-      const timestampSpan = document.createElement('span');
-      timestampSpan.className = 'timestamp';
-      timestampSpan.textContent = `[${timestamp}] `;
-      timestampSpan.style.color = 'var(--text-muted)';
-      timestampSpan.style.fontSize = '0.85em';
-      timestampSpan.style.marginRight = '8px';
 
-      if (mode === 'ic') {
-        container.className = 'message-ic';
-
-        const label = document.createElement('div');
-        label.className = 'mode-label';
-        label.textContent = '🎭 In Character';
-        container.appendChild(timestampSpan);
-        container.appendChild(label);
-
-        const actorSpan = document.createElement('span');
-        actorSpan.className = 'actor-name';
-        actorSpan.textContent = actor;
-        container.appendChild(actorSpan);
-
-        const textDiv = document.createElement('div');
-        textDiv.className = 'message-text';
-        textDiv.textContent = `"${text}"`;
-        container.appendChild(textDiv);
-
-      } else if (mode === 'ooc') {
-        container.className = 'message-ooc';
-
-        const label = document.createElement('div');
-        label.className = 'mode-label';
-        label.textContent = '💬 Out of Character';
-        container.appendChild(timestampSpan);
-        container.appendChild(label);
-
-        const content = document.createElement('div');
-        const actorSpan = document.createElement('span');
-        actorSpan.className = 'actor-name';
-        actorSpan.textContent = `[${actor}]`;
-        content.appendChild(actorSpan);
-
-        const textSpan = document.createElement('span');
-        textSpan.className = 'message-text';
-        textSpan.textContent = ` ${text}`;
-        content.appendChild(textSpan);
-        container.appendChild(content);
-
-      } else if (mode === 'whisper') {
-        container.className = 'message-whisper';
-
-        const label = document.createElement('div');
-        label.className = 'mode-label';
-        label.textContent = '🤫 Whisper';
-        container.appendChild(timestampSpan);
-        container.appendChild(label);
-
-        const actorSpan = document.createElement('span');
-        actorSpan.className = 'actor-name';
-        actorSpan.textContent = actor;
-        container.appendChild(actorSpan);
-
-        if (targets) {
-          const targetSpan = document.createElement('span');
-          targetSpan.className = 'whisper-target';
-          // Handle both single target (string) and multiple targets (array)
-          const targetList = Array.isArray(targets) ? targets : [targets];
-          targetSpan.textContent = ` → ${targetList.join(', ')}`;
-          container.appendChild(targetSpan);
-        }
-
-        const textDiv = document.createElement('div');
-        textDiv.className = 'message-text';
-        textDiv.textContent = `"${text}"`;
-        container.appendChild(textDiv);
-      }
-
-      // Build data object for tab routing
+      // Build data first so we can get the tab label
       const data = {
         type: mode === 'ic' ? 'chat_ic' : (mode === 'ooc' ? 'chat_ooc' : 'chat_whisper'),
         chat_mode: mode,
@@ -3722,12 +3691,67 @@
         whisper_targets: targets ? (Array.isArray(targets) ? targets : [targets]) : null
       };
 
-      // Add tab indicator
+      // Compact header row: [time] · Mode · Actor           TAB
+      const headerRow = document.createElement('div');
+      headerRow.className = 'msg-header-row';
+
+      const tsSpan = document.createElement('span');
+      tsSpan.style.color = 'var(--text-muted)';
+      tsSpan.style.fontSize = '0.8em';
+      tsSpan.textContent = `[${timestamp}]`;
+      headerRow.appendChild(tsSpan);
+
+      const sep1 = document.createElement('span');
+      sep1.style.color = 'var(--text-muted)';
+      sep1.style.fontSize = '0.8em';
+      sep1.textContent = '·';
+      headerRow.appendChild(sep1);
+
+      const modeConfigs = {
+        ic:      { label: '🎭 In Character', cls: 'message-ic' },
+        ooc:     { label: '💬 Out of Character', cls: 'message-ooc' },
+        whisper: { label: '🤫 Whisper', cls: 'message-whisper' }
+      };
+      const cfg = modeConfigs[mode];
+      container.className = cfg.cls;
+
+      const modeSpan = document.createElement('span');
+      modeSpan.className = 'mode-label';
+      modeSpan.textContent = cfg.label;
+      headerRow.appendChild(modeSpan);
+
+      const sep2 = document.createElement('span');
+      sep2.style.color = 'var(--text-muted)';
+      sep2.style.fontSize = '0.8em';
+      sep2.textContent = '·';
+      headerRow.appendChild(sep2);
+
+      const actorSpan = document.createElement('span');
+      actorSpan.className = 'actor-name';
+      actorSpan.textContent = actor;
+      headerRow.appendChild(actorSpan);
+
+      if (mode === 'whisper' && targets) {
+        const targetList = Array.isArray(targets) ? targets : [targets];
+        const targetSpan = document.createElement('span');
+        targetSpan.className = 'whisper-target';
+        targetSpan.textContent = `→ ${targetList.join(', ')}`;
+        headerRow.appendChild(targetSpan);
+      }
+
+      // Tab indicator floats right via margin-left: auto
       const tabIndicator = document.createElement('span');
       tabIndicator.className = 'message-tab-indicator';
-      const msgTab = getMessageTab(data);
-      tabIndicator.textContent = msgTab.toUpperCase();
-      container.appendChild(tabIndicator);
+      tabIndicator.textContent = getMessageTab(data).toUpperCase();
+      headerRow.appendChild(tabIndicator);
+
+      container.appendChild(headerRow);
+
+      // Message text
+      const textDiv = document.createElement('div');
+      textDiv.className = 'message-text';
+      textDiv.textContent = mode === 'ic' || mode === 'whisper' ? `"${text}"` : `[${actor}] ${text}`;
+      container.appendChild(textDiv);
 
       // Store and display via tab system
       storeAndDisplayMessage(container, data);
@@ -4419,42 +4443,26 @@
                 const container = document.createElement('div');
                 container.className = 'msg dice_roll';
 
-                const header = document.createElement('div');
-                header.style.fontWeight = 'bold';
-                header.textContent = `📊 ${msg.sender_name} - ${data.stat_name || data.stat} Check: ${data.total}`;
-                container.appendChild(header);
-
-                // Show breakdown with math
+                let statHistTog = null, statHistBd = null;
                 if (data.breakdown) {
-                  const bd = document.createElement('div');
-                  bd.style.fontFamily = 'monospace';
-                  bd.style.fontSize = '12px';
-                  bd.style.marginLeft = '16px';
-                  bd.style.marginTop = '4px';
-                  bd.style.color = 'var(--text-secondary)';
-                  bd.style.display = isSW() ? 'block' : 'none';
-                  bd.textContent = data.breakdown;
-
-                  const toggle = document.createElement('a');
-                  toggle.href = '#';
-                  toggle.style.fontSize = '11px';
-                  toggle.style.marginLeft = '8px';
-                  toggle.textContent = isSW() ? 'Hide details' : 'Show details';
-                  toggle.addEventListener('click', (e) => {
+                  statHistBd = document.createElement('div');
+                  statHistBd.style.cssText = 'font-family:monospace;font-size:12px;margin-left:16px;margin-top:4px;color:var(--text-secondary)';
+                  statHistBd.style.display = isSW() ? 'block' : 'none';
+                  statHistBd.textContent = data.breakdown;
+                  statHistTog = document.createElement('a');
+                  statHistTog.href = '#';
+                  statHistTog.style.fontSize = '11px';
+                  statHistTog.textContent = isSW() ? 'Hide details' : 'Show details';
+                  statHistTog.addEventListener('click', e => {
                     e.preventDefault();
-                    const showing = bd.style.display !== 'none';
-                    bd.style.display = showing ? 'none' : 'block';
-                    toggle.textContent = showing ? 'Show details' : 'Hide details';
+                    const showing = statHistBd.style.display !== 'none';
+                    statHistBd.style.display = showing ? 'none' : 'block';
+                    statHistTog.textContent = showing ? 'Show details' : 'Hide details';
                   });
-
-                  header.appendChild(toggle);
-                  container.appendChild(bd);
                 }
 
-                const tabIndicator = document.createElement('span');
-                tabIndicator.className = 'message-tab-indicator';
-                tabIndicator.textContent = 'STORY';
-                container.appendChild(tabIndicator);
+                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), `📊 ${msg.sender_name} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statHistTog, tab: 'STORY' }));
+                if (statHistBd) container.appendChild(statHistBd);
 
                 storeAndDisplayMessage(container, { type: 'stat_roll', ...data });
               }
@@ -4466,100 +4474,58 @@
                 const container = document.createElement('div');
                 container.className = 'message-card message-combat';
 
-                const header = document.createElement('div');
-                header.style.fontWeight = 'bold';
-                header.style.marginBottom = '4px';
-
-                const histCastTs = msg.timestamp ? new Date(msg.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                if (histCastTs) {
-                  const histTsSpan = document.createElement('span');
-                  histTsSpan.style.color = 'var(--text-muted)';
-                  histTsSpan.style.fontSize = '0.85em';
-                  histTsSpan.style.marginRight = '8px';
-                  histTsSpan.style.fontWeight = 'normal';
-                  histTsSpan.textContent = `[${histCastTs}]`;
-                  header.appendChild(histTsSpan);
-                }
-                header.appendChild(document.createTextNode(`✨ ${data.caster} casts ${data.ability_name}!`));
-
                 const narrative = document.createElement('div');
                 narrative.style.fontStyle = 'italic';
-                narrative.style.marginBottom = '8px';
+                narrative.style.marginTop = '2px';
                 narrative.textContent = data.narrative || '';
 
-                const buildBreakdownLinesHist = (r, effect_type) => {
+                const buildBreakdownLinesHist = (r, et) => {
                   const lines = [];
-                  if (!r.success && r.message === 'Target not found') {
-                    lines.push(`❌ ${r.target}: Target not found`);
-                    return lines;
-                  }
-                  if (effect_type === 'damage') {
-                    const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp} → ${r.new_dp})` : `💨 Miss`;
-                    lines.push(`vs ${r.target}  →  ${outcome}`);
+                  if (!r.success && r.message === 'Target not found') { lines.push(`❌ ${r.target}: Target not found`); return lines; }
+                  if (et === 'damage') {
+                    lines.push(`vs ${r.target}  →  ${r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp} → ${r.new_dp})` : '💨 Miss'}`);
                     lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
                     lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
-                  } else if (effect_type === 'heal') {
+                  } else if (et === 'heal') {
                     lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
                     lines.push(`  💚 Roll: ${r.roll_breakdown}`);
-                  } else if (effect_type === 'buff') {
+                  } else if (et === 'buff') {
                     lines.push(`→ ${r.target}  Power ${r.buff_value}`);
                     lines.push(`  ✨ Roll: ${r.roll_breakdown}`);
-                  } else if (effect_type === 'debuff') {
-                    const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
-                    lines.push(`vs ${r.target}  →  ${outcome}`);
+                  } else if (et === 'debuff') {
+                    lines.push(`vs ${r.target}  →  ${r.success ? `💥 Hits (margin ${r.margin})` : '💨 Resisted'}`);
                     lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
                     lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
                   }
                   return lines;
                 };
 
+                let castHistBd = null, castHistTog = null;
                 if (Array.isArray(data.results) && data.results.length > 0) {
-                  const bd = document.createElement('div');
-                  bd.style.fontFamily = 'monospace';
-                  bd.style.fontSize = '12px';
-                  bd.style.marginTop = '4px';
-                  bd.style.marginBottom = '4px';
-                  bd.style.color = 'var(--text-secondary)';
-                  bd.style.whiteSpace = 'pre';
-                  bd.style.display = isSW() ? 'block' : 'none';
-
-                  data.results.forEach(r => {
-                    buildBreakdownLinesHist(r, data.effect_type).forEach(line => {
-                      bd.textContent += line + '\n';
-                    });
-                  });
-
-                  const toggle = document.createElement('a');
-                  toggle.href = '#';
-                  toggle.style.fontSize = '11px';
-                  toggle.style.marginLeft = '8px';
-                  toggle.textContent = isSW() ? 'Hide details' : 'Show details';
-                  toggle.addEventListener('click', (e) => {
+                  castHistBd = document.createElement('div');
+                  castHistBd.style.cssText = 'font-family:monospace;font-size:12px;margin-top:4px;margin-bottom:4px;color:var(--text-secondary);white-space:pre';
+                  castHistBd.style.display = isSW() ? 'block' : 'none';
+                  data.results.forEach(r => buildBreakdownLinesHist(r, data.effect_type).forEach(l => { castHistBd.textContent += l + '\n'; }));
+                  castHistTog = document.createElement('a');
+                  castHistTog.href = '#';
+                  castHistTog.style.fontSize = '11px';
+                  castHistTog.textContent = isSW() ? 'Hide details' : 'Show details';
+                  castHistTog.addEventListener('click', e => {
                     e.preventDefault();
-                    const showing = bd.style.display !== 'none';
-                    bd.style.display = showing ? 'none' : 'block';
-                    toggle.textContent = showing ? 'Show details' : 'Hide details';
+                    const showing = castHistBd.style.display !== 'none';
+                    castHistBd.style.display = showing ? 'none' : 'block';
+                    castHistTog.textContent = showing ? 'Show details' : 'Hide details';
                   });
-
-                  header.appendChild(toggle);
-                  container.appendChild(header);
-                  container.appendChild(narrative);
-                  container.appendChild(bd);
-                } else {
-                  container.appendChild(header);
-                  container.appendChild(narrative);
                 }
 
+                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), `✨ ${data.caster} casts ${data.ability_name}!`, { toggle: castHistTog, tab: 'STORY' }));
+                container.appendChild(narrative);
+                if (castHistBd) container.appendChild(castHistBd);
+
                 const usesInfo = document.createElement('div');
-                usesInfo.style.fontSize = '12px';
-                usesInfo.style.color = 'var(--text-muted)';
+                usesInfo.style.cssText = 'font-size:12px;color:var(--text-muted)';
                 usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
                 container.appendChild(usesInfo);
-
-                const tabIndicator = document.createElement('span');
-                tabIndicator.className = 'message-tab-indicator';
-                tabIndicator.textContent = 'STORY';
-                container.appendChild(tabIndicator);
 
                 storeAndDisplayMessage(container, { type: 'ability_cast', ...data });
               }
@@ -4571,24 +4537,11 @@
                 const container = document.createElement('div');
                 container.className = 'message-card initiative-roll';
 
-                const header = document.createElement('div');
-                header.style.fontWeight = 'bold';
-                header.textContent = `🎲 ${data.actor} rolled initiative: ${data.roll}`;
+                const initHistTitle = data.is_silent
+                  ? `🔒 ${data.actor} rolled initiative (hidden)`
+                  : `🎲 ${data.actor} rolled initiative: ${data.roll}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
 
-                if (data.is_silent) {
-                  header.textContent = `🔒 ${data.actor} rolled initiative (hidden)`;
-                }
-
-                if (data.rolled_by_sw) {
-                  const swTag = document.createElement('span');
-                  swTag.style.fontSize = '10px';
-                  swTag.style.color = 'var(--text-muted)';
-                  swTag.style.marginLeft = '8px';
-                  swTag.textContent = '(SW rolled)';
-                  header.appendChild(swTag);
-                }
-
-                container.appendChild(header);
+                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), initHistTitle, { tab: 'STORY' }));
                 storeAndDisplayMessage(container, { type: 'initiative_roll', ...data });
               }
               // ✅ Handle encounter start from database
@@ -4892,40 +4845,27 @@
               const container = document.createElement('div');
               container.className = 'msg dice_roll';
 
-              const header = document.createElement('div');
               const diceExpr = data.dice ? ` (${data.dice})` : '';
-              header.textContent = `🎲 ${data.actor}${diceExpr}: ${data.text}`;
-              container.appendChild(header);
-
+              let diceTog = null, diceBd = null;
               if (Array.isArray(data.breakdown)) {
-                const bd = document.createElement('div');
-                bd.style.fontFamily = 'monospace';
-                bd.style.fontSize = '12px';
-                bd.style.marginLeft = '16px';
-                bd.style.display = isSW() ? 'block' : 'none';
-                bd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
-
-                const toggle = document.createElement('a');
-                toggle.href = '#';
-                toggle.style.fontSize = '12px';
-                toggle.style.marginLeft = '8px';
-                toggle.textContent = isSW() ? 'Hide details' : 'Show details';
-                toggle.addEventListener('click', (e) => {
+                diceBd = document.createElement('div');
+                diceBd.style.cssText = 'font-family:monospace;font-size:12px;margin-left:16px;margin-top:4px;color:var(--text-secondary)';
+                diceBd.style.display = isSW() ? 'block' : 'none';
+                diceBd.textContent = `Rolls: ${data.breakdown.join(' + ')}${typeof data.result === 'number' ? ` → Total ${data.result}` : ''}`;
+                diceTog = document.createElement('a');
+                diceTog.href = '#';
+                diceTog.style.fontSize = '11px';
+                diceTog.textContent = isSW() ? 'Hide details' : 'Show details';
+                diceTog.addEventListener('click', e => {
                   e.preventDefault();
-                  const showing = bd.style.display !== 'none';
-                  bd.style.display = showing ? 'none' : 'block';
-                  toggle.textContent = showing ? 'Show details' : 'Hide details';
+                  const showing = diceBd.style.display !== 'none';
+                  diceBd.style.display = showing ? 'none' : 'block';
+                  diceTog.textContent = showing ? 'Show details' : 'Hide details';
                 });
-
-                header.appendChild(toggle);
-                container.appendChild(bd);
               }
 
-              // Add tab indicator
-              const tabIndicator = document.createElement('span');
-              tabIndicator.className = 'message-tab-indicator';
-              tabIndicator.textContent = 'STORY';
-              container.appendChild(tabIndicator);
+              container.appendChild(makeHeaderRow(fmtNow(), `🎲 ${data.actor}${diceExpr}: ${data.text}`, { toggle: diceTog, tab: 'STORY' }));
+              if (diceBd) container.appendChild(diceBd);
 
               storeAndDisplayMessage(container, data);
             } else if (data.type === 'combat_result') {
@@ -5089,43 +5029,26 @@
               const container = document.createElement('div');
               container.className = 'msg dice_roll';
 
-              const header = document.createElement('div');
-              header.style.fontWeight = 'bold';
-              header.textContent = `📊 ${data.actor} - ${data.stat_name || data.stat} Check: ${data.total}`;
-              container.appendChild(header);
-
-              // Show breakdown with math
+              let statTog = null, statBd = null;
               if (data.breakdown) {
-                const bd = document.createElement('div');
-                bd.style.fontFamily = 'monospace';
-                bd.style.fontSize = '12px';
-                bd.style.marginLeft = '16px';
-                bd.style.marginTop = '4px';
-                bd.style.color = 'var(--text-secondary)';
-                bd.style.display = isSW() ? 'block' : 'none';
-                bd.textContent = data.breakdown; // e.g., "1d6(4) + PP(3) + Edge(2) = 9"
-
-                const toggle = document.createElement('a');
-                toggle.href = '#';
-                toggle.style.fontSize = '11px';
-                toggle.style.marginLeft = '8px';
-                toggle.textContent = isSW() ? 'Hide details' : 'Show details';
-                toggle.addEventListener('click', (e) => {
+                statBd = document.createElement('div');
+                statBd.style.cssText = 'font-family:monospace;font-size:12px;margin-left:16px;margin-top:4px;color:var(--text-secondary)';
+                statBd.style.display = isSW() ? 'block' : 'none';
+                statBd.textContent = data.breakdown;
+                statTog = document.createElement('a');
+                statTog.href = '#';
+                statTog.style.fontSize = '11px';
+                statTog.textContent = isSW() ? 'Hide details' : 'Show details';
+                statTog.addEventListener('click', e => {
                   e.preventDefault();
-                  const showing = bd.style.display !== 'none';
-                  bd.style.display = showing ? 'none' : 'block';
-                  toggle.textContent = showing ? 'Show details' : 'Hide details';
+                  const showing = statBd.style.display !== 'none';
+                  statBd.style.display = showing ? 'none' : 'block';
+                  statTog.textContent = showing ? 'Show details' : 'Hide details';
                 });
-
-                header.appendChild(toggle);
-                container.appendChild(bd);
               }
 
-              // Add tab indicator
-              const tabIndicator = document.createElement('span');
-              tabIndicator.className = 'message-tab-indicator';
-              tabIndicator.textContent = 'STORY';
-              container.appendChild(tabIndicator);
+              container.appendChild(makeHeaderRow(fmtNow(), `📊 ${data.actor} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statTog, tab: 'STORY' }));
+              if (statBd) container.appendChild(statBd);
 
               storeAndDisplayMessage(container, data);
             } else if (data.type === 'ability_cast') {
@@ -5133,24 +5056,26 @@
               const container = document.createElement('div');
               container.className = 'message-card message-combat';
 
-              const header = document.createElement('div');
-              header.style.fontWeight = 'bold';
-              header.style.marginBottom = '4px';
+              // Compact header row: [time] · ✨ Name casts Ability!  [toggle]  STORY
+              const castHeaderRow = document.createElement('div');
+              castHeaderRow.className = 'msg-header-row';
 
-              const castTimestamp = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
               const castTsSpan = document.createElement('span');
               castTsSpan.style.color = 'var(--text-muted)';
-              castTsSpan.style.fontSize = '0.85em';
-              castTsSpan.style.marginRight = '8px';
+              castTsSpan.style.fontSize = '0.8em';
               castTsSpan.style.fontWeight = 'normal';
-              castTsSpan.textContent = `[${castTimestamp}]`;
-              header.appendChild(castTsSpan);
-              header.appendChild(document.createTextNode(`✨ ${data.caster} casts ${data.ability_name}!`));
+              castTsSpan.textContent = `[${new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}]`;
+              castHeaderRow.appendChild(castTsSpan);
 
-              // Narrative
+              const castTitle = document.createElement('span');
+              castTitle.style.fontWeight = 'bold';
+              castTitle.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
+              castHeaderRow.appendChild(castTitle);
+
+              // Narrative (outcome text only — no redundant "X casts Y!" prefix)
               const narrative = document.createElement('div');
               narrative.style.fontStyle = 'italic';
-              narrative.style.marginBottom = '8px';
+              narrative.style.marginTop = '2px';
               narrative.textContent = data.narrative || '';
 
               // Per-target roll breakdowns (collapsible — SW always open, players toggle)
@@ -5180,6 +5105,10 @@
                 return lines;
               };
 
+              const tabIndicator = document.createElement('span');
+              tabIndicator.className = 'message-tab-indicator';
+              tabIndicator.textContent = 'STORY';
+
               if (Array.isArray(data.results) && data.results.length > 0) {
                 const bd = document.createElement('div');
                 bd.style.fontFamily = 'monospace';
@@ -5199,7 +5128,6 @@
                 const toggle = document.createElement('a');
                 toggle.href = '#';
                 toggle.style.fontSize = '11px';
-                toggle.style.marginLeft = '8px';
                 toggle.textContent = isSW() ? 'Hide details' : 'Show details';
                 toggle.addEventListener('click', (e) => {
                   e.preventDefault();
@@ -5208,12 +5136,14 @@
                   toggle.textContent = showing ? 'Show details' : 'Hide details';
                 });
 
-                header.appendChild(toggle);
-                container.appendChild(header);
+                castHeaderRow.appendChild(toggle);
+                castHeaderRow.appendChild(tabIndicator);
+                container.appendChild(castHeaderRow);
                 container.appendChild(narrative);
                 container.appendChild(bd);
               } else {
-                container.appendChild(header);
+                castHeaderRow.appendChild(tabIndicator);
+                container.appendChild(castHeaderRow);
                 container.appendChild(narrative);
               }
 
@@ -5223,11 +5153,6 @@
               usesInfo.style.color = 'var(--text-muted)';
               usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
               container.appendChild(usesInfo);
-
-              const tabIndicator = document.createElement('span');
-              tabIndicator.className = 'message-tab-indicator';
-              tabIndicator.textContent = 'STORY';
-              container.appendChild(tabIndicator);
 
               storeAndDisplayMessage(container, data);
 
@@ -5245,24 +5170,11 @@
               const container = document.createElement('div');
               container.className = 'message-card initiative-roll';
 
-              const header = document.createElement('div');
-              header.style.fontWeight = 'bold';
-              header.textContent = `🎲 ${data.actor} rolled initiative: ${data.roll}`;
+              const initTitle = data.is_silent
+                ? `🔒 ${data.actor} rolled initiative (hidden)`
+                : `🎲 ${data.actor} rolled initiative: ${data.roll}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
 
-              if (data.is_silent) {
-                header.textContent = `🔒 ${data.actor} rolled initiative (hidden)`;
-              }
-
-              if (data.rolled_by_sw) {
-                const swTag = document.createElement('span');
-                swTag.style.fontSize = '10px';
-                swTag.style.color = 'var(--text-muted)';
-                swTag.style.marginLeft = '8px';
-                swTag.textContent = '(SW rolled)';
-                header.appendChild(swTag);
-              }
-
-              container.appendChild(header);
+              container.appendChild(makeHeaderRow(fmtNow(), initTitle, { tab: 'STORY' }));
               storeAndDisplayMessage(container, data);
 
             } else if (data.type === 'initiative_order') {

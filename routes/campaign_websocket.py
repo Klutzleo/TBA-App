@@ -883,8 +883,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         ability.uses_remaining -= 1
         db.commit()
 
-        # Generate narrative
-        narrative = f"{caster.name} casts {ability.display_name}! " + " ".join(narrative_parts)
+        # Generate narrative (header already shows caster + ability, so just show outcomes)
+        narrative = " ".join(narrative_parts)
 
         # Broadcast result
         broadcast = AbilityCastBroadcast(
