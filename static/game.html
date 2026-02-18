@@ -628,7 +628,9 @@
     /* Target the links directly inside dice roll cards - note the space, not underscore */
     .msg.dice_roll a,
     .dice_roll a,
-    .message-dice a {
+    .message-dice a,
+    .message-card a,
+    .message-combat a {
       font-size: 11px;
       color: #ffd166 !important; /* Gold for visibility */
       cursor: pointer;
@@ -639,7 +641,9 @@
 
     .msg.dice_roll a:hover,
     .dice_roll a:hover,
-    .message-dice a:hover {
+    .message-dice a:hover,
+    .message-card a:hover,
+    .message-combat a:hover {
       color: #ffb703 !important; /* Brighter gold on hover */
       opacity: 1;
       text-decoration: none;
@@ -4465,7 +4469,18 @@
                 const header = document.createElement('div');
                 header.style.fontWeight = 'bold';
                 header.style.marginBottom = '4px';
-                header.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
+
+                const histCastTs = msg.timestamp ? new Date(msg.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                if (histCastTs) {
+                  const histTsSpan = document.createElement('span');
+                  histTsSpan.style.color = 'var(--text-muted)';
+                  histTsSpan.style.fontSize = '0.85em';
+                  histTsSpan.style.marginRight = '8px';
+                  histTsSpan.style.fontWeight = 'normal';
+                  histTsSpan.textContent = `[${histCastTs}]`;
+                  header.appendChild(histTsSpan);
+                }
+                header.appendChild(document.createTextNode(`✨ ${data.caster} casts ${data.ability_name}!`));
 
                 const narrative = document.createElement('div');
                 narrative.style.fontStyle = 'italic';
@@ -5094,8 +5109,6 @@
                 toggle.href = '#';
                 toggle.style.fontSize = '11px';
                 toggle.style.marginLeft = '8px';
-                toggle.style.color = 'var(--text-muted)';
-                toggle.style.textDecoration = 'underline';
                 toggle.textContent = isSW() ? 'Hide details' : 'Show details';
                 toggle.addEventListener('click', (e) => {
                   e.preventDefault();
@@ -5123,7 +5136,16 @@
               const header = document.createElement('div');
               header.style.fontWeight = 'bold';
               header.style.marginBottom = '4px';
-              header.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
+
+              const castTimestamp = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+              const castTsSpan = document.createElement('span');
+              castTsSpan.style.color = 'var(--text-muted)';
+              castTsSpan.style.fontSize = '0.85em';
+              castTsSpan.style.marginRight = '8px';
+              castTsSpan.style.fontWeight = 'normal';
+              castTsSpan.textContent = `[${castTimestamp}]`;
+              header.appendChild(castTsSpan);
+              header.appendChild(document.createTextNode(`✨ ${data.caster} casts ${data.ability_name}!`));
 
               // Narrative
               const narrative = document.createElement('div');
@@ -5178,8 +5200,6 @@
                 toggle.href = '#';
                 toggle.style.fontSize = '11px';
                 toggle.style.marginLeft = '8px';
-                toggle.style.color = 'var(--text-muted)';
-                toggle.style.textDecoration = 'underline';
                 toggle.textContent = isSW() ? 'Hide details' : 'Show details';
                 toggle.addEventListener('click', (e) => {
                   e.preventDefault();
