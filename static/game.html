@@ -3335,6 +3335,14 @@
       document.getElementById('callingResultPane').style.display = 'none';
       document.getElementById('callingBapRow').style.display = userRole === 'SW' ? '' : 'none';
       if (document.getElementById('callingBap')) document.getElementById('callingBap').value = 0;
+      // Only the affected player and SW can roll — disable buttons for everyone else
+      const canRoll = userRole === 'SW' || characterId === charId;
+      ['callingRollIP', 'callingRollSP'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.disabled = !canRoll;
+        btn.style.opacity = canRoll ? '' : '0.4';
+        btn.title = canRoll ? '' : 'Only the affected player or SW can roll';
+      });
       document.getElementById('theCallingModal').classList.add('active');
     }
 
@@ -3345,6 +3353,7 @@
 
     async function resolveTheCalling(statChoice) {
       if (!callingCharId) return;
+      if (userRole !== 'SW' && characterId !== callingCharId) return;
       const bap = parseInt(document.getElementById('callingBap')?.value || '0', 10);
       try {
         const resp = await fetch(`/api/characters/${callingCharId}/the-calling`, {
