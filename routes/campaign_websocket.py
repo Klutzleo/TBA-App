@@ -734,7 +734,12 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "old_dp": old_dp,
                     "new_dp": target.dp,
                     "attack_roll": attack_total,
+                    "attack_dice": attack_roll_result,
+                    "attack_stat": power_stat,
+                    "attack_edge": caster.edge,
                     "defense_roll": defense_total,
+                    "defense_dice": defense_roll_result,
+                    "defense_stat": target.pp,
                     "margin": margin,
                     "outcome": outcome
                 })
@@ -782,7 +787,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "healing": actual_healing,
                     "old_dp": old_dp,
                     "new_dp": target.dp,
-                    "roll": heal_roll_total
+                    "roll": heal_roll_total,
+                    "roll_dice": heal_roll_result,
+                    "roll_stat": power_stat
                 })
 
                 narrative_parts.append(f"{target_name} restores {actual_healing} DP (DP: {old_dp} → {target.dp})")
@@ -803,7 +810,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "target": target_name,
                     "success": True,
                     "buff_value": buff_value,
-                    "roll": buff_roll_total
+                    "roll": buff_roll_total,
+                    "roll_dice": buff_roll,
+                    "roll_stat": power_stat
                 })
                 narrative_parts.append(f"{target_name} receives {ability.display_name}! (Power: {buff_value})")
 
@@ -845,7 +854,12 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "target": target_name,
                     "success": success,
                     "caster_roll": caster_total,
+                    "caster_dice": caster_roll,
+                    "caster_stat": power_stat,
+                    "caster_edge": caster.edge,
                     "defense_roll": defense_total,
+                    "defense_dice": defense_roll,
+                    "defense_stat": target.pp,
                     "margin": margin,
                     "debuff_strength": max(0, margin)
                 })

@@ -4475,10 +4475,43 @@
                 narrative.textContent = data.narrative || '';
                 container.appendChild(narrative);
 
+                // Roll details per target (history)
+                if (Array.isArray(data.results)) {
+                  const fmt = arr => arr ? `[${arr.join('+')}]` : '';
+                  data.results.forEach(r => {
+                    const row = document.createElement('div');
+                    row.style.fontSize = '12px';
+                    row.style.color = 'var(--text-muted)';
+                    row.style.marginBottom = '2px';
+                    row.style.fontFamily = 'monospace';
+                    if (!r.success && r.message === 'Target not found') {
+                      row.style.color = 'var(--danger, #f44)';
+                      row.textContent = `${r.target}: Target not found`;
+                    } else if (data.effect_type === 'damage') {
+                      const atkStr = `⚔️ ${fmt(r.attack_dice)}+${r.attack_stat}+${r.attack_edge}edge=${r.attack_roll}`;
+                      const defStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
+                      const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp}→${r.new_dp})` : `💨 Miss`;
+                      row.textContent = `${r.target}: ${atkStr} vs ${defStr} → ${outcome}`;
+                    } else if (data.effect_type === 'heal') {
+                      const rollStr = `${fmt(r.roll_dice)}+${r.roll_stat}stat`;
+                      row.textContent = `${r.target}: 💚 ${rollStr}=${r.roll + (r.roll_stat || 0)} → +${r.healing} DP (${r.old_dp}→${r.new_dp})`;
+                    } else if (data.effect_type === 'buff') {
+                      row.textContent = `${r.target}: ✨ ${fmt(r.roll_dice)}+${r.roll_stat}stat → Power ${r.buff_value}`;
+                    } else if (data.effect_type === 'debuff') {
+                      const cStr = `⚔️ ${fmt(r.caster_dice)}+${r.caster_stat}+${r.caster_edge}edge=${r.caster_roll}`;
+                      const dStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
+                      const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
+                      row.textContent = `${r.target}: ${cStr} vs ${dStr} → ${outcome}`;
+                    }
+                    container.appendChild(row);
+                  });
+                }
+
                 // Uses remaining
                 const usesInfo = document.createElement('div');
                 usesInfo.style.fontSize = '12px';
                 usesInfo.style.color = 'var(--text-muted)';
+                usesInfo.style.marginTop = '4px';
                 usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
                 container.appendChild(usesInfo);
 
@@ -5072,10 +5105,43 @@
               narrative.textContent = data.narrative || '';
               container.appendChild(narrative);
 
+              // Roll details per target
+              if (Array.isArray(data.results)) {
+                const fmt = arr => arr ? `[${arr.join('+')}]` : '';
+                data.results.forEach(r => {
+                  const row = document.createElement('div');
+                  row.style.fontSize = '12px';
+                  row.style.color = 'var(--text-muted)';
+                  row.style.marginBottom = '2px';
+                  row.style.fontFamily = 'monospace';
+                  if (!r.success && r.message === 'Target not found') {
+                    row.style.color = 'var(--danger, #f44)';
+                    row.textContent = `${r.target}: Target not found`;
+                  } else if (data.effect_type === 'damage') {
+                    const atkStr = `⚔️ ${fmt(r.attack_dice)}+${r.attack_stat}+${r.attack_edge}edge=${r.attack_roll}`;
+                    const defStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
+                    const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp}→${r.new_dp})` : `💨 Miss`;
+                    row.textContent = `${r.target}: ${atkStr} vs ${defStr} → ${outcome}`;
+                  } else if (data.effect_type === 'heal') {
+                    const rollStr = `${fmt(r.roll_dice)}+${r.roll_stat}stat`;
+                    row.textContent = `${r.target}: 💚 ${rollStr}=${r.roll + (r.roll_stat || 0)} → +${r.healing} DP (${r.old_dp}→${r.new_dp})`;
+                  } else if (data.effect_type === 'buff') {
+                    row.textContent = `${r.target}: ✨ ${fmt(r.roll_dice)}+${r.roll_stat}stat → Power ${r.buff_value}`;
+                  } else if (data.effect_type === 'debuff') {
+                    const cStr = `⚔️ ${fmt(r.caster_dice)}+${r.caster_stat}+${r.caster_edge}edge=${r.caster_roll}`;
+                    const dStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
+                    const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
+                    row.textContent = `${r.target}: ${cStr} vs ${dStr} → ${outcome}`;
+                  }
+                  container.appendChild(row);
+                });
+              }
+
               // Uses remaining
               const usesInfo = document.createElement('div');
               usesInfo.style.fontSize = '12px';
               usesInfo.style.color = 'var(--text-muted)';
+              usesInfo.style.marginTop = '4px';
               usesInfo.textContent = `Uses remaining: ${data.uses_remaining}`;
               container.appendChild(usesInfo);
 
@@ -5086,8 +5152,8 @@
 
               storeAndDisplayMessage(container, data);
 
-              // Update character sheets for healing effects
-              if (data.effect_type === 'heal' && Array.isArray(data.results)) {
+              // Update character sheets for healing/damage effects
+              if (Array.isArray(data.results)) {
                 data.results.forEach(result => {
                   if (result.success && result.new_dp !== undefined) {
                     updateCharacterSheet(result.target, result.new_dp);
