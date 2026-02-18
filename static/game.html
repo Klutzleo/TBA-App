@@ -4975,6 +4975,18 @@
                 addMessage(`⚠️ Connected without a Character ID. Enter a valid Character ID in the connection settings to use your character name.`, 'message-card message-system');
                 currentActor = 'User'; // Set fallback
               }
+              // Restore The Calling modal if character is still in it
+              if (data.in_calling && data.character_id) {
+                openCallingModal(
+                  data.character_id,
+                  data.character_name,
+                  data.character_dp,
+                  data.character_ip,
+                  data.character_sp,
+                  data.character_edge || 0,
+                  data.times_called || 0
+                );
+              }
               return;
             }
 

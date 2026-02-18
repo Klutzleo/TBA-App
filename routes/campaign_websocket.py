@@ -233,7 +233,26 @@ async def campaign_websocket(
     campaign_uuid = campaign_id
 
     await manager.connect(campaign_uuid, websocket, user_uuid, display_name, user.username)
-    
+
+    # Send welcome message directly to the connecting user with in_calling state
+    try:
+        welcome_payload = {
+            "type": "welcome",
+            "character_name": display_name,
+            "role": "SW" if not character else "player",
+        }
+        if character:
+            welcome_payload["character_id"] = str(character.id)
+            welcome_payload["in_calling"] = character.in_calling or False
+            welcome_payload["times_called"] = character.times_called or 0
+            welcome_payload["character_ip"] = character.ip or 0
+            welcome_payload["character_sp"] = character.sp or 0
+            welcome_payload["character_edge"] = character.edge or 0
+            welcome_payload["character_dp"] = character.dp or 0
+        await websocket.send_json(welcome_payload)
+    except Exception:
+        pass
+
     try:
         while True:
             # Receive message from client
