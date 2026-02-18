@@ -1620,3 +1620,280 @@ async def reject_character(
     db.commit()
     logger.info(f"[{request_id}] Character '{char.name}' rejected by SW {current_user.username}. Reason: {reason}")
     return {"message": f"Character '{char.name}' has been rejected.", "character_id": str(char.id)}
+
+
+# ============================================================================
+# THE CALLING SYSTEM
+# ============================================================================
+
+@character_blp_fastapi.post("/{character_id}/the-calling")
+async def resolve_the_calling(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Resolve The Calling for a character at -10 DP.
+    Player chooses IP or SP; backend rolls player die and SW difficulty die.
+    Outcomes: clean (win by 4+), scarred (win by 1-3), dead (lose/tie).
+    """
+    from uuid import UUID
+    from backend.roll_logic import roll_dice
+    from datetime import datetime, timezone
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    char_uuid = UUID(character_id)
+
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    if not char.in_calling:
+        raise HTTPException(status_code=400, detail="This character is not currently in The Calling")
+
+    # 5th time = permanent death, no roll allowed
+    if char.times_called >= 4:
+        raise HTTPException(status_code=400, detail="There is no fifth Calling.")
+
+    stat_choice = req.get("stat_choice", "ip").lower()
+    if stat_choice not in ("ip", "sp"):
+        raise HTTPException(status_code=400, detail="stat_choice must be 'ip' or 'sp'")
+    bap_bonus = int(req.get("bap_bonus", 0))
+
+    # Determine chosen stat value
+    chosen_stat_val = char.ip if stat_choice == "ip" else char.sp
+    stat_label = "IP" if stat_choice == "ip" else "SP"
+
+    # Player roll: 1d6 + chosen stat + edge + bap
+    player_die_roll = roll_dice("1d6")[0]
+    player_total = player_die_roll + chosen_stat_val + (char.edge or 0) + bap_bonus
+
+    # SW difficulty die scales with character level
+    if char.level <= 3:
+        sw_die_str = "1d6"
+    elif char.level <= 6:
+        sw_die_str = "1d8"
+    elif char.level <= 9:
+        sw_die_str = "1d10"
+    else:
+        sw_die_str = "1d12"
+
+    sw_die_roll = roll_dice(sw_die_str)[0]
+    margin = player_total - sw_die_roll
+
+    # Determine outcome
+    if margin >= 4:
+        outcome = "clean"
+    elif margin >= 1:
+        outcome = "scarred"
+    else:
+        outcome = "dead"
+
+    # Apply DB changes
+    char.times_called = (char.times_called or 0) + 1
+    char.in_calling = False
+    char.has_faced_calling_this_encounter = True
+
+    if outcome in ("clean", "scarred"):
+        char.dp = 1
+        if outcome == "scarred":
+            char.is_called = True
+    else:
+        # Death: archive the character
+        char.status = 'archived'
+        char.dp = char.dp  # Leave DP as-is (at -10 or worse)
+
+    db.commit()
+    db.refresh(char)
+    logger.info(f"[{request_id}] The Calling resolved for '{char.name}': {outcome} (margin {margin})")
+
+    # Build result payload
+    narrative_map = {
+        "clean": f"{char.name} fights back The Calling — unmarked, unbroken.",
+        "scarred": f"{char.name} survives The Calling, but marked by death.",
+        "dead": f"{char.name} has fallen to The Calling. A Memory Echo remains."
+    }
+    result_payload = {
+        "type": "calling_result",
+        "character_id": str(char.id),
+        "character_name": char.name,
+        "survived": outcome != "dead",
+        "outcome": outcome,
+        "margin": margin,
+        "player_roll": player_die_roll,
+        "player_stat": chosen_stat_val,
+        "edge": char.edge or 0,
+        "bap": bap_bonus,
+        "player_total": player_total,
+        "sw_die": sw_die_str,
+        "sw_roll": sw_die_roll,
+        "sw_total": sw_die_roll,
+        "stat_used": stat_label,
+        "new_dp": char.dp,
+        "times_called": char.times_called,
+        "narrative": narrative_map[outcome]
+    }
+
+    # Broadcast to campaign
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(char.campaign_id, result_payload))
+        # If character died, also broadcast so player drops to spectator
+        if outcome == "dead":
+            asyncio.create_task(manager.broadcast(char.campaign_id, {
+                "type": "character_archived",
+                "character_id": str(char.id),
+                "character_name": char.name
+            }))
+    except Exception as e:
+        logger.warning(f"Could not broadcast calling_result: {e}")
+
+    return result_payload
+
+
+@character_blp_fastapi.post("/{character_id}/battle-scar")
+async def add_battle_scar(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Append a battle scar description to a character's battle_scars JSON (SW only)."""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+    from datetime import datetime, timezone
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    # Verify SW
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can add battle scars")
+
+    scar_text = req.get("scar", "").strip()
+    if not scar_text:
+        raise HTTPException(status_code=400, detail="scar text is required")
+
+    existing_scars = char.battle_scars or []
+    new_scar = {
+        "description": scar_text,
+        "times_called": char.times_called,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    char.battle_scars = existing_scars + [new_scar]
+    db.commit()
+
+    return {"message": "Battle scar saved.", "battle_scars": char.battle_scars}
+
+
+@character_blp_fastapi.post("/{character_id}/called-check")
+async def called_check(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Trigger a Called check for a character with 'The Called' status (SW only).
+    Rolls 1d6: 1-2 nightmare (-1 next roll), 3-5 peaceful, 6 vision (+1 next roll).
+    Broadcasts result to campaign.
+    """
+    from uuid import UUID
+    from backend.models import CampaignMembership
+    from backend.roll_logic import roll_dice
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    char_uuid = UUID(character_id)
+
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    if not char.is_called:
+        raise HTTPException(status_code=400, detail="This character does not have 'The Called' status")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can trigger Called checks")
+
+    roll = roll_dice("1d6")[0]
+    if roll <= 2:
+        effect = "nightmare"
+        modifier = -1
+        narrative = f"{char.name} is haunted by nightmares of The Calling. -1 to their next roll."
+    elif roll <= 5:
+        effect = "peaceful"
+        modifier = 0
+        narrative = f"{char.name} rests without incident."
+    else:
+        effect = "vision"
+        modifier = 1
+        narrative = f"{char.name} receives a prophetic vision from The Calling. +1 to their next roll."
+
+    result = {
+        "type": "called_check_result",
+        "character_id": str(char.id),
+        "character_name": char.name,
+        "roll": roll,
+        "effect": effect,
+        "modifier": modifier,
+        "narrative": narrative
+    }
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(char.campaign_id, result))
+    except Exception as e:
+        logger.warning(f"Could not broadcast called_check_result: {e}")
+
+    logger.info(f"[{request_id}] Called check for '{char.name}': roll {roll} → {effect}")
+    return result
+
+
+@character_blp_fastapi.post("/{character_id}/cleanse-called")
+async def cleanse_called(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Remove 'The Called' status from a character via ritual cleansing (SW only). Death counter remains."""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    char_uuid = UUID(character_id)
+
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can cleanse The Called status")
+
+    char.is_called = False
+    db.commit()
+
+    logger.info(f"[{request_id}] 'The Called' status cleared for '{char.name}' (times_called remains {char.times_called})")
+    return {
+        "message": f"'{char.name}' has been cleansed. The Called status removed.",
+        "times_called": char.times_called
+    }

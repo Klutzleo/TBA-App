@@ -228,6 +228,8 @@ class Character(Base):
     status = Column(String, nullable=False, default='active')  # 'active', 'unconscious', 'dead', 'pending_approval', 'rejected'
     in_calling = Column(Boolean, nullable=False, default=False)  # Currently in The Calling state (at -10 DP)
     rejection_reason = Column(Text, nullable=True)  # Set by SW when rejecting a character in approval_required mode
+    battle_scars = Column(JSON, nullable=True, default=list)  # Array of scar descriptions from surviving The Calling
+    has_faced_calling_this_encounter = Column(Boolean, nullable=False, default=False)  # Prevent re-triggering in same encounter
 
     # Relationships
     user = relationship("User", back_populates="characters", foreign_keys=[user_id])

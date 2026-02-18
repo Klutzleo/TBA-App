@@ -1038,6 +1038,12 @@ async def handle_ability_macro(
             result["text"] += f"\n⚠️ {target_name} has reached -10 DP and enters The Calling!"
             result["calling_triggered"] = True
             result["calling_message"] = f"{target_name} enters The Calling!"
+            result["character_id"] = str(target_id)
+            result["defender_ip"] = target.ip
+            result["defender_sp"] = target.sp
+            result["defender_edge"] = target.edge or 0
+            result["defender_times_called"] = target.times_called or 0
+            result["defender_new_dp"] = new_dp
 
         return result
 
@@ -1484,6 +1490,11 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
                 "auto_defense": True,
                 "knocked_out": knocked_out,
                 "calling_triggered": calling_triggered,
+                "character_id": str(char.id) if calling_triggered and char else None,
+                "defender_ip": char.ip if calling_triggered and char else None,
+                "defender_sp": char.sp if calling_triggered and char else None,
+                "defender_edge": (char.edge or 0) if calling_triggered and char else None,
+                "defender_times_called": (char.times_called or 0) if calling_triggered and char else None,
                 "party_id": party_id
             }
 

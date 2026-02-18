@@ -577,16 +577,24 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         db.commit()
 
         # =====================================================================
-        # Check for knockout / The Challenge
+        # Check for knockout / The Calling
         # =====================================================================
         if defender.dp <= 0:
-            if defender.dp <= -10:
-                # The Challenge triggered!
+            if defender.dp <= -10 and not defender.is_npc and not defender.in_calling:
+                # The Calling triggered!
+                defender.in_calling = True
+                db.commit()
                 await manager.broadcast(campaign_id, {
-                    "type": "system",
-                    "text": f"💀 {defender.name} has entered The Challenge! (DP: {defender.dp})"
+                    "type": "calling_triggered",
+                    "character_id": str(defender.id),
+                    "defender": defender.name,
+                    "defender_new_dp": defender.dp,
+                    "defender_ip": defender.ip,
+                    "defender_sp": defender.sp,
+                    "defender_edge": defender.edge or 0,
+                    "defender_times_called": defender.times_called or 0
                 })
-            else:
+            elif defender.dp <= 0:
                 # Just knocked out
                 await manager.broadcast(campaign_id, {
                     "type": "system",

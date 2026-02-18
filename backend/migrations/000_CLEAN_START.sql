@@ -129,6 +129,8 @@ CREATE TABLE IF NOT EXISTS characters (
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     in_calling BOOLEAN NOT NULL DEFAULT FALSE,
     rejection_reason TEXT,
+    battle_scars JSON DEFAULT '[]',
+    has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -147,6 +149,18 @@ END $$;
 
 DO $$ BEGIN
     ALTER TABLE characters ADD COLUMN IF NOT EXISTS parent_character_id UUID REFERENCES characters(id) ON DELETE CASCADE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS battle_scars JSON DEFAULT '[]';
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
