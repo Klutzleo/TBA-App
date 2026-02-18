@@ -4464,54 +4464,80 @@
 
                 const header = document.createElement('div');
                 header.style.fontWeight = 'bold';
-                header.style.marginBottom = '8px';
+                header.style.marginBottom = '4px';
                 header.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
-                container.appendChild(header);
 
-                // Narrative
                 const narrative = document.createElement('div');
                 narrative.style.fontStyle = 'italic';
                 narrative.style.marginBottom = '8px';
                 narrative.textContent = data.narrative || '';
-                container.appendChild(narrative);
 
-                // Roll details per target (history)
-                if (Array.isArray(data.results)) {
-                  const fmt = arr => arr ? `[${arr.join('+')}]` : '';
+                const buildBreakdownLinesHist = (r, effect_type) => {
+                  const lines = [];
+                  if (!r.success && r.message === 'Target not found') {
+                    lines.push(`❌ ${r.target}: Target not found`);
+                    return lines;
+                  }
+                  if (effect_type === 'damage') {
+                    const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp} → ${r.new_dp})` : `💨 Miss`;
+                    lines.push(`vs ${r.target}  →  ${outcome}`);
+                    lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
+                    lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
+                  } else if (effect_type === 'heal') {
+                    lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
+                    lines.push(`  💚 Roll: ${r.roll_breakdown}`);
+                  } else if (effect_type === 'buff') {
+                    lines.push(`→ ${r.target}  Power ${r.buff_value}`);
+                    lines.push(`  ✨ Roll: ${r.roll_breakdown}`);
+                  } else if (effect_type === 'debuff') {
+                    const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
+                    lines.push(`vs ${r.target}  →  ${outcome}`);
+                    lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
+                    lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
+                  }
+                  return lines;
+                };
+
+                if (Array.isArray(data.results) && data.results.length > 0) {
+                  const bd = document.createElement('div');
+                  bd.style.fontFamily = 'monospace';
+                  bd.style.fontSize = '12px';
+                  bd.style.marginTop = '4px';
+                  bd.style.marginBottom = '4px';
+                  bd.style.color = 'var(--text-secondary)';
+                  bd.style.whiteSpace = 'pre';
+                  bd.style.display = isSW() ? 'block' : 'none';
+
                   data.results.forEach(r => {
-                    const row = document.createElement('div');
-                    row.style.fontSize = '12px';
-                    row.style.color = 'var(--text-muted)';
-                    row.style.marginBottom = '2px';
-                    row.style.fontFamily = 'monospace';
-                    if (!r.success && r.message === 'Target not found') {
-                      row.style.color = 'var(--danger, #f44)';
-                      row.textContent = `${r.target}: Target not found`;
-                    } else if (data.effect_type === 'damage') {
-                      const atkStr = `⚔️ ${fmt(r.attack_dice)}+${r.attack_stat}+${r.attack_edge}edge=${r.attack_roll}`;
-                      const defStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
-                      const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp}→${r.new_dp})` : `💨 Miss`;
-                      row.textContent = `${r.target}: ${atkStr} vs ${defStr} → ${outcome}`;
-                    } else if (data.effect_type === 'heal') {
-                      const rollStr = `${fmt(r.roll_dice)}+${r.roll_stat}stat`;
-                      row.textContent = `${r.target}: 💚 ${rollStr}=${r.roll + (r.roll_stat || 0)} → +${r.healing} DP (${r.old_dp}→${r.new_dp})`;
-                    } else if (data.effect_type === 'buff') {
-                      row.textContent = `${r.target}: ✨ ${fmt(r.roll_dice)}+${r.roll_stat}stat → Power ${r.buff_value}`;
-                    } else if (data.effect_type === 'debuff') {
-                      const cStr = `⚔️ ${fmt(r.caster_dice)}+${r.caster_stat}+${r.caster_edge}edge=${r.caster_roll}`;
-                      const dStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
-                      const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
-                      row.textContent = `${r.target}: ${cStr} vs ${dStr} → ${outcome}`;
-                    }
-                    container.appendChild(row);
+                    buildBreakdownLinesHist(r, data.effect_type).forEach(line => {
+                      bd.textContent += line + '\n';
+                    });
                   });
+
+                  const toggle = document.createElement('a');
+                  toggle.href = '#';
+                  toggle.style.fontSize = '11px';
+                  toggle.style.marginLeft = '8px';
+                  toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+                  toggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const showing = bd.style.display !== 'none';
+                    bd.style.display = showing ? 'none' : 'block';
+                    toggle.textContent = showing ? 'Show details' : 'Hide details';
+                  });
+
+                  header.appendChild(toggle);
+                  container.appendChild(header);
+                  container.appendChild(narrative);
+                  container.appendChild(bd);
+                } else {
+                  container.appendChild(header);
+                  container.appendChild(narrative);
                 }
 
-                // Uses remaining
                 const usesInfo = document.createElement('div');
                 usesInfo.style.fontSize = '12px';
                 usesInfo.style.color = 'var(--text-muted)';
-                usesInfo.style.marginTop = '4px';
                 usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
                 container.appendChild(usesInfo);
 
@@ -5094,55 +5120,84 @@
 
               const header = document.createElement('div');
               header.style.fontWeight = 'bold';
-              header.style.marginBottom = '8px';
+              header.style.marginBottom = '4px';
               header.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
-              container.appendChild(header);
 
               // Narrative
               const narrative = document.createElement('div');
               narrative.style.fontStyle = 'italic';
               narrative.style.marginBottom = '8px';
               narrative.textContent = data.narrative || '';
-              container.appendChild(narrative);
 
-              // Roll details per target
-              if (Array.isArray(data.results)) {
-                const fmt = arr => arr ? `[${arr.join('+')}]` : '';
+              // Per-target roll breakdowns (collapsible — SW always open, players toggle)
+              const buildBreakdownLines = (r, effect_type) => {
+                const lines = [];
+                if (!r.success && r.message === 'Target not found') {
+                  lines.push(`❌ ${r.target}: Target not found`);
+                  return lines;
+                }
+                if (effect_type === 'damage') {
+                  const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp} → ${r.new_dp})` : `💨 Miss`;
+                  lines.push(`vs ${r.target}  →  ${outcome}`);
+                  lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
+                  lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
+                } else if (effect_type === 'heal') {
+                  lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
+                  lines.push(`  💚 Roll: ${r.roll_breakdown}`);
+                } else if (effect_type === 'buff') {
+                  lines.push(`→ ${r.target}  Power ${r.buff_value}`);
+                  lines.push(`  ✨ Roll: ${r.roll_breakdown}`);
+                } else if (effect_type === 'debuff') {
+                  const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
+                  lines.push(`vs ${r.target}  →  ${outcome}`);
+                  lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
+                  lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
+                }
+                return lines;
+              };
+
+              if (Array.isArray(data.results) && data.results.length > 0) {
+                const bd = document.createElement('div');
+                bd.style.fontFamily = 'monospace';
+                bd.style.fontSize = '12px';
+                bd.style.marginTop = '4px';
+                bd.style.marginBottom = '4px';
+                bd.style.color = 'var(--text-secondary)';
+                bd.style.whiteSpace = 'pre';
+                bd.style.display = isSW() ? 'block' : 'none';
+
                 data.results.forEach(r => {
-                  const row = document.createElement('div');
-                  row.style.fontSize = '12px';
-                  row.style.color = 'var(--text-muted)';
-                  row.style.marginBottom = '2px';
-                  row.style.fontFamily = 'monospace';
-                  if (!r.success && r.message === 'Target not found') {
-                    row.style.color = 'var(--danger, #f44)';
-                    row.textContent = `${r.target}: Target not found`;
-                  } else if (data.effect_type === 'damage') {
-                    const atkStr = `⚔️ ${fmt(r.attack_dice)}+${r.attack_stat}+${r.attack_edge}edge=${r.attack_roll}`;
-                    const defStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
-                    const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp}→${r.new_dp})` : `💨 Miss`;
-                    row.textContent = `${r.target}: ${atkStr} vs ${defStr} → ${outcome}`;
-                  } else if (data.effect_type === 'heal') {
-                    const rollStr = `${fmt(r.roll_dice)}+${r.roll_stat}stat`;
-                    row.textContent = `${r.target}: 💚 ${rollStr}=${r.roll + (r.roll_stat || 0)} → +${r.healing} DP (${r.old_dp}→${r.new_dp})`;
-                  } else if (data.effect_type === 'buff') {
-                    row.textContent = `${r.target}: ✨ ${fmt(r.roll_dice)}+${r.roll_stat}stat → Power ${r.buff_value}`;
-                  } else if (data.effect_type === 'debuff') {
-                    const cStr = `⚔️ ${fmt(r.caster_dice)}+${r.caster_stat}+${r.caster_edge}edge=${r.caster_roll}`;
-                    const dStr = `🛡️ ${fmt(r.defense_dice)}+${r.defense_stat}pp=${r.defense_roll}`;
-                    const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
-                    row.textContent = `${r.target}: ${cStr} vs ${dStr} → ${outcome}`;
-                  }
-                  container.appendChild(row);
+                  buildBreakdownLines(r, data.effect_type).forEach(line => {
+                    bd.textContent += line + '\n';
+                  });
                 });
+
+                const toggle = document.createElement('a');
+                toggle.href = '#';
+                toggle.style.fontSize = '11px';
+                toggle.style.marginLeft = '8px';
+                toggle.textContent = isSW() ? 'Hide details' : 'Show details';
+                toggle.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  const showing = bd.style.display !== 'none';
+                  bd.style.display = showing ? 'none' : 'block';
+                  toggle.textContent = showing ? 'Show details' : 'Hide details';
+                });
+
+                header.appendChild(toggle);
+                container.appendChild(header);
+                container.appendChild(narrative);
+                container.appendChild(bd);
+              } else {
+                container.appendChild(header);
+                container.appendChild(narrative);
               }
 
               // Uses remaining
               const usesInfo = document.createElement('div');
               usesInfo.style.fontSize = '12px';
               usesInfo.style.color = 'var(--text-muted)';
-              usesInfo.style.marginTop = '4px';
-              usesInfo.textContent = `Uses remaining: ${data.uses_remaining}`;
+              usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
               container.appendChild(usesInfo);
 
               const tabIndicator = document.createElement('span');

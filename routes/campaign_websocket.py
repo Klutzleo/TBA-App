@@ -602,6 +602,12 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
 
 
 
+def _dice_str(die_type: str, rolls: list) -> str:
+    """Format dice rolls as e.g. '2d6(3+5)'"""
+    inner = "+".join(str(r) for r in rolls)
+    return f"{die_type}({inner})"
+
+
 async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocket, user_id: UUID, db: Session):
     """
     Handle custom ability/spell/technique casting.
@@ -713,9 +719,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 attack_roll_result = roll_dice(attack_dice)  # Returns list like [3, 5]
                 attack_total = sum(attack_roll_result) + power_stat + caster.edge
 
-                # Roll defense: target's defense die + PP
+                # Roll defense: target's defense die + PP + Edge (matches spell_cast formula)
                 defense_roll_result = roll_dice(target.defense_die)  # Returns list
-                defense_total = sum(defense_roll_result) + target.pp
+                target_edge = target.edge or 0
+                defense_total = sum(defense_roll_result) + target.pp + target_edge
 
                 # Calculate damage
                 margin = attack_total - defense_total
@@ -727,6 +734,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 db.commit()
 
                 outcome = "hit" if damage > 0 else "miss"
+                atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
+                def_rolls_str = " + ".join(str(r) for r in defense_roll_result)
+                atk_breakdown = f"{ability.die} = [{atk_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}) = {attack_total}"
+                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + PP({target.pp}) + Edge({target_edge}) = {defense_total}"
                 results.append({
                     "target": target_name,
                     "success": True,
@@ -734,12 +745,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "old_dp": old_dp,
                     "new_dp": target.dp,
                     "attack_roll": attack_total,
-                    "attack_dice": attack_roll_result,
-                    "attack_stat": power_stat,
-                    "attack_edge": caster.edge,
+                    "attack_breakdown": atk_breakdown,
                     "defense_roll": defense_total,
-                    "defense_dice": defense_roll_result,
-                    "defense_stat": target.pp,
+                    "defense_breakdown": def_breakdown,
                     "margin": margin,
                     "outcome": outcome
                 })
@@ -781,15 +789,15 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 actual_healing = target.dp - old_dp
                 db.commit()
 
+                heal_rolls_str = " + ".join(str(r) for r in heal_roll_result)
+                heal_breakdown = f"{ability.die} = [{heal_rolls_str}] + {ability.power_source}({power_stat}) = {healing}"
                 results.append({
                     "target": target_name,
                     "success": True,
                     "healing": actual_healing,
                     "old_dp": old_dp,
                     "new_dp": target.dp,
-                    "roll": heal_roll_total,
-                    "roll_dice": heal_roll_result,
-                    "roll_stat": power_stat
+                    "roll_breakdown": heal_breakdown
                 })
 
                 narrative_parts.append(f"{target_name} restores {actual_healing} DP (DP: {old_dp} → {target.dp})")
@@ -805,14 +813,14 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             buff_roll_total = sum(buff_roll)
             buff_value = buff_roll_total + power_stat
 
+            buff_rolls_str = " + ".join(str(r) for r in buff_roll)
+            buff_breakdown = f"{ability.die} = [{buff_rolls_str}] + {ability.power_source}({power_stat}) = {buff_value}"
             for target_name in target_names:
                 results.append({
                     "target": target_name,
                     "success": True,
                     "buff_value": buff_value,
-                    "roll": buff_roll_total,
-                    "roll_dice": buff_roll,
-                    "roll_stat": power_stat
+                    "roll_breakdown": buff_breakdown
                 })
                 narrative_parts.append(f"{target_name} receives {ability.display_name}! (Power: {buff_value})")
 
@@ -840,26 +848,28 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     })
                     continue
 
-                # Contested roll: caster's ability vs target's defense
+                # Contested roll: caster's ability vs target's defense (matches spell_cast formula)
                 caster_roll = roll_dice(ability.die)  # Returns list
                 caster_total = sum(caster_roll) + power_stat + caster.edge
 
                 defense_roll = roll_dice(target.defense_die)  # Returns list
-                defense_total = sum(defense_roll) + target.pp
+                target_edge = target.edge or 0
+                defense_total = sum(defense_roll) + target.pp + target_edge
 
                 margin = caster_total - defense_total
                 success = margin > 0
 
+                cast_rolls_str = " + ".join(str(r) for r in caster_roll)
+                def_rolls_str = " + ".join(str(r) for r in defense_roll)
+                atk_breakdown = f"{ability.die} = [{cast_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}) = {caster_total}"
+                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + PP({target.pp}) + Edge({target_edge}) = {defense_total}"
                 results.append({
                     "target": target_name,
                     "success": success,
                     "caster_roll": caster_total,
-                    "caster_dice": caster_roll,
-                    "caster_stat": power_stat,
-                    "caster_edge": caster.edge,
                     "defense_roll": defense_total,
-                    "defense_dice": defense_roll,
-                    "defense_stat": target.pp,
+                    "attack_breakdown": atk_breakdown,
+                    "defense_breakdown": def_breakdown,
                     "margin": margin,
                     "debuff_strength": max(0, margin)
                 })
@@ -880,11 +890,14 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         broadcast = AbilityCastBroadcast(
             caster=caster.name,
             ability_name=ability.display_name,
+            ability_die=ability.die,
+            power_source=ability.power_source,
             effect_type=ability.effect_type,
             targets=target_names,
             results=results,
             narrative=narrative,
-            uses_remaining=ability.uses_remaining
+            uses_remaining=ability.uses_remaining,
+            max_uses=ability.max_uses
         )
         await manager.broadcast(campaign_id, broadcast.model_dump(mode='json'))
 
@@ -899,6 +912,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             extra_data={
                 "caster": caster.name,
                 "ability_name": ability.display_name,
+                "ability_die": ability.die,
+                "power_source": ability.power_source,
                 "effect_type": ability.effect_type,
                 "targets": target_names,
                 "results": results,

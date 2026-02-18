@@ -106,11 +106,14 @@ class AbilityCastBroadcast(BaseModel):
     type: Literal["ability_cast"] = "ability_cast"
     caster: str  # Character name
     ability_name: str  # Display name of ability
+    ability_die: str  # Die notation e.g. "2d6"
+    power_source: str  # "PP", "IP", or "SP"
     effect_type: str  # "damage", "heal", "buff", "debuff"
     targets: List[str]  # Target character names
     results: List[Dict[str, Any]]  # Per-target results (damage/healing amounts, rolls)
     narrative: str  # Descriptive outcome text
     uses_remaining: int  # Remaining charges for this ability
+    max_uses: int
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
