@@ -545,10 +545,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         )
         
         # =====================================================================
-        # Apply damage and persist to database
+        # Apply damage and persist to database (no floor — can go negative for The Calling)
         # =====================================================================
         old_dp = defender.dp
-        defender.dp = max(0, defender.dp - result["total_damage"])
+        defender.dp = defender.dp - result["total_damage"]
         db.commit()
         
         logger.info(
