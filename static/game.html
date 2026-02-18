@@ -2011,29 +2011,50 @@
         <!-- Phase 1: Setup -->
         <div id="callingSetup">
           <p id="callingCharLabel" style="font-weight:bold; font-size:1.1rem; margin-bottom:4px;"></p>
-          <p id="callingDpLabel" style="color:var(--accent-danger); margin-bottom:16px;"></p>
+          <p id="callingDpLabel" style="color:var(--accent-danger); margin-bottom:12px;"></p>
           <div style="display:flex; gap:12px; margin-bottom:16px;">
             <div class="calling-stat-box"><span>IP</span><strong id="callingIPVal"></strong></div>
             <div class="calling-stat-box"><span>SP</span><strong id="callingSPVal"></strong></div>
             <div class="calling-stat-box"><span>Edge</span><strong id="callingEdgeVal"></strong></div>
             <div class="calling-stat-box"><span>Times Called</span><strong id="callingTimesVal"></strong></div>
           </div>
-          <p style="font-style:italic; color:var(--text-muted); margin-bottom:16px; font-size:0.9rem;">
-            "What do you see? What do you fight to return to?"
-          </p>
-          <!-- BAP input (SW only) -->
-          <div id="callingBapRow" style="display:none; margin-bottom:12px;">
-            <label style="font-size:0.85rem; color:var(--text-muted);">SW: Grant BAP bonus?</label>
+
+          <!-- Narrative prompts — shown to the affected player -->
+          <div id="callingNarrativeSection" style="display:none; background:rgba(220,38,38,0.08); border:1px solid var(--accent-danger); border-radius:var(--radius-sm); padding:12px; margin-bottom:16px;">
+            <p style="font-style:italic; color:var(--text-primary); margin:0 0 6px; font-size:0.95rem;">"What do you see?"</p>
+            <p style="font-style:italic; color:var(--text-primary); margin:0 0 6px; font-size:0.95rem;">"What do you fight to return to?"</p>
+            <p style="font-style:italic; color:var(--text-primary); margin:0; font-size:0.95rem;">"Who are you fighting for?"</p>
+          </div>
+
+          <!-- Waiting message — shown to SW and observers -->
+          <p id="callingWaitingMsg" style="display:none; text-align:center; font-style:italic; color:var(--text-muted); margin-bottom:12px;"></p>
+
+          <!-- BAP input — SW only -->
+          <div id="callingBapRow" style="display:none; margin-bottom:16px;">
+            <label style="font-size:0.85rem; color:var(--text-muted);">Grant BAP bonus to player:</label>
             <input id="callingBap" type="number" min="0" max="5" value="0"
               style="width:60px; margin-left:8px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:4px; color:var(--text-primary); padding:2px 6px;">
           </div>
-          <!-- Stat choice -->
-          <p style="margin-bottom:8px; font-size:0.9rem; color:var(--text-muted);">Player chooses their stat:</p>
-          <div style="display:flex; gap:10px; margin-bottom:16px;">
-            <button class="btn" id="callingRollIP" onclick="resolveTheCalling('ip')" style="flex:1;">🧠 Roll with IP</button>
-            <button class="btn" id="callingRollSP" onclick="resolveTheCalling('sp')" style="flex:1; background:var(--accent-secondary);">💬 Roll with SP</button>
+
+          <!-- Roll buttons — player sees prominently, SW sees as backup in collapsed section -->
+          <div id="callingPlayerRoll" style="display:none; margin-bottom:12px;">
+            <p style="margin-bottom:8px; font-size:0.9rem; font-weight:bold;">Choose your stat to fight back:</p>
+            <div style="display:flex; gap:10px;">
+              <button class="btn" id="callingRollIP" onclick="resolveTheCalling('ip')" style="flex:1;">🧠 Roll with IP</button>
+              <button class="btn" id="callingRollSP" onclick="resolveTheCalling('sp')" style="flex:1; background:var(--accent-secondary);">💬 Roll with SP</button>
+            </div>
           </div>
-          <button class="btn-secondary btn" style="width:100%;" onclick="closeCallingModal()">Dismiss</button>
+
+          <!-- SW backup roll — collapsed by default -->
+          <details id="callingSWBackupRoll" style="display:none; margin-bottom:12px;">
+            <summary style="font-size:0.8rem; color:var(--text-muted); cursor:pointer;">Roll for player (backup — only if they're offline)</summary>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+              <button class="btn btn-secondary" onclick="resolveTheCalling('ip')" style="flex:1; font-size:0.85rem;">🧠 IP (backup)</button>
+              <button class="btn btn-secondary" onclick="resolveTheCalling('sp')" style="flex:1; font-size:0.85rem;">💬 SP (backup)</button>
+            </div>
+          </details>
+
+          <button class="btn-secondary btn" style="width:100%;" onclick="closeCallingModal()">Close</button>
         </div>
         <!-- Phase 2: Result -->
         <div id="callingResultPane" style="display:none;">
@@ -2491,6 +2512,10 @@
             const pc = playerCharacters.find(c => !c.is_ally);
             if (pc) {
               activeSpeaker = { id: pc.id, name: pc.name, type: 'pc' };
+              // If character is in The Calling (e.g. player joined late), auto-open modal
+              if (pc.in_calling) {
+                openCallingModal(pc.id, pc.name, pc.dp, pc.ip, pc.sp, pc.edge || 0, pc.times_called || 0);
+              }
             }
           }
         }
@@ -3325,30 +3350,54 @@
 
     function openCallingModal(charId, charName, currentDp, ip, sp, edge, timesCalled) {
       callingCharId = charId;
-      document.getElementById('callingCharLabel').textContent = `${charName} enters The Calling!`;
-      document.getElementById('callingDpLabel').textContent = `Current DP: ${currentDp}`;
+      const isAffectedPlayer = characterId === charId;
+      const isSWUser = userRole === 'SW';
+
+      // Shared fields
       document.getElementById('callingIPVal').textContent = ip;
       document.getElementById('callingSPVal').textContent = sp;
       document.getElementById('callingEdgeVal').textContent = edge;
       document.getElementById('callingTimesVal').textContent = timesCalled;
       document.getElementById('callingSetup').style.display = '';
       document.getElementById('callingResultPane').style.display = 'none';
-      document.getElementById('callingBapRow').style.display = userRole === 'SW' ? '' : 'none';
       if (document.getElementById('callingBap')) document.getElementById('callingBap').value = 0;
-      // Only the affected player and SW can roll — disable buttons for everyone else
-      const canRoll = userRole === 'SW' || characterId === charId;
-      ['callingRollIP', 'callingRollSP'].forEach(id => {
-        const btn = document.getElementById(id);
-        btn.disabled = !canRoll;
-        btn.style.opacity = canRoll ? '' : '0.4';
-        btn.title = canRoll ? '' : 'Only the affected player or SW can roll';
-      });
+
+      // Role-based header text
+      if (isAffectedPlayer) {
+        document.getElementById('callingCharLabel').textContent = `You have entered The Calling!`;
+      } else {
+        document.getElementById('callingCharLabel').textContent = `${charName} has entered The Calling!`;
+      }
+      document.getElementById('callingDpLabel').textContent = `Current DP: ${currentDp}`;
+
+      // Narrative prompts — player only
+      document.getElementById('callingNarrativeSection').style.display = isAffectedPlayer ? '' : 'none';
+
+      // Waiting message — SW and observers (not the affected player)
+      const waitingEl = document.getElementById('callingWaitingMsg');
+      if (!isAffectedPlayer) {
+        waitingEl.textContent = `Waiting for ${charName} to roll their fate...`;
+        waitingEl.style.display = '';
+      } else {
+        waitingEl.style.display = 'none';
+      }
+
+      // BAP input — SW only
+      document.getElementById('callingBapRow').style.display = isSWUser ? '' : 'none';
+
+      // Roll buttons — affected player only (prominently)
+      document.getElementById('callingPlayerRoll').style.display = isAffectedPlayer ? '' : 'none';
+
+      // SW backup roll — SW only, collapsed
+      document.getElementById('callingSWBackupRoll').style.display = isSWUser ? '' : 'none';
+
       document.getElementById('theCallingModal').classList.add('active');
     }
 
     function closeCallingModal() {
       document.getElementById('theCallingModal').classList.remove('active');
-      callingCharId = null;
+      // Note: callingCharId stays set — in_calling is still true in DB.
+      // If the modal is reopened (e.g. page refresh), it will auto-reopen.
     }
 
     async function resolveTheCalling(statChoice) {
@@ -4932,7 +4981,13 @@
                   data.defender_ip, data.defender_sp, data.defender_edge, data.defender_times_called);
               }
             } else if (data.type === 'calling_triggered') {
-              // Direct calling trigger (from ability cast in campaign_websocket.py)
+              // Dramatic story broadcast visible to everyone
+              const dramaDiv = document.createElement('div');
+              dramaDiv.className = 'message-card';
+              dramaDiv.style.cssText = 'border:2px solid var(--accent-danger); background:rgba(220,38,38,0.1); text-align:center; padding:16px; margin:8px 0;';
+              dramaDiv.innerHTML = `<div style="font-size:1.3rem; font-weight:bold; color:var(--accent-danger);">💀 THE CALLING</div><div style="margin-top:6px; color:var(--text-primary);">${data.defender} has been pulled to the threshold! <span style="color:var(--accent-danger);">(DP: ${data.defender_new_dp})</span></div>`;
+              storeAndDisplayMessage(dramaDiv, { type: 'calling_drama', actor: 'system' });
+              // Open modal for all clients
               openCallingModal(data.character_id, data.defender, data.defender_new_dp,
                 data.defender_ip, data.defender_sp, data.defender_edge, data.defender_times_called);
             } else if (data.type === 'calling_result') {
@@ -5519,10 +5574,36 @@
         };
 
         ws.onclose = (ev) => {
-          addMessage(`Disconnected (code ${ev.code}).`, 'message-card message-system');
           updateConnectionStatus(false);
           sendBtn.disabled = true;
           ws = null;
+
+          // Auto-reconnect unless it was a deliberate close (1000 = normal) or auth error (4001)
+          const noReconnect = ev.code === 1000 || ev.code === 4001;
+          if (noReconnect) {
+            addMessage(`Disconnected.`, 'message-card message-system');
+            return;
+          }
+
+          let attempt = 0;
+          const maxAttempts = 5;
+          const tryReconnect = () => {
+            attempt++;
+            if (attempt > maxAttempts) {
+              addMessage(`⚠️ Could not reconnect after ${maxAttempts} attempts. Please refresh the page.`, 'message-card message-system');
+              return;
+            }
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 15000); // 1s, 2s, 4s, 8s, 15s
+            addMessage(`⚠️ Disconnected. Reconnecting in ${Math.round(delay / 1000)}s... (attempt ${attempt}/${maxAttempts})`, 'message-card message-system');
+            setTimeout(async () => {
+              try {
+                await connectToCampaign();
+              } catch {
+                tryReconnect();
+              }
+            }, delay);
+          };
+          tryReconnect();
         };
       } catch (e) {
         addMessage(`Failed to connect: ${e.message}`, 'message-card message-error');
