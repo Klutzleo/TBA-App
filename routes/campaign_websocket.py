@@ -905,8 +905,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 else:
                     narrative_parts.append(f"{target_name} resists {ability.display_name}!")
 
-        # Decrement uses
-        ability.uses_remaining -= 1
+        # Decrement uses only if at least one target was actually found (not a typo/miss-target)
+        all_targets_missing = results and all(r.get("message") == "Target not found" for r in results)
+        if not all_targets_missing:
+            ability.uses_remaining -= 1
         db.commit()
 
         # Generate narrative (header already shows caster + ability, so just show outcomes)

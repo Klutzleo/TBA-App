@@ -2019,11 +2019,11 @@
             <div class="calling-stat-box"><span>Times Called</span><strong id="callingTimesVal"></strong></div>
           </div>
 
-          <!-- Narrative prompts — shown to the affected player -->
-          <div id="callingNarrativeSection" style="display:none; background:rgba(220,38,38,0.08); border:1px solid var(--accent-danger); border-radius:var(--radius-sm); padding:12px; margin-bottom:16px;">
-            <p style="font-style:italic; color:var(--text-primary); margin:0 0 6px; font-size:0.95rem;">"What do you see?"</p>
-            <p style="font-style:italic; color:var(--text-primary); margin:0 0 6px; font-size:0.95rem;">"What do you fight to return to?"</p>
-            <p style="font-style:italic; color:var(--text-primary); margin:0; font-size:0.95rem;">"Who are you fighting for?"</p>
+          <!-- Narrative prompt — one random question, shown to the affected player -->
+          <div id="callingNarrativeSection" style="display:none; margin-bottom:12px;">
+            <p id="callingQuestion" style="font-style:italic; color:var(--accent-danger); font-size:1rem; font-weight:bold; margin:0 0 10px; text-align:center;"></p>
+            <textarea id="callingResponse" rows="3" placeholder="Answer before you roll..."
+              style="width:100%; background:var(--bg-secondary); border:1px solid var(--accent-danger); border-radius:var(--radius-sm); color:var(--text-primary); padding:8px; resize:vertical; font-size:0.9rem; box-sizing:border-box;"></textarea>
           </div>
 
           <!-- Waiting message — shown to SW and observers -->
@@ -2038,7 +2038,7 @@
 
           <!-- Roll buttons — player sees prominently, SW sees as backup in collapsed section -->
           <div id="callingPlayerRoll" style="display:none; margin-bottom:12px;">
-            <p style="margin-bottom:8px; font-size:0.9rem; font-weight:bold;">Choose your stat to fight back:</p>
+            <p style="margin-bottom:8px; font-size:0.85rem; color:var(--text-muted);">Your answer will be spoken aloud. Choose your stat to fight back:</p>
             <div style="display:flex; gap:10px;">
               <button class="btn" id="callingRollIP" onclick="resolveTheCalling('ip')" style="flex:1;">🧠 Roll with IP</button>
               <button class="btn" id="callingRollSP" onclick="resolveTheCalling('sp')" style="flex:1; background:var(--accent-secondary);">💬 Roll with SP</button>
@@ -3346,6 +3346,21 @@
     // THE CALLING
     // =========================================================================
 
+    const CALLING_QUESTIONS = [
+      "What do you see at the threshold?",
+      "What have you left unfinished?",
+      "Who needs you to come back?",
+      "What would break if you didn't return?",
+      "What moment are you holding onto?",
+      "What truth have you never spoken?",
+      "What are you still fighting for?",
+      "Is there someone waiting for you?",
+      "What do you still owe the world?",
+      "What are you afraid to leave behind?",
+      "Who would you become, if you survive this?",
+      "What does your life mean to you, right now?",
+    ];
+
     let callingCharId = null;
 
     function openCallingModal(charId, charName, currentDp, ip, sp, edge, timesCalled) {
@@ -3361,6 +3376,13 @@
       document.getElementById('callingSetup').style.display = '';
       document.getElementById('callingResultPane').style.display = 'none';
       if (document.getElementById('callingBap')) document.getElementById('callingBap').value = 0;
+      if (document.getElementById('callingResponse')) document.getElementById('callingResponse').value = '';
+
+      // Pick a random question for the affected player
+      if (isAffectedPlayer) {
+        const q = CALLING_QUESTIONS[Math.floor(Math.random() * CALLING_QUESTIONS.length)];
+        document.getElementById('callingQuestion').textContent = `"${q}"`;
+      }
 
       // Role-based header text
       if (isAffectedPlayer) {
@@ -3404,6 +3426,18 @@
       if (!callingCharId) return;
       if (userRole !== 'SW' && characterId !== callingCharId) return;
       const bap = parseInt(document.getElementById('callingBap')?.value || '0', 10);
+
+      // Broadcast the player's response to chat as an IC message before rolling
+      const responseText = document.getElementById('callingResponse')?.value?.trim();
+      if (responseText && ws && ws.readyState === WebSocket.OPEN) {
+        const question = document.getElementById('callingQuestion')?.textContent || '';
+        ws.send(JSON.stringify({
+          type: 'message',
+          chat_mode: 'ic',
+          text: `${question}\n"${responseText}"`
+        }));
+      }
+
       try {
         const resp = await fetch(`/api/characters/${callingCharId}/the-calling`, {
           method: 'POST',
