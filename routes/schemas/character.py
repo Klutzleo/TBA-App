@@ -105,9 +105,12 @@ class CharacterResponse(BaseModel):
     defense_die: str
     weapon: Optional[dict] = None
     armor: Optional[dict] = None
+    in_calling: bool = False
+    times_called: int = 0
+    is_called: bool = False
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -321,6 +324,9 @@ class FullCharacterResponse(BaseModel):
     weapon_bonus: int
     armor_bonus: int
     status: str
+    in_calling: bool = False
+    times_called: int = 0
+    is_called: bool = False
 
     # Relationships
     abilities: list[AbilityResponse] = []

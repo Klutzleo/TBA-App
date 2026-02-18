@@ -920,6 +920,11 @@
       margin-bottom: 2px;
     }
 
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
     /* === The Calling Stat Boxes === */
     .calling-stat-box {
       flex: 1; text-align: center; padding: 8px 4px;
@@ -5883,10 +5888,17 @@
 
             const characterCard = document.createElement('div');
             characterCard.className = 'character-card';
+            const callingSkull = char.in_calling
+              ? `<button class="btn-icon" title="In The Calling — click to open" style="color:var(--accent-danger); font-size:1.1rem; animation: pulse 1.5s infinite;"
+                  onclick="openCallingModal('${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.dp}, ${char.ip}, ${char.sp}, ${char.edge || 0}, ${char.times_called || 0})">💀</button>`
+              : '';
             characterCard.innerHTML = `
               <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <strong>${char.name}</strong>
-                ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}')">⚙</button>` : ''}
+                <div style="display:flex;gap:4px;align-items:center;">
+                  ${callingSkull}
+                  ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}')">⚙</button>` : ''}
+                </div>
               </div>
               <div class="character-details">
                 <div>Level ${char.level}</div>

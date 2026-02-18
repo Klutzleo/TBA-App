@@ -582,7 +582,10 @@ async def get_campaign_members(
                 "bap": character.bap,
                 "pp": character.pp,
                 "ip": character.ip,
-                "sp": character.sp
+                "sp": character.sp,
+                "in_calling": character.in_calling or False,
+                "times_called": character.times_called or 0,
+                "is_called": character.is_called or False,
             } if character else None
         })
     
