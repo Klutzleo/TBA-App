@@ -3432,15 +3432,27 @@
       if (userRole !== 'SW' && characterId !== callingCharId) return;
       const bap = parseInt(document.getElementById('callingBap')?.value || '0', 10);
 
-      // Broadcast the player's response to chat as an IC message before rolling
+      // Broadcast the player's response as a threshold moment — styled purple, not IC
       const responseText = document.getElementById('callingResponse')?.value?.trim();
-      if (responseText && ws && ws.readyState === WebSocket.OPEN) {
+      if (responseText) {
         const question = document.getElementById('callingQuestion')?.textContent || '';
-        ws.send(JSON.stringify({
-          type: 'message',
-          chat_mode: 'ic',
-          text: `${question}\n"${responseText}"`
-        }));
+        const thresholdDiv = document.createElement('div');
+        thresholdDiv.className = 'message-card';
+        thresholdDiv.style.cssText = 'border-left:4px solid #7c3aed; background:rgba(124,58,237,0.08); padding:12px 16px; margin:4px 0; border-radius:4px;';
+        thresholdDiv.innerHTML = `
+          <div style="font-size:0.75rem; color:#a78bfa; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⚔ At the threshold · ${data?.character_name || 'Player'}</div>
+          <div style="font-style:italic; color:#c4b5fd; font-size:0.85rem; margin-bottom:4px;">${question}</div>
+          <div style="color:var(--text-primary); font-size:0.95rem;">"${responseText}"</div>`;
+        storeAndDisplayMessage(thresholdDiv, { type: 'calling_response', actor: 'system' });
+        // Also broadcast via WS so other clients see it
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'calling_response',
+            character_name: activeSpeaker?.name || currentActor,
+            question,
+            response: responseText
+          }));
+        }
       }
 
       try {
@@ -5019,30 +5031,64 @@
                 openCallingModal(data.character_id, data.target_name, data.target_new_dp,
                   data.defender_ip, data.defender_sp, data.defender_edge, data.defender_times_called);
               }
+            } else if (data.type === 'calling_response') {
+              // Player's threshold answer — styled purple, not IC
+              const trDiv = document.createElement('div');
+              trDiv.className = 'message-card';
+              trDiv.style.cssText = 'border-left:4px solid #7c3aed; background:rgba(124,58,237,0.08); padding:12px 16px; margin:4px 0; border-radius:4px;';
+              trDiv.innerHTML = `
+                <div style="font-size:0.75rem; color:#a78bfa; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⚔ At the threshold · ${data.character_name}</div>
+                <div style="font-style:italic; color:#c4b5fd; font-size:0.85rem; margin-bottom:4px;">${data.question}</div>
+                <div style="color:var(--text-primary); font-size:0.95rem;">"${data.response}"</div>`;
+              storeAndDisplayMessage(trDiv, { type: 'calling_response', actor: 'system' });
             } else if (data.type === 'calling_triggered') {
-              // Dramatic story broadcast visible to everyone
+              // Dramatic story broadcast visible to everyone — deep purple threshold aesthetic
               const dramaDiv = document.createElement('div');
               dramaDiv.className = 'message-card';
-              dramaDiv.style.cssText = 'border:2px solid var(--accent-danger); background:rgba(220,38,38,0.1); text-align:center; padding:16px; margin:8px 0;';
-              dramaDiv.innerHTML = `<div style="font-size:1.3rem; font-weight:bold; color:var(--accent-danger);">💀 THE CALLING</div><div style="margin-top:6px; color:var(--text-primary);">${data.defender} has been pulled to the threshold! <span style="color:var(--accent-danger);">(DP: ${data.defender_new_dp})</span></div>`;
+              dramaDiv.style.cssText = 'border:2px solid #7c3aed; background:linear-gradient(135deg, rgba(124,58,237,0.15), rgba(109,40,217,0.08)); text-align:center; padding:20px 16px; margin:8px 0; border-radius:8px;';
+              dramaDiv.innerHTML = `
+                <div style="font-size:1.5rem; font-weight:bold; color:#a78bfa; letter-spacing:0.08em;">💀 THE CALLING</div>
+                <div style="margin-top:8px; color:var(--text-primary); font-size:1rem;">${data.defender} has been pulled to the threshold.</div>
+                <div style="margin-top:4px; color:#a78bfa; font-size:0.85rem; font-style:italic;">The veil grows thin. (DP: ${data.defender_new_dp})</div>`;
               storeAndDisplayMessage(dramaDiv, { type: 'calling_drama', actor: 'system' });
               // Open modal for all clients
               openCallingModal(data.character_id, data.defender, data.defender_new_dp,
                 data.defender_ip, data.defender_sp, data.defender_edge, data.defender_times_called);
             } else if (data.type === 'calling_result') {
-              const outcomes = {
-                'clean':  `✨ <strong>${data.character_name} survives The Calling!</strong> Returns to 1 DP — no consequences.`,
-                'scarred': `⚠️ <strong>${data.character_name} survives, but is marked.</strong> Returns to 1 DP — gains "The Called" status.`,
-                'dead':   `💀 <strong>${data.character_name} fails The Calling.</strong> Their story ends here — a Memory Echo remains.`
+              const outcomeLabel = {
+                'clean':   `✨ ${data.character_name} survives The Calling — returns to 1 DP, unmarked.`,
+                'scarred': `⚠️ ${data.character_name} survives, but is marked — gains "The Called" status.`,
+                'dead':    `💀 ${data.character_name} fails The Calling — their story ends here.`
               };
-              const ipPass = data.stat_used === 'IP' ? data.player_stat >= data.sw_total : null;
-              const spPass = data.stat_used === 'SP' ? data.player_stat >= data.sw_total : null;
+              const outcomeColor = { clean: '#4ade80', scarred: '#fbbf24', dead: '#f87171' };
+              const marginStr = `${data.margin > 0 ? '+' : ''}${data.margin}`;
+
+              // Broadcast fate roll to Story feed for everyone
+              const resultDiv = document.createElement('div');
+              resultDiv.className = 'message-card';
+              resultDiv.style.cssText = 'border:2px solid #7c3aed; background:linear-gradient(135deg, rgba(124,58,237,0.15), rgba(109,40,217,0.08)); padding:16px; margin:8px 0; border-radius:8px;';
+              resultDiv.innerHTML = `
+                <div style="font-size:1rem; font-weight:bold; color:#a78bfa; margin-bottom:10px;">🎲 FATE ROLL — ${data.character_name}</div>
+                <div style="font-family:monospace; font-size:0.9rem; color:var(--text-secondary); line-height:1.8;">
+                  Player: 1d6(${data.player_roll}) + ${data.stat_used}(${data.player_stat}) + Edge(${data.edge})${data.bap ? ` + BAP(${data.bap})` : ''} = <strong style="color:var(--text-primary);">${data.player_total}</strong><br>
+                  SW: ${data.sw_die}(${data.sw_roll}) = <strong style="color:var(--text-primary);">${data.sw_total}</strong><br>
+                  Margin: <strong style="color:${outcomeColor[data.outcome] || '#fff'};">${marginStr}</strong>
+                </div>
+                <div style="margin-top:10px; font-weight:bold; color:${outcomeColor[data.outcome] || '#fff'};">${outcomeLabel[data.outcome] || ''}</div>`;
+              storeAndDisplayMessage(resultDiv, { type: 'calling_result_story', actor: 'system' });
+
+              // Also update the modal result pane
+              const outcomes = {
+                'clean':   `✨ <strong>${data.character_name} survives The Calling!</strong> Returns to 1 DP — no consequences.`,
+                'scarred': `⚠️ <strong>${data.character_name} survives, but is marked.</strong> Returns to 1 DP — gains "The Called" status.`,
+                'dead':    `💀 <strong>${data.character_name} fails The Calling.</strong> Their story ends here — a Memory Echo remains.`
+              };
               document.getElementById('callingResultText').innerHTML =
                 `<strong>Fate Roll 🎲</strong><br>` +
                 `Player: 1d6(${data.player_roll}) + ${data.stat_used}(${data.player_stat}) + Edge(${data.edge})` +
                 `${data.bap ? ` + BAP(${data.bap})` : ''} = <strong>${data.player_total}</strong><br>` +
                 `SW: ${data.sw_die}(${data.sw_roll}) = <strong>${data.sw_total}</strong><br>` +
-                `Margin: <strong>${data.margin > 0 ? '+' : ''}${data.margin}</strong><br><br>` +
+                `Margin: <strong>${marginStr}</strong><br><br>` +
                 (outcomes[data.outcome] || '');
               document.getElementById('callingSetup').style.display = 'none';
               document.getElementById('callingResultPane').style.display = '';
