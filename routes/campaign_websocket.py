@@ -697,6 +697,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         # Execute based on effect type
         results = []
         narrative_parts = []
+        calling_char_id = None  # set if any target triggers The Calling
 
         if ability.effect_type == "damage":
             # Damage ability (single target or AOE)
@@ -736,9 +737,16 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 margin = attack_total - defense_total
                 damage = max(0, margin)
 
-                # Apply damage
+                # Apply damage (no floor — can go negative for The Calling)
                 old_dp = target.dp
-                target.dp = max(0, target.dp - damage)
+                target.dp = target.dp - damage
+
+                # Check for The Calling at -10 DP (PCs only)
+                calling_triggered = False
+                if target.dp <= -10 and not target.is_npc and not target.in_calling:
+                    target.in_calling = True
+                    calling_triggered = True
+
                 db.commit()
 
                 outcome = "hit" if damage > 0 else "miss"
@@ -757,8 +765,18 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "defense_roll": defense_total,
                     "defense_breakdown": def_breakdown,
                     "margin": margin,
-                    "outcome": outcome
+                    "outcome": outcome,
+                    "calling_triggered": calling_triggered
                 })
+
+                if calling_triggered:
+                    calling_char_id = str(target.id)
+                    calling_char_name = target.name
+                    calling_char_ip = target.ip
+                    calling_char_sp = target.sp
+                    calling_char_edge = target.edge or 0
+                    calling_char_times = target.times_called or 0
+                    calling_char_dp = target.dp
 
                 if damage > 0:
                     narrative_parts.append(f"{target_name} takes {damage} damage (DP: {old_dp} → {target.dp})")
@@ -908,6 +926,19 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             max_uses=ability.max_uses
         )
         await manager.broadcast(campaign_id, broadcast.model_dump(mode='json'))
+
+        # If any target triggered The Calling, broadcast it now
+        if calling_char_id:
+            await manager.broadcast(campaign_id, {
+                "type": "calling_triggered",
+                "character_id": calling_char_id,
+                "defender": calling_char_name,
+                "defender_new_dp": calling_char_dp,
+                "defender_ip": calling_char_ip,
+                "defender_sp": calling_char_sp,
+                "defender_edge": calling_char_edge,
+                "defender_times_called": calling_char_times
+            })
 
         # Persist to database
         ability_message = Message(
