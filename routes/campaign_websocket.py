@@ -1302,6 +1302,21 @@ async def broadcast_player_joined(campaign_id: UUID, username: str):
     })
 
 
+async def broadcast_level_up(campaign_id: UUID, character_id: str, character_name: str, old_level: int, new_level: int, new_slot_unlocked: bool):
+    """
+    Notify all campaign members that a character leveled up.
+    Triggers party panel refresh and celebration message in chat.
+    """
+    await manager.broadcast(campaign_id, {
+        "type": "character_leveled_up",
+        "character_id": character_id,
+        "character_name": character_name,
+        "old_level": old_level,
+        "new_level": new_level,
+        "new_slot_unlocked": new_slot_unlocked
+    })
+
+
 # ============================================================================
 # INITIATIVE & ENCOUNTER SYSTEM
 # ============================================================================

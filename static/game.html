@@ -2085,6 +2085,59 @@
     </div>
   </div>
 
+  <!-- Level Up Modal -->
+  <div id="levelUpModal" class="modal">
+    <div class="modal-content" style="max-width: 460px;">
+      <div class="modal-header" style="border-bottom-color: var(--accent-primary);">
+        <h2 style="color: var(--accent-primary);">⬆️ Level Up</h2>
+        <button class="modal-close" onclick="closeLevelUpModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="levelUpCharLabel" style="font-weight:bold; font-size:1.1rem; margin-bottom:4px;"></p>
+        <p id="levelUpLevelLabel" style="color:var(--accent-primary); margin-bottom:16px;"></p>
+
+        <table style="width:100%; border-collapse:collapse; margin-bottom:16px; font-size:0.9rem;">
+          <thead>
+            <tr style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">
+              <th style="text-align:left; padding:4px 8px;">Stat</th>
+              <th style="text-align:center; padding:4px 8px;">Before</th>
+              <th style="text-align:center; padding:4px 8px;">After</th>
+            </tr>
+          </thead>
+          <tbody id="levelUpStatsBody"></tbody>
+        </table>
+
+        <!-- Weapon die choice (only shown when options expand) -->
+        <div id="levelUpWeaponRow" style="display:none; margin-bottom:16px;">
+          <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-bottom:6px;">Choose Weapon Die:</label>
+          <select id="levelUpWeaponSelect" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:4px; color:var(--text-primary); padding:6px 10px; font-size:0.9rem;"></select>
+          <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Single large die = consistent. Multiple small dice = high risk, high reward.</p>
+        </div>
+
+        <!-- DP heal choice -->
+        <div style="margin-bottom:20px;">
+          <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-bottom:8px;">Current DP:</label>
+          <div style="display:flex; gap:12px;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.9rem;">
+              <input type="radio" name="levelUpHeal" id="levelUpHealNo" value="no" checked>
+              <span id="levelUpHealNoLabel">Keep as is</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.9rem;">
+              <input type="radio" name="levelUpHeal" id="levelUpHealYes" value="yes">
+              <span id="levelUpHealYesLabel">Full heal</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="levelUpSlotNotice" style="display:none; background:rgba(139,92,246,0.15); border:1px solid var(--accent-secondary); border-radius:6px; padding:10px 12px; margin-bottom:16px; font-size:0.85rem; color:var(--accent-secondary);">
+          ✨ New ability slot unlocked at this level! Remind the player to create it.
+        </div>
+
+        <button class="btn" style="width:100%;" onclick="confirmLevelUp()">⬆️ Confirm Level Up</button>
+      </div>
+    </div>
+  </div>
+
   <div id="npcCreateModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -2775,6 +2828,7 @@
       const menu = document.createElement('div');
       menu.className = 'context-menu active';
       menu.innerHTML = `
+        <button class="context-menu-item" onclick="openLevelUpModal('${charId}', '${charName.replace(/'/g, "\\'")}')">⬆️ Level Up</button>
         <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="convertPCtoNPC('${charId}', '${charName.replace(/'/g, "\\'")}')">🎭 Convert to NPC</button>
       `;
@@ -2793,6 +2847,109 @@
       setTimeout(() => {
         document.addEventListener('click', () => menu.remove(), { once: true });
       }, 100);
+    }
+
+    // ===================================================================
+    // LEVEL UP SYSTEM
+    // ===================================================================
+
+    const PC_EDGE_BY_LEVEL    = {1:0,2:1,3:1,4:2,5:2,6:3,7:3,8:4,9:4,10:5};
+    const PC_BAP_BY_LEVEL     = {1:1,2:1,3:2,4:2,5:3,6:3,7:4,8:4,9:5,10:5};
+    const PC_USES_BY_LEVEL    = {1:3,2:6,3:9,4:12,5:15,6:18,7:21,8:24,9:27,10:30};
+    const PC_DEFENSE_BY_LEVEL = {1:'1d4',2:'1d4',3:'1d6',4:'1d6',5:'1d8',6:'1d8',7:'1d10',8:'1d10',9:'1d12',10:'1d12'};
+    const NEW_SLOT_LEVELS     = new Set([3, 5, 7, 9]);
+
+    let levelUpCharId = null;
+    let levelUpCurrentData = {};
+
+    async function openLevelUpModal(charId, charName) {
+      // Fetch current character data
+      const resp = await fetch(`/api/characters/${charId}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (!resp.ok) { showPanelToast('Could not load character data', 'error'); return; }
+      const char = await resp.json();
+
+      const currentLevel = char.level || 1;
+      if (currentLevel >= 10) {
+        showPanelToast(`${charName} is already at max level!`, 'warning');
+        return;
+      }
+      const newLevel = currentLevel + 1;
+
+      levelUpCharId = charId;
+      levelUpCurrentData = char;
+
+      document.getElementById('levelUpCharLabel').textContent = charName;
+      document.getElementById('levelUpLevelLabel').textContent = `Level ${currentLevel} → ${newLevel}`;
+
+      // Build stats comparison table
+      const rows = [
+        ['Max DP',    char.max_dp,                   PC_DP_BY_LEVEL[newLevel]],
+        ['Edge',      char.edge,                     PC_EDGE_BY_LEVEL[newLevel]],
+        ['BAP',       char.bap,                      PC_BAP_BY_LEVEL[newLevel]],
+        ['Uses/Enc',  char.max_uses_per_encounter,    PC_USES_BY_LEVEL[newLevel]],
+        ['Defense',   char.defense_die,               PC_DEFENSE_BY_LEVEL[newLevel]],
+      ];
+      const tbody = document.getElementById('levelUpStatsBody');
+      tbody.innerHTML = rows.map(([label, before, after]) => {
+        const changed = String(before) !== String(after);
+        return `<tr>
+          <td style="padding:5px 8px; color:var(--text-muted);">${label}</td>
+          <td style="padding:5px 8px; text-align:center;">${before}</td>
+          <td style="padding:5px 8px; text-align:center; ${changed ? 'color:var(--accent-primary); font-weight:bold;' : ''}">${after}${changed ? ' ↑' : ''}</td>
+        </tr>`;
+      }).join('');
+
+      // Weapon die selector — only show if options expand at new level
+      const oldOptions = NPC_WEAPON_OPTIONS_BY_LEVEL[currentLevel] || ['1d4'];
+      const newOptions = NPC_WEAPON_OPTIONS_BY_LEVEL[newLevel] || ['1d4'];
+      const weaponRow = document.getElementById('levelUpWeaponRow');
+      const weaponSelect = document.getElementById('levelUpWeaponSelect');
+      if (newOptions.length > 1 || newOptions[0] !== oldOptions[0]) {
+        weaponRow.style.display = '';
+        weaponSelect.innerHTML = newOptions.map(w =>
+          `<option value="${w}" ${w === char.attack_style ? 'selected' : ''}>${w}</option>`
+        ).join('');
+      } else {
+        weaponRow.style.display = 'none';
+      }
+
+      // DP heal labels
+      const dpGain = PC_DP_BY_LEVEL[newLevel] - (char.max_dp || 10);
+      const newCurrentIfNotHealed = Math.min((char.dp || 0) + dpGain, PC_DP_BY_LEVEL[newLevel]);
+      document.getElementById('levelUpHealNoLabel').textContent = `Keep as is (${newCurrentIfNotHealed}/${PC_DP_BY_LEVEL[newLevel]} DP)`;
+      document.getElementById('levelUpHealYesLabel').textContent = `Full heal (${PC_DP_BY_LEVEL[newLevel]}/${PC_DP_BY_LEVEL[newLevel]} DP)`;
+      document.getElementById('levelUpHealNo').checked = true;
+
+      // New slot notice
+      document.getElementById('levelUpSlotNotice').style.display = NEW_SLOT_LEVELS.has(newLevel) ? '' : 'none';
+
+      document.getElementById('levelUpModal').classList.add('active');
+    }
+
+    function closeLevelUpModal() {
+      document.getElementById('levelUpModal').classList.remove('active');
+      levelUpCharId = null;
+    }
+
+    async function confirmLevelUp() {
+      if (!levelUpCharId) return;
+      const healDp = document.getElementById('levelUpHealYes').checked;
+      const weaponDie = document.getElementById('levelUpWeaponSelect').value ||
+                        NPC_WEAPON_OPTIONS_BY_LEVEL[(levelUpCurrentData.level || 1) + 1][0];
+      try {
+        const resp = await fetch(`/api/characters/${levelUpCharId}/level-up`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ heal_dp: healDp, weapon_die: weaponDie })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        closeLevelUpModal();
+        // WS broadcast will refresh party panel and post chat message
+      } catch (e) {
+        showPanelToast(`Level up failed: ${e.message}`, 'error');
+      }
     }
 
     // NPC Modal Functions
@@ -5222,6 +5379,33 @@
               if (userRole === 'SW') {
                 showPanelToast(`👋 ${data.username} joined the campaign`, 'success');
                 loadCharacters();
+              }
+
+            } else if (data.type === 'character_leveled_up') {
+              // Everyone sees the level up celebration in chat
+              const container = document.createElement('div');
+              container.className = 'msg system';
+              container.style.cssText = 'border-left-color: var(--accent-primary); background: rgba(99,102,241,0.08);';
+              const slotLine = data.new_slot_unlocked
+                ? `<div style="font-size:0.8rem; color:var(--accent-secondary); margin-top:4px;">✨ New ability slot unlocked!</div>`
+                : '';
+              container.innerHTML = `
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:1.4rem;">⬆️</span>
+                  <div>
+                    <strong>${data.character_name}</strong> leveled up!
+                    <span style="color:var(--accent-primary); font-weight:bold;"> Level ${data.old_level} → ${data.new_level}</span>
+                    ${slotLine}
+                  </div>
+                </div>`;
+              document.getElementById('chatMessages').appendChild(container);
+              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              // Refresh party panel so new stats show
+              loadBubbleBar();
+              loadCharacters();
+              // Player whose character leveled up gets a toast
+              if (characterId === data.character_id) {
+                showPanelToast(`⬆️ You leveled up to level ${data.new_level}!${data.new_slot_unlocked ? ' New ability slot unlocked!' : ''}`, 'success');
               }
 
             } else if (data.type === 'system') {

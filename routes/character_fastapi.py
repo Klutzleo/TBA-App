@@ -1939,3 +1939,143 @@ async def cleanse_called(
         "message": f"'{char.name}' has been cleansed. The Called status removed.",
         "times_called": char.times_called
     }
+
+
+# ============================================================================
+# LEVELING SYSTEM
+# ============================================================================
+
+LEVEL_TABLE = {
+    1:  {"max_dp": 10, "edge": 0, "bap": 1, "uses_per_encounter": 3,  "defense_die": "1d4"},
+    2:  {"max_dp": 15, "edge": 1, "bap": 1, "uses_per_encounter": 6,  "defense_die": "1d4"},
+    3:  {"max_dp": 20, "edge": 1, "bap": 2, "uses_per_encounter": 9,  "defense_die": "1d6"},
+    4:  {"max_dp": 25, "edge": 2, "bap": 2, "uses_per_encounter": 12, "defense_die": "1d6"},
+    5:  {"max_dp": 30, "edge": 2, "bap": 3, "uses_per_encounter": 15, "defense_die": "1d8"},
+    6:  {"max_dp": 35, "edge": 3, "bap": 3, "uses_per_encounter": 18, "defense_die": "1d8"},
+    7:  {"max_dp": 40, "edge": 3, "bap": 4, "uses_per_encounter": 21, "defense_die": "1d10"},
+    8:  {"max_dp": 45, "edge": 4, "bap": 4, "uses_per_encounter": 24, "defense_die": "1d10"},
+    9:  {"max_dp": 50, "edge": 4, "bap": 5, "uses_per_encounter": 27, "defense_die": "1d12"},
+    10: {"max_dp": 55, "edge": 5, "bap": 5, "uses_per_encounter": 30, "defense_die": "1d12"},
+}
+
+WEAPON_OPTIONS_BY_LEVEL = {
+    1: ["1d4"], 2: ["1d4"],
+    3: ["1d6", "2d4"], 4: ["1d6", "2d4"],
+    5: ["1d8", "2d6", "3d4"], 6: ["1d8", "2d6", "3d4"],
+    7: ["1d10", "2d8", "3d6", "4d4"], 8: ["1d10", "2d8", "3d6", "4d4"],
+    9: ["1d12", "2d10", "3d8", "4d6", "5d4"], 10: ["1d12", "2d10", "3d8", "4d6", "5d4"],
+}
+
+# New ability slot unlocked at these levels
+NEW_SLOT_AT_LEVEL = {3, 5, 7, 9}
+
+
+@character_blp_fastapi.post("/{character_id}/level-up")
+async def level_up_character(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Level up a character (SW only).
+    Body: { heal_dp: bool, weapon_die: str }
+    """
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
+    request_id = getattr(request.state, "request_id", "unknown")
+    char_uuid = UUID(character_id)
+
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    # SW only
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can level up characters")
+
+    current_level = char.level or 1
+    if current_level >= 10:
+        raise HTTPException(status_code=400, detail="Character is already at max level (10)")
+
+    new_level = current_level + 1
+    stats = LEVEL_TABLE[new_level]
+    valid_weapons = WEAPON_OPTIONS_BY_LEVEL[new_level]
+
+    # Validate weapon die choice
+    weapon_die = req.get("weapon_die", valid_weapons[0])
+    if weapon_die not in valid_weapons:
+        raise HTTPException(status_code=400, detail=f"Invalid weapon die for level {new_level}. Valid: {valid_weapons}")
+
+    heal_dp = req.get("heal_dp", False)
+
+    # Apply level-up stats
+    old_max_dp = char.max_dp or 10
+    old_dp = char.dp or 0
+
+    char.level = new_level
+    char.max_dp = stats["max_dp"]
+    char.edge = stats["edge"]
+    char.bap = stats["bap"]
+    char.max_uses_per_encounter = stats["uses_per_encounter"]
+    char.defense_die = stats["defense_die"]
+    char.attack_style = weapon_die
+
+    # Also update ability max_uses to match new level
+    abilities = db.query(Ability).filter(Ability.character_id == char.id).all()
+    for ability in abilities:
+        ability.max_uses = stats["uses_per_encounter"]
+        ability.uses_remaining = stats["uses_per_encounter"]
+
+    # DP handling
+    dp_gained = stats["max_dp"] - old_max_dp  # always +5
+    if heal_dp:
+        char.dp = stats["max_dp"]
+    else:
+        char.dp = min(old_dp + dp_gained, stats["max_dp"])
+
+    db.commit()
+    db.refresh(char)
+
+    new_slot_unlocked = new_level in NEW_SLOT_AT_LEVEL
+
+    logger.info(f"[{request_id}] {char.name} leveled up {current_level}→{new_level} (heal={heal_dp}, weapon={weapon_die})")
+
+    result = {
+        "character_id": str(char.id),
+        "character_name": char.name,
+        "old_level": current_level,
+        "new_level": new_level,
+        "new_dp": char.dp,
+        "new_max_dp": char.max_dp,
+        "new_edge": char.edge,
+        "new_bap": char.bap,
+        "new_uses_per_encounter": char.max_uses_per_encounter,
+        "new_defense_die": char.defense_die,
+        "new_weapon_die": char.attack_style,
+        "new_slot_unlocked": new_slot_unlocked,
+        "healed": heal_dp,
+    }
+
+    # Broadcast to campaign
+    try:
+        from routes.campaign_websocket import broadcast_level_up
+        import asyncio
+        asyncio.create_task(broadcast_level_up(
+            char.campaign_id,
+            str(char.id),
+            char.name,
+            current_level,
+            new_level,
+            new_slot_unlocked
+        ))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast level up: {_be}")
+
+    return result
