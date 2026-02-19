@@ -4992,8 +4992,9 @@
 
             // Handle welcome message - update Actor field with character name
             if (data.type === 'welcome') {
-              // Update user role from server
-              if (data.role) {
+              // Update user role from server — but never override Spectator (role=player in URL
+              // without character_id). The URL is the source of truth for spectators.
+              if (data.role && urlRoleParam !== 'player') {
                 userRole = data.role;
               }
 
