@@ -10,7 +10,7 @@ import random
 import string
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry
 from backend.auth.jwt import get_current_user
 from sqlalchemy import or_, func
 
@@ -729,3 +729,160 @@ def get_campaign_messages(
             for msg in messages
         ]
     }
+
+
+# ============================================================
+# Lore Endpoints
+# ============================================================
+
+def _lore_dict(entry: LoreEntry) -> dict:
+    return {
+        "id": str(entry.id),
+        "title": entry.title,
+        "content": entry.content,
+        "created_by": str(entry.created_by) if entry.created_by else None,
+        "created_at": entry.created_at.isoformat() if entry.created_at else None,
+        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+    }
+
+
+def _require_sw(campaign_id: UUID, current_user: User, db: Session):
+    """Raise 403 if the user is not the SW (campaign owner) of this campaign."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if str(campaign.created_by) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can do that")
+    return campaign
+
+
+@router.get("/{campaign_id}/lore")
+async def list_lore(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return all lore entries for the campaign (all members)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+
+    entries = (
+        db.query(LoreEntry)
+        .filter(LoreEntry.campaign_id == campaign_id)
+        .order_by(LoreEntry.created_at.asc())
+        .all()
+    )
+    return [_lore_dict(e) for e in entries]
+
+
+@router.post("/{campaign_id}/lore", status_code=201)
+async def create_lore(
+    campaign_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW creates a new lore entry."""
+    _require_sw(campaign_id, current_user, db)
+
+    title = (req.get("title") or "").strip()
+    content = (req.get("content") or "").strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="Title is required")
+
+    entry = LoreEntry(
+        campaign_id=campaign_id,
+        title=title,
+        content=content,
+        created_by=current_user.id,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(campaign_id), {
+            "type": "lore_created",
+            "entry": _lore_dict(entry),
+        }))
+    except Exception:
+        pass
+
+    return _lore_dict(entry)
+
+
+@router.patch("/{campaign_id}/lore/{entry_id}")
+async def update_lore(
+    campaign_id: UUID,
+    entry_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW edits an existing lore entry."""
+    _require_sw(campaign_id, current_user, db)
+
+    entry = db.query(LoreEntry).filter(
+        LoreEntry.id == entry_id,
+        LoreEntry.campaign_id == campaign_id
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Lore entry not found")
+
+    if "title" in req:
+        entry.title = (req["title"] or "").strip() or entry.title
+    if "content" in req:
+        entry.content = req["content"]
+
+    db.commit()
+    db.refresh(entry)
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(campaign_id), {
+            "type": "lore_updated",
+            "entry": _lore_dict(entry),
+        }))
+    except Exception:
+        pass
+
+    return _lore_dict(entry)
+
+
+@router.delete("/{campaign_id}/lore/{entry_id}", status_code=204)
+async def delete_lore(
+    campaign_id: UUID,
+    entry_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW deletes a lore entry."""
+    _require_sw(campaign_id, current_user, db)
+
+    entry = db.query(LoreEntry).filter(
+        LoreEntry.id == entry_id,
+        LoreEntry.campaign_id == campaign_id
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Lore entry not found")
+
+    db.delete(entry)
+    db.commit()
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(campaign_id), {
+            "type": "lore_deleted",
+            "entry_id": str(entry_id),
+        }))
+    except Exception:
+        pass

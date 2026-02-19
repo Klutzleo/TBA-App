@@ -631,3 +631,20 @@ class Message(Base):
     def __repr__(self):
         preview = self.content[:20] + "..." if len(self.content) > 20 else self.content
         return f"<Message(id={str(self.id)[:8]}..., sender={self.sender_name}, type={self.message_type}, preview='{preview}')>"
+
+
+class LoreEntry(Base):
+    """SW-created encyclopedia entries visible to all campaign members."""
+    __tablename__ = "lore_entries"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False, default='')
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<LoreEntry(id={str(self.id)[:8]}..., title='{self.title[:30]}')>"

@@ -1501,6 +1501,63 @@
       50%       { box-shadow: 0 0 9px rgba(245, 158, 11, 0.7); }
     }
 
+    /* === Lore Tab === */
+    .lore-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .lore-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .lore-card-header:hover { background: rgba(255,255,255,0.03); }
+    .lore-card-chevron {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .lore-card.open .lore-card-chevron { transform: rotate(90deg); }
+    .lore-card-title {
+      flex: 1;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .lore-card-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .lore-card-actions button {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: inherit;
+      transition: color 0.15s;
+    }
+    .lore-card-actions button:hover { color: var(--text-primary); }
+    .lore-card-body {
+      display: none;
+      padding: 0 14px 12px;
+      font-size: 0.875rem;
+      line-height: 1.7;
+      color: var(--text-secondary, var(--text-primary));
+      white-space: pre-wrap;
+      border-top: 1px solid var(--border-color);
+      padding-top: 10px;
+    }
+    .lore-card.open .lore-card-body { display: block; }
+
     /* === Sidebar Tabs === */
     #sidebarTabBar {
       display: flex;
@@ -2047,6 +2104,9 @@
           <button class="tab-btn ooc-tab" data-tab="ooc" onclick="switchTab('ooc')">
             💬 OOC <span id="ooc-badge" class="tab-badge hidden">0</span>
           </button>
+          <button class="tab-btn" data-tab="lore" onclick="switchTab('lore')">
+            📖 Lore
+          </button>
         </div>
 
         <!-- Character Bubble Bar (for active speaker switching) -->
@@ -2063,6 +2123,43 @@
           <div id="loadingSpinner" class="loading-spinner">
             <div class="spinner"></div>
             <p>Connecting to party chat...</p>
+          </div>
+        </div>
+
+        <!-- Lore Pane (visible to all members) -->
+        <div id="lorePane" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+          <!-- SW toolbar -->
+          <div id="loreSWToolbar" style="display:none; padding:10px 16px 0; flex-shrink:0;">
+            <button class="btn" style="font-size:0.8rem; padding:5px 14px;" onclick="openLoreEditor()">+ New Entry</button>
+          </div>
+          <!-- Entry list -->
+          <div id="loreList" style="flex:1; overflow-y:auto; padding:12px 16px; display:flex; flex-direction:column; gap:10px;">
+            <div style="color:var(--text-muted); text-align:center; padding:20px; font-size:0.9rem;">Loading lore...</div>
+          </div>
+        </div>
+
+        <!-- Lore Editor Modal (SW only) -->
+        <div id="loreEditorModal" class="modal">
+          <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+              <h2 id="loreEditorTitle">New Lore Entry</h2>
+            </div>
+            <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+              <div>
+                <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:4px;">Title</label>
+                <input id="loreTitleInput" type="text" maxlength="200"
+                  style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.9rem; font-family:inherit;">
+              </div>
+              <div>
+                <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:4px;">Content</label>
+                <textarea id="loreContentInput" rows="8"
+                  style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.875rem; line-height:1.6; resize:vertical; font-family:inherit;"></textarea>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn-secondary btn" onclick="closeLoreEditor()">Cancel</button>
+                <button class="btn" id="loreSaveBtn" onclick="saveLoreEntry()">Save Entry</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2535,16 +2632,24 @@
         targetBtn.classList.add('active');
       }
 
-      // SW Notes tab: swap chat messages ↔ notes pane
+      // Swap between chat messages / lore pane / notes pane
       const chatMessages = document.getElementById('chatMessages');
-      const swNotes = document.getElementById('swNotesPane');
+      const swNotes      = document.getElementById('swNotesPane');
+      const lorePane     = document.getElementById('lorePane');
       if (tab === 'sw_notes') {
         if (chatMessages) chatMessages.style.display = 'none';
-        if (swNotes) swNotes.style.display = 'flex';
-        return; // no message rendering needed
+        if (lorePane)     lorePane.style.display     = 'none';
+        if (swNotes)      swNotes.style.display      = 'flex';
+        return;
+      } else if (tab === 'lore') {
+        if (chatMessages) chatMessages.style.display = 'none';
+        if (swNotes)      swNotes.style.display      = 'none';
+        if (lorePane)     lorePane.style.display     = 'flex';
+        return;
       } else {
+        if (swNotes)  swNotes.style.display  = 'none';
+        if (lorePane) lorePane.style.display = 'none';
         if (chatMessages) chatMessages.style.display = '';
-        if (swNotes) swNotes.style.display = 'none';
       }
 
       // Clear unread count for this tab
@@ -3267,6 +3372,133 @@
           }
         }, 800);
       });
+    }
+
+    // ===================================================================
+    // === Lore Tab =======================================================
+    // ===================================================================
+
+    let loreEntries = [];       // local cache
+    let loreEditingId = null;   // null = new entry, string = editing existing
+
+    async function loadLore() {
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/lore`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        loreEntries = await resp.json();
+        renderLore();
+      } catch (e) {
+        console.error('Failed to load lore:', e);
+      }
+    }
+
+    function renderLore() {
+      const list = document.getElementById('loreList');
+      if (!list) return;
+
+      if (!loreEntries.length) {
+        list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">No lore entries yet.</div>';
+        return;
+      }
+
+      list.innerHTML = '';
+      loreEntries.forEach(entry => {
+        const card = document.createElement('div');
+        card.className = 'lore-card';
+        card.dataset.id = entry.id;
+
+        const actionsHtml = userRole === 'SW'
+          ? `<div class="lore-card-actions">
+               <button onclick="openLoreEditor('${entry.id}')" title="Edit">✏️</button>
+               <button onclick="deleteLoreEntry('${entry.id}')" title="Delete" style="color:var(--accent-danger);">🗑</button>
+             </div>`
+          : '';
+
+        card.innerHTML = `
+          <div class="lore-card-header" onclick="toggleLoreCard(this)">
+            <span class="lore-card-chevron">▶</span>
+            <span class="lore-card-title">${escHtml(entry.title)}</span>
+            ${actionsHtml}
+          </div>
+          <div class="lore-card-body">${escHtml(entry.content)}</div>`;
+
+        list.appendChild(card);
+      });
+    }
+
+    function toggleLoreCard(headerEl) {
+      // Don't toggle if click was on an action button inside the header
+      if (event && event.target && event.target.closest('.lore-card-actions')) return;
+      const card = headerEl.closest('.lore-card');
+      if (card) card.classList.toggle('open');
+    }
+
+    function escHtml(str) {
+      return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function openLoreEditor(entryId) {
+      loreEditingId = entryId || null;
+      const entry = entryId ? loreEntries.find(e => e.id === entryId) : null;
+      document.getElementById('loreEditorTitle').textContent = entry ? 'Edit Lore Entry' : 'New Lore Entry';
+      document.getElementById('loreTitleInput').value = entry ? entry.title : '';
+      document.getElementById('loreContentInput').value = entry ? entry.content : '';
+      document.getElementById('loreEditorModal').classList.add('active');
+      document.getElementById('loreTitleInput').focus();
+    }
+
+    function closeLoreEditor() {
+      document.getElementById('loreEditorModal').classList.remove('active');
+      loreEditingId = null;
+    }
+
+    async function saveLoreEntry() {
+      const title   = document.getElementById('loreTitleInput').value.trim();
+      const content = document.getElementById('loreContentInput').value;
+      if (!title) { alert('Title is required.'); return; }
+
+      const btn = document.getElementById('loreSaveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        let url, method;
+        if (loreEditingId) {
+          url    = `/api/campaigns/${campaignId}/lore/${loreEditingId}`;
+          method = 'PATCH';
+        } else {
+          url    = `/api/campaigns/${campaignId}/lore`;
+          method = 'POST';
+        }
+        const resp = await fetch(url, {
+          method,
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        // WS broadcast will trigger renderLore() for all clients
+        closeLoreEditor();
+      } catch (e) {
+        showPanelToast(`Save failed: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Entry';
+      }
+    }
+
+    async function deleteLoreEntry(entryId) {
+      if (!confirm('Delete this lore entry?')) return;
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/lore/${entryId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok && resp.status !== 204) { const e = await resp.json(); throw new Error(e.detail); }
+        // WS lore_deleted will update all clients
+      } catch (e) {
+        showPanelToast(`Delete failed: ${e.message}`, 'error');
+      }
     }
 
     // ===================================================================
@@ -5900,6 +6132,22 @@
               }
               showPanelToast(`✦ BAP +${data.bap_bonus} awarded retroactively to ${data.character_name}!`, 'warning');
 
+            } else if (data.type === 'lore_created') {
+              // Add new entry to local cache + re-render
+              loreEntries.push(data.entry);
+              renderLore();
+              if (activeTab !== 'lore') showPanelToast(`📖 New lore entry: "${data.entry.title}"`, 'info');
+
+            } else if (data.type === 'lore_updated') {
+              const idx = loreEntries.findIndex(e => e.id === data.entry.id);
+              if (idx >= 0) loreEntries[idx] = data.entry;
+              else loreEntries.push(data.entry);
+              renderLore();
+
+            } else if (data.type === 'lore_deleted') {
+              loreEntries = loreEntries.filter(e => e.id !== data.entry_id);
+              renderLore();
+
             } else if (data.type === 'system') {
               // Silently ignore join/leave events — too noisy in an active campaign
               if (data.event === 'player_joined' || data.event === 'player_left') return;
@@ -6870,6 +7118,10 @@
       const tabBar = document.getElementById('sidebarTabBar');
       if (tabBar) tabBar.style.display = 'flex';
 
+      // Show SW lore toolbar
+      const loreSWToolbar = document.getElementById('loreSWToolbar');
+      if (loreSWToolbar) loreSWToolbar.style.display = '';
+
       // Inject SW Notes tab into chat tab bar
       const tabBarEl = document.getElementById('tabBar');
       if (tabBarEl) {
@@ -6884,6 +7136,9 @@
       // Load SW notes
       loadSWNotes();
     }
+
+    // Load lore for everyone
+    loadLore();
 
     // Hamburger menu toggle (mobile)
     const hamburgerBtn = document.getElementById('hamburgerBtn');
