@@ -602,6 +602,24 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             if defender.dp <= -10 and not defender.is_npc and not defender.in_calling:
                 # The Calling triggered!
                 defender.in_calling = True
+                calling_msg = Message(
+                    campaign_id=campaign_id,
+                    party_id=None,
+                    sender_id=user_id,
+                    sender_name="System",
+                    message_type="calling_triggered",
+                    content=f"{defender.name} has entered The Calling!",
+                    extra_data={
+                        "character_id": str(defender.id),
+                        "defender": defender.name,
+                        "defender_new_dp": defender.dp,
+                        "defender_ip": defender.ip,
+                        "defender_sp": defender.sp,
+                        "defender_edge": defender.edge or 0,
+                        "defender_times_called": defender.times_called or 0
+                    }
+                )
+                db.add(calling_msg)
                 db.commit()
                 await manager.broadcast(campaign_id, {
                     "type": "calling_triggered",
@@ -948,8 +966,27 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         )
         await manager.broadcast(campaign_id, broadcast.model_dump(mode='json'))
 
-        # If any target triggered The Calling, broadcast it now
+        # If any target triggered The Calling, save and broadcast it now
         if calling_char_id:
+            calling_msg = Message(
+                campaign_id=campaign_id,
+                party_id=None,
+                sender_id=user_id,
+                sender_name="System",
+                message_type="calling_triggered",
+                content=f"{calling_char_name} has entered The Calling!",
+                extra_data={
+                    "character_id": calling_char_id,
+                    "defender": calling_char_name,
+                    "defender_new_dp": calling_char_dp,
+                    "defender_ip": calling_char_ip,
+                    "defender_sp": calling_char_sp,
+                    "defender_edge": calling_char_edge,
+                    "defender_times_called": calling_char_times
+                }
+            )
+            db.add(calling_msg)
+            db.commit()
             await manager.broadcast(campaign_id, {
                 "type": "calling_triggered",
                 "character_id": calling_char_id,

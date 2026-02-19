@@ -383,12 +383,12 @@ def check_campaign_character(
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     max_chars = campaign.max_characters_per_player if campaign else 1
 
-    # Count non-rejected characters (matches the limit check in create_character_full)
+    # Count active characters only — rejected and archived (dead) don't block new character creation
     existing_count = db.query(Character).filter(
         Character.user_id == current_user.id,
         Character.campaign_id == campaign_id,
         Character.is_npc == False,
-        Character.status != 'rejected'
+        Character.status.notin_(['rejected', 'archived'])
     ).count()
     can_create = existing_count < max_chars
 

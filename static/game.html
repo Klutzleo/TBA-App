@@ -3911,10 +3911,10 @@
 
     // Display typed message (IC, OOC, Whisper)
     // targets can be a string (single target) or array (multiple targets)
-    function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false) {
+    function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false, storedTimestamp = null) {
       const container = document.createElement('div');
 
-      const timestamp = new Date().toLocaleString([], {
+      const timestamp = (storedTimestamp ? new Date(storedTimestamp) : new Date()).toLocaleString([], {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -4865,6 +4865,41 @@
 
                 storeAndDisplayMessage(container, { type: 'abilities_restored', ...data });
               }
+              // ✅ Handle The Calling trigger from database
+              else if (msg.message_type === 'calling_triggered') {
+                const d = msg.extra_data || {};
+                const container = document.createElement('div');
+                container.className = 'message-card';
+                container.style.cssText = 'border:2px solid #7c3aed;background:linear-gradient(135deg,rgba(124,58,237,0.15),rgba(109,40,217,0.08));padding:12px 16px;margin:4px 0;border-radius:4px;';
+                container.innerHTML = `
+                  <div style="color:#a78bfa;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">${fmtTs(msg.timestamp)} · 💀 THE CALLING</div>
+                  <div style="font-weight:bold;font-size:1.05rem;color:#e9d5ff;margin-bottom:4px;">${d.defender || msg.sender_name} has entered The Calling!</div>
+                  <div style="color:#c4b5fd;font-size:0.85rem;">DP: ${d.defender_new_dp} · The veil grows thin.</div>
+                `;
+                storeAndDisplayMessage(container, { type: 'calling_triggered', actor: msg.sender_name, ...d });
+              }
+              // ✅ Handle The Calling resolution from database
+              else if (msg.message_type === 'calling_result') {
+                const d = msg.extra_data || {};
+                const outcomeLabels = {
+                  clean:   `✨ <strong>${d.character_name} survives The Calling!</strong> Returns to 1 DP — unmarked.`,
+                  scarred: `⚠️ <strong>${d.character_name} survives, but marked.</strong> Returns to 1 DP — gains "The Called" status.`,
+                  dead:    `💀 <strong>${d.character_name} falls to The Calling.</strong> Their story ends here.`
+                };
+                const container = document.createElement('div');
+                container.className = 'message-card';
+                container.style.cssText = 'border:2px solid #7c3aed;background:linear-gradient(135deg,rgba(124,58,237,0.15),rgba(109,40,217,0.08));padding:12px 16px;margin:4px 0;border-radius:4px;';
+                container.innerHTML = `
+                  <div style="color:#a78bfa;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">${fmtTs(msg.timestamp)} · 💀 THE CALLING — RESOLVED</div>
+                  <div style="font-family:monospace;font-size:0.85rem;color:#c4b5fd;margin-bottom:8px;line-height:1.6;">
+                    Player: 1d6(${d.player_roll}) + ${d.stat_used}(${d.player_stat}) + Edge(${d.edge})${d.bap ? ` + BAP(${d.bap})` : ''} = <strong style="color:#e9d5ff">${d.player_total}</strong><br>
+                    SW: ${d.sw_die}(${d.sw_roll}) = <strong style="color:#e9d5ff">${d.sw_total}</strong><br>
+                    Margin: <strong style="color:#e9d5ff">${d.margin > 0 ? '+' : ''}${d.margin}</strong>
+                  </div>
+                  <div>${outcomeLabels[d.outcome] || d.narrative || ''}</div>
+                `;
+                storeAndDisplayMessage(container, { type: 'calling_result', actor: msg.sender_name, ...d });
+              }
               // ✅ Handle regular chat messages
               else {
                 const messageData = {
@@ -4877,7 +4912,7 @@
 
                 const tab = getMessageTab(messageData);
                 const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
-                displayTypedMessage(mode, msg.sender_name, msg.content, null, false);
+                displayTypedMessage(mode, msg.sender_name, msg.content, null, false, msg.timestamp);
               }
             }
 
@@ -5942,7 +5977,7 @@
           if (member.character) {
             // Player with character - show character info
             const char = member.character;
-            const hpPercent = (char.dp / char.max_dp) * 100;
+            const dpBarStyle = getDPBarStyle(char.dp, char.max_dp);
 
             const characterCard = document.createElement('div');
             characterCard.className = 'character-card';
@@ -5961,7 +5996,7 @@
               <div class="character-details">
                 <div>Level ${char.level}</div>
                 <div class="hp-bar-container">
-                  <div class="hp-bar" style="width: ${hpPercent}%"></div>
+                  <div class="hp-bar" style="width: ${dpBarStyle.width}; background: ${dpBarStyle.background};"></div>
                   <span class="hp-text">${char.dp}/${char.max_dp} DP</span>
                 </div>
               </div>
@@ -5990,6 +6025,22 @@
       }
     }
 
+    // === DP Bar Helper ===
+    function getDPBarStyle(dp, maxDp) {
+      if (dp >= 0) {
+        const pct = Math.min(100, (dp / maxDp) * 100);
+        let bg;
+        if (pct > 50)      bg = 'linear-gradient(90deg, var(--accent-success), #14b8a6)';
+        else if (pct > 20) bg = 'linear-gradient(90deg, #f59e0b, #fb923c)';
+        else               bg = 'linear-gradient(90deg, var(--accent-danger), #dc2626)';
+        return { width: `${pct}%`, background: bg };
+      } else {
+        // Negative DP: grows toward 100% as dp approaches -10 (The Calling threshold)
+        const pct = Math.min(100, (Math.abs(dp) / 10) * 100);
+        return { width: `${pct}%`, background: 'linear-gradient(90deg, #450a0a, #dc2626)' };
+      }
+    }
+
     // === Update Character HP in Real-Time ===
     function updateCharacterSheet(characterName, newDP) {
       // Find all character cards
@@ -6003,24 +6054,16 @@
           const hpBar = card.querySelector('.hp-bar');
 
           if (hpText && hpBar) {
-            // Extract max DP from current text (e.g., "10/10 DP" -> maxDP = 10)
-            const hpMatch = hpText.textContent.match(/(\d+)\/(\d+)/);
+            // Extract max DP from current text — handle negative dp like "-5/10 DP"
+            const hpMatch = hpText.textContent.match(/(-?\d+)\/(\d+)/);
             if (hpMatch) {
               const maxDP = parseInt(hpMatch[2]);
-              const dpPercent = (newDP / maxDP) * 100;
+              const barStyle = getDPBarStyle(newDP, maxDP);
 
               // Update display
               hpText.textContent = `${newDP}/${maxDP} DP`;
-              hpBar.style.width = `${dpPercent}%`;
-
-              // Color the bar based on DP percentage
-              if (dpPercent > 50) {
-                hpBar.style.background = 'linear-gradient(90deg, var(--accent-success), #14b8a6)';
-              } else if (dpPercent > 20) {
-                hpBar.style.background = 'linear-gradient(90deg, #f59e0b, #fb923c)';
-              } else {
-                hpBar.style.background = 'linear-gradient(90deg, var(--accent-danger), #dc2626)';
-              }
+              hpBar.style.width = barStyle.width;
+              hpBar.style.background = barStyle.background;
 
               // Optional: Flash the card to indicate change
               card.style.transition = 'background-color 0.3s';

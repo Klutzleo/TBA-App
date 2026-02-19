@@ -7,7 +7,7 @@ Includes full character creation with abilities and party membership.
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from backend.db import get_db
-from backend.models import Character, Party, PartyMembership, Ability, User
+from backend.models import Character, Party, PartyMembership, Ability, User, Message
 from backend.auth.jwt import get_current_user
 from backend.character_utils import (
     calculate_level_stats,
@@ -180,12 +180,12 @@ async def create_character_full(
             initial_status = 'pending_approval'
             skip_parties = True
 
-        # Check character limit per player (exclude rejected - they can retry)
+        # Count active characters only — rejected and archived (dead) don't block new character creation
         existing_char_count = db.query(Character).filter(
             Character.user_id == current_user.id,
             Character.campaign_id == req.campaign_id,
             Character.is_npc == False,
-            Character.status != 'rejected'
+            Character.status.notin_(['rejected', 'archived'])
         ).count()
 
         if existing_char_count >= campaign.max_characters_per_player:
@@ -1735,6 +1735,19 @@ async def resolve_the_calling(
         "times_called": char.times_called,
         "narrative": narrative_map[outcome]
     }
+
+    # Persist to database
+    result_message = Message(
+        campaign_id=char.campaign_id,
+        party_id=None,
+        sender_id=current_user.id,
+        sender_name=char.name,
+        message_type="calling_result",
+        content=narrative_map[outcome],
+        extra_data=result_payload
+    )
+    db.add(result_message)
+    db.commit()
 
     # Broadcast to campaign
     try:
