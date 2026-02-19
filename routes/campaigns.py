@@ -602,6 +602,51 @@ async def get_campaign_members(
     
     return result
 
+@router.get("/{campaign_id}/sw-notes")
+async def get_sw_notes(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the SW's private notes for this campaign (SW only)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    return {"sw_notes": campaign.sw_notes or ""}
+
+
+@router.patch("/{campaign_id}/sw-notes")
+async def update_sw_notes(
+    campaign_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Save the SW's private notes for this campaign (SW only)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    campaign.sw_notes = req.get("sw_notes", "")
+    db.commit()
+    return {"sw_notes": campaign.sw_notes}
+
+
 @router.get("/{campaign_id}/channels")
 def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
     """Get all channels for a campaign."""

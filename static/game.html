@@ -1501,6 +1501,97 @@
       50%       { box-shadow: 0 0 9px rgba(245, 158, 11, 0.7); }
     }
 
+    /* === Sidebar Tabs === */
+    #sidebarTabBar {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .sidebar-tab-btn {
+      flex: 1;
+      padding: 8px 4px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      font-family: inherit;
+    }
+    .sidebar-tab-btn:hover { color: var(--text-primary); }
+    .sidebar-tab-btn.active {
+      color: var(--accent-primary);
+      border-bottom-color: var(--accent-primary);
+    }
+
+    /* === Initiative Tracker === */
+    #sidebarInitiativePanel {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    #initiativeTracker {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .init-entry {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      border: 1px solid transparent;
+      font-size: 0.82rem;
+      transition: border-color 0.2s;
+    }
+    .init-entry.active-turn {
+      border-color: var(--accent-primary);
+      background: rgba(99, 102, 241, 0.12);
+    }
+    .init-entry.knocked-out { opacity: 0.45; }
+    .init-entry .init-roll {
+      min-width: 26px;
+      text-align: center;
+      font-weight: bold;
+      color: var(--accent-primary);
+      font-size: 0.9rem;
+    }
+    .init-entry .init-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .init-entry .init-name.is-npc { color: var(--accent-danger); }
+    .init-entry .init-dp-bar {
+      width: 44px;
+      height: 5px;
+      background: var(--bg-primary);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .init-entry .init-dp-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--accent-success, #22c55e);
+      transition: width 0.3s;
+    }
+    .init-entry .init-dp-fill.low { background: var(--accent-danger); }
+    #initiativeTurnCounter {
+      padding: 6px 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    #nextTurnBtn {
+      margin: 6px 8px 8px;
+      flex-shrink: 0;
+    }
+
     /* === Responsive Design === */
     @media (max-width: 768px) {
       .hamburger-btn {
@@ -1913,13 +2004,33 @@
           </button>
         </div>
 
-        <!-- Characters Section -->
-        <div class="sidebar-section">
+        <!-- SW-only sidebar tab switcher -->
+        <div id="sidebarTabBar" style="display:none; padding:0 8px 4px;">
+          <div style="display:flex; gap:4px;">
+            <button class="sidebar-tab-btn active" id="sidebarTabParty" onclick="switchSidebarTab('party')" style="flex:1;">Party</button>
+            <button class="sidebar-tab-btn" id="sidebarTabInit" onclick="switchSidebarTab('initiative')" style="flex:1;">⚔️ Initiative</button>
+          </div>
+        </div>
+
+        <!-- Party Panel -->
+        <div class="sidebar-section" id="sidebarPartyPanel">
           <h2>Party Members</h2>
           <div id="charactersContainer">
-            <!-- Character cards will be populated here -->
             <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">
               Loading characters...
+            </div>
+          </div>
+        </div>
+
+        <!-- Initiative Tracker Panel (SW only) -->
+        <div class="sidebar-section" id="sidebarInitiativePanel" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h2 style="margin:0;">Initiative</h2>
+            <button id="nextTurnBtn" class="btn-sm" onclick="advanceTurn()" style="display:none; font-size:0.75rem; padding:3px 10px;">Next Turn ▶</button>
+          </div>
+          <div id="initiativeTracker">
+            <div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px;">
+              No active encounter.
             </div>
           </div>
         </div>
@@ -1953,6 +2064,15 @@
             <div class="spinner"></div>
             <p>Connecting to party chat...</p>
           </div>
+        </div>
+
+        <!-- SW Notes Pane (hidden until Notes tab active) -->
+        <div id="swNotesPane" style="display:none; flex:1; flex-direction:column; padding:12px 16px; gap:8px;">
+          <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;">📝 Story Weaver Notes — private, never visible to players</div>
+          <textarea id="swNotesTextarea"
+            placeholder="Write your lore notes, NPC secrets, encounter plans, world details..."
+            style="flex:1; width:100%; min-height:300px; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:var(--radius); padding:12px; font-size:0.875rem; line-height:1.6; resize:vertical; font-family:inherit;"></textarea>
+          <div id="swNotesSaveStatus" style="font-size:0.75rem; color:var(--text-muted); text-align:right;">Auto-saves on change</div>
         </div>
         <div class="chat-input-container">
           <div class="chat-input-row">
@@ -2413,6 +2533,18 @@
       const targetBtn = document.querySelector(`[data-tab="${tab}"]`);
       if (targetBtn) {
         targetBtn.classList.add('active');
+      }
+
+      // SW Notes tab: swap chat messages ↔ notes pane
+      const chatMessages = document.getElementById('chatMessages');
+      const swNotes = document.getElementById('swNotesPane');
+      if (tab === 'sw_notes') {
+        if (chatMessages) chatMessages.style.display = 'none';
+        if (swNotes) swNotes.style.display = 'flex';
+        return; // no message rendering needed
+      } else {
+        if (chatMessages) chatMessages.style.display = '';
+        if (swNotes) swNotes.style.display = 'none';
       }
 
       // Clear unread count for this tab
@@ -3089,6 +3221,146 @@
       } catch (e) {
         showPanelToast(`Cleanse failed: ${e.message}`, 'error');
       }
+    }
+
+    // ===================================================================
+    // === SW Notes (auto-save) ==========================================
+    // ===================================================================
+
+    let swNotesSaveTimer = null;
+
+    async function loadSWNotes() {
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/sw-notes`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const ta = document.getElementById('swNotesTextarea');
+        if (ta) ta.value = data.sw_notes || '';
+        attachSWNotesSave();
+      } catch (e) {
+        console.error('Failed to load SW notes:', e);
+      }
+    }
+
+    function attachSWNotesSave() {
+      const ta = document.getElementById('swNotesTextarea');
+      const status = document.getElementById('swNotesSaveStatus');
+      if (!ta) return;
+      ta.addEventListener('input', () => {
+        if (status) status.textContent = 'Unsaved changes...';
+        clearTimeout(swNotesSaveTimer);
+        swNotesSaveTimer = setTimeout(async () => {
+          try {
+            const resp = await fetch(`/api/campaigns/${campaignId}/sw-notes`, {
+              method: 'PATCH',
+              headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sw_notes: ta.value })
+            });
+            if (resp.ok) {
+              if (status) status.textContent = 'Saved ✓';
+              setTimeout(() => { if (status) status.textContent = 'Auto-saves on change'; }, 2000);
+            }
+          } catch (e) {
+            if (status) status.textContent = 'Save failed';
+          }
+        }, 800);
+      });
+    }
+
+    // ===================================================================
+    // === Initiative Tracker (SW only) ===================================
+    // ===================================================================
+
+    let currentInitiativeOrder = [];
+    let currentTurnIndex = 0;
+
+    function switchSidebarTab(tab) {
+      const partyPanel = document.getElementById('sidebarPartyPanel');
+      const initPanel  = document.getElementById('sidebarInitiativePanel');
+      const partyBtn   = document.getElementById('sidebarTabParty');
+      const initBtn    = document.getElementById('sidebarTabInit');
+      if (tab === 'initiative') {
+        partyPanel.style.display = 'none';
+        initPanel.style.display  = 'flex';
+        partyBtn.classList.remove('active');
+        initBtn.classList.add('active');
+      } else {
+        initPanel.style.display  = 'none';
+        partyPanel.style.display = '';
+        initBtn.classList.remove('active');
+        partyBtn.classList.add('active');
+      }
+    }
+
+    function renderInitiativeTracker() {
+      const tracker = document.getElementById('initiativeTracker');
+      const nextBtn = document.getElementById('nextTurnBtn');
+      if (!tracker) return;
+
+      if (!currentInitiativeOrder.length) {
+        tracker.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No active encounter.</div>';
+        if (nextBtn) nextBtn.style.display = 'none';
+        document.getElementById('initiativeTurnCounter') && (document.getElementById('initiativeTurnCounter').textContent = '');
+        return;
+      }
+
+      if (nextBtn) nextBtn.style.display = '';
+
+      tracker.innerHTML = '';
+      currentInitiativeOrder.forEach((roll, idx) => {
+        const isActive   = idx === currentTurnIndex;
+        const isKO       = roll.dp !== null && roll.dp !== undefined && roll.dp <= 0;
+        const isNpc      = roll.is_npc;
+
+        const entry = document.createElement('div');
+        entry.className = 'init-entry' + (isActive ? ' active-turn' : '') + (isKO ? ' knocked-out' : '');
+
+        // Roll number
+        const rollSpan = document.createElement('span');
+        rollSpan.className = 'init-roll';
+        rollSpan.textContent = roll.is_silent ? '?' : (roll.roll ?? '?');
+        entry.appendChild(rollSpan);
+
+        // Name
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'init-name' + (isNpc ? ' is-npc' : '');
+        nameSpan.textContent = roll.name + (roll.is_silent ? ' 👁' : '');
+        entry.appendChild(nameSpan);
+
+        // DP bar (PCs only — NPCs don't expose DP in rolls yet)
+        if (!isNpc && roll.max_dp && roll.max_dp > 0) {
+          const pct = Math.max(0, Math.min(100, (roll.dp / roll.max_dp) * 100));
+          const barWrap = document.createElement('div');
+          barWrap.className = 'init-dp-bar';
+          const fill = document.createElement('div');
+          fill.className = 'init-dp-fill' + (pct <= 25 ? ' low' : '');
+          fill.style.width = pct + '%';
+          barWrap.appendChild(fill);
+          entry.appendChild(barWrap);
+        }
+
+        tracker.appendChild(entry);
+      });
+
+      // Turn counter
+      let counter = document.getElementById('initiativeTurnCounter');
+      if (!counter) {
+        counter = document.createElement('div');
+        counter.id = 'initiativeTurnCounter';
+        tracker.parentNode.insertBefore(counter, tracker.nextSibling);
+      }
+      const activeRoll = currentInitiativeOrder[currentTurnIndex];
+      counter.textContent = activeRoll
+        ? `Turn ${currentTurnIndex + 1} / ${currentInitiativeOrder.length} — ${activeRoll.name}`
+        : '';
+    }
+
+    function advanceTurn() {
+      if (!currentInitiativeOrder.length) return;
+      currentTurnIndex = (currentTurnIndex + 1) % currentInitiativeOrder.length;
+      renderInitiativeTracker();
     }
 
     // NPC Modal Functions
@@ -6050,6 +6322,14 @@
               container.appendChild(orderList);
               storeAndDisplayMessage(container, data);
 
+              // SW: load tracker + auto-switch to initiative tab
+              if (userRole === 'SW') {
+                currentInitiativeOrder = data.rolls || [];
+                currentTurnIndex = 0;
+                renderInitiativeTracker();
+                switchSidebarTab('initiative');
+              }
+
             } else if (data.type === 'encounter_start') {
               // Encounter started
               const container = document.createElement('div');
@@ -6085,6 +6365,14 @@
               container.appendChild(header);
 
               storeAndDisplayMessage(container, data);
+
+              // SW: clear initiative tracker and switch back to party panel
+              if (userRole === 'SW') {
+                currentInitiativeOrder = [];
+                currentTurnIndex = 0;
+                renderInitiativeTracker();
+                switchSidebarTab('party');
+              }
 
             } else if (data.type === 'initiative_clear') {
               // Initiative cleared
@@ -6575,6 +6863,27 @@
     // === Initialize on Page Load ===
     loadCharacters();
     connectToCampaign();
+
+    // SW-only UI setup
+    if (userRole === 'SW') {
+      // Show sidebar initiative tab bar
+      const tabBar = document.getElementById('sidebarTabBar');
+      if (tabBar) tabBar.style.display = 'flex';
+
+      // Inject SW Notes tab into chat tab bar
+      const tabBarEl = document.getElementById('tabBar');
+      if (tabBarEl) {
+        const notesBtn = document.createElement('button');
+        notesBtn.className = 'tab-btn';
+        notesBtn.dataset.tab = 'sw_notes';
+        notesBtn.onclick = () => switchTab('sw_notes');
+        notesBtn.textContent = '📝 Notes';
+        tabBarEl.appendChild(notesBtn);
+      }
+
+      // Load SW notes
+      loadSWNotes();
+    }
 
     // Hamburger menu toggle (mobile)
     const hamburgerBtn = document.getElementById('hamburgerBtn');

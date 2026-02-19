@@ -1786,16 +1786,25 @@ async def show_initiative_order(
 
         # Filter based on user role
         if is_sw:
-            # SW sees everything, including silent rolls
-            visible_rolls = [
-                {
+            # SW sees everything — include DP data for the initiative tracker
+            visible_rolls = []
+            for roll in all_rolls:
+                entry = {
                     "name": roll.name,
                     "roll": roll.roll_result,
                     "is_silent": roll.is_silent,
-                    "rolled_by_sw": roll.rolled_by_sw
+                    "rolled_by_sw": roll.rolled_by_sw,
+                    "character_id": str(roll.character_id) if roll.character_id else None,
+                    "is_npc": roll.npc_id is not None,
+                    "dp": None,
+                    "max_dp": None
                 }
-                for roll in all_rolls
-            ]
+                if roll.character_id:
+                    char = db.query(Character).filter(Character.id == roll.character_id).first()
+                    if char:
+                        entry["dp"] = char.dp
+                        entry["max_dp"] = char.max_dp
+                visible_rolls.append(entry)
         else:
             # Players only see non-silent rolls
             visible_rolls = [

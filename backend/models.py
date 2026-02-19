@@ -296,6 +296,9 @@ class Campaign(Base):
     character_creation_mode = Column(String, nullable=False, default='open')  # 'open', 'approval_required', 'sw_only'
     max_characters_per_player = Column(Integer, nullable=False, default=1)
 
+    # SW private notes / lore scratchpad
+    sw_notes = Column(Text, nullable=True)
+
     # Legacy fields (kept for backward compatibility)
     created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
     is_active = Column(Boolean, nullable=False, default=True)
