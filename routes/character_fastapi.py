@@ -1933,8 +1933,21 @@ async def cleanse_called(
 
     char.is_called = False
     db.commit()
+    db.refresh(char)
 
     logger.info(f"[{request_id}] 'The Called' status cleared for '{char.name}' (times_called remains {char.times_called})")
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(char.campaign_id, {
+            "type": "called_cleansed",
+            "character_id": str(char.id),
+            "character_name": char.name
+        }))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast called_cleansed: {_be}")
+
     return {
         "message": f"'{char.name}' has been cleansed. The Called status removed.",
         "times_called": char.times_called

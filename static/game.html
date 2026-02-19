@@ -2860,10 +2860,15 @@
     }
 
     // PC Character Context Menu (SW only — shown when clicking ⚙ on a player's card)
-    function showPCContextMenu(event, charId, charName) {
+    function showPCContextMenu(event, charId, charName, isCalled = false) {
       event.stopPropagation();
       const existing = document.querySelector('.context-menu');
       if (existing) existing.remove();
+
+      const calledSection = isCalled ? `
+        <div style="padding:4px 12px; font-size:0.7rem; color:#c084fc; border-top:1px solid var(--border-color); margin-top:4px; pointer-events:none;">👁 THE CALLED</div>
+        <button class="context-menu-item" onclick="doCalledCheck('${charId}')">  Called Check</button>
+        <button class="context-menu-item" style="color:#86efac;" onclick="doCleanseCall('${charId}')">  Cleanse The Called</button>` : '';
 
       const menu = document.createElement('div');
       menu.className = 'context-menu active';
@@ -2876,6 +2881,7 @@
         <button class="context-menu-item" onclick="grantBapToken('${charId}', '24hrs')">  Grant — 24 Hours</button>
         <button class="context-menu-item" onclick="grantBapToken('${charId}', 'sw_choice')">  Grant — SW Choice</button>
         <button class="context-menu-item" style="color:#f87171;" onclick="revokeBapToken('${charId}')">  Revoke Token</button>
+        ${calledSection}
       `;
       document.body.appendChild(menu);
 
@@ -3048,6 +3054,40 @@
         btn.disabled = false;
         btn.textContent = '✦ Award BAP';
         showPanelToast(`Error: ${e.message}`, 'error');
+      }
+    }
+
+    // ===================================================================
+    // THE CALLED — SW TOOLS
+    // ===================================================================
+
+    async function doCalledCheck(charId) {
+      const menu = document.querySelector('.context-menu');
+      if (menu) menu.remove();
+      try {
+        const resp = await fetch(`/api/characters/${charId}/called-check`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        // WS called_check_result broadcast handles the display
+      } catch (e) {
+        showPanelToast(`Called check failed: ${e.message}`, 'error');
+      }
+    }
+
+    async function doCleanseCall(charId) {
+      const menu = document.querySelector('.context-menu');
+      if (menu) menu.remove();
+      try {
+        const resp = await fetch(`/api/characters/${charId}/cleanse-called`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        // WS called_cleansed broadcast will remove the badge from all clients
+      } catch (e) {
+        showPanelToast(`Cleanse failed: ${e.message}`, 'error');
       }
     }
 
@@ -5537,6 +5577,30 @@
                 showPanelToast(`⬆️ You leveled up to level ${data.new_level}!${data.new_slot_unlocked ? ' New ability slot unlocked!' : ''}`, 'success');
               }
 
+            } else if (data.type === 'called_check_result') {
+              const effectColors = { nightmare: '#f87171', peaceful: '#94a3b8', vision: '#86efac' };
+              const effectEmoji  = { nightmare: '😨', peaceful: '😴', vision: '✨' };
+              const checkDiv = document.createElement('div');
+              checkDiv.className = 'message-card';
+              checkDiv.style.cssText = 'border-left:4px solid #c084fc; background:rgba(192,132,252,0.07); padding:12px 16px; margin:4px 0;';
+              checkDiv.innerHTML = `
+                <div style="color:#c084fc; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">👁 THE CALLED — Rest Check · ${data.character_name}</div>
+                <div>1d6: <strong>${data.roll}</strong> → <strong style="color:${effectColors[data.effect] || '#fff'};">${effectEmoji[data.effect] || ''} ${data.effect}</strong></div>
+                ${data.modifier !== 0 ? `<div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">${data.modifier > 0 ? '+' : ''}${data.modifier} to next roll</div>` : ''}
+                <div style="font-style:italic; color:var(--text-muted); font-size:0.85rem; margin-top:6px;">${data.narrative}</div>`;
+              document.getElementById('chatMessages').appendChild(checkDiv);
+              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+
+            } else if (data.type === 'called_cleansed') {
+              const cleanseDiv = document.createElement('div');
+              cleanseDiv.className = 'message-card';
+              cleanseDiv.style.cssText = 'border-left:4px solid #86efac; background:rgba(134,239,172,0.07); padding:10px 16px; margin:4px 0;';
+              cleanseDiv.innerHTML = `
+                <div style="color:#86efac; font-size:0.85rem;">✨ ${data.character_name} has been cleansed — The Called status removed.</div>`;
+              document.getElementById('chatMessages').appendChild(cleanseDiv);
+              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              loadCharacters();
+
             } else if (data.type === 'bap_granted') {
               showPanelToast(`✦ ${data.character_name} received a BAP token! (${data.token_type || 'sw_choice'})`, 'warning');
               loadCharacters();
@@ -6399,6 +6463,16 @@
             const isCalledBadge = char.is_called
               ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;margin-left:4px;" title="The Called — haunted by visions and nightmares">The Called</span>`
               : '';
+            const scars = Array.isArray(char.battle_scars) ? char.battle_scars : [];
+            const scarsHtml = scars.length > 0
+              ? `<details style="margin-top:6px;">
+                   <summary style="font-size:0.72rem; color:#f87171; cursor:pointer; user-select:none;">🩸 Battle Scars (${scars.length})</summary>
+                   <div style="margin-top:4px; padding-left:8px; border-left:2px solid rgba(248,113,113,0.4);">
+                     ${scars.map(s => `<div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:2px; font-style:italic;">"${s.description || s}"</div>`).join('')}
+                   </div>
+                 </details>`
+              : '';
+
             characterCard.innerHTML = `
               <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
@@ -6407,7 +6481,7 @@
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
-                  ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}')">⚙</button>` : ''}
+                  ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false})">⚙</button>` : ''}
                 </div>
               </div>
               <div class="character-details">
@@ -6416,6 +6490,7 @@
                   <div class="hp-bar" style="width: ${dpBarStyle.width}; background: ${dpBarStyle.background};"></div>
                   <span class="hp-text">${char.dp}/${char.max_dp} DP</span>
                 </div>
+                ${scarsHtml}
               </div>
             `;
             charactersContainer.appendChild(characterCard);

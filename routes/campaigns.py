@@ -596,6 +596,7 @@ async def get_campaign_members(
                 "is_called": character.is_called or False,
                 "bap_token_active": character.bap_token_active or False,
                 "bap_token_type": character.bap_token_type,
+                "battle_scars": character.battle_scars or [],
             } if character else None
         })
     
