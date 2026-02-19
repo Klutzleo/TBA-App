@@ -2171,6 +2171,16 @@
             style="flex:1; width:100%; min-height:300px; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:var(--radius); padding:12px; font-size:0.875rem; line-height:1.6; resize:vertical; font-family:inherit;"></textarea>
           <div id="swNotesSaveStatus" style="font-size:0.75rem; color:var(--text-muted); text-align:right;">Auto-saves on change</div>
         </div>
+
+        <!-- Player Notepad Pane (hidden until Notes tab active, player only) -->
+        <div id="playerNotesPane" style="display:none; flex:1; flex-direction:column; padding:12px 16px; gap:8px;">
+          <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;">📓 Your Notes — private, only you can see these</div>
+          <textarea id="playerNotesTextarea"
+            placeholder="Jot down clues, NPC names, quest hooks, things to remember..."
+            style="flex:1; width:100%; min-height:300px; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:var(--radius); padding:12px; font-size:0.875rem; line-height:1.6; resize:vertical; font-family:inherit;"></textarea>
+          <div id="playerNotesSaveStatus" style="font-size:0.75rem; color:var(--text-muted); text-align:right;">Auto-saves on change</div>
+        </div>
+
         <div class="chat-input-container">
           <div class="chat-input-row">
             <div class="form-group">
@@ -2632,23 +2642,28 @@
         targetBtn.classList.add('active');
       }
 
-      // Swap between chat messages / lore pane / notes pane
-      const chatMessages = document.getElementById('chatMessages');
-      const swNotes      = document.getElementById('swNotesPane');
-      const lorePane     = document.getElementById('lorePane');
+      // Swap between chat messages / lore pane / notes panes
+      const chatMessages  = document.getElementById('chatMessages');
+      const swNotes       = document.getElementById('swNotesPane');
+      const playerNotes   = document.getElementById('playerNotesPane');
+      const lorePane      = document.getElementById('lorePane');
+
+      // Hide everything first, then show what's needed
+      if (chatMessages)  chatMessages.style.display  = 'none';
+      if (swNotes)       swNotes.style.display       = 'none';
+      if (playerNotes)   playerNotes.style.display   = 'none';
+      if (lorePane)      lorePane.style.display      = 'none';
+
       if (tab === 'sw_notes') {
-        if (chatMessages) chatMessages.style.display = 'none';
-        if (lorePane)     lorePane.style.display     = 'none';
-        if (swNotes)      swNotes.style.display      = 'flex';
+        if (swNotes) swNotes.style.display = 'flex';
+        return;
+      } else if (tab === 'player_notes') {
+        if (playerNotes) playerNotes.style.display = 'flex';
         return;
       } else if (tab === 'lore') {
-        if (chatMessages) chatMessages.style.display = 'none';
-        if (swNotes)      swNotes.style.display      = 'none';
-        if (lorePane)     lorePane.style.display     = 'flex';
+        if (lorePane) lorePane.style.display = 'flex';
         return;
       } else {
-        if (swNotes)  swNotes.style.display  = 'none';
-        if (lorePane) lorePane.style.display = 'none';
         if (chatMessages) chatMessages.style.display = '';
       }
 
@@ -3326,6 +3341,53 @@
       } catch (e) {
         showPanelToast(`Cleanse failed: ${e.message}`, 'error');
       }
+    }
+
+    // ===================================================================
+    // === Player Notepad (auto-save, player only) ========================
+    // ===================================================================
+
+    let playerNotesSaveTimer = null;
+
+    async function loadPlayerNotes() {
+      if (!characterId) return;
+      try {
+        const resp = await fetch(`/api/characters/${characterId}/notes`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const ta = document.getElementById('playerNotesTextarea');
+        if (ta) ta.value = data.notes || '';
+        attachPlayerNotesSave();
+      } catch (e) {
+        console.error('Failed to load player notes:', e);
+      }
+    }
+
+    function attachPlayerNotesSave() {
+      const ta     = document.getElementById('playerNotesTextarea');
+      const status = document.getElementById('playerNotesSaveStatus');
+      if (!ta) return;
+      ta.addEventListener('input', () => {
+        if (status) status.textContent = 'Unsaved changes...';
+        clearTimeout(playerNotesSaveTimer);
+        playerNotesSaveTimer = setTimeout(async () => {
+          try {
+            const resp = await fetch(`/api/characters/${characterId}/notes`, {
+              method: 'PATCH',
+              headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ notes: ta.value })
+            });
+            if (resp.ok) {
+              if (status) status.textContent = 'Saved ✓';
+              setTimeout(() => { if (status) status.textContent = 'Auto-saves on change'; }, 2000);
+            }
+          } catch (e) {
+            if (status) status.textContent = 'Save failed';
+          }
+        }, 800);
+      });
     }
 
     // ===================================================================
@@ -7129,6 +7191,20 @@
 
       // Load SW notes
       loadSWNotes();
+    }
+
+    // Player-only UI setup
+    if (userRole === 'Player') {
+      const tabBarEl = document.getElementById('tabBar');
+      if (tabBarEl) {
+        const notesBtn = document.createElement('button');
+        notesBtn.className = 'tab-btn';
+        notesBtn.dataset.tab = 'player_notes';
+        notesBtn.onclick = () => switchTab('player_notes');
+        notesBtn.textContent = '📓 Notes';
+        tabBarEl.appendChild(notesBtn);
+      }
+      loadPlayerNotes();
     }
 
     // Load lore for everyone

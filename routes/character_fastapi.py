@@ -2247,3 +2247,42 @@ async def bap_retroactive(
         logger.warning(f"Could not broadcast bap_retroactive: {_be}")
 
     return {"message_id": message_id, "bap_awarded": True, "bap_bonus": bap_bonus}
+
+
+# ============================================================
+# Player Notepad
+# ============================================================
+
+@character_blp_fastapi.get("/{character_id}/notes")
+async def get_character_notes(
+    character_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the player's private notes for their character."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this character")
+    return {"notes": char.notes or ""}
+
+
+@character_blp_fastapi.patch("/{character_id}/notes")
+async def update_character_notes(
+    character_id: str,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Save the player's private notes for their character."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this character")
+    char.notes = req.get("notes", "")
+    db.commit()
+    return {"notes": char.notes}
