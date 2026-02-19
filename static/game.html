@@ -5010,6 +5010,12 @@
                 addMessage(`⚠️ Connected without a Character ID. Enter a valid Character ID in the connection settings to use your character name.`, 'message-card message-system');
                 currentActor = 'User'; // Set fallback
               }
+              // If character is archived (died), drop to spectator so they can create a new one
+              if (data.character_status === 'archived' && characterId) {
+                window.location.href = window.location.pathname +
+                  window.location.search.replace(/[?&]character_id=[^&]+/, '') + '&role=player';
+                return;
+              }
               // Restore The Calling modal if character is still in it
               if (data.in_calling && data.character_id) {
                 openCallingModal(

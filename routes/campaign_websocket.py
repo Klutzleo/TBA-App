@@ -243,6 +243,7 @@ async def campaign_websocket(
         }
         if character:
             welcome_payload["character_id"] = str(character.id)
+            welcome_payload["character_status"] = character.status
             welcome_payload["in_calling"] = character.in_calling or False
             welcome_payload["times_called"] = character.times_called or 0
             welcome_payload["character_ip"] = character.ip or 0
