@@ -558,22 +558,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         )
         
         # =====================================================================
-        # Broadcast combat result to all players
-        # =====================================================================
-        combat_broadcast = CombatResultBroadcast(
-            attacker=attacker.name,
-            defender=defender.name,
-            technique="Attack",  # Default technique name
-            damage=result["total_damage"],
-            defender_new_dp=defender.dp,
-            narrative=result["narrative"],
-            individual_rolls=result["individual_rolls"],
-            outcome=result["outcome"]
-        )
-        await manager.broadcast(campaign_id, combat_broadcast.model_dump(mode='json'))
-
-        # =====================================================================
-        # Persist combat result to database
+        # Persist combat result to database (save first to get message_id)
         # =====================================================================
         combat_message = Message(
             campaign_id=str(campaign_id),
@@ -584,7 +569,9 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             message_type="combat_result",
             extra_data={
                 "attacker": attacker.name,
+                "attacker_id": str(attacker.id),
                 "defender": defender.name,
+                "defender_id": str(defender.id),
                 "technique": "Attack",
                 "damage": result["total_damage"],
                 "defender_new_dp": defender.dp,
@@ -595,22 +582,71 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         )
         db.add(combat_message)
         db.commit()
+        db.refresh(combat_message)
+
+        # =====================================================================
+        # Broadcast combat result to all players (with message_id for BAP)
+        # =====================================================================
+        combat_broadcast = CombatResultBroadcast(
+            attacker=attacker.name,
+            defender=defender.name,
+            technique="Attack",  # Default technique name
+            damage=result["total_damage"],
+            defender_new_dp=defender.dp,
+            narrative=result["narrative"],
+            individual_rolls=result["individual_rolls"],
+            outcome=result["outcome"],
+            message_id=str(combat_message.id),
+            attacker_id=str(attacker.id),
+            defender_id=str(defender.id)
+        )
+        await manager.broadcast(campaign_id, combat_broadcast.model_dump(mode='json'))
 
         # =====================================================================
         # Check for knockout / The Calling
         # =====================================================================
         if defender.dp <= 0:
             if defender.dp <= -10 and not defender.is_npc and not defender.in_calling:
-                # The Calling triggered!
-                defender.in_calling = True
-                calling_msg = Message(
-                    campaign_id=campaign_id,
-                    party_id=None,
-                    sender_id=user_id,
-                    sender_name="System",
-                    message_type="calling_triggered",
-                    content=f"{defender.name} has entered The Calling!",
-                    extra_data={
+                if (defender.times_called or 0) >= 4:
+                    # 5th Calling — no roll, instant permadeath
+                    defender.status = 'archived'
+                    defender.times_called = (defender.times_called or 0) + 1
+                    db.commit()
+                    await manager.broadcast(campaign_id, {
+                        "type": "permadeath",
+                        "character_id": str(defender.id),
+                        "character_name": defender.name,
+                        "times_called": defender.times_called
+                    })
+                    await manager.broadcast(campaign_id, {
+                        "type": "character_archived",
+                        "character_id": str(defender.id),
+                        "character_name": defender.name
+                    })
+                else:
+                    # The Calling triggered!
+                    defender.in_calling = True
+                    calling_msg = Message(
+                        campaign_id=campaign_id,
+                        party_id=None,
+                        sender_id=user_id,
+                        sender_name="System",
+                        message_type="calling_triggered",
+                        content=f"{defender.name} has entered The Calling!",
+                        extra_data={
+                            "character_id": str(defender.id),
+                            "defender": defender.name,
+                            "defender_new_dp": defender.dp,
+                            "defender_ip": defender.ip,
+                            "defender_sp": defender.sp,
+                            "defender_edge": defender.edge or 0,
+                            "defender_times_called": defender.times_called or 0
+                        }
+                    )
+                    db.add(calling_msg)
+                    db.commit()
+                    await manager.broadcast(campaign_id, {
+                        "type": "calling_triggered",
                         "character_id": str(defender.id),
                         "defender": defender.name,
                         "defender_new_dp": defender.dp,
@@ -618,20 +654,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                         "defender_sp": defender.sp,
                         "defender_edge": defender.edge or 0,
                         "defender_times_called": defender.times_called or 0
-                    }
-                )
-                db.add(calling_msg)
-                db.commit()
-                await manager.broadcast(campaign_id, {
-                    "type": "calling_triggered",
-                    "character_id": str(defender.id),
-                    "defender": defender.name,
-                    "defender_new_dp": defender.dp,
-                    "defender_ip": defender.ip,
-                    "defender_sp": defender.sp,
-                    "defender_edge": defender.edge or 0,
-                    "defender_times_called": defender.times_called or 0
-                })
+                    })
             elif defender.dp <= 0:
                 # Just knocked out
                 await manager.broadcast(campaign_id, {
@@ -781,9 +804,16 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 # Check for The Calling at -10 DP (PCs only)
                 calling_triggered = False
+                permadeath_triggered = False
                 if target.dp <= -10 and not target.is_npc and not target.in_calling:
-                    target.in_calling = True
-                    calling_triggered = True
+                    if (target.times_called or 0) >= 4:
+                        # 5th Calling — instant permadeath
+                        target.status = 'archived'
+                        target.times_called = (target.times_called or 0) + 1
+                        permadeath_triggered = True
+                    else:
+                        target.in_calling = True
+                        calling_triggered = True
 
                 db.commit()
 
@@ -815,6 +845,20 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     calling_char_edge = target.edge or 0
                     calling_char_times = target.times_called or 0
                     calling_char_dp = target.dp
+
+                if permadeath_triggered:
+                    # 5th Calling via ability — broadcast permadeath immediately
+                    await manager.broadcast(campaign_id, {
+                        "type": "permadeath",
+                        "character_id": str(target.id),
+                        "character_name": target.name,
+                        "times_called": target.times_called
+                    })
+                    await manager.broadcast(campaign_id, {
+                        "type": "character_archived",
+                        "character_id": str(target.id),
+                        "character_name": target.name
+                    })
 
                 if damage > 0:
                     narrative_parts.append(f"{target_name} takes {damage} damage (DP: {old_dp} → {target.dp})")
@@ -1317,6 +1361,38 @@ async def broadcast_level_up(campaign_id: UUID, character_id: str, character_nam
     })
 
 
+async def broadcast_bap_granted(campaign_id: UUID, character_id: str, character_name: str, owner_id: str, token_type: str):
+    """SW granted a BAP token to a character. All clients update the party panel."""
+    await manager.broadcast(campaign_id, {
+        "type": "bap_granted",
+        "character_id": character_id,
+        "character_name": character_name,
+        "owner_id": owner_id,
+        "token_type": token_type
+    })
+
+
+async def broadcast_bap_revoked(campaign_id: UUID, character_id: str, character_name: str, owner_id: str):
+    """SW revoked a BAP token. All clients update the party panel."""
+    await manager.broadcast(campaign_id, {
+        "type": "bap_revoked",
+        "character_id": character_id,
+        "character_name": character_name,
+        "owner_id": owner_id
+    })
+
+
+async def broadcast_bap_retroactive(campaign_id: UUID, character_id: str, character_name: str, message_id: str, bap_bonus: int):
+    """SW awarded retroactive BAP on a specific combat roll. Clients update that card."""
+    await manager.broadcast(campaign_id, {
+        "type": "bap_retroactive",
+        "character_id": character_id,
+        "character_name": character_name,
+        "message_id": message_id,
+        "bap_bonus": bap_bonus
+    })
+
+
 # ============================================================================
 # INITIATIVE & ENCOUNTER SYSTEM
 # ============================================================================
@@ -1807,6 +1883,11 @@ async def end_encounter(
         for ability in abilities:
             ability.uses_remaining = ability.max_uses
             restored_count += 1
+
+        # Reset has_faced_calling_this_encounter for all active PCs
+        for char in characters:
+            if not char.is_npc and char.status == 'active':
+                char.has_faced_calling_this_encounter = False
 
         db.commit()
 

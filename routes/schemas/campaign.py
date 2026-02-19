@@ -99,6 +99,9 @@ class CombatResultBroadcast(BaseModel):
     individual_rolls: List[Dict[str, Any]]  # Detailed roll breakdown
     outcome: str  # "hit", "partial_hit", "miss"
     timestamp: datetime = Field(default_factory=datetime.now)
+    message_id: Optional[str] = None   # DB message ID (for retroactive BAP)
+    attacker_id: Optional[str] = None  # Attacker character UUID
+    defender_id: Optional[str] = None  # Defender character/NPC UUID
 
 
 class AbilityCastBroadcast(BaseModel):

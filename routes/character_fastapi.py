@@ -2079,3 +2079,158 @@ async def level_up_character(
         logger.warning(f"Could not broadcast level up: {_be}")
 
     return result
+
+
+# ============================================================================
+# BAP TOKEN SYSTEM
+# ============================================================================
+
+@character_blp_fastapi.post("/{character_id}/grant-bap-token")
+async def grant_bap_token(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SW grants a banked BAP token to a character.
+    Body: { token_type: 'encounter' | '24hrs' | 'sw_choice' }
+    """
+    from uuid import UUID
+    from datetime import datetime, timedelta, timezone
+    from backend.models import CampaignMembership
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+
+    token_type = req.get("token_type", "sw_choice")
+    if token_type not in ("encounter", "24hrs", "sw_choice"):
+        raise HTTPException(status_code=400, detail="token_type must be 'encounter', '24hrs', or 'sw_choice'")
+
+    char.bap_token_active = True
+    char.bap_token_type = token_type
+    char.bap_token_expires_at = (
+        datetime.now(timezone.utc) + timedelta(hours=24) if token_type == "24hrs" else None
+    )
+    db.commit()
+    db.refresh(char)
+
+    owner_id = str(char.user_id) if char.user_id else str(char.owner_id)
+    try:
+        from routes.campaign_websocket import broadcast_bap_granted
+        import asyncio
+        asyncio.create_task(broadcast_bap_granted(
+            char.campaign_id, str(char.id), char.name, owner_id, token_type
+        ))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast bap_granted: {_be}")
+
+    return {"character_id": str(char.id), "bap_token_active": True, "bap_token_type": token_type}
+
+
+@character_blp_fastapi.post("/{character_id}/revoke-bap-token")
+async def revoke_bap_token(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """SW revokes a character's BAP token."""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+
+    char.bap_token_active = False
+    char.bap_token_expires_at = None
+    char.bap_token_type = None
+    db.commit()
+
+    owner_id = str(char.user_id) if char.user_id else str(char.owner_id)
+    try:
+        from routes.campaign_websocket import broadcast_bap_revoked
+        import asyncio
+        asyncio.create_task(broadcast_bap_revoked(
+            char.campaign_id, str(char.id), char.name, owner_id
+        ))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast bap_revoked: {_be}")
+
+    return {"character_id": str(char.id), "bap_token_active": False}
+
+
+@character_blp_fastapi.post("/{character_id}/bap-retroactive")
+async def bap_retroactive(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SW marks a specific combat message as having received retroactive BAP.
+    Body: { message_id: str }
+    Updates the message's extra_data and broadcasts so all clients update that card.
+    """
+    from uuid import UUID
+    from sqlalchemy.orm.attributes import flag_modified
+    from backend.models import CampaignMembership
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+
+    message_id = req.get("message_id")
+    if not message_id:
+        raise HTTPException(status_code=400, detail="message_id is required")
+
+    msg = db.query(Message).filter(Message.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    bap_bonus = char.bap or 1
+    extra = dict(msg.extra_data or {})
+    extra["bap_awarded"] = True
+    extra["bap_bonus"] = bap_bonus
+    msg.extra_data = extra
+    flag_modified(msg, "extra_data")
+    db.commit()
+
+    try:
+        from routes.campaign_websocket import broadcast_bap_retroactive
+        import asyncio
+        asyncio.create_task(broadcast_bap_retroactive(
+            char.campaign_id, str(char.id), char.name, message_id, bap_bonus
+        ))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast bap_retroactive: {_be}")
+
+    return {"message_id": message_id, "bap_awarded": True, "bap_bonus": bap_bonus}

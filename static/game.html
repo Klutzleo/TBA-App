@@ -1461,6 +1461,46 @@
       margin-left: auto;
     }
 
+    /* === BAP Token Badges === */
+    .bap-token-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: var(--radius-sm);
+      padding: 1px 5px;
+      margin-left: 4px;
+      animation: bap-glow 2s ease-in-out infinite;
+    }
+    .bap-badge {
+      font-size: 0.75rem;
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 2px 8px;
+      margin-top: 4px;
+      display: inline-block;
+    }
+    .bap-retro-btn {
+      font-size: 0.8rem;
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 2px 8px;
+      cursor: pointer;
+      margin-top: 4px;
+      display: block;
+      transition: background 0.2s;
+    }
+    .bap-retro-btn:hover { background: rgba(245, 158, 11, 0.22); }
+    @keyframes bap-glow {
+      0%, 100% { box-shadow: 0 0 3px rgba(245, 158, 11, 0.3); }
+      50%       { box-shadow: 0 0 9px rgba(245, 158, 11, 0.7); }
+    }
+
     /* === Responsive Design === */
     @media (max-width: 768px) {
       .hamburger-btn {
@@ -2831,6 +2871,11 @@
         <button class="context-menu-item" onclick="openLevelUpModal('${charId}', '${charName.replace(/'/g, "\\'")}')">⬆️ Level Up</button>
         <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="convertPCtoNPC('${charId}', '${charName.replace(/'/g, "\\'")}')">🎭 Convert to NPC</button>
+        <div style="padding:4px 12px; font-size:0.7rem; color:var(--text-muted); border-top:1px solid var(--border-color); margin-top:4px; pointer-events:none;">✦ BAP TOKEN</div>
+        <button class="context-menu-item" onclick="grantBapToken('${charId}', 'encounter')">  Grant — Encounter</button>
+        <button class="context-menu-item" onclick="grantBapToken('${charId}', '24hrs')">  Grant — 24 Hours</button>
+        <button class="context-menu-item" onclick="grantBapToken('${charId}', 'sw_choice')">  Grant — SW Choice</button>
+        <button class="context-menu-item" style="color:#f87171;" onclick="revokeBapToken('${charId}')">  Revoke Token</button>
       `;
       document.body.appendChild(menu);
 
@@ -2949,6 +2994,60 @@
         // WS broadcast will refresh party panel and post chat message
       } catch (e) {
         showPanelToast(`Level up failed: ${e.message}`, 'error');
+      }
+    }
+
+    // ===================================================================
+    // BAP TOKEN SYSTEM
+    // ===================================================================
+
+    async function grantBapToken(charId, tokenType) {
+      const menu = document.querySelector('.context-menu');
+      if (menu) menu.remove();
+      try {
+        const resp = await fetch(`/api/characters/${charId}/grant-bap-token`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token_type: tokenType })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        // WS bap_granted broadcast will update all clients
+      } catch (e) {
+        showPanelToast(`BAP grant failed: ${e.message}`, 'error');
+      }
+    }
+
+    async function revokeBapToken(charId) {
+      const menu = document.querySelector('.context-menu');
+      if (menu) menu.remove();
+      try {
+        const resp = await fetch(`/api/characters/${charId}/revoke-bap-token`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        // WS bap_revoked broadcast will update all clients
+      } catch (e) {
+        showPanelToast(`BAP revoke failed: ${e.message}`, 'error');
+      }
+    }
+
+    async function awardRetroactiveBap(attackerId, messageId, btn, container) {
+      if (!attackerId || !messageId) return;
+      btn.disabled = true;
+      btn.textContent = '✦ Awarding…';
+      try {
+        const resp = await fetch(`/api/characters/${attackerId}/bap-retroactive`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: messageId })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        // WS bap_retroactive broadcast will update all clients' cards
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '✦ Award BAP';
+        showPanelToast(`Error: ${e.message}`, 'error');
       }
     }
 
@@ -4847,6 +4946,23 @@
                   container.appendChild(detailsDiv);
                 }
 
+                // BAP: store IDs for retroactive award, show badge or button
+                container.dataset.messageId = msg.id || '';
+                container.dataset.attackerId = data.attacker_id || '';
+                if (data.bap_awarded) {
+                  const bapBadge = document.createElement('div');
+                  bapBadge.className = 'bap-badge';
+                  bapBadge.textContent = `✦ BAP +${data.bap_bonus || 1} awarded`;
+                  container.appendChild(bapBadge);
+                } else if (isSW() && data.attacker_id) {
+                  const bapBtn = document.createElement('button');
+                  bapBtn.className = 'bap-retro-btn';
+                  bapBtn.title = 'Award retroactive BAP to this attacker';
+                  bapBtn.textContent = '✦ Award BAP';
+                  bapBtn.onclick = () => awardRetroactiveBap(data.attacker_id, msg.id, bapBtn, container);
+                  container.appendChild(bapBtn);
+                }
+
                 // Add tab indicator
                 const tabIndicator = document.createElement('span');
                 tabIndicator.className = 'message-tab-indicator';
@@ -5333,6 +5449,19 @@
               document.getElementById('theCallingModal').classList.add('active');
               callingCharId = data.character_id;
               loadBubbleBar();
+            } else if (data.type === 'permadeath') {
+              // 5th Calling — no roll, instant death, dramatic broadcast
+              const deathDiv = document.createElement('div');
+              deathDiv.className = 'message-card';
+              deathDiv.style.cssText = 'border:2px solid #dc2626; background:linear-gradient(135deg, rgba(220,38,38,0.18), rgba(127,29,29,0.1)); text-align:center; padding:20px 16px; margin:8px 0; border-radius:8px;';
+              deathDiv.innerHTML = `
+                <div style="font-size:1.3rem; font-weight:bold; color:#f87171; letter-spacing:0.06em;">💀 THERE IS NO FIFTH CALLING</div>
+                <div style="margin-top:10px; color:var(--text-primary); font-size:1rem;">${data.character_name} has answered The Calling too many times.</div>
+                <div style="margin-top:4px; color:#f87171; font-size:0.85rem; font-style:italic;">Their story ends here. Called ${data.times_called} time${data.times_called !== 1 ? 's' : ''}.</div>`;
+              document.getElementById('chatMessages').appendChild(deathDiv);
+              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              loadCharacters();
+
             } else if (data.type === 'character_archived') {
               // Character died in The Calling — drop owner to spectator
               if (characterId && data.character_id === characterId) {
@@ -5407,6 +5536,33 @@
               if (characterId === data.character_id) {
                 showPanelToast(`⬆️ You leveled up to level ${data.new_level}!${data.new_slot_unlocked ? ' New ability slot unlocked!' : ''}`, 'success');
               }
+
+            } else if (data.type === 'bap_granted') {
+              showPanelToast(`✦ ${data.character_name} received a BAP token! (${data.token_type || 'sw_choice'})`, 'warning');
+              loadCharacters();
+              if (data.owner_id === currentUser?.id) loadBubbleBar();
+
+            } else if (data.type === 'bap_revoked') {
+              loadCharacters();
+              if (data.owner_id === currentUser?.id) {
+                showPanelToast('Your BAP token was revoked.', 'info');
+                loadBubbleBar();
+              }
+
+            } else if (data.type === 'bap_retroactive') {
+              // Update the specific combat card in the DOM
+              const card = document.querySelector(`[data-message-id="${data.message_id}"]`);
+              if (card) {
+                // Replace the retro button with a badge
+                card.querySelectorAll('.bap-retro-btn').forEach(el => el.remove());
+                const bapBadge = document.createElement('div');
+                bapBadge.className = 'bap-badge';
+                bapBadge.textContent = `✦ BAP +${data.bap_bonus} awarded to ${data.character_name}`;
+                const tabIndicator = card.querySelector('.message-tab-indicator');
+                if (tabIndicator) card.insertBefore(bapBadge, tabIndicator);
+                else card.appendChild(bapBadge);
+              }
+              showPanelToast(`✦ BAP +${data.bap_bonus} awarded retroactively to ${data.character_name}!`, 'warning');
 
             } else if (data.type === 'system') {
               // Silently ignore join/leave events — too noisy in an active campaign
@@ -5611,6 +5767,18 @@
 
                 container.appendChild(toggleDetails);
                 container.appendChild(detailsDiv);
+              }
+
+              // BAP: store IDs for retroactive award, add SW button
+              container.dataset.messageId = data.message_id || '';
+              container.dataset.attackerId = data.attacker_id || '';
+              if (isSW() && data.attacker_id && data.message_id) {
+                const bapBtn = document.createElement('button');
+                bapBtn.className = 'bap-retro-btn';
+                bapBtn.title = 'Award retroactive BAP to this attacker';
+                bapBtn.textContent = '✦ Award BAP';
+                bapBtn.onclick = () => awardRetroactiveBap(data.attacker_id, data.message_id, bapBtn, container);
+                container.appendChild(bapBtn);
               }
 
               // Add tab indicator
@@ -6225,9 +6393,18 @@
               ? `<button class="btn-icon" title="In The Calling — click to open" style="color:var(--accent-danger); font-size:1.1rem; animation: pulse 1.5s infinite;"
                   onclick="openCallingModal('${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.dp}, ${char.ip}, ${char.sp}, ${char.edge || 0}, ${char.times_called || 0})">💀</button>`
               : '';
+            const bapTokenBadge = char.bap_token_active
+              ? `<span class="bap-token-badge" title="BAP token active (${char.bap_token_type || 'sw_choice'})">✦ BAP</span>`
+              : '';
+            const isCalledBadge = char.is_called
+              ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;margin-left:4px;" title="The Called — haunted by visions and nightmares">The Called</span>`
+              : '';
             characterCard.innerHTML = `
               <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <strong>${char.name}</strong>
+                <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                  <strong>${char.name}</strong>
+                  ${bapTokenBadge}${isCalledBadge}
+                </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
                   ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}')">⚙</button>` : ''}

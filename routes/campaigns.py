@@ -594,6 +594,8 @@ async def get_campaign_members(
                 "in_calling": character.in_calling or False,
                 "times_called": character.times_called or 0,
                 "is_called": character.is_called or False,
+                "bap_token_active": character.bap_token_active or False,
+                "bap_token_type": character.bap_token_type,
             } if character else None
         })
     

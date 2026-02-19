@@ -231,6 +231,11 @@ class Character(Base):
     battle_scars = Column(JSON, nullable=True, default=list)  # Array of scar descriptions from surviving The Calling
     has_faced_calling_this_encounter = Column(Boolean, nullable=False, default=False)  # Prevent re-triggering in same encounter
 
+    # BAP Token system
+    bap_token_active = Column(Boolean, nullable=False, default=False)
+    bap_token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    bap_token_type = Column(String(20), nullable=True)  # 'encounter', '24hrs', 'sw_choice'
+
     # Relationships
     user = relationship("User", back_populates="characters", foreign_keys=[user_id])
     campaign = relationship("Campaign", back_populates="characters", foreign_keys=[campaign_id])
