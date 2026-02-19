@@ -747,12 +747,16 @@ def _lore_dict(entry: LoreEntry) -> dict:
 
 
 def _require_sw(campaign_id: UUID, current_user: User, db: Session):
-    """Raise 403 if the user is not the SW (campaign owner) of this campaign."""
+    """Raise 403 if the user is not the SW of this campaign."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can do that")
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    if str(campaign.created_by) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Only the Story Weaver can do that")
     return campaign
 
 
