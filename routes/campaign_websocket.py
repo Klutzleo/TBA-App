@@ -1263,6 +1263,45 @@ async def broadcast_pc_transferred(campaign_id: UUID, character_id: str, charact
     })
 
 
+async def broadcast_character_created(campaign_id: UUID, character_id: str, character_name: str, owner_username: str, status: str):
+    """
+    Notify all campaign members that a new character was submitted.
+    SW gets a toast + party panel refresh; other players are unaffected.
+    """
+    await manager.broadcast(campaign_id, {
+        "type": "character_created",
+        "character_id": character_id,
+        "character_name": character_name,
+        "owner_username": owner_username,
+        "status": status
+    })
+
+
+async def broadcast_character_rejected(campaign_id: UUID, character_id: str, character_name: str, owner_id: str, reason: str):
+    """
+    Notify all campaign members that a character was rejected.
+    Only the owning player acts on this (shows rejection toast).
+    """
+    await manager.broadcast(campaign_id, {
+        "type": "character_rejected",
+        "character_id": character_id,
+        "character_name": character_name,
+        "owner_id": owner_id,
+        "reason": reason
+    })
+
+
+async def broadcast_player_joined(campaign_id: UUID, username: str):
+    """
+    Notify all campaign members that a new player joined.
+    SW gets a toast + party panel refresh.
+    """
+    await manager.broadcast(campaign_id, {
+        "type": "player_joined_campaign",
+        "username": username
+    })
+
+
 # ============================================================================
 # INITIATIVE & ENCOUNTER SYSTEM
 # ============================================================================

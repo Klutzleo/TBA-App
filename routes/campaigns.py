@@ -309,7 +309,7 @@ def browse_public_campaigns(
 
 
 @router.post("/join")
-def join_campaign(
+async def join_campaign(
     req: JoinCampaignRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -351,6 +351,14 @@ def join_campaign(
     )
     db.add(membership)
     db.commit()
+
+    # Broadcast so the SW gets a real-time toast + party panel refresh
+    try:
+        from routes.campaign_websocket import broadcast_player_joined
+        import asyncio
+        asyncio.create_task(broadcast_player_joined(campaign.id, current_user.username))
+    except Exception:
+        pass
 
     return {"success": True, "message": f"Successfully joined {campaign.name}"}
 

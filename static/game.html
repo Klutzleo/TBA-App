@@ -2478,6 +2478,29 @@
     }
 
     // ===================================================================
+    // TOAST NOTIFICATIONS
+    // ===================================================================
+
+    function showPanelToast(message, type = 'info') {
+      const colors = { info: '#3b82f6', success: '#22c55e', warning: '#f59e0b', error: '#ef4444' };
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed; top: 16px; right: 16px; z-index: 9999;
+        background: ${colors[type] || colors.info}; color: #fff;
+        padding: 10px 16px; border-radius: 8px; font-size: 0.875rem;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.4); max-width: 340px;
+        line-height: 1.4; animation: slideIn 0.3s ease-out;
+      `;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.transition = 'opacity 0.4s';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 400);
+      }, 4500);
+    }
+
+    // ===================================================================
     // BUBBLE BAR & NPC MANAGEMENT
     // ===================================================================
 
@@ -5173,6 +5196,32 @@
                     }
                   }
                 })();
+              }
+              // SW: refresh party panel so newly approved character appears
+              if (userRole === 'SW') {
+                loadCharacters();
+              }
+
+            } else if (data.type === 'character_created') {
+              // SW gets notified when a player submits a new character
+              if (userRole === 'SW') {
+                const statusText = data.status === 'pending_approval' ? 'submitted for approval' : 'created';
+                showPanelToast(`📝 ${data.owner_username} ${statusText} "${data.character_name}"`, 'info');
+                loadCharacters();
+              }
+
+            } else if (data.type === 'character_rejected') {
+              // Owning player gets a toast with the rejection reason
+              if (userRole === 'Spectator') {
+                const reasonText = data.reason ? ` Reason: ${data.reason}` : '';
+                showPanelToast(`❌ Your character "${data.character_name}" was rejected.${reasonText}`, 'error');
+              }
+
+            } else if (data.type === 'player_joined_campaign') {
+              // SW gets notified when a new player joins the campaign
+              if (userRole === 'SW') {
+                showPanelToast(`👋 ${data.username} joined the campaign`, 'success');
+                loadCharacters();
               }
 
             } else if (data.type === 'system') {

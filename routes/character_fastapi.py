@@ -323,6 +323,20 @@ async def create_character_full(
 
         logger.info(f"[{request_id}] Full character creation complete: {character.name} ({character.id})")
 
+        # Broadcast to campaign so SW gets a real-time toast + party panel refresh
+        try:
+            from routes.campaign_websocket import broadcast_character_created
+            import asyncio
+            asyncio.create_task(broadcast_character_created(
+                character.campaign_id,
+                str(character.id),
+                character.name,
+                current_user.username,
+                character.status
+            ))
+        except Exception as _be:
+            logger.warning(f"Could not broadcast character creation: {_be}")
+
         # =====================================================================
         # 10. Build response
         # =====================================================================
@@ -1619,6 +1633,21 @@ async def reject_character(
 
     db.commit()
     logger.info(f"[{request_id}] Character '{char.name}' rejected by SW {current_user.username}. Reason: {reason}")
+
+    # Broadcast rejection so the owning player gets a real-time toast
+    try:
+        from routes.campaign_websocket import broadcast_character_rejected
+        import asyncio
+        asyncio.create_task(broadcast_character_rejected(
+            char.campaign_id,
+            str(char.id),
+            char.name,
+            str(char.user_id) if char.user_id else "",
+            reason
+        ))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast character rejection: {_be}")
+
     return {"message": f"Character '{char.name}' has been rejected.", "character_id": str(char.id)}
 
 
