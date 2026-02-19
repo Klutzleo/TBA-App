@@ -3477,8 +3477,8 @@
           body: JSON.stringify({ title, content })
         });
         if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
-        // WS broadcast will trigger renderLore() for all clients
         closeLoreEditor();
+        await loadLore(); // immediate update for SW; WS handles other clients
       } catch (e) {
         showPanelToast(`Save failed: ${e.message}`, 'error');
       } finally {
@@ -6133,20 +6133,14 @@
               showPanelToast(`✦ BAP +${data.bap_bonus} awarded retroactively to ${data.character_name}!`, 'warning');
 
             } else if (data.type === 'lore_created') {
-              // Add new entry to local cache + re-render
-              loreEntries.push(data.entry);
-              renderLore();
+              loadLore();
               if (activeTab !== 'lore') showPanelToast(`📖 New lore entry: "${data.entry.title}"`, 'info');
 
             } else if (data.type === 'lore_updated') {
-              const idx = loreEntries.findIndex(e => e.id === data.entry.id);
-              if (idx >= 0) loreEntries[idx] = data.entry;
-              else loreEntries.push(data.entry);
-              renderLore();
+              loadLore();
 
             } else if (data.type === 'lore_deleted') {
-              loreEntries = loreEntries.filter(e => e.id !== data.entry_id);
-              renderLore();
+              loadLore();
 
             } else if (data.type === 'system') {
               // Silently ignore join/leave events — too noisy in an active campaign
