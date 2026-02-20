@@ -4144,7 +4144,7 @@
           </div>
           <div class="loot-item-actions">
             <button class="btn" style="font-size:0.75rem;padding:3px 10px;" onclick="openAwardLootModal('${item.id}', '${escHtml(item.name).replace(/'/g, "\\'")}', ${item.quantity})">Award</button>
-            <button class="btn" style="font-size:0.75rem;padding:3px 10px;background:var(--bg-panel);border:1px solid var(--border-color);" onclick="openEditLootItemModal('${item.id}')">Edit</button>
+            <button class="btn" style="font-size:0.75rem;padding:3px 10px;background:var(--bg-panel-hover);border:1px solid var(--border-color);color:var(--text-primary);" onclick="openEditLootItemModal('${item.id}')">Edit</button>
             <button class="inv-del-btn" onclick="deleteLootItem('${item.id}')" title="Delete">✕</button>
           </div>`;
         list.appendChild(div);
@@ -4210,20 +4210,38 @@
       document.getElementById('awardLootQty').value = 1;
       document.getElementById('awardLootQty').max = maxQty;
 
-      // Populate from knownPCs (set by loadCharacters)
+      // Populate from knownPCs + campaign NPCs
       const sel = document.getElementById('awardLootTarget');
       sel.innerHTML = '';
-      if (knownPCs.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = ''; opt.textContent = '— no characters found —';
-        sel.appendChild(opt);
-      } else {
+
+      if (knownPCs.length > 0) {
+        const grp = document.createElement('optgroup');
+        grp.label = '— Players —';
         knownPCs.forEach(pc => {
           const opt = document.createElement('option');
           opt.value = pc.id;
           opt.textContent = pc.name;
-          sel.appendChild(opt);
+          grp.appendChild(opt);
         });
+        sel.appendChild(grp);
+      }
+
+      if (campaignNPCs && campaignNPCs.length > 0) {
+        const grp = document.createElement('optgroup');
+        grp.label = '— NPCs —';
+        campaignNPCs.forEach(npc => {
+          const opt = document.createElement('option');
+          opt.value = npc.id;
+          opt.textContent = npc.name;
+          grp.appendChild(opt);
+        });
+        sel.appendChild(grp);
+      }
+
+      if (sel.options.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = '— no characters found —';
+        sel.appendChild(opt);
       }
 
       document.getElementById('awardLootModal').classList.add('active');
