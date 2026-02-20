@@ -1275,21 +1275,7 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Se
     breakdown_text = f"1d6({die_roll}) + {stat_type}({stat_value}) + Edge({edge}) = {total}"
     result_text = f"{stat_name} Check: {total}"
 
-    # Broadcast with detailed breakdown
-    broadcast_data = {
-        "type": "stat_roll",
-        "actor": character.name,
-        "stat": stat_type,
-        "stat_name": stat_name,
-        "die_roll": die_roll,
-        "stat_value": stat_value,
-        "edge": edge,
-        "total": total,
-        "text": result_text,
-        "breakdown": breakdown_text
-    }
-
-    # Persist to database
+    # Persist to database first so we have the message_id
     message_record = Message(
         campaign_id=str(campaign_id),
         party_id=None,  # Visible to all tabs
@@ -1298,6 +1284,7 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Se
         content=f"{stat_name} Check: {total}",
         message_type="stat_roll",
         extra_data={
+            "character_id": str(character.id),
             "stat": stat_type,
             "stat_name": stat_name,
             "die_roll": die_roll,
@@ -1309,9 +1296,23 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Se
     )
     db.add(message_record)
     db.commit()
+    db.refresh(message_record)
 
-    # Broadcast result
-    await manager.broadcast(campaign_id, broadcast_data)
+    # Broadcast with detailed breakdown
+    await manager.broadcast(campaign_id, {
+        "type": "stat_roll",
+        "message_id": str(message_record.id),
+        "character_id": str(character.id),
+        "actor": character.name,
+        "stat": stat_type,
+        "stat_name": stat_name,
+        "die_roll": die_roll,
+        "stat_value": stat_value,
+        "edge": edge,
+        "total": total,
+        "text": result_text,
+        "breakdown": breakdown_text
+    })
     logger.info(f"[stat_check] {character.name} {stat_type} check: {total} ({breakdown_text})")
 
 

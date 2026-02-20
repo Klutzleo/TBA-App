@@ -2359,6 +2359,76 @@ async def bap_retroactive(
 
 
 # ============================================================
+# BAP — Stat Roll Retroactive
+# ============================================================
+
+@character_blp_fastapi.post("/{character_id}/bap-stat-roll")
+async def bap_stat_roll(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SW retroactively awards BAP on a skill check roll.
+    Adds the character's BAP bonus to the displayed total and marks the message.
+    Body: { message_id: str }
+    """
+    from uuid import UUID
+    from backend.models import CampaignMembership, Message as Msg
+    import asyncio
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+
+    message_id = req.get("message_id", "")
+    msg = db.query(Msg).filter(Msg.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    extra = dict(msg.extra_data or {})
+    if extra.get("bap_awarded"):
+        raise HTTPException(status_code=400, detail="BAP already awarded for this roll")
+
+    bap_bonus = char.bap or 1
+    old_total = extra.get("total", 0)
+    new_total = old_total + bap_bonus
+
+    extra["bap_awarded"] = True
+    extra["bap_bonus"] = bap_bonus
+    extra["total"] = new_total
+    extra["breakdown"] = extra.get("breakdown", "") + f" + BAP({bap_bonus}) = {new_total}"
+    msg.extra_data = extra
+    db.commit()
+
+    try:
+        from routes.campaign_websocket import manager
+        asyncio.create_task(manager.broadcast(char.campaign_id, {
+            "type": "bap_stat_roll",
+            "message_id": message_id,
+            "character_id": str(char.id),
+            "character_name": char.name,
+            "bap_bonus": bap_bonus,
+            "new_total": new_total,
+            "stat_name": extra.get("stat_name", ""),
+        }))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast bap_stat_roll: {_be}")
+
+    return {"message_id": message_id, "bap_awarded": True, "bap_bonus": bap_bonus, "new_total": new_total}
+
+
+# ============================================================
 # Player Notepad
 # ============================================================
 

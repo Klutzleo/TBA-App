@@ -7561,10 +7561,49 @@
                 });
               }
 
-              container.appendChild(makeHeaderRow(fmtNow(), `📊 ${data.actor} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statTog, tab: 'STORY' }));
+              const statHeaderRow = makeHeaderRow(fmtNow(), `📊 ${data.actor} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statTog, tab: 'STORY' });
+              // Tag the title span so bap_stat_roll can update it
+              const statTitleSpan = statHeaderRow.querySelector('span[style*="font-weight"]');
+              if (statTitleSpan && data.message_id) statTitleSpan.dataset.statTotal = data.message_id;
+
+              container.appendChild(statHeaderRow);
               if (statBd) container.appendChild(statBd);
 
+              // BAP button for SW
+              if (isSW() && data.character_id && data.message_id) {
+                container.dataset.messageId = data.message_id;
+                const bapBtn = document.createElement('button');
+                bapBtn.className = 'bap-retro-btn';
+                bapBtn.textContent = '✦ Award BAP';
+                bapBtn.onclick = async () => {
+                  bapBtn.disabled = true;
+                  try {
+                    const r = await fetch(`/api/characters/${data.character_id}/bap-stat-roll`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ message_id: data.message_id })
+                    });
+                    if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+                  } catch (e) { alert(`BAP error: ${e.message}`); bapBtn.disabled = false; }
+                };
+                container.appendChild(bapBtn);
+              }
+
               storeAndDisplayMessage(container, data);
+            } else if (data.type === 'bap_stat_roll') {
+              const card = document.querySelector(`[data-message-id="${data.message_id}"]`);
+              if (card) {
+                card.querySelectorAll('.bap-retro-btn').forEach(el => el.remove());
+                // Update the total in the header
+                const totalSpan = card.querySelector(`[data-stat-total="${data.message_id}"]`);
+                if (totalSpan) totalSpan.textContent = `📊 ${data.character_name} — ${data.stat_name} Check: ${data.new_total}`;
+                const badge = document.createElement('div');
+                badge.className = 'bap-badge';
+                badge.textContent = `✦ BAP +${data.bap_bonus} awarded — new total: ${data.new_total}`;
+                card.appendChild(badge);
+              }
+              showPanelToast(`✦ BAP awarded to ${data.character_name} — ${data.stat_name} Check now ${data.new_total}`, 'warning');
+
             } else if (data.type === 'ability_cast') {
               // Ability/spell/technique cast result
               const container = document.createElement('div');
