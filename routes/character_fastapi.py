@@ -2234,8 +2234,61 @@ async def bap_retroactive(
 
     bap_bonus = char.bap or 1
     extra = dict(msg.extra_data or {})
+
+    if extra.get("bap_awarded"):
+        raise HTTPException(status_code=400, detail="BAP already awarded for this roll")
+
+    individual_rolls = extra.get("individual_rolls", [])
+    old_total_damage = extra.get("damage", 0)
+
+    # Re-resolve each die with BAP added to the attacker's total
+    new_individual_rolls = []
+    new_total_damage = 0
+    for roll in individual_rolls:
+        new_roll = dict(roll)
+        new_roll["bap_bonus"] = bap_bonus
+        new_attacker_roll = (roll.get("attacker_roll") or 0) + bap_bonus
+        new_roll["attacker_roll"] = new_attacker_roll
+        defense_roll = roll.get("defense_roll", 0)
+        new_margin = new_attacker_roll - defense_roll
+        new_damage = max(0, new_margin)
+        new_roll["margin"] = new_margin
+        new_roll["damage"] = new_damage
+        new_total_damage += new_damage
+        new_individual_rolls.append(new_roll)
+
+    damage_delta = new_total_damage - old_total_damage
+
+    # Apply additional damage to defender
+    defender_id = extra.get("defender_id")
+    new_defender_dp = extra.get("defender_new_dp")
+    if defender_id and damage_delta > 0:
+        try:
+            def_uuid = UUID(defender_id)
+            defender_char = db.query(Character).filter(Character.id == def_uuid).first()
+            if defender_char:
+                defender_char.dp = max(defender_char.dp - damage_delta, -10)
+                new_defender_dp = defender_char.dp
+        except Exception:
+            pass
+
+    # Build updated narrative
+    old_outcome = extra.get("outcome", "")
+    if damage_delta > 0 and old_outcome in ("miss", "defend", "block"):
+        new_narrative = f"{char.name} lands the blow with BAP! {new_total_damage} total damage."
+    elif damage_delta > 0:
+        new_narrative = f"{char.name} deals {damage_delta} additional damage with BAP! {new_total_damage} total."
+    else:
+        new_narrative = extra.get("narrative", "")
+
+    # Persist updated roll data
     extra["bap_awarded"] = True
     extra["bap_bonus"] = bap_bonus
+    extra["damage"] = new_total_damage
+    extra["defender_new_dp"] = new_defender_dp
+    extra["individual_rolls"] = new_individual_rolls
+    if damage_delta > 0:
+        extra["narrative"] = new_narrative
     msg.extra_data = extra
     flag_modified(msg, "extra_data")
     db.commit()
@@ -2244,12 +2297,20 @@ async def bap_retroactive(
         from routes.campaign_websocket import broadcast_bap_retroactive
         import asyncio
         asyncio.create_task(broadcast_bap_retroactive(
-            char.campaign_id, str(char.id), char.name, message_id, bap_bonus
+            char.campaign_id, str(char.id), char.name, message_id, bap_bonus,
+            new_individual_rolls, new_total_damage, damage_delta, new_defender_dp, new_narrative
         ))
     except Exception as _be:
         logger.warning(f"Could not broadcast bap_retroactive: {_be}")
 
-    return {"message_id": message_id, "bap_awarded": True, "bap_bonus": bap_bonus}
+    return {
+        "message_id": message_id,
+        "bap_awarded": True,
+        "bap_bonus": bap_bonus,
+        "new_total_damage": new_total_damage,
+        "damage_delta": damage_delta,
+        "defender_new_dp": new_defender_dp
+    }
 
 
 # ============================================================

@@ -5965,7 +5965,8 @@
       const dmg = roll.damage > 0 ? `✓ ${roll.damage}dmg` : '✗ 0dmg';
       const marginStr = roll.margin >= 0 ? `+${roll.margin}` : `${roll.margin}`;
       if (roll.base_roll !== undefined) {
-        const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0}) = ${roll.attacker_roll}`;
+        const bapPart = roll.bap_bonus ? ` + BAP(${roll.bap_bonus})` : '';
+        const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0})${bapPart} = ${roll.attacker_roll}`;
         const rawDef = roll.raw_defense_roll ?? roll.defense_roll;
         const defStr = `die(${rawDef}) + Stat(${roll.def_stat_bonus ?? 0}) + Edge(${roll.def_edge_bonus ?? 0}) + Arm(${roll.armor_bonus ?? 0}) = ${roll.defense_roll}`;
         return `[${idx+1}] ATK: ${atkStr}   |   DEF: ${defStr}   →  ${marginStr} = ${dmg}`;
@@ -6535,6 +6536,7 @@
                 const damageInfo = document.createElement('div');
                 damageInfo.style.fontFamily = 'monospace';
                 damageInfo.style.marginBottom = '4px';
+                damageInfo.dataset.damageInfo = '1';
                 damageInfo.textContent = `💥 ${data.damage} damage dealt`;
                 container.appendChild(damageInfo);
 
@@ -6547,6 +6549,7 @@
                   detailsDiv.style.paddingLeft = '8px';
                   detailsDiv.style.borderLeft = '2px solid var(--border-color)';
                   detailsDiv.style.display = 'none';
+                  detailsDiv.dataset.rollsContainer = '1';
 
                   data.individual_rolls.forEach((roll, idx) => {
                     const rollLine = document.createElement('div');
@@ -7213,12 +7216,35 @@
                 card.querySelectorAll('.bap-retro-btn').forEach(el => el.remove());
                 const bapBadge = document.createElement('div');
                 bapBadge.className = 'bap-badge';
-                bapBadge.textContent = `✦ BAP +${data.bap_bonus} awarded to ${data.character_name}`;
+                const dmgPart = data.damage_delta > 0 ? ` (+${data.damage_delta} dmg applied)` : ' (no additional damage)';
+                bapBadge.textContent = `✦ BAP +${data.bap_bonus} awarded to ${data.character_name}${dmgPart}`;
                 const tabIndicator = card.querySelector('.message-tab-indicator');
                 if (tabIndicator) card.insertBefore(bapBadge, tabIndicator);
                 else card.appendChild(bapBadge);
+
+                // Update damage summary line
+                const dmgInfo = card.querySelector('[data-damage-info]');
+                if (dmgInfo && data.total_damage !== undefined) {
+                  dmgInfo.textContent = data.total_damage > 0
+                    ? `💥 ${data.total_damage} damage dealt`
+                    : '💫 0 damage dealt';
+                }
+
+                // Rebuild roll lines with BAP shown in formula
+                const rollsContainer = card.querySelector('[data-rolls-container]');
+                if (rollsContainer && Array.isArray(data.individual_rolls) && data.individual_rolls.length > 0) {
+                  rollsContainer.innerHTML = '';
+                  data.individual_rolls.forEach((roll, idx) => {
+                    const rollLine = document.createElement('div');
+                    rollLine.textContent = formatRollLine(roll, idx);
+                    rollsContainer.appendChild(rollLine);
+                  });
+                }
               }
-              showPanelToast(`✦ BAP +${data.bap_bonus} awarded retroactively to ${data.character_name}!`, 'warning');
+              // Refresh HP bars since damage may have been applied
+              loadCharacters();
+              if (currentCharacterId) loadBubbleBar();
+              showPanelToast(`✦ BAP applied to ${data.character_name}'s roll${data.damage_delta > 0 ? ` — ${data.damage_delta} damage dealt!` : ''}`, 'warning');
 
             } else if (data.type === 'lore_created') {
               loadLore();
@@ -7422,6 +7448,7 @@
               const damageInfo = document.createElement('div');
               damageInfo.style.fontFamily = 'monospace';
               damageInfo.style.marginBottom = '4px';
+              damageInfo.dataset.damageInfo = '1';
               damageInfo.textContent = `💥 ${data.damage} damage dealt`;
               container.appendChild(damageInfo);
 
@@ -7434,6 +7461,7 @@
                 detailsDiv.style.paddingLeft = '8px';
                 detailsDiv.style.borderLeft = '2px solid var(--border-color)';
                 detailsDiv.style.display = 'none';
+                detailsDiv.dataset.rollsContainer = '1';
 
                 data.individual_rolls.forEach((roll, idx) => {
                   const rollLine = document.createElement('div');

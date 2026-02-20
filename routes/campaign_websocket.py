@@ -1422,14 +1422,23 @@ async def broadcast_bap_revoked(campaign_id: UUID, character_id: str, character_
     })
 
 
-async def broadcast_bap_retroactive(campaign_id: UUID, character_id: str, character_name: str, message_id: str, bap_bonus: int):
+async def broadcast_bap_retroactive(
+    campaign_id: UUID, character_id: str, character_name: str, message_id: str, bap_bonus: int,
+    individual_rolls: list = None, total_damage: int = 0, damage_delta: int = 0,
+    defender_new_dp: int = None, narrative: str = ""
+):
     """SW awarded retroactive BAP on a specific combat roll. Clients update that card."""
     await manager.broadcast(campaign_id, {
         "type": "bap_retroactive",
         "character_id": character_id,
         "character_name": character_name,
         "message_id": message_id,
-        "bap_bonus": bap_bonus
+        "bap_bonus": bap_bonus,
+        "individual_rolls": individual_rolls or [],
+        "total_damage": total_damage,
+        "damage_delta": damage_delta,
+        "defender_new_dp": defender_new_dp,
+        "narrative": narrative
     })
 
 
