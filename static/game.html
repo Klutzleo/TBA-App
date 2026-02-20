@@ -7243,7 +7243,7 @@
               }
               // Refresh HP bars since damage may have been applied
               loadCharacters();
-              if (currentCharacterId) loadBubbleBar();
+              if (characterId) loadBubbleBar();
               showPanelToast(`✦ BAP applied to ${data.character_name}'s roll${data.damage_delta > 0 ? ` — ${data.damage_delta} damage dealt!` : ''}`, 'warning');
 
             } else if (data.type === 'lore_created') {
@@ -7929,16 +7929,23 @@
         // Combat command - send to combat handler
         const payload = {
           type: 'combat_command',
-          raw_command: text  // Send full command for backend to parse
+          raw_command: text
         };
+        // SW attacking as an NPC: pass the NPC's character ID so backend uses it as attacker
+        if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
+          payload.attacker_id = activeSpeaker.id;
+        }
         ws.send(JSON.stringify(payload));
 
       } else if (text.startsWith('/cast') || text.startsWith('/technique')) {
         // Magic/technique commands (future combat commands)
         const payload = {
           type: 'combat_command',
-          raw_command: text  // Send full command for backend to parse
+          raw_command: text
         };
+        if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
+          payload.attacker_id = activeSpeaker.id;
+        }
         ws.send(JSON.stringify(payload));
 
       } else if (text.startsWith('/roll')) {

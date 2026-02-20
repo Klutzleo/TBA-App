@@ -464,19 +464,47 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         target_name = match.group(1).strip()
 
         # =====================================================================
-        # Look up attacker (user's character in this campaign)
+        # Look up attacker (user's character, or SW-specified NPC/ally)
         # =====================================================================
-        attacker = db.query(Character).filter(
-            Character.user_id == user_id,
-            Character.campaign_id == campaign_id
-        ).first()
-
-        if not attacker:
-            await manager.broadcast(campaign_id, {
-                "type": "system",
-                "text": "❌ You don't have a character in this campaign"
-            })
-            return
+        attacker_id_override = data.get("attacker_id")
+        if attacker_id_override:
+            # SW attacking with a specific NPC or ally — verify they are the SW
+            from backend.models import CampaignMembership as CM
+            membership = db.query(CM).filter(
+                CM.campaign_id == campaign_id,
+                CM.user_id == str(user_id)
+            ).first()
+            if not membership or membership.role != 'story_weaver':
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": "❌ Only the Story Weaver can attack with NPCs"
+                })
+                return
+            try:
+                from uuid import UUID as _UUID
+                attacker = db.query(Character).filter(
+                    Character.id == _UUID(attacker_id_override),
+                    Character.campaign_id == campaign_id
+                ).first()
+            except Exception:
+                attacker = None
+            if not attacker:
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": "❌ Specified attacker not found in this campaign"
+                })
+                return
+        else:
+            attacker = db.query(Character).filter(
+                Character.user_id == user_id,
+                Character.campaign_id == campaign_id
+            ).first()
+            if not attacker:
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": "❌ You don't have a character in this campaign"
+                })
+                return
 
         # Check if attacker is alive
         if attacker.dp <= 0:
