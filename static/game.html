@@ -388,6 +388,18 @@
       border-color: var(--accent-primary);
     }
 
+    /* Force dark background on all select dropdowns and their options */
+    select {
+      background: var(--bg-darker);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+    }
+    select option {
+      background: var(--bg-darker);
+      color: var(--text-primary);
+    }
+
     .help-text {
       font-size: 11px;
       color: var(--text-muted);
@@ -3852,23 +3864,18 @@
       const sel = document.getElementById(selectId);
       if (!sel) return;
       sel.innerHTML = '';
-      // Pull from the current party list rendered in the bubble bar
-      const bubbles = document.querySelectorAll('.character-bubble[data-char-id]');
       const seen = new Set();
-      bubbles.forEach(b => {
-        const cid = b.dataset.charId;
-        const cname = b.querySelector('.bubble-name')?.textContent || cid;
-        if (!seen.has(cid) && (includeSelf || cid !== characterId)) {
-          seen.add(cid);
-          const opt = document.createElement('option');
-          opt.value = cid; opt.textContent = cname;
-          sel.appendChild(opt);
-        }
-      });
-      // Fallback: include self if nothing else available
-      if (sel.options.length === 0 && includeSelf) {
+      knownPCs.forEach(pc => {
+        if (seen.has(pc.id)) return;
+        if (!includeSelf && pc.id === characterId) return;
+        seen.add(pc.id);
         const opt = document.createElement('option');
-        opt.value = characterId; opt.textContent = 'Yourself';
+        opt.value = pc.id; opt.textContent = pc.name;
+        sel.appendChild(opt);
+      });
+      if (sel.options.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = '— no other characters —';
         sel.appendChild(opt);
       }
     }
@@ -3939,6 +3946,8 @@
 
     function closeAddItemModal() {
       document.getElementById('addItemModal').classList.remove('active');
+      const btn = document.getElementById('invSaveItemBtn');
+      if (btn) { btn.dataset.editItemId = ''; btn.dataset.lootPool = ''; }
     }
 
     function onItemTypeChange() {
@@ -3991,14 +4000,20 @@
 
       btn.disabled = true; btn.textContent = 'Saving...';
       try {
-        // Loot pool item (SW creating in pool, no character target)
+        // Loot pool item — create or edit
         if (btn.dataset.lootPool === 'true') {
-          const resp = await fetch(`/api/campaigns/${campaignId}/loot-pool`, {
-            method: 'POST',
+          const editId = btn.dataset.editItemId;
+          const url    = editId
+            ? `/api/campaigns/${campaignId}/loot-pool/${editId}`
+            : `/api/campaigns/${campaignId}/loot-pool`;
+          const method = editId ? 'PATCH' : 'POST';
+          const resp = await fetch(url, {
+            method,
             headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
           if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+          btn.dataset.editItemId = '';
           closeAddItemModal();
           loadLootPool();
           return;
@@ -4085,6 +4100,7 @@
 
     let lootPoolItems = [];
     let pendingAwardItemId = null;
+    let knownPCs = []; // {id, name} — populated by loadCharacters(), used by award/give dropdowns
 
     async function loadLootPool() {
       try {
@@ -4128,6 +4144,7 @@
           </div>
           <div class="loot-item-actions">
             <button class="btn" style="font-size:0.75rem;padding:3px 10px;" onclick="openAwardLootModal('${item.id}', '${escHtml(item.name).replace(/'/g, "\\'")}', ${item.quantity})">Award</button>
+            <button class="btn" style="font-size:0.75rem;padding:3px 10px;background:var(--bg-panel);border:1px solid var(--border-color);" onclick="openEditLootItemModal('${item.id}')">Edit</button>
             <button class="inv-del-btn" onclick="deleteLootItem('${item.id}')" title="Delete">✕</button>
           </div>`;
         list.appendChild(div);
@@ -4147,6 +4164,27 @@
       document.getElementById('invItemBonus').value = '0';
       document.getElementById('invItemBonusType').value = 'attack';
       document.getElementById('invItemDesc').value = '';
+      onItemTypeChange();
+      document.getElementById('addItemModal').classList.add('active');
+      document.getElementById('invItemName').focus();
+    }
+
+    function openEditLootItemModal(itemId) {
+      const item = lootPoolItems.find(i => i.id === itemId);
+      if (!item) return;
+      const btn = document.getElementById('invSaveItemBtn');
+      btn.dataset.lootPool = 'true';
+      btn.dataset.editItemId = itemId;
+      btn.dataset.targetChar = '';
+      document.getElementById('addItemModalTitle').textContent = 'Edit Pool Item';
+      document.getElementById('invItemName').value = item.name || '';
+      document.getElementById('invItemType').value = item.item_type || 'misc';
+      document.getElementById('invItemQty').value = item.quantity || 1;
+      document.getElementById('invItemTier').value = item.tier || 1;
+      document.getElementById('invItemEffect').value = item.effect_type || 'heal';
+      document.getElementById('invItemBonus').value = item.bonus || 0;
+      document.getElementById('invItemBonusType').value = item.bonus_type || 'attack';
+      document.getElementById('invItemDesc').value = item.description || '';
       onItemTypeChange();
       document.getElementById('addItemModal').classList.add('active');
       document.getElementById('invItemName').focus();
@@ -4172,15 +4210,21 @@
       document.getElementById('awardLootQty').value = 1;
       document.getElementById('awardLootQty').max = maxQty;
 
-      // Populate with all PCs and NPCs in the campaign
+      // Populate from knownPCs (set by loadCharacters)
       const sel = document.getElementById('awardLootTarget');
       sel.innerHTML = '';
-      document.querySelectorAll('.character-bubble[data-char-id]').forEach(b => {
+      if (knownPCs.length === 0) {
         const opt = document.createElement('option');
-        opt.value = b.dataset.charId;
-        opt.textContent = b.querySelector('.bubble-name')?.textContent || b.dataset.charId;
+        opt.value = ''; opt.textContent = '— no characters found —';
         sel.appendChild(opt);
-      });
+      } else {
+        knownPCs.forEach(pc => {
+          const opt = document.createElement('option');
+          opt.value = pc.id;
+          opt.textContent = pc.name;
+          sel.appendChild(opt);
+        });
+      }
 
       document.getElementById('awardLootModal').classList.add('active');
     }
@@ -7964,6 +8008,11 @@
 
         // Clear loading message
         charactersContainer.innerHTML = '';
+
+        // Build knownPCs list for dropdowns (award, give, etc.)
+        knownPCs = members
+          .filter(m => m.character && !m.character.is_npc)
+          .map(m => ({ id: m.character.id, name: m.character.name }));
 
         // Find current user in members and set currentActor to their character name
         const currentMember = members.find(m => m.user_id === currentUser.id);
