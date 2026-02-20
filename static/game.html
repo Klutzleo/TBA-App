@@ -4215,27 +4215,31 @@
       sel.innerHTML = '';
 
       if (knownPCs.length > 0) {
-        const grp = document.createElement('optgroup');
-        grp.label = '— Players —';
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = '── Players ──';
+        sep.style.cssText = 'color:var(--accent-primary);font-weight:bold;background:var(--bg-darker);';
+        sel.appendChild(sep);
         knownPCs.forEach(pc => {
           const opt = document.createElement('option');
           opt.value = pc.id;
-          opt.textContent = pc.name;
-          grp.appendChild(opt);
+          opt.textContent = '  ' + pc.name;
+          sel.appendChild(opt);
         });
-        sel.appendChild(grp);
       }
 
       if (campaignNPCs && campaignNPCs.length > 0) {
-        const grp = document.createElement('optgroup');
-        grp.label = '— NPCs —';
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = '── NPCs ──';
+        sep.style.cssText = 'color:var(--accent-primary);font-weight:bold;background:var(--bg-darker);';
+        sel.appendChild(sep);
         campaignNPCs.forEach(npc => {
           const opt = document.createElement('option');
           opt.value = npc.id;
-          opt.textContent = npc.name;
-          grp.appendChild(opt);
+          opt.textContent = '  ' + npc.name;
+          sel.appendChild(opt);
         });
-        sel.appendChild(grp);
       }
 
       if (sel.options.length === 0) {
