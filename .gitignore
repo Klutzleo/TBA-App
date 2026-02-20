@@ -66,6 +66,15 @@ ENV/
 env.bak/
 venv.bak/
 
+# Private keys and certificates
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+vapid_private.pem
+vapid_public.pem
+
 # IDE and OS junk
 .vscode/
 .idea/
