@@ -654,6 +654,27 @@ class LoreEntry(Base):
         return f"<LoreEntry(id={str(self.id)[:8]}..., title='{self.title[:30]}')>"
 
 
+class PushSubscription(Base):
+    """Web Push subscription for PWA notifications."""
+    __tablename__ = "push_subscriptions"
+    __table_args__ = {'extend_existing': True}
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    endpoint    = Column(Text, nullable=False)
+    p256dh      = Column(Text, nullable=False)
+    auth        = Column(Text, nullable=False)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+
+    user     = relationship("User")
+    campaign = relationship("Campaign")
+
+    def __repr__(self):
+        return f"<PushSubscription(user={str(self.user_id)[:8]}..., endpoint={self.endpoint[:40]}...)>"
+
+
 class InventoryItem(Base):
     """An item in a character's inventory."""
     __tablename__ = "inventory_items"

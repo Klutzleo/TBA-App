@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="#1a1a2e"/>
+
+  <!-- Open book -->
+  <g transform="translate(256,230)">
+    <!-- Left page -->
+    <path d="M-130,-90 C-130,-95 -125,-100 -120,-100 L-20,-100 C-15,-100 -10,-95 -10,-90 L-10,90 C-10,95 -15,100 -20,100 L-120,100 C-125,100 -130,95 -130,90 Z"
+          fill="#2a2a4e" stroke="#6c63ff" stroke-width="4"/>
+    <!-- Right page -->
+    <path d="M10,-90 C10,-95 15,-100 20,-100 L120,-100 C125,-100 130,-95 130,-90 L130,90 C130,95 125,100 120,100 L20,100 C15,100 10,95 10,90 Z"
+          fill="#2a2a4e" stroke="#6c63ff" stroke-width="4"/>
+    <!-- Spine -->
+    <rect x="-10" y="-100" width="20" height="200" fill="#6c63ff" rx="4"/>
+    <!-- Left page lines -->
+    <line x1="-115" y1="-60" x2="-25" y2="-60" stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+    <line x1="-115" y1="-35" x2="-25" y2="-35" stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+    <line x1="-115" y1="-10" x2="-25" y2="-10" stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+    <line x1="-115" y1="15"  x2="-25" y2="15"  stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+    <!-- Right page lines -->
+    <line x1="25"  y1="-60" x2="115" y2="-60" stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+    <line x1="25"  y1="-35" x2="115" y2="-35" stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+    <line x1="25"  y1="-10" x2="115" y2="-10" stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+    <line x1="25"  y1="15"  x2="115" y2="15"  stroke="#6c63ff" stroke-width="3" opacity="0.5"/>
+  </g>
+
+  <!-- Wrench (lower-right, overlapping book) -->
+  <g transform="translate(310,310) rotate(-35)">
+    <rect x="-12" y="-70" width="24" height="140" rx="6" fill="#e0b030"/>
+    <rect x="-22" y="-82" width="44" height="28" rx="8" fill="#e0b030"/>
+    <rect x="-22" y="54"  width="44" height="28" rx="8" fill="#e0b030"/>
+    <!-- wrench holes -->
+    <circle cx="0" cy="-68" r="8" fill="#1a1a2e"/>
+    <circle cx="0" cy="68"  r="8" fill="#1a1a2e"/>
+  </g>
+
+  <!-- TBA text -->
+  <text x="256" y="440" text-anchor="middle" font-family="Georgia, serif"
+        font-size="64" font-weight="bold" fill="#6c63ff" letter-spacing="8">TBA</text>
+</svg>

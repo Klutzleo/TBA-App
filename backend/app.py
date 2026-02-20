@@ -140,7 +140,7 @@ async def attach_request_id_and_auth(request: Request, call_next):
     # All routes that require JWT authentication (not API key)
     jwt_protected_routes = auth_paths | {
         "/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse", "/api/campaigns/join",
-        "/api/characters"
+        "/api/characters", "/api/notifications"
     }
 
     # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
@@ -250,6 +250,14 @@ try:
     logger.info("✅ Registered campaigns_router with /api/campaigns prefix")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register campaigns_router: {e}")
+
+try:
+    from routes.notifications import notifications_router
+
+    application.include_router(notifications_router, tags=["Notifications"])
+    logger.info("✅ Registered notifications_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register notifications_router: {e}")
 
 
 # Custom OpenAPI schema

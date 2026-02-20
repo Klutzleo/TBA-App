@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TBA Chat - Tabletop Adventure</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <style>
     /* === CSS Variables for Dark Fantasy Theme === */
     :root {
@@ -2119,6 +2122,9 @@
       <div class="connection-status">
         <span class="status-indicator disconnected" id="statusIndicator"></span>
         <span id="statusText">Disconnected</span>
+        <button id="notifBellBtn" title="Enable push notifications"
+          onclick="toggleNotifications()"
+          style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;opacity:0.45;margin-left:4px;">🔕</button>
       </div>
     </header>
 
@@ -3397,7 +3403,7 @@
     }
 
     // PC Character Context Menu (SW only — shown when clicking ⚙ on a player's card)
-    function showPCContextMenu(event, charId, charName, isCalled = false) {
+    function showPCContextMenu(event, charId, charName, isCalled = false, targetUserId = null) {
       event.stopPropagation();
       const existing = document.querySelector('.context-menu');
       if (existing) existing.remove();
@@ -3412,6 +3418,7 @@
       menu.innerHTML = `
         <button class="context-menu-item" onclick="openLevelUpModal('${charId}', '${charName.replace(/'/g, "\\'")}')">⬆️ Level Up</button>
         <button class="context-menu-item" onclick="openAddItemModal('${charId}')">🎁 Gift Item</button>
+        ${targetUserId ? `<button class="context-menu-item" onclick="pingPlayer('${targetUserId}', '${charName.replace(/'/g, "\\'")}')">📣 Ping Player</button>` : ''}
         <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="convertPCtoNPC('${charId}', '${charName.replace(/'/g, "\\'")}')">🎭 Convert to NPC</button>
         <div style="padding:4px 12px; font-size:0.7rem; color:var(--text-muted); border-top:1px solid var(--border-color); margin-top:4px; pointer-events:none;">✦ BAP TOKEN</div>
@@ -8004,7 +8011,7 @@
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
-                  ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false})">⚙</button>` : ''}
+                  ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}')">⚙</button>` : ''}
                 </div>
               </div>
               <div class="character-details">
@@ -8192,6 +8199,165 @@
         overlay.classList.remove('active');
       }
     });
+  </script>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       PWA: Service Worker registration + Web Push subscription
+       ═══════════════════════════════════════════════════════════ -->
+  <script>
+  // ─── Service Worker ──────────────────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('SW registration failed:', err);
+      });
+    });
+  }
+
+  // ─── Push Notifications ──────────────────────────────────────────────────
+  let _pushSubscription = null;
+
+  // Convert base64url → Uint8Array (for applicationServerKey)
+  function _urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  }
+
+  async function _getVapidKey() {
+    try {
+      const res = await fetch('/api/notifications/vapid-public-key');
+      if (!res.ok) return null;
+      const { publicKey } = await res.json();
+      return publicKey;
+    } catch { return null; }
+  }
+
+  async function _registerPushSubscription(subscription) {
+    const key  = subscription.getKey('p256dh');
+    const auth = subscription.getKey('auth');
+    await fetch('/api/notifications/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        endpoint:    subscription.endpoint,
+        p256dh:      btoa(String.fromCharCode(...new Uint8Array(key))),
+        auth:        btoa(String.fromCharCode(...new Uint8Array(auth))),
+        campaign_id: campaignId || null,
+      }),
+    });
+  }
+
+  async function enablePushNotifications() {
+    if (!('PushManager' in window)) {
+      alert('Your browser does not support push notifications.');
+      return false;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return false;
+
+    const vapidKey = await _getVapidKey();
+    if (!vapidKey) {
+      console.warn('VAPID key not available — push disabled');
+      return false;
+    }
+
+    try {
+      const reg  = await navigator.serviceWorker.ready;
+      const sub  = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: _urlBase64ToUint8Array(vapidKey),
+      });
+      _pushSubscription = sub;
+      await _registerPushSubscription(sub);
+      console.log('✅ Push notifications enabled');
+      _updateNotifBell(true);
+      return true;
+    } catch (err) {
+      console.warn('Push subscribe error:', err);
+      return false;
+    }
+  }
+
+  async function disablePushNotifications() {
+    if (_pushSubscription) {
+      await fetch('/api/notifications/unsubscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ endpoint: _pushSubscription.endpoint }),
+      });
+      await _pushSubscription.unsubscribe();
+      _pushSubscription = null;
+    }
+    _updateNotifBell(false);
+  }
+
+  // ─── Bell icon toggle in toolbar ─────────────────────────────────────────
+  function _updateNotifBell(enabled) {
+    const bell = document.getElementById('notifBellBtn');
+    if (!bell) return;
+    bell.title   = enabled ? 'Notifications ON — click to disable' : 'Enable push notifications';
+    bell.style.opacity = enabled ? '1' : '0.45';
+    bell.textContent   = enabled ? '🔔' : '🔕';
+  }
+
+  async function toggleNotifications() {
+    if (_pushSubscription) {
+      await disablePushNotifications();
+    } else {
+      await enablePushNotifications();
+    }
+  }
+
+  // ─── Auto-check existing subscription on load ─────────────────────────────
+  window.addEventListener('load', async () => {
+    if (!('serviceWorker' in navigator) || !authToken) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        _pushSubscription = sub;
+        // Re-register in case campaign changed or token refreshed
+        await _registerPushSubscription(sub);
+        _updateNotifBell(true);
+      }
+    } catch (_) {}
+  });
+
+  // ─── SW Ping a player ────────────────────────────────────────────────────
+  async function pingPlayer(targetUserId, charName) {
+    if (!targetUserId || !campaignId) return;
+    try {
+      const res = await fetch('/api/notifications/ping', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          target_user_id: targetUserId,
+          campaign_id:    campaignId,
+          message:        `${charName} — the Story Weaver is calling for you!`,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`📣 Pinged ${charName} (${data.delivered} device${data.delivered !== 1 ? 's' : ''})`);
+      } else {
+        showToast(data.detail || 'Ping failed', 'error');
+      }
+    } catch (e) {
+      showToast('Ping failed: ' + e.message, 'error');
+    }
+  }
   </script>
 </body>
 </html>
