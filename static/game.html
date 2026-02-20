@@ -1563,10 +1563,13 @@
     .type-equipment   { color:#93c5fd; }
     .type-misc        { color:var(--text-muted); }
     .inv-equip-btn {
-      font-size:0.7rem; padding:2px 7px; border-radius:4px; border:1px solid var(--border-color);
-      background:none; color:var(--text-muted); cursor:pointer; white-space:nowrap;
+      font-size:0.7rem; padding:2px 8px; border-radius:4px; border:1px solid var(--border-color);
+      background:none; color:var(--text-secondary); cursor:pointer; white-space:nowrap;
     }
-    .inv-equip-btn.equipped { border-color:#86efac; color:#86efac; background:rgba(134,239,172,0.1); }
+    .inv-equip-btn.equipped {
+      border-color:#4ade80; color:#0f172a; background:#4ade80; font-weight:600;
+    }
+    .inv-equip-btn.equipped:hover { background:#86efac; }
     .inv-give-btn {
       font-size:0.7rem; padding:2px 7px; border-radius:4px; border:1px solid var(--border-color);
       background:none; color:var(--text-muted); cursor:pointer;
