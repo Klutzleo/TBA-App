@@ -57,10 +57,20 @@ async def get_vapid_public_key():
             status_code=503,
             detail="Push notifications not configured on this server."
         )
-    # Auto-convert hex → base64url (the key-gen script outputs hex, but
-    # browsers require base64url for applicationServerKey)
-    if all(c in "0123456789abcdefABCDEF" for c in key) and len(key) in (128, 130):
+    # Remove PEM-style line breaks
+    key = key.replace("\n", "").replace("\r", "")
+
+    if key.startswith("MFk") or key.startswith("MFo"):
+        # DER-encoded SubjectPublicKeyInfo — extract the raw 65-byte EC point.
+        # P-256 SPKI header is exactly 26 bytes; bytes 26:91 = 04 || X || Y
+        raw = _b64.b64decode(key)
+        ec_point = raw[26:]  # 65 bytes
+        key = _b64.urlsafe_b64encode(ec_point).rstrip(b"=").decode()
+    elif all(c in "0123456789abcdefABCDEF" for c in key) and len(key) in (128, 130):
+        # Hex-encoded raw key
         key = _b64.urlsafe_b64encode(binascii.unhexlify(key)).rstrip(b"=").decode()
+    # Otherwise assume it's already base64url — pass through as-is
+
     return {"publicKey": key}
 
 
