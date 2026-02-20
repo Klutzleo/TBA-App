@@ -2413,6 +2413,7 @@ async def bap_stat_roll(
 
     try:
         from routes.campaign_websocket import manager
+        stat_name = extra.get("stat_name", "Check")
         asyncio.create_task(manager.broadcast(char.campaign_id, {
             "type": "bap_stat_roll",
             "message_id": message_id,
@@ -2420,7 +2421,11 @@ async def bap_stat_roll(
             "character_name": char.name,
             "bap_bonus": bap_bonus,
             "new_total": new_total,
-            "stat_name": extra.get("stat_name", ""),
+            "stat_name": stat_name,
+        }))
+        asyncio.create_task(manager.broadcast(char.campaign_id, {
+            "type": "system",
+            "text": f"✦ BAP awarded! {char.name}'s {stat_name} Check rises to {new_total}.",
         }))
     except Exception as _be:
         logger.warning(f"Could not broadcast bap_stat_roll: {_be}")

@@ -6655,9 +6655,13 @@
                   });
                 }
 
-                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), `📊 ${msg.sender_name} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statHistTog, tab: 'STORY' }));
+                const statHistHeaderRow = makeHeaderRow(fmtTs(msg.timestamp), `📊 ${msg.sender_name} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statHistTog, tab: 'STORY' });
+                const statHistTitleSpan = statHistHeaderRow.querySelector('span[style*="font-weight"]');
+                if (statHistTitleSpan && msg.id) statHistTitleSpan.dataset.statTotal = msg.id;
+                container.appendChild(statHistHeaderRow);
                 if (statHistBd) container.appendChild(statHistBd);
 
+                if (msg.id) container.dataset.messageId = msg.id;
                 storeAndDisplayMessage(container, { type: 'stat_roll', ...data });
               }
               // ✅ Handle ability casts from database
@@ -7569,9 +7573,11 @@
               container.appendChild(statHeaderRow);
               if (statBd) container.appendChild(statBd);
 
+              // Always tag with message_id so bap_stat_roll can find this card on all clients
+              if (data.message_id) container.dataset.messageId = data.message_id;
+
               // BAP button for SW
               if (isSW() && data.character_id && data.message_id) {
-                container.dataset.messageId = data.message_id;
                 const bapBtn = document.createElement('button');
                 bapBtn.className = 'bap-retro-btn';
                 bapBtn.textContent = '✦ Award BAP';
