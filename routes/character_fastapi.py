@@ -1593,6 +1593,20 @@ async def approve_character(
     except Exception as e:
         logger.warning(f"Could not broadcast character approval: {e}")
 
+    # Push notify the player
+    if char.user_id:
+        try:
+            from backend.notifications import send_push
+            send_push(
+                db, str(char.user_id),
+                "✅ Character Approved!",
+                f"{char.name} has been approved. You can now enter the game.",
+                url=f"/game.html?campaign_id={char.campaign_id}&character_id={char.id}&role=player",
+                campaign_id=str(char.campaign_id)
+            )
+        except Exception as _pe:
+            logger.warning(f"Push notification failed (approve): {_pe}")
+
     return {"message": f"Character '{char.name}' has been approved!", "character_id": str(char.id)}
 
 
@@ -1647,6 +1661,21 @@ async def reject_character(
         ))
     except Exception as _be:
         logger.warning(f"Could not broadcast character rejection: {_be}")
+
+    # Push notify the player
+    if char.user_id:
+        try:
+            from backend.notifications import send_push
+            reason_snippet = f" Reason: {reason}" if reason else ""
+            send_push(
+                db, str(char.user_id),
+                "❌ Character Rejected",
+                f"{char.name} was not approved.{reason_snippet}",
+                url="/",
+                campaign_id=str(char.campaign_id)
+            )
+        except Exception as _pe:
+            logger.warning(f"Push notification failed (reject): {_pe}")
 
     return {"message": f"Character '{char.name}' has been rejected.", "character_id": str(char.id)}
 
@@ -1723,7 +1752,7 @@ async def resolve_the_calling(
     # Apply DB changes
     char.times_called = (char.times_called or 0) + 1
     char.in_calling = False
-    char.has_faced_calling_this_encounter = True
+    char.has_faced_calling_this_encounter = False  # Reset — times_called cap is the real lifetime gate
 
     if outcome in ("clean", "scarred"):
         char.dp = 1
@@ -2150,6 +2179,22 @@ async def grant_bap_token(
         ))
     except Exception as _be:
         logger.warning(f"Could not broadcast bap_granted: {_be}")
+
+    # Push notify the player who owns this character
+    if char.user_id:
+        try:
+            from backend.notifications import send_push
+            type_labels = {"encounter": "this encounter", "24hrs": "the next 24 hours", "sw_choice": "when you choose"}
+            duration = type_labels.get(token_type, token_type)
+            send_push(
+                db, str(char.user_id),
+                "✦ BAP Token Granted!",
+                f"The SW awarded a BAP token to {char.name} — usable {duration}.",
+                url=f"/game.html?campaign_id={char.campaign_id}&character_id={char.id}&role=player",
+                campaign_id=str(char.campaign_id)
+            )
+        except Exception as _pe:
+            logger.warning(f"Push notification failed (bap_token): {_pe}")
 
     return {"character_id": str(char.id), "bap_token_active": True, "bap_token_type": token_type}
 

@@ -4590,8 +4590,8 @@
 
     function advanceTurn() {
       if (!currentInitiativeOrder.length) return;
-      currentTurnIndex = (currentTurnIndex + 1) % currentInitiativeOrder.length;
-      renderInitiativeTracker();
+      // SW sends a WS command; server broadcasts turn_advance to all clients
+      ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative next' }));
     }
 
     // NPC Modal Functions
@@ -7706,7 +7706,7 @@
               // SW: load tracker + auto-switch to initiative tab
               if (userRole === 'SW') {
                 currentInitiativeOrder = data.rolls || [];
-                currentTurnIndex = 0;
+                currentTurnIndex = data.current_turn_index ?? 0;
                 renderInitiativeTracker();
                 switchSidebarTab('initiative');
               }
@@ -7769,6 +7769,16 @@
               container.appendChild(header);
 
               storeAndDisplayMessage(container, data);
+
+            } else if (data.type === 'turn_advance') {
+              // Sync turn index from server
+              currentTurnIndex = data.current_turn_index ?? 0;
+              if (userRole === 'SW') {
+                renderInitiativeTracker();
+              }
+              // Toast for everyone showing whose turn it is
+              const whose = data.whose_turn?.name || '???';
+              showPanelToast(`⚔️ ${whose}'s turn`, 'info');
 
             } else if (data.type === 'abilities_restored') {
               // Party rest - abilities restored

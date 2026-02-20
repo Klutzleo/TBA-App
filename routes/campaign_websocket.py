@@ -704,6 +704,19 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                         "defender_edge": defender.edge or 0,
                         "defender_times_called": defender.times_called or 0
                     })
+                    # Push notify the player whose character entered The Calling
+                    if defender.user_id:
+                        try:
+                            from backend.notifications import send_push
+                            send_push(
+                                db, str(defender.user_id),
+                                "💀 You've entered The Calling!",
+                                f"{defender.name} has reached the threshold — return to the game.",
+                                url=f"/game.html?campaign_id={campaign_id}&character_id={defender.id}",
+                                campaign_id=str(campaign_id)
+                            )
+                        except Exception as _pe:
+                            logger.warning(f"Push notification failed (calling_triggered): {_pe}")
             elif defender.dp <= 0:
                 # Just knocked out
                 await manager.broadcast(campaign_id, {
@@ -1900,6 +1913,7 @@ async def show_initiative_order(
             "type": "initiative_order",
             "rolls": visible_rolls,
             "encounter_id": str(encounter.id),
+            "current_turn_index": encounter.current_turn_index,
             "timestamp": datetime.now().isoformat()
         })
 
@@ -2050,11 +2064,12 @@ async def clear_initiative(
             })
             return
 
-        # Delete all initiative rolls for this encounter
+        # Delete all initiative rolls and reset turn index for this encounter
         deleted_count = db.query(InitiativeRoll).filter(
             InitiativeRoll.encounter_id == encounter.id
         ).delete()
 
+        encounter.current_turn_index = 0
         db.commit()
 
         # Broadcast clear
@@ -2092,6 +2107,90 @@ async def clear_initiative(
         })
 
 
+async def advance_turn(
+    campaign_uuid: UUID,
+    user_uuid: UUID,
+    db: Session,
+    websocket: WebSocket
+):
+    """
+    Advance to the next turn in the initiative order.
+    Command: /initiative next  (SW only)
+
+    - Increments encounter.current_turn_index (wrapping around)
+    - Broadcasts turn_advance to all clients
+    - Sends 'your turn' push to the newly active combatant's player
+    """
+    try:
+        is_sw = await is_story_weaver(campaign_uuid, user_uuid, db)
+        if not is_sw:
+            await websocket.send_json({"type": "error", "message": "Only the Story Weaver can advance turns"})
+            return
+
+        encounter = db.query(Encounter).filter(
+            Encounter.campaign_id == campaign_uuid,
+            Encounter.is_active == True
+        ).first()
+
+        if not encounter:
+            await websocket.send_json({"type": "error", "message": "No active encounter"})
+            return
+
+        # Get all visible (non-silent) rolls sorted by initiative descending
+        rolls = (
+            db.query(InitiativeRoll)
+            .filter(
+                InitiativeRoll.encounter_id == encounter.id,
+                InitiativeRoll.is_silent == False  # noqa: E712
+            )
+            .order_by(InitiativeRoll.roll_result.desc())
+            .all()
+        )
+
+        if not rolls:
+            await websocket.send_json({"type": "error", "message": "No initiative rolls yet"})
+            return
+
+        # Advance index (wrapping)
+        new_index = (encounter.current_turn_index + 1) % len(rolls)
+        encounter.current_turn_index = new_index
+        db.commit()
+
+        active_roll = rolls[new_index]
+        whose_turn = {
+            "name": active_roll.name,
+            "character_id": str(active_roll.character_id) if active_roll.character_id else None,
+            "is_npc": active_roll.npc_id is not None,
+        }
+
+        await manager.broadcast(campaign_uuid, {
+            "type": "turn_advance",
+            "current_turn_index": new_index,
+            "turn_count": len(rolls),
+            "whose_turn": whose_turn,
+        })
+
+        # Push "your turn" to the active combatant's player (PCs only)
+        if active_roll.character_id:
+            char = db.query(Character).filter(Character.id == active_roll.character_id).first()
+            if char and char.user_id:
+                try:
+                    from backend.notifications import send_push
+                    send_push(
+                        db, str(char.user_id),
+                        "⚔️ Your Turn!",
+                        f"It's {char.name}'s turn in combat.",
+                        url=f"/game.html?campaign_id={campaign_uuid}&character_id={char.id}&role=player",
+                        campaign_id=str(campaign_uuid)
+                    )
+                except Exception as _pe:
+                    logger.warning(f"Push notification failed (your_turn): {_pe}")
+
+    except Exception as e:
+        logger.error(f"Advance turn error: {e}")
+        await websocket.send_json({"type": "error", "message": f"Failed to advance turn: {str(e)}"})
+
+
 async def send_help_text(websocket: WebSocket):
     """
     Send help text with all available commands.
@@ -2121,6 +2220,7 @@ async def send_help_text(websocket: WebSocket):
 • `/initiative start` (SW) - Start encounter without rolling
 • `/initiative @target` (SW) - Roll initiative for PC/NPC
 • `/initiative silent @target` (SW) - Hidden roll (only SW sees result)
+• `/initiative next` (SW) - Advance to the next turn
 • `/initiative end` (SW) - End encounter & restore all ability uses
 • `/initiative clear` (SW) - Clear initiative without ending encounter
 • `/rest` (SW) - Restore all ability uses (short rest)
@@ -2271,6 +2371,11 @@ async def handle_initiative_command(
         # /initiative clear
         if subcommand == "clear":
             await clear_initiative(campaign_uuid, user_uuid, db, websocket)
+            return
+
+        # /initiative next
+        if subcommand == "next":
+            await advance_turn(campaign_uuid, user_uuid, db, websocket)
             return
 
         # /initiative silent @Target

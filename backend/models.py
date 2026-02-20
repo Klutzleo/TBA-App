@@ -520,6 +520,7 @@ class Encounter(Base):
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     ended_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
+    current_turn_index = Column(Integer, nullable=False, default=0)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
