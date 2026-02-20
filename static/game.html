@@ -2637,6 +2637,36 @@
   </div>
 
   <!-- Level Up Modal -->
+  <!-- Push Notification Pre-Permission Explainer -->
+  <div id="notifExplainerModal" class="modal">
+    <div class="modal-content" style="max-width: 420px;">
+      <div class="modal-header">
+        <h2>🔔 Stay in the Loop</h2>
+        <button class="modal-close" onclick="document.getElementById('notifExplainerModal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom:12px;">Enable notifications so your browser alerts you when:</p>
+        <ul style="margin:0 0 16px 18px; line-height:1.8; color:var(--text-secondary);">
+          <li>💀 Your character enters <strong>The Calling</strong></li>
+          <li>⚔️ It's your <strong>turn in combat</strong></li>
+          <li>✦ The SW awards you a <strong>BAP token</strong></li>
+          <li>✅ Your character is <strong>approved</strong> or rejected</li>
+        </ul>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:20px;">
+          Your browser will ask for permission next. Pick <strong>"Allow"</strong> and set the duration to <strong>"forever"</strong> so you're not asked again.
+        </p>
+        <div style="display:flex; gap:10px;">
+          <button class="btn" style="flex:1;" onclick="document.getElementById('notifExplainerModal').classList.remove('active'); enablePushNotifications();">
+            Enable Notifications
+          </button>
+          <button class="btn-secondary btn" style="flex:1;" onclick="document.getElementById('notifExplainerModal').classList.remove('active')">
+            Not Now
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="levelUpModal" class="modal">
     <div class="modal-content" style="max-width: 460px;">
       <div class="modal-header" style="border-bottom-color: var(--accent-primary);">
@@ -8473,22 +8503,28 @@
   async function toggleNotifications() {
     if (_pushSubscription) {
       await disablePushNotifications();
-    } else {
+    } else if (Notification.permission === 'granted') {
+      // Already have permission — skip the explainer and subscribe directly
       await enablePushNotifications();
+    } else {
+      // Show explainer first so the browser dialog doesn't appear out of nowhere
+      document.getElementById('notifExplainerModal').classList.add('active');
     }
   }
 
   // ─── Auto-check existing subscription on load ─────────────────────────────
   window.addEventListener('load', async () => {
-    if (!('serviceWorker' in navigator) || !authToken) return;
+    if (!('serviceWorker' in navigator)) return;
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
         _pushSubscription = sub;
-        // Re-register in case campaign changed or token refreshed
-        await _registerPushSubscription(sub);
         _updateNotifBell(true);
+        // Re-register with server if we have a token (updates campaign_id etc.)
+        if (typeof authToken !== 'undefined' && authToken) {
+          await _registerPushSubscription(sub);
+        }
       }
     } catch (_) {}
   });
