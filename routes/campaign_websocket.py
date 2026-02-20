@@ -527,11 +527,30 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         attacker_stat_value = attacker.pp
         defender_stat_value = defender.pp
         
-        # Get weapon bonus
+        # Get weapon bonus — legacy JSON field + equipped inventory items
+        from backend.models import InventoryItem as _InvItem
+
         weapon_bonus = 0
         if attacker.weapon and isinstance(attacker.weapon, dict):
             weapon_bonus = attacker.weapon.get("bonus_damage", 0)
-        
+        atk_inv = db.query(_InvItem).filter(
+            _InvItem.character_id == attacker.id,
+            _InvItem.is_equipped == True,
+            _InvItem.bonus_type == 'attack',
+        ).all()
+        weapon_bonus += sum(i.bonus or 0 for i in atk_inv)
+
+        # Get armor bonus from defender's equipped inventory items
+        armor_bonus = 0
+        if defender.armor and isinstance(defender.armor, dict):
+            armor_bonus = defender.armor.get("bonus_defense", 0)
+        def_inv = db.query(_InvItem).filter(
+            _InvItem.character_id == defender.id,
+            _InvItem.is_equipped == True,
+            _InvItem.bonus_type == 'defense',
+        ).all()
+        armor_bonus += sum(i.bonus or 0 for i in def_inv)
+
         # Resolve multi-die attack
         result = resolve_multi_die_attack(
             attacker={"name": attacker.name},
@@ -541,8 +560,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             defense_die_str=defender.defense_die,
             defender_stat_value=defender_stat_value,
             edge=attacker.edge,
-            bap_triggered=False,  # TODO: Add BAP detection later
-            weapon_bonus=weapon_bonus
+            bap_triggered=False,
+            weapon_bonus=weapon_bonus,
+            armor_bonus=armor_bonus,
+            defender_edge=defender.edge,
         )
         
         # =====================================================================
@@ -789,10 +810,20 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 attack_roll_result = roll_dice(attack_dice)  # Returns list like [3, 5]
                 attack_total = sum(attack_roll_result) + power_stat + caster.edge
 
-                # Roll defense: target's defense die + PP + Edge (matches spell_cast formula)
+                # Roll defense: target's defense die + matching stat + Edge
+                # IP attack → IP defense, SP attack → SP defense, PP → PP
                 defense_roll_result = roll_dice(target.defense_die)  # Returns list
                 target_edge = target.edge or 0
-                defense_total = sum(defense_roll_result) + target.pp + target_edge
+                if ability.power_source == "IP":
+                    target_def_stat = target.ip
+                    target_def_stat_label = "IP"
+                elif ability.power_source == "SP":
+                    target_def_stat = target.sp
+                    target_def_stat_label = "SP"
+                else:
+                    target_def_stat = target.pp
+                    target_def_stat_label = "PP"
+                defense_total = sum(defense_roll_result) + target_def_stat + target_edge
 
                 # Calculate damage
                 margin = attack_total - defense_total
@@ -821,7 +852,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
                 def_rolls_str = " + ".join(str(r) for r in defense_roll_result)
                 atk_breakdown = f"{ability.die} = [{atk_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}) = {attack_total}"
-                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + PP({target.pp}) + Edge({target_edge}) = {defense_total}"
+                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}) = {defense_total}"
                 results.append({
                     "target": target_name,
                     "success": True,
@@ -962,7 +993,16 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 defense_roll = roll_dice(target.defense_die)  # Returns list
                 target_edge = target.edge or 0
-                defense_total = sum(defense_roll) + target.pp + target_edge
+                if ability.power_source == "IP":
+                    target_def_stat = target.ip
+                    target_def_stat_label = "IP"
+                elif ability.power_source == "SP":
+                    target_def_stat = target.sp
+                    target_def_stat_label = "SP"
+                else:
+                    target_def_stat = target.pp
+                    target_def_stat_label = "PP"
+                defense_total = sum(defense_roll) + target_def_stat + target_edge
 
                 margin = caster_total - defense_total
                 success = margin > 0
@@ -970,7 +1010,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 cast_rolls_str = " + ".join(str(r) for r in caster_roll)
                 def_rolls_str = " + ".join(str(r) for r in defense_roll)
                 atk_breakdown = f"{ability.die} = [{cast_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}) = {caster_total}"
-                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + PP({target.pp}) + Edge({target_edge}) = {defense_total}"
+                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}) = {defense_total}"
                 results.append({
                     "target": target_name,
                     "success": success,

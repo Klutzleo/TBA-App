@@ -660,6 +660,8 @@ def resolve_multi_die_attack(
     edge,
     bap_triggered=False,
     weapon_bonus=0,
+    armor_bonus=0,
+    defender_edge=0,
     defender_dp=None
 ):
     """
@@ -712,36 +714,49 @@ def resolve_multi_die_attack(
     attacker_count, attacker_sides = parse_die(attacker_die_str)
 
     # Roll each attacker die separately
-    attacker_rolls = roll_dice(attacker_die_str)  # Returns list of individual rolls
+    attacker_rolls = roll_dice(attacker_die_str)
 
-    # Roll defense die once (same for all attacker rolls)
-    # Unconscious defenders (DP <= 0) don't defend - defense_roll = 0
+    # Roll defense die once
+    # Unconscious defenders don't defend
     if defender_dp is not None and defender_dp <= 0:
-        defense_roll = 0  # Unconscious - no defense
+        raw_defense_roll = 0
     else:
-        defense_roll = roll_die(defense_die_str)  # Conscious - roll defense
-    
+        raw_defense_roll = roll_die(defense_die_str)
+
+    # Defense total = die + stat + edge + armor bonus  (same formula as attack)
+    defense_total = raw_defense_roll + defender_stat_value + defender_edge + armor_bonus
+
     # Calculate individual results
     individual_rolls = []
     total_damage = 0
     hit_count = 0
-    
+
     for atk_die_roll in attacker_rolls:
-        # Margin = attacker die - defense die
-        margin = atk_die_roll - defense_roll
-        
+        # Attack total = die + stat + edge + weapon bonus
+        effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus
+
+        # Margin = attack total - defense total
+        margin = effective_roll - defense_total
+
         # Damage: margin if positive, else 0
-        # Phase 2: weapon_bonus would apply here
-        damage = max(0, margin) + weapon_bonus
-        
+        damage = max(0, margin)
+
         if margin > 0:
             hit_count += 1
-        
+
         total_damage += damage
-        
+
         individual_rolls.append({
-            "attacker_roll": atk_die_roll,
-            "defense_roll": defense_roll,
+            "attacker_roll": effective_roll,
+            "base_roll": atk_die_roll,
+            "stat_bonus": attacker_stat_value,
+            "edge_bonus": edge,
+            "weapon_bonus": weapon_bonus,
+            "defense_roll": defense_total,
+            "raw_defense_roll": raw_defense_roll,
+            "def_stat_bonus": defender_stat_value,
+            "def_edge_bonus": defender_edge,
+            "armor_bonus": armor_bonus,
             "margin": margin,
             "damage": damage
         })

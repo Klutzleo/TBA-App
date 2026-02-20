@@ -4867,7 +4867,8 @@
           const icon = TYPE_ICON[item.item_type] || '🎒';
           const typeClass = `type-${item.item_type.replace('_', '-')}`;
           let meta = [`<span class="${typeClass}" style="font-size:0.7rem;">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
-          if (item.item_type === 'equipment' && item.bonus) meta.push(`+${item.bonus}`);
+          if (item.item_type === 'equipment' && item.bonus) meta.push(`+${item.bonus} ${item.bonus_type || ''}`);
+          if (item.is_equipped) meta.push('<span style="color:#86efac;font-size:0.7rem;">✓ Equipped</span>');
           const div = document.createElement('div');
           div.className = 'loot-item';
           div.innerHTML = `
@@ -4876,7 +4877,10 @@
               <div class="loot-item-name" style="font-size:0.85rem;">${escHtml(item.name)} <span style="color:var(--text-muted);font-size:0.72rem;">×${item.quantity}</span></div>
               <div class="loot-item-meta">${meta.join(' · ')}</div>
             </div>
-            <button class="inv-del-btn" onclick="removeNpcItem('${npcId}','${item.id}')" title="Remove">✕</button>`;
+            <div style="display:flex;gap:4px;align-items:center;">
+              ${item.item_type === 'equipment' ? `<button class="inv-equip-btn" onclick="equipNpcItem('${npcId}','${item.id}',this)" style="font-size:0.72rem;padding:2px 7px;">${item.is_equipped ? 'Unequip' : 'Equip'}</button>` : ''}
+              <button class="inv-del-btn" onclick="removeNpcItem('${npcId}','${item.id}')" title="Remove">✕</button>
+            </div>`;
           list.appendChild(div);
         });
       } catch (e) {
@@ -4892,6 +4896,16 @@
         });
         loadNpcInventory(npcId);
       } catch (e) { showPanelToast('Remove failed', 'error'); }
+    }
+
+    async function equipNpcItem(npcId, itemId, btn) {
+      try {
+        const resp = await fetch(`/api/characters/${npcId}/inventory/${itemId}/equip`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        loadNpcInventory(npcId);
+      } catch (e) { showPanelToast('Equip failed: ' + e.message, 'error'); }
     }
 
     // Handle NPC edit form
@@ -5941,6 +5955,19 @@
       return /^\/defend\s*$/i.test(text);
     }
 
+    // === Combat Roll Breakdown Formatter ===
+    function formatRollLine(roll, idx) {
+      const dmg = roll.damage > 0 ? `✓ ${roll.damage}dmg` : '✗ 0dmg';
+      const marginStr = roll.margin >= 0 ? `+${roll.margin}` : `${roll.margin}`;
+      if (roll.base_roll !== undefined) {
+        const atkStr = `die(${roll.base_roll})+Stat(${roll.stat_bonus ?? 0})+Edge(${roll.edge_bonus ?? 0})+Wpn(${roll.weapon_bonus ?? 0})=${roll.attacker_roll}`;
+        const rawDef = roll.raw_defense_roll ?? roll.defense_roll;
+        const defStr = `die(${rawDef})+Stat(${roll.def_stat_bonus ?? 0})+Edge(${roll.def_edge_bonus ?? 0})+Arm(${roll.armor_bonus ?? 0})=${roll.defense_roll}`;
+        return `[${idx+1}] ATK: ${atkStr}  DEF: ${defStr}  → ${marginStr} = ${dmg}`;
+      }
+      return `[${idx+1}] ${roll.attacker_roll} vs ${roll.defense_roll} → margin ${roll.margin} = ${dmg}`;
+    }
+
     // === Message Renderers ===
     function renderCombatEvent(data) {
       const container = document.createElement('div');
@@ -5983,8 +6010,7 @@
         rollsDiv.className = `message-rolls ${isSW() ? '' : 'breakdown-hidden'}`;
         data.individual_rolls.forEach((roll, i) => {
           const rollLine = document.createElement('div');
-          const dmg = roll.damage > 0 ? `✓ ${roll.damage}dmg` : '✗ 0dmg';
-          rollLine.textContent = `[${i + 1}] ${roll.attacker_roll} vs ${roll.defense_roll} → margin ${roll.margin} = ${dmg}`;
+          rollLine.textContent = formatRollLine(roll, i);
           rollsDiv.appendChild(rollLine);
         });
 
@@ -6512,7 +6538,7 @@
 
                   data.individual_rolls.forEach((roll, idx) => {
                     const rollLine = document.createElement('div');
-                    rollLine.textContent = `Strike ${idx + 1}: Attack ${roll.attacker_roll} vs Defense ${roll.defense_roll} (margin: ${roll.margin >= 0 ? '+' : ''}${roll.margin}) = ${roll.damage} dmg`;
+                    rollLine.textContent = formatRollLine(roll, idx);
                     detailsDiv.appendChild(rollLine);
                   });
 
@@ -7392,7 +7418,7 @@
 
                 data.individual_rolls.forEach((roll, idx) => {
                   const rollLine = document.createElement('div');
-                  rollLine.textContent = `Strike ${idx + 1}: Attack ${roll.attacker_roll} vs Defense ${roll.defense_roll} (margin: ${roll.margin >= 0 ? '+' : ''}${roll.margin}) = ${roll.damage} dmg`;
+                  rollLine.textContent = formatRollLine(roll, idx);
                   detailsDiv.appendChild(rollLine);
                 });
 
