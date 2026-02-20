@@ -5962,10 +5962,10 @@
       const dmg = roll.damage > 0 ? `✓ ${roll.damage}dmg` : '✗ 0dmg';
       const marginStr = roll.margin >= 0 ? `+${roll.margin}` : `${roll.margin}`;
       if (roll.base_roll !== undefined) {
-        const atkStr = `die(${roll.base_roll})+Stat(${roll.stat_bonus ?? 0})+Edge(${roll.edge_bonus ?? 0})+Wpn(${roll.weapon_bonus ?? 0})=${roll.attacker_roll}`;
+        const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0}) = ${roll.attacker_roll}`;
         const rawDef = roll.raw_defense_roll ?? roll.defense_roll;
-        const defStr = `die(${rawDef})+Stat(${roll.def_stat_bonus ?? 0})+Edge(${roll.def_edge_bonus ?? 0})+Arm(${roll.armor_bonus ?? 0})=${roll.defense_roll}`;
-        return `[${idx+1}] ATK: ${atkStr}  DEF: ${defStr}  → ${marginStr} = ${dmg}`;
+        const defStr = `die(${rawDef}) + Stat(${roll.def_stat_bonus ?? 0}) + Edge(${roll.def_edge_bonus ?? 0}) + Arm(${roll.armor_bonus ?? 0}) = ${roll.defense_roll}`;
+        return `[${idx+1}] ATK: ${atkStr}   |   DEF: ${defStr}   →  ${marginStr} = ${dmg}`;
       }
       return `[${idx+1}] ${roll.attacker_roll} vs ${roll.defense_roll} → margin ${roll.margin} = ${dmg}`;
     }
