@@ -2842,6 +2842,8 @@
     let userRole = characterId ? 'Player' : (urlRoleParam === 'player' ? 'Spectator' : 'SW');
     let messagesOffset = 0; // Track how many messages have been loaded for pagination
     const messagesLimit = 50; // How many messages to load per request
+    const displayedMessageIds = new Set(); // Prevent duplicate display on reconnect
+    let historyLoaded = false; // Only load initial history once per page load (skip on reconnect)
 
     // === Tab State ===
     let activeTab = 'story';  // 'story', 'whisper-{name}', or 'ooc'
@@ -6321,6 +6323,9 @@
     // === Message History Loading ===
     // Function to load message history (initial or more)
     async function loadMessageHistory(append = false) {
+      // On reconnect (not explicit "Load More"), skip — already showing history
+      if (!append && historyLoaded) return;
+
       try {
         const historyUrl = `https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/messages?limit=${messagesLimit}&offset=${messagesOffset}`;
         const response = await fetch(historyUrl, {
@@ -6344,6 +6349,10 @@
 
             // Display each message in the correct tab
             for (const msg of messagesInOrder) {
+              // Skip messages already displayed (prevents duplicates on reconnect)
+              if (msg.id && displayedMessageIds.has(msg.id)) continue;
+              if (msg.id) displayedMessageIds.add(msg.id);
+
               // ✅ Handle dice rolls from database
               if (msg.message_type === 'dice_roll_result') {
                 console.log('🎲 Loading dice roll from history:', msg);
@@ -6828,6 +6837,12 @@
             // Update offset
             messagesOffset += data.messages.length;
 
+            // Advance offset so next "Load More" gets the next batch of older messages
+            messagesOffset += data.messages.length;
+
+            // Mark initial history as loaded so reconnects don't re-fetch
+            if (!append) historyLoaded = true;
+
             // Show "Load More" button if we got exactly messagesLimit messages (might be more)
             if (data.messages.length === messagesLimit) {
               loadMoreBtn.style.display = 'block';
@@ -6843,6 +6858,7 @@
           } else {
             // No messages found
             loadMoreBtn.style.display = 'none';
+            if (!append) historyLoaded = true;
           }
         }
       } catch (err) {
