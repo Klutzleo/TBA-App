@@ -50,12 +50,17 @@ class PingRequest(BaseModel):
 @notifications_router.get("/vapid-public-key")
 async def get_vapid_public_key():
     """Return the VAPID public key so the browser can subscribe."""
-    key = os.getenv("VAPID_PUBLIC_KEY", "")
+    import binascii, base64 as _b64
+    key = os.getenv("VAPID_PUBLIC_KEY", "").strip()
     if not key:
         raise HTTPException(
             status_code=503,
             detail="Push notifications not configured on this server."
         )
+    # Auto-convert hex → base64url (the key-gen script outputs hex, but
+    # browsers require base64url for applicationServerKey)
+    if all(c in "0123456789abcdefABCDEF" for c in key) and len(key) in (128, 130):
+        key = _b64.urlsafe_b64encode(binascii.unhexlify(key)).rstrip(b"=").decode()
     return {"publicKey": key}
 
 
