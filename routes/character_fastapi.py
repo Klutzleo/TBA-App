@@ -7,7 +7,7 @@ Includes full character creation with abilities and party membership.
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from backend.db import get_db
-from backend.models import Character, Party, PartyMembership, Ability, User, Message
+from backend.models import Character, Party, PartyMembership, Ability, User, Message, InventoryItem, CampaignMembership
 from backend.auth.jwt import get_current_user
 from backend.character_utils import (
     calculate_level_stats,
@@ -1730,9 +1730,12 @@ async def resolve_the_calling(
         if outcome == "scarred":
             char.is_called = True
     else:
-        # Death: archive the character
+        # Death: archive the character and move all items to loot pool
         char.status = 'archived'
         char.dp = char.dp  # Leave DP as-is (at -10 or worse)
+        db.query(InventoryItem).filter(
+            InventoryItem.character_id == char.id
+        ).update({"character_id": None, "is_equipped": False}, synchronize_session=False)
 
     db.commit()
     db.refresh(char)
@@ -2286,3 +2289,383 @@ async def update_character_notes(
     char.notes = req.get("notes", "")
     db.commit()
     return {"notes": char.notes}
+
+
+# ============================================================
+# Inventory
+# ============================================================
+
+# Tier → heal amount and buff/debuff modifier lookup
+TIER_HEAL = {1: 6, 2: 8, 3: 10, 4: 12, 5: 12, 6: 16}
+TIER_MOD  = {1: 1, 2: 2, 3: 3,  4: 4,  5: 5,  6: 6}
+TIER_DIE  = {1: "1d6", 2: "1d8", 3: "1d10", 4: "1d12", 5: "2d6", 6: "2d8"}
+
+
+def _item_dict(item: InventoryItem) -> dict:
+    return {
+        "id":           str(item.id),
+        "character_id": str(item.character_id) if item.character_id else None,
+        "name":         item.name,
+        "item_type":    item.item_type,
+        "quantity":     item.quantity,
+        "description":  item.description,
+        "tier":         item.tier,
+        "effect_type":  item.effect_type,
+        "bonus":        item.bonus,
+        "bonus_type":   item.bonus_type,
+        "is_equipped":  item.is_equipped,
+        "given_by_sw":  item.given_by_sw,
+        "created_at":   item.created_at.isoformat() if item.created_at else None,
+    }
+
+
+def _is_sw(campaign_id, user_id, db) -> bool:
+    """Return True if user is the SW of the campaign."""
+    from uuid import UUID
+    m = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == user_id
+    ).first()
+    return m is not None and m.role == 'story_weaver'
+
+
+@character_blp_fastapi.get("/{character_id}/inventory")
+async def get_inventory(
+    character_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a character's inventory. Player owns it or SW of that campaign."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id and not _is_sw(char.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+    items = db.query(InventoryItem).filter(InventoryItem.character_id == UUID(character_id)).all()
+    return {
+        "currency": char.currency,
+        "items": [_item_dict(i) for i in items]
+    }
+
+
+@character_blp_fastapi.post("/{character_id}/inventory", status_code=201)
+async def add_inventory_item(
+    character_id: str,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add an item to a character's inventory. Player adds to own; SW adds to any."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    sw = _is_sw(char.campaign_id, current_user.id, db)
+    if char.user_id != current_user.id and not sw:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    name = (req.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Item name is required")
+
+    item = InventoryItem(
+        character_id = char.id,
+        campaign_id  = char.campaign_id,
+        name         = name,
+        item_type    = req.get("item_type", "misc"),
+        quantity     = max(1, int(req.get("quantity", 1))),
+        description  = req.get("description"),
+        tier         = req.get("tier"),
+        effect_type  = req.get("effect_type"),
+        bonus        = req.get("bonus"),
+        given_by_sw  = sw,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(char.campaign_id), {
+            "type":         "item_added",
+            "character_id": str(char.id),
+            "item":         _item_dict(item),
+            "given_by_sw":  sw,
+            "given_to":     char.name,
+        }))
+    except Exception:
+        pass
+
+    return _item_dict(item)
+
+
+@character_blp_fastapi.delete("/{character_id}/inventory/{item_id}", status_code=204)
+async def remove_inventory_item(
+    character_id: str,
+    item_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove an item. Player removes from own inventory; SW removes from any."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id and not _is_sw(char.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    item = db.query(InventoryItem).filter(
+        InventoryItem.id == UUID(item_id),
+        InventoryItem.character_id == UUID(character_id)
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    db.delete(item)
+    db.commit()
+
+
+@character_blp_fastapi.post("/{character_id}/inventory/{item_id}/use")
+async def use_inventory_item(
+    character_id: str,
+    item_id: str,
+    req: dict = {},
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Use a consumable item. Player only. Optionally target another PC (heal/buff)."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this character")
+
+    item = db.query(InventoryItem).filter(
+        InventoryItem.id == UUID(item_id),
+        InventoryItem.character_id == UUID(character_id)
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.item_type != 'consumable':
+        raise HTTPException(status_code=400, detail="Only consumables can be used this way")
+    if item.item_type in ('key_item', 'quest_item'):
+        raise HTTPException(status_code=400, detail="Key and quest items are removed by the SW when used")
+    if item.quantity < 1:
+        raise HTTPException(status_code=400, detail="No uses remaining")
+
+    # Resolve target — defaults to self, ally PCs allowed for heal/buff
+    target_id = req.get("target_id")
+    target = char
+    if target_id and target_id != character_id:
+        t = db.query(Character).filter(Character.id == UUID(target_id)).first()
+        if not t or str(t.campaign_id) != str(char.campaign_id):
+            raise HTTPException(status_code=404, detail="Target not found in campaign")
+        if item.effect_type not in ('heal', 'buff'):
+            raise HTTPException(status_code=400, detail="Damage items go through combat rolls, not inventory use")
+        target = t
+
+    result = {"effect": "none", "value": 0, "new_dp": target.dp}
+
+    if item.effect_type == 'heal' and item.tier:
+        heal = TIER_HEAL.get(item.tier, 0)
+        target.dp = min(target.max_dp, target.dp + heal)
+        result = {"effect": "heal", "value": heal, "new_dp": target.dp}
+
+    elif item.effect_type == 'buff' and item.tier:
+        mod = TIER_MOD.get(item.tier, 0)
+        result = {"effect": "buff", "value": mod, "rounds": mod, "new_dp": target.dp}
+
+    # Decrement quantity; delete if exhausted
+    item.quantity -= 1
+    if item.quantity <= 0:
+        db.delete(item)
+    db.commit()
+
+    # Broadcast to chat
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        tier_die = TIER_DIE.get(item.tier, "?") if item.tier else ""
+        on_whom = f" on {target.name}" if target.id != char.id else ""
+        if result["effect"] == "heal":
+            msg = f"🧪 {char.name} uses {item.name}{on_whom} (Tier {item.tier} — {tier_die}) — restores {result['value']} DP!"
+        elif result["effect"] == "buff":
+            msg = f"⚡ {char.name} uses {item.name}{on_whom} (Tier {item.tier} — {tier_die}) — +{result['value']} for {result['rounds']} round(s)!"
+        else:
+            msg = f"🎒 {char.name} uses {item.name}{on_whom}."
+
+        asyncio.create_task(manager.broadcast(str(char.campaign_id), {
+            "type":           "item_used",
+            "character_id":   str(char.id),
+            "target_id":      str(target.id),
+            "character_name": char.name,
+            "target_name":    target.name,
+            "item_name":      item.name,
+            "item_id":        item_id,
+            "new_quantity":   max(0, item.quantity),
+            "result":         result,
+            "chat_message":   msg,
+        }))
+    except Exception:
+        pass
+
+    return {**result, "item_id": item_id, "remaining": max(0, item.quantity)}
+
+
+@character_blp_fastapi.patch("/{character_id}/currency")
+async def update_currency(
+    character_id: str,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a character's currency. Player updates own; SW updates any."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id and not _is_sw(char.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+    amount = req.get("currency")
+    if amount is None or int(amount) < 0:
+        raise HTTPException(status_code=422, detail="Currency must be 0 or more")
+    char.currency = int(amount)
+    db.commit()
+    return {"currency": char.currency}
+
+
+@character_blp_fastapi.patch("/{character_id}/inventory/{item_id}")
+async def edit_inventory_item(
+    character_id: str,
+    item_id: str,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Edit an item. Player edits own; SW edits any."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id and not _is_sw(char.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    item = db.query(InventoryItem).filter(
+        InventoryItem.id == UUID(item_id),
+        InventoryItem.character_id == UUID(character_id)
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    if "name"        in req: item.name        = req["name"].strip() or item.name
+    if "item_type"   in req: item.item_type   = req["item_type"]
+    if "quantity"    in req: item.quantity     = max(1, int(req["quantity"]))
+    if "description" in req: item.description = req["description"]
+    if "tier"        in req: item.tier        = req["tier"]
+    if "effect_type" in req: item.effect_type = req["effect_type"]
+    if "bonus"       in req: item.bonus       = req["bonus"]
+    if "bonus_type"  in req: item.bonus_type  = req["bonus_type"]
+    db.commit()
+    db.refresh(item)
+    return _item_dict(item)
+
+
+@character_blp_fastapi.post("/{character_id}/inventory/{item_id}/equip")
+async def toggle_equip_item(
+    character_id: str,
+    item_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle is_equipped on an equipment item. Player or SW."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id and not _is_sw(char.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    item = db.query(InventoryItem).filter(
+        InventoryItem.id == UUID(item_id),
+        InventoryItem.character_id == UUID(character_id)
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.item_type != 'equipment':
+        raise HTTPException(status_code=400, detail="Only equipment can be equipped")
+
+    item.is_equipped = not item.is_equipped
+    db.commit()
+
+    # Broadcast so all clients update bonus totals
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(char.campaign_id), {
+            "type":         "item_equip_changed",
+            "character_id": str(char.id),
+            "item_id":      item_id,
+            "is_equipped":  item.is_equipped,
+            "item_name":    item.name,
+            "bonus":        item.bonus,
+            "bonus_type":   item.bonus_type,
+        }))
+    except Exception:
+        pass
+
+    return _item_dict(item)
+
+
+@character_blp_fastapi.post("/{character_id}/inventory/{item_id}/give")
+async def give_inventory_item(
+    character_id: str,
+    item_id: str,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Move an item to another character. Player gives from own; SW moves any."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id and not _is_sw(char.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    target_id = req.get("target_character_id")
+    if not target_id:
+        raise HTTPException(status_code=422, detail="target_character_id is required")
+
+    target = db.query(Character).filter(Character.id == UUID(target_id)).first()
+    if not target or str(target.campaign_id) != str(char.campaign_id):
+        raise HTTPException(status_code=404, detail="Target character not found in this campaign")
+
+    item = db.query(InventoryItem).filter(
+        InventoryItem.id == UUID(item_id),
+        InventoryItem.character_id == UUID(character_id)
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    item.character_id = target.id
+    item.is_equipped  = False  # unequip on transfer
+    db.commit()
+    db.refresh(item)
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(char.campaign_id), {
+            "type":          "item_given",
+            "from_id":       str(char.id),
+            "from_name":     char.name,
+            "to_id":         str(target.id),
+            "to_name":       target.name,
+            "item":          _item_dict(item),
+        }))
+    except Exception:
+        pass
+
+    return _item_dict(item)

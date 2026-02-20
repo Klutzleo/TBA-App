@@ -10,7 +10,7 @@ import random
 import string
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem
 from backend.auth.jwt import get_current_user
 from sqlalchemy import or_, func
 
@@ -647,6 +647,42 @@ async def update_sw_notes(
     return {"sw_notes": campaign.sw_notes}
 
 
+@router.get("/{campaign_id}/currency-name")
+async def get_currency_name(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the campaign's currency name (all members)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return {"currency_name": campaign.currency_name or "Gold"}
+
+
+@router.patch("/{campaign_id}/currency-name")
+async def update_currency_name(
+    campaign_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW sets the campaign's currency name."""
+    _require_sw(campaign_id, current_user, db)
+    name = (req.get("currency_name") or "Gold").strip()[:50]
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign.currency_name = name
+    db.commit()
+    return {"currency_name": campaign.currency_name}
+
+
 @router.get("/{campaign_id}/channels")
 def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
     """Get all channels for a campaign."""
@@ -890,3 +926,190 @@ async def delete_lore(
         }))
     except Exception:
         pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LOOT POOL  (SW-managed items not yet assigned to any character)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _item_dict(item: InventoryItem) -> dict:
+    return {
+        "id":           str(item.id),
+        "character_id": str(item.character_id) if item.character_id else None,
+        "name":         item.name,
+        "item_type":    item.item_type,
+        "quantity":     item.quantity,
+        "description":  item.description,
+        "tier":         item.tier,
+        "effect_type":  item.effect_type,
+        "bonus":        item.bonus,
+        "bonus_type":   item.bonus_type,
+        "is_equipped":  item.is_equipped,
+        "given_by_sw":  item.given_by_sw,
+        "created_at":   item.created_at.isoformat() if item.created_at else None,
+    }
+
+
+@router.get("/{campaign_id}/loot-pool")
+async def get_loot_pool(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW views all unassigned campaign items."""
+    _require_sw(campaign_id, current_user, db)
+    items = db.query(InventoryItem).filter(
+        InventoryItem.campaign_id == campaign_id,
+        InventoryItem.character_id.is_(None)
+    ).order_by(InventoryItem.item_type, InventoryItem.name).all()
+    return {"items": [_item_dict(i) for i in items]}
+
+
+@router.post("/{campaign_id}/loot-pool", status_code=201)
+async def create_loot_pool_item(
+    campaign_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW creates an item in the loot pool (no character assigned yet)."""
+    _require_sw(campaign_id, current_user, db)
+
+    name = (req.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Item name is required")
+
+    item = InventoryItem(
+        character_id = None,
+        campaign_id  = campaign_id,
+        name         = name,
+        item_type    = req.get("item_type", "misc"),
+        quantity     = max(1, int(req.get("quantity", 1))),
+        description  = req.get("description"),
+        tier         = req.get("tier"),
+        effect_type  = req.get("effect_type"),
+        bonus        = req.get("bonus"),
+        bonus_type   = req.get("bonus_type"),
+        given_by_sw  = True,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _item_dict(item)
+
+
+@router.patch("/{campaign_id}/loot-pool/{item_id}")
+async def edit_loot_pool_item(
+    campaign_id: UUID,
+    item_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW edits an item in the loot pool."""
+    _require_sw(campaign_id, current_user, db)
+    item = db.query(InventoryItem).filter(
+        InventoryItem.id == item_id,
+        InventoryItem.campaign_id == campaign_id,
+        InventoryItem.character_id.is_(None)
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found in loot pool")
+
+    if "name"        in req: item.name        = req["name"].strip() or item.name
+    if "item_type"   in req: item.item_type   = req["item_type"]
+    if "quantity"    in req: item.quantity     = max(1, int(req["quantity"]))
+    if "description" in req: item.description = req["description"]
+    if "tier"        in req: item.tier        = req["tier"]
+    if "effect_type" in req: item.effect_type = req["effect_type"]
+    if "bonus"       in req: item.bonus       = req["bonus"]
+    if "bonus_type"  in req: item.bonus_type  = req["bonus_type"]
+    db.commit()
+    db.refresh(item)
+    return _item_dict(item)
+
+
+@router.delete("/{campaign_id}/loot-pool/{item_id}", status_code=204)
+async def delete_loot_pool_item(
+    campaign_id: UUID,
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW removes an item from the loot pool."""
+    _require_sw(campaign_id, current_user, db)
+    item = db.query(InventoryItem).filter(
+        InventoryItem.id == item_id,
+        InventoryItem.campaign_id == campaign_id,
+        InventoryItem.character_id.is_(None)
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found in loot pool")
+    db.delete(item)
+    db.commit()
+
+
+@router.post("/{campaign_id}/loot-pool/{item_id}/award")
+async def award_loot_pool_item(
+    campaign_id: UUID,
+    item_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW clones an item from the loot pool to a character. Original stays in pool."""
+    _require_sw(campaign_id, current_user, db)
+
+    source = db.query(InventoryItem).filter(
+        InventoryItem.id == item_id,
+        InventoryItem.campaign_id == campaign_id,
+        InventoryItem.character_id.is_(None)
+    ).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Item not found in loot pool")
+
+    target_id = req.get("character_id")
+    if not target_id:
+        raise HTTPException(status_code=422, detail="character_id is required")
+
+    from uuid import UUID as _UUID
+    target = db.query(Character).filter(
+        Character.id == _UUID(str(target_id)),
+        Character.campaign_id == campaign_id
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Character not found in campaign")
+
+    qty = max(1, int(req.get("quantity", source.quantity)))
+
+    clone = InventoryItem(
+        character_id = target.id,
+        campaign_id  = campaign_id,
+        name         = source.name,
+        item_type    = source.item_type,
+        quantity     = qty,
+        description  = source.description,
+        tier         = source.tier,
+        effect_type  = source.effect_type,
+        bonus        = source.bonus,
+        bonus_type   = source.bonus_type,
+        given_by_sw  = True,
+    )
+    db.add(clone)
+    db.commit()
+    db.refresh(clone)
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(campaign_id), {
+            "type":         "item_added",
+            "character_id": str(target.id),
+            "item":         _item_dict(clone),
+            "given_by_sw":  True,
+            "given_to":     target.name,
+        }))
+    except Exception:
+        pass
+
+    return _item_dict(clone)

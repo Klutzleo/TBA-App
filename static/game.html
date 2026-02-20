@@ -1501,6 +1501,78 @@
       50%       { box-shadow: 0 0 9px rgba(245, 158, 11, 0.7); }
     }
 
+    /* === Inventory Tab === */
+    #inventoryPane { display:none; flex:1; flex-direction:column; overflow:hidden; }
+    .inv-currency-bar {
+      display:flex; align-items:center; gap:8px;
+      padding:10px 16px 8px; border-bottom:1px solid var(--border-color); flex-shrink:0;
+    }
+    .inv-currency-bar label { color:var(--text-muted); font-size:0.82rem; }
+    .inv-currency-input {
+      width:80px; background:var(--bg-secondary); border:1px solid var(--border-color);
+      border-radius:var(--radius-sm); color:var(--text-primary); padding:3px 7px;
+      font-size:0.85rem; font-family:inherit; text-align:right;
+    }
+    .inv-currency-name { color:var(--accent-primary); font-weight:600; font-size:0.85rem; }
+    #invAddBtn { margin-left:auto; font-size:0.78rem; padding:4px 12px; }
+    #invList { flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+    .inv-item {
+      display:flex; align-items:flex-start; gap:8px;
+      padding:8px 10px; border-radius:var(--radius-sm);
+      background:var(--bg-secondary); border:1px solid transparent; transition:border-color 0.15s;
+    }
+    .inv-item:hover { border-color:var(--border-color); }
+    .inv-item-icon { font-size:1.1rem; flex-shrink:0; margin-top:1px; }
+    .inv-item-body { flex:1; min-width:0; }
+    .inv-item-name { font-weight:600; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .inv-item-meta { font-size:0.73rem; color:var(--text-muted); margin-top:2px; }
+    .inv-item-actions { display:flex; gap:4px; flex-shrink:0; align-items:center; }
+    .inv-use-btn {
+      font-size:0.72rem; padding:2px 8px;
+      background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3);
+      border-radius:4px; color:var(--accent-primary); cursor:pointer; font-family:inherit;
+    }
+    .inv-use-btn:hover { background:rgba(99,102,241,0.3); }
+    .inv-del-btn {
+      background:transparent; border:none; color:var(--text-muted);
+      cursor:pointer; font-size:0.8rem; padding:2px 4px; border-radius:3px; font-family:inherit;
+    }
+    .inv-del-btn:hover { color:var(--accent-danger); }
+    .inv-qty-badge {
+      font-size:0.7rem; background:rgba(255,255,255,0.08);
+      border-radius:4px; padding:1px 5px; color:var(--text-muted);
+    }
+    .type-consumable  { color:#86efac; }
+    .type-key_item    { color:#fbbf24; }
+    .type-quest_item  { color:#c084fc; }
+    .type-equipment   { color:#93c5fd; }
+    .type-misc        { color:var(--text-muted); }
+    .inv-equip-btn {
+      font-size:0.7rem; padding:2px 7px; border-radius:4px; border:1px solid var(--border-color);
+      background:none; color:var(--text-muted); cursor:pointer; white-space:nowrap;
+    }
+    .inv-equip-btn.equipped { border-color:#86efac; color:#86efac; background:rgba(134,239,172,0.1); }
+    .inv-give-btn {
+      font-size:0.7rem; padding:2px 7px; border-radius:4px; border:1px solid var(--border-color);
+      background:none; color:var(--text-muted); cursor:pointer;
+    }
+    .inv-give-btn:hover { border-color:var(--accent-primary); color:var(--accent-primary); }
+    .inv-bonus-bar {
+      font-size:0.78rem; padding:6px 16px; background:var(--bg-secondary);
+      border-bottom:1px solid var(--border-color); display:flex; gap:16px; flex-shrink:0;
+    }
+    .inv-bonus-tag { color:var(--text-muted); }
+    .inv-bonus-tag strong { color:var(--accent-primary); }
+    .loot-item {
+      display:flex; align-items:center; gap:10px; padding:8px 10px;
+      background:var(--bg-secondary); border:1px solid var(--border-color);
+      border-radius:var(--radius-sm);
+    }
+    .loot-item-body { flex:1; min-width:0; }
+    .loot-item-name { font-size:0.875rem; font-weight:500; }
+    .loot-item-meta { font-size:0.72rem; color:var(--text-muted); margin-top:1px; }
+    .loot-item-actions { display:flex; gap:6px; flex-shrink:0; }
+
     /* === Lore Tab === */
     .lore-card {
       background: var(--bg-secondary);
@@ -2071,7 +2143,10 @@
 
         <!-- Party Panel -->
         <div class="sidebar-section" id="sidebarPartyPanel">
-          <h2>Party Members</h2>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <h2 style="margin:0;">Party Members</h2>
+            <button id="campaignSettingsBtn" style="display:none; background:none; border:none; color:var(--text-muted); font-size:1.1rem; cursor:pointer; padding:2px 6px; border-radius:var(--radius-sm);" title="Campaign Settings" onclick="openCampaignSettings()">⚙</button>
+          </div>
           <div id="charactersContainer">
             <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">
               Loading characters...
@@ -2181,6 +2256,161 @@
           <div id="playerNotesSaveStatus" style="font-size:0.75rem; color:var(--text-muted); text-align:right;">Auto-saves on change</div>
         </div>
 
+        <!-- Inventory Pane (player only) -->
+        <div id="inventoryPane">
+          <div class="inv-currency-bar">
+            <label>💰</label>
+            <input id="invCurrencyInput" class="inv-currency-input" type="number" min="0" value="0"
+              onchange="saveCurrency()" title="Your currency">
+            <span id="invCurrencyName" class="inv-currency-name">Gold</span>
+            <button id="invAddBtn" class="btn" onclick="openAddItemModal()">+ Add Item</button>
+          </div>
+          <div id="invList">
+            <div style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">Loading inventory...</div>
+          </div>
+        </div>
+
+        <!-- Add / Edit Item Modal -->
+        <div id="addItemModal" class="modal">
+          <div class="modal-content" style="max-width:460px;">
+            <div class="modal-header"><h2 id="addItemModalTitle">Add Item</h2></div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;">
+              <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Item Name</label>
+                <input id="invItemName" type="text" maxlength="100"
+                  style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 10px;font-size:0.875rem;font-family:inherit;">
+              </div>
+              <div style="display:flex;gap:10px;">
+                <div style="flex:1;">
+                  <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Type</label>
+                  <select id="invItemType"
+                    style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 8px;font-size:0.875rem;font-family:inherit;"
+                    onchange="onItemTypeChange()">
+                    <option value="misc">Misc</option>
+                    <option value="consumable">Consumable</option>
+                    <option value="key_item">Key Item</option>
+                    <option value="quest_item">Quest Item</option>
+                    <option value="equipment">Equipment</option>
+                  </select>
+                </div>
+                <div style="width:70px;">
+                  <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Qty</label>
+                  <input id="invItemQty" type="number" min="1" value="1"
+                    style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 8px;font-size:0.875rem;font-family:inherit;">
+                </div>
+              </div>
+              <!-- Consumable fields -->
+              <div id="invConsumableFields" style="display:none;gap:10px;flex-direction:row;">
+                <div style="flex:1;">
+                  <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Tier (1-6)</label>
+                  <input id="invItemTier" type="number" min="1" max="6" value="1"
+                    style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 8px;font-size:0.875rem;font-family:inherit;">
+                </div>
+                <div style="flex:1;">
+                  <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Effect</label>
+                  <select id="invItemEffect"
+                    style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 8px;font-size:0.875rem;font-family:inherit;">
+                    <option value="heal">Heal</option>
+                    <option value="buff">Buff</option>
+                    <option value="damage">Damage (via combat roll)</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <!-- Equipment bonus -->
+              <div id="invEquipmentFields" style="display:none;gap:10px;flex-direction:row;">
+                <div>
+                  <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Flat Bonus (+1, +2…)</label>
+                  <input id="invItemBonus" type="number" min="0" max="10" value="0"
+                    style="width:70px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 8px;font-size:0.875rem;font-family:inherit;">
+                </div>
+                <div style="flex:1;">
+                  <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Applies To</label>
+                  <select id="invItemBonusType"
+                    style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 8px;font-size:0.875rem;font-family:inherit;">
+                    <option value="attack">Attack rolls</option>
+                    <option value="defense">Defense rolls</option>
+                    <option value="">Flavor only</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:3px;">Description (optional)</label>
+                <textarea id="invItemDesc" rows="2"
+                  style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 10px;font-size:0.875rem;resize:vertical;font-family:inherit;"></textarea>
+              </div>
+              <!-- Tier preview -->
+              <div id="invTierPreview" style="display:none;font-size:0.78rem;color:var(--text-muted);background:var(--bg-primary);padding:6px 10px;border-radius:var(--radius-sm);"></div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
+                <button class="btn-secondary btn" onclick="closeAddItemModal()">Cancel</button>
+                <button class="btn" id="invSaveItemBtn" onclick="saveItem()">Add to Inventory</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SW Loot Pool Pane -->
+        <div id="lootPoolPane" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+          <div style="padding:10px 16px 0; flex-shrink:0; display:flex; align-items:center; gap:8px;">
+            <button class="btn" style="font-size:0.8rem; padding:5px 14px;" onclick="openLootItemModal()">+ Create Item</button>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Items here are cloned when awarded — originals stay in pool.</span>
+          </div>
+          <div id="lootPoolList" style="flex:1; overflow-y:auto; padding:10px 16px; display:flex; flex-direction:column; gap:6px;">
+            <div style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">Loading loot pool...</div>
+          </div>
+        </div>
+
+        <!-- Give Item Modal (player to player/NPC) -->
+        <div id="giveItemModal" class="modal">
+          <div class="modal-content" style="max-width:340px;">
+            <div class="modal-header">
+              <h2>🤝 Give Item</h2>
+              <button class="modal-close" onclick="closeGiveItemModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+              <p id="giveItemLabel" style="margin:0;font-size:0.9rem;color:var(--text-muted);"></p>
+              <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:6px;">Give to:</label>
+                <select id="giveItemTarget"
+                  style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:7px 10px;font-size:0.9rem;">
+                </select>
+              </div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn-secondary btn" onclick="closeGiveItemModal()">Cancel</button>
+                <button class="btn" onclick="confirmGiveItem()">Give</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Award Loot Modal (SW awards from pool to character) -->
+        <div id="awardLootModal" class="modal">
+          <div class="modal-content" style="max-width:340px;">
+            <div class="modal-header">
+              <h2>🎁 Award Item</h2>
+              <button class="modal-close" onclick="closeAwardLootModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+              <p id="awardLootLabel" style="margin:0;font-size:0.9rem;color:var(--text-muted);"></p>
+              <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:6px;">Award to:</label>
+                <select id="awardLootTarget"
+                  style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:7px 10px;font-size:0.9rem;">
+                </select>
+              </div>
+              <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:6px;">Quantity:</label>
+                <input id="awardLootQty" type="number" min="1" value="1"
+                  style="width:80px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:6px 8px;font-size:0.9rem;">
+              </div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn-secondary btn" onclick="closeAwardLootModal()">Cancel</button>
+                <button class="btn" onclick="confirmAwardLoot()">Award (Clone)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="chat-input-container">
           <div class="chat-input-row">
             <div class="form-group">
@@ -2268,6 +2498,39 @@
       </div>
       <div id="approvalList" style="max-height:60vh;overflow-y:auto;padding:4px 0;">
         <p style="color:#b0b3ba;text-align:center;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaign Settings Modal (SW only) -->
+  <div id="campaignSettingsModal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header">
+        <h2>⚙ Campaign Settings</h2>
+        <button class="modal-close" onclick="closeCampaignSettings()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:20px;">
+        <!-- Currency Name -->
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Currency Name</label>
+          <div style="display:flex; gap:8px;">
+            <input id="settingsCurrencyName" type="text" maxlength="50" placeholder="e.g. Gold, Credits, Chips"
+              style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.9rem;">
+            <button class="btn" style="padding:6px 14px; font-size:0.85rem;" onclick="saveCurrencyName()">Save</button>
+          </div>
+        </div>
+        <!-- Character Creation Mode -->
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Character Creation</label>
+          <select id="settingsCharMode"
+            style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.9rem; margin-bottom:8px;">
+            <option value="open">Open — anyone can create</option>
+            <option value="approval_required">Approval Required — SW approves</option>
+            <option value="sw_only">SW Only — no self-creation</option>
+          </select>
+          <button class="btn" style="width:100%; padding:6px 14px; font-size:0.85rem;" onclick="saveCharacterMode()">Save Mode</button>
+        </div>
+        <button class="btn-secondary btn" onclick="closeCampaignSettings()">Close</button>
       </div>
     </div>
   </div>
@@ -2510,6 +2773,18 @@
           <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
+
+      <!-- NPC Inventory Section -->
+      <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border-color);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <label class="form-label" style="margin:0;">🎒 Inventory</label>
+          <button class="btn" style="font-size:0.75rem; padding:3px 10px;"
+            onclick="openAddItemModal(document.getElementById('editNpcId').value)">+ Add Item</button>
+        </div>
+        <div id="npcInventoryList" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;">
+          <div style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:12px;">Loading...</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2642,17 +2917,21 @@
         targetBtn.classList.add('active');
       }
 
-      // Swap between chat messages / lore pane / notes panes
+      // Swap between chat messages / lore / notes / inventory / loot pool panes
       const chatMessages  = document.getElementById('chatMessages');
       const swNotes       = document.getElementById('swNotesPane');
       const playerNotes   = document.getElementById('playerNotesPane');
       const lorePane      = document.getElementById('lorePane');
+      const inventoryPane = document.getElementById('inventoryPane');
+      const lootPoolPane  = document.getElementById('lootPoolPane');
 
       // Hide everything first, then show what's needed
-      if (chatMessages)  chatMessages.style.display  = 'none';
-      if (swNotes)       swNotes.style.display       = 'none';
-      if (playerNotes)   playerNotes.style.display   = 'none';
-      if (lorePane)      lorePane.style.display      = 'none';
+      if (chatMessages)   chatMessages.style.display   = 'none';
+      if (swNotes)        swNotes.style.display        = 'none';
+      if (playerNotes)    playerNotes.style.display    = 'none';
+      if (lorePane)       lorePane.style.display       = 'none';
+      if (inventoryPane)  inventoryPane.style.display  = 'none';
+      if (lootPoolPane)   lootPoolPane.style.display   = 'none';
 
       if (tab === 'sw_notes') {
         if (swNotes) swNotes.style.display = 'flex';
@@ -2662,6 +2941,12 @@
         return;
       } else if (tab === 'lore') {
         if (lorePane) lorePane.style.display = 'flex';
+        return;
+      } else if (tab === 'inventory') {
+        if (inventoryPane) inventoryPane.style.display = 'flex';
+        return;
+      } else if (tab === 'loot_pool') {
+        if (lootPoolPane) lootPoolPane.style.display = 'flex';
         return;
       } else {
         if (chatMessages) chatMessages.style.display = '';
@@ -3126,6 +3411,7 @@
       menu.className = 'context-menu active';
       menu.innerHTML = `
         <button class="context-menu-item" onclick="openLevelUpModal('${charId}', '${charName.replace(/'/g, "\\'")}')">⬆️ Level Up</button>
+        <button class="context-menu-item" onclick="openAddItemModal('${charId}')">🎁 Gift Item</button>
         <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="convertPCtoNPC('${charId}', '${charName.replace(/'/g, "\\'")}')">🎭 Convert to NPC</button>
         <div style="padding:4px 12px; font-size:0.7rem; color:var(--text-muted); border-top:1px solid var(--border-color); margin-top:4px; pointer-events:none;">✦ BAP TOKEN</div>
@@ -3344,6 +3630,579 @@
     }
 
     // ===================================================================
+    // === Inventory ======================================================
+    // ===================================================================
+
+    const TIER_HEAL = {1:6, 2:8, 3:10, 4:12, 5:12, 6:16};
+    const TIER_MOD  = {1:1, 2:2, 3:3,  4:4,  5:5,  6:6};
+    const TIER_DIE  = {1:'1d6', 2:'1d8', 3:'1d10', 4:'1d12', 5:'2d6', 6:'2d8'};
+    const TYPE_ICON = {consumable:'🧪', key_item:'🔑', equipment:'⚔️', misc:'🎒'};
+    const TYPE_LABEL = {consumable:'Consumable', key_item:'Key Item', equipment:'Equipment', misc:'Misc'};
+
+    let invItems = [];
+    let invCurrencyName = 'Gold';
+
+    async function loadInventory() {
+      if (!characterId) return;
+      try {
+        // Load currency name
+        const cnResp = await fetch(`/api/campaigns/${campaignId}/currency-name`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (cnResp.ok) {
+          const cn = await cnResp.json();
+          invCurrencyName = cn.currency_name || 'Gold';
+          const nameEl = document.getElementById('invCurrencyName');
+          if (nameEl) nameEl.textContent = invCurrencyName;
+        }
+
+        // Load inventory
+        const resp = await fetch(`/api/characters/${characterId}/inventory`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        invItems = data.items || [];
+        const currencyInput = document.getElementById('invCurrencyInput');
+        if (currencyInput) currencyInput.value = data.currency ?? 0;
+        renderInventory();
+      } catch (e) {
+        console.error('Failed to load inventory:', e);
+      }
+    }
+
+    function renderInventory() {
+      const list = document.getElementById('invList');
+      if (!list) return;
+
+      // Show bonus totals bar
+      const atkBonus = invItems.filter(i => i.is_equipped && i.bonus_type === 'attack').reduce((s, i) => s + (i.bonus || 0), 0);
+      const defBonus = invItems.filter(i => i.is_equipped && i.bonus_type === 'defense').reduce((s, i) => s + (i.bonus || 0), 0);
+      let bonusBar = document.getElementById('invBonusBar');
+      if (!bonusBar) {
+        bonusBar = document.createElement('div');
+        bonusBar.id = 'invBonusBar';
+        bonusBar.className = 'inv-bonus-bar';
+        list.parentElement.insertBefore(bonusBar, list);
+      }
+      bonusBar.innerHTML = `
+        <span class="inv-bonus-tag">⚔️ Attack bonus: <strong>+${atkBonus}</strong></span>
+        <span class="inv-bonus-tag">🛡️ Defense bonus: <strong>+${defBonus}</strong></span>`;
+
+      if (!invItems.length) {
+        list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">No items yet.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      invItems.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'inv-item';
+        if (item.is_equipped) div.style.borderColor = '#86efac';
+        div.dataset.id = item.id;
+
+        const icon = TYPE_ICON[item.item_type] || '🎒';
+        const typeClass = `type-${item.item_type.replace('_', '-')}`;
+
+        let metaParts = [`<span class="${typeClass}">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
+        if (item.item_type === 'consumable' && item.tier) {
+          if (item.effect_type === 'heal')   metaParts.push(`Tier ${item.tier} — heals ${TIER_HEAL[item.tier]} DP`);
+          else if (item.effect_type === 'buff') metaParts.push(`Tier ${item.tier} — +${TIER_MOD[item.tier]} for ${TIER_MOD[item.tier]} round(s)`);
+          else if (item.effect_type === 'damage') metaParts.push(`Tier ${item.tier} — combat roll`);
+          else metaParts.push(`Tier ${item.tier} (${TIER_DIE[item.tier] || '?'})`);
+        }
+        if (item.item_type === 'equipment') {
+          if (item.bonus)      metaParts.push(`+${item.bonus} to ${item.bonus_type || 'rolls'}`);
+          if (item.is_equipped) metaParts.push('<span style="color:#86efac;">✓ Equipped</span>');
+        }
+        if (item.description) metaParts.push(escHtml(item.description));
+
+        // Use button: consumables only, not damage type
+        const canUse = item.item_type === 'consumable' && item.effect_type !== 'damage';
+        const useBtn = canUse ? `<button class="inv-use-btn" onclick="useItem('${item.id}')">Use</button>` : '';
+
+        // Equip button: equipment only
+        const equipBtn = item.item_type === 'equipment'
+          ? `<button class="inv-equip-btn ${item.is_equipped ? 'equipped' : ''}" onclick="equipItem('${item.id}')">${item.is_equipped ? 'Unequip' : 'Equip'}</button>` : '';
+
+        // Give button: all items
+        const giveBtn = `<button class="inv-give-btn" onclick="openGiveItemModal('${item.id}', '${escHtml(item.name).replace(/'/g, "\\'")}')">Give</button>`;
+
+        div.innerHTML = `
+          <span class="inv-item-icon">${icon}</span>
+          <div class="inv-item-body">
+            <div class="inv-item-name">${escHtml(item.name)}</div>
+            <div class="inv-item-meta">${metaParts.join(' · ')}</div>
+          </div>
+          <div class="inv-item-actions">
+            ${useBtn}${equipBtn}${giveBtn}
+            <span class="inv-qty-badge">×${item.quantity}</span>
+            <button class="inv-del-btn" onclick="removeItem('${item.id}')" title="Remove">✕</button>
+          </div>`;
+        list.appendChild(div);
+      });
+    }
+
+    let currencySaveTimer = null;
+    function saveCurrency() {
+      clearTimeout(currencySaveTimer);
+      currencySaveTimer = setTimeout(async () => {
+        const val = parseInt(document.getElementById('invCurrencyInput')?.value || '0', 10);
+        await fetch(`/api/characters/${characterId}/currency`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currency: val })
+        });
+      }, 600);
+    }
+
+    async function removeItem(itemId) {
+      if (!confirm('Remove this item?')) return;
+      try {
+        await fetch(`/api/characters/${characterId}/inventory/${itemId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        invItems = invItems.filter(i => i.id !== itemId);
+        renderInventory();
+      } catch (e) {
+        showPanelToast(`Remove failed: ${e.message}`, 'error');
+      }
+    }
+
+    let pendingUseItemId = null;
+    let pendingUseTargetId = null;
+
+    async function useItem(itemId) {
+      const item = invItems.find(i => i.id === itemId);
+      if (!item) return;
+
+      // Build confirmation message
+      const canTarget = item.effect_type === 'heal' || item.effect_type === 'buff';
+      const confirmMsg = `Use "${item.name}"${item.quantity > 1 ? ` (${item.quantity} remaining)` : ' (last one!)'}?`;
+      if (!confirm(confirmMsg)) return;
+
+      // If heal/buff, offer to target another party member
+      let targetId = characterId;
+      if (canTarget) {
+        pendingUseItemId = itemId;
+        openUseTargetModal(item);
+        return;
+      }
+      await _doUseItem(itemId, targetId);
+    }
+
+    async function _doUseItem(itemId, targetId) {
+      try {
+        const body = targetId && targetId !== characterId ? { target_id: targetId } : {};
+        const resp = await fetch(`/api/characters/${characterId}/inventory/${itemId}/use`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        const result = await resp.json();
+        const item = invItems.find(i => i.id === itemId);
+        if (item) {
+          item.quantity = result.remaining;
+          if (item.quantity <= 0) invItems = invItems.filter(i => i.id !== itemId);
+        }
+        renderInventory();
+        if (result.effect === 'heal') loadBubbleBar();
+      } catch (e) {
+        showPanelToast(`Use failed: ${e.message}`, 'error');
+      }
+    }
+
+    // Use-on-target modal (reuse giveItemModal selectively)
+    function openUseTargetModal(item) {
+      const modal = document.getElementById('giveItemModal');
+      document.getElementById('giveItemLabel').textContent = `Use "${item.name}" on who?`;
+      _populatePartySelect('giveItemTarget', true); // true = include self
+      modal.dataset.mode = 'use';
+      modal.classList.add('active');
+    }
+
+    async function equipItem(itemId) {
+      try {
+        const resp = await fetch(`/api/characters/${characterId}/inventory/${itemId}/equip`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        const updated = await resp.json();
+        const item = invItems.find(i => i.id === itemId);
+        if (item) { item.is_equipped = updated.is_equipped; }
+        renderInventory();
+      } catch (e) {
+        showPanelToast(`Equip failed: ${e.message}`, 'error');
+      }
+    }
+
+    // ── Give Item ────────────────────────────────────────────────────────────
+    let pendingGiveItemId = null;
+
+    function _populatePartySelect(selectId, includeSelf = false) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      sel.innerHTML = '';
+      // Pull from the current party list rendered in the bubble bar
+      const bubbles = document.querySelectorAll('.character-bubble[data-char-id]');
+      const seen = new Set();
+      bubbles.forEach(b => {
+        const cid = b.dataset.charId;
+        const cname = b.querySelector('.bubble-name')?.textContent || cid;
+        if (!seen.has(cid) && (includeSelf || cid !== characterId)) {
+          seen.add(cid);
+          const opt = document.createElement('option');
+          opt.value = cid; opt.textContent = cname;
+          sel.appendChild(opt);
+        }
+      });
+      // Fallback: include self if nothing else available
+      if (sel.options.length === 0 && includeSelf) {
+        const opt = document.createElement('option');
+        opt.value = characterId; opt.textContent = 'Yourself';
+        sel.appendChild(opt);
+      }
+    }
+
+    function openGiveItemModal(itemId, itemName) {
+      pendingGiveItemId = itemId;
+      const modal = document.getElementById('giveItemModal');
+      document.getElementById('giveItemLabel').textContent = `Give "${itemName}" to:`;
+      modal.dataset.mode = 'give';
+      _populatePartySelect('giveItemTarget', false);
+      modal.classList.add('active');
+    }
+
+    function closeGiveItemModal() {
+      document.getElementById('giveItemModal').classList.remove('active');
+      document.getElementById('giveItemModal').dataset.mode = '';
+      pendingGiveItemId = null;
+      pendingUseItemId  = null;
+    }
+
+    async function confirmGiveItem() {
+      const modal = document.getElementById('giveItemModal');
+      const targetId = document.getElementById('giveItemTarget').value;
+      if (!targetId) return;
+
+      if (modal.dataset.mode === 'use') {
+        closeGiveItemModal();
+        await _doUseItem(pendingUseItemId, targetId);
+        return;
+      }
+
+      // give mode
+      if (!pendingGiveItemId) return;
+      const itemId = pendingGiveItemId;
+      closeGiveItemModal();
+      try {
+        const resp = await fetch(`/api/characters/${characterId}/inventory/${itemId}/give`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_character_id: targetId })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        invItems = invItems.filter(i => i.id !== itemId);
+        renderInventory();
+        showPanelToast('Item given!', 'success');
+      } catch (e) {
+        showPanelToast(`Give failed: ${e.message}`, 'error');
+      }
+    }
+
+    // Add Item Modal
+    function openAddItemModal(targetCharId) {
+      document.getElementById('addItemModalTitle').textContent = targetCharId ? 'Gift Item' : 'Add Item';
+      document.getElementById('invItemName').value = '';
+      document.getElementById('invItemType').value = 'misc';
+      document.getElementById('invItemQty').value = '1';
+      document.getElementById('invItemTier').value = '1';
+      document.getElementById('invItemEffect').value = 'heal';
+      document.getElementById('invItemBonus').value = '0';
+      document.getElementById('invItemBonusType').value = 'attack';
+      document.getElementById('invItemDesc').value = '';
+      document.getElementById('invSaveItemBtn').dataset.targetChar = targetCharId || '';
+      document.getElementById('invSaveItemBtn').dataset.lootPool = '';
+      onItemTypeChange();
+      document.getElementById('addItemModal').classList.add('active');
+      document.getElementById('invItemName').focus();
+    }
+
+    function closeAddItemModal() {
+      document.getElementById('addItemModal').classList.remove('active');
+    }
+
+    function onItemTypeChange() {
+      const type = document.getElementById('invItemType').value;
+      const consFields = document.getElementById('invConsumableFields');
+      const equipFields = document.getElementById('invEquipmentFields');
+      const preview = document.getElementById('invTierPreview');
+      consFields.style.display  = type === 'consumable' ? 'flex'  : 'none';
+      equipFields.style.display = type === 'equipment'  ? 'flex'  : 'none';
+      preview.style.display     = type === 'consumable' ? 'block' : 'none';
+      if (type === 'consumable') updateTierPreview();
+    }
+
+    function updateTierPreview() {
+      const tier = parseInt(document.getElementById('invItemTier')?.value || '1', 10);
+      const effect = document.getElementById('invItemEffect')?.value;
+      const preview = document.getElementById('invTierPreview');
+      if (!preview) return;
+      const die = TIER_DIE[tier] || '?';
+      if (effect === 'heal') preview.textContent = `Tier ${tier} (${die}) — heals ${TIER_HEAL[tier] || '?'} DP (max roll)`;
+      else if (effect === 'buff') preview.textContent = `Tier ${tier} (${die}) — +${TIER_MOD[tier] || '?'} for ${TIER_MOD[tier] || '?'} round(s)`;
+      else preview.textContent = `Tier ${tier} (${die})`;
+    }
+
+    async function saveItem() {
+      const name = document.getElementById('invItemName').value.trim();
+      if (!name) { alert('Item name is required.'); return; }
+
+      const btn = document.getElementById('invSaveItemBtn');
+      const targetChar = btn.dataset.targetChar || characterId;
+      const type = document.getElementById('invItemType').value;
+
+      const payload = {
+        name,
+        item_type: type,
+        quantity:  parseInt(document.getElementById('invItemQty').value || '1', 10),
+        description: document.getElementById('invItemDesc').value || null,
+      };
+      if (type === 'consumable') {
+        payload.tier        = parseInt(document.getElementById('invItemTier').value || '1', 10);
+        payload.effect_type = document.getElementById('invItemEffect').value;
+      }
+      if (type === 'equipment') {
+        const bonusVal = parseInt(document.getElementById('invItemBonus').value || '0', 10);
+        if (bonusVal > 0) {
+          payload.bonus      = bonusVal;
+          payload.bonus_type = document.getElementById('invItemBonusType').value || null;
+        }
+      }
+
+      btn.disabled = true; btn.textContent = 'Saving...';
+      try {
+        // Loot pool item (SW creating in pool, no character target)
+        if (btn.dataset.lootPool === 'true') {
+          const resp = await fetch(`/api/campaigns/${campaignId}/loot-pool`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+          closeAddItemModal();
+          loadLootPool();
+          return;
+        }
+        const resp = await fetch(`/api/characters/${targetChar}/inventory`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        closeAddItemModal();
+        if (targetChar === characterId) await loadInventory();
+      } catch (e) {
+        showPanelToast(`Save failed: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Add to Inventory';
+      }
+    }
+
+    // ===================================================================
+    // === Campaign Settings Modal (SW only) ==============================
+    // ===================================================================
+
+    async function openCampaignSettings() {
+      try {
+        const [cnResp, campResp] = await Promise.all([
+          fetch(`/api/campaigns/${campaignId}/currency-name`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+          fetch(`/api/campaigns/${campaignId}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        ]);
+        if (cnResp.ok) {
+          const cn = await cnResp.json();
+          document.getElementById('settingsCurrencyName').value = cn.currency_name || 'Gold';
+        }
+        if (campResp.ok) {
+          const camp = await campResp.json();
+          document.getElementById('settingsCharMode').value = camp.character_creation_mode || 'open';
+        }
+      } catch (e) { /* show modal anyway */ }
+      document.getElementById('campaignSettingsModal').classList.add('active');
+    }
+
+    function closeCampaignSettings() {
+      document.getElementById('campaignSettingsModal').classList.remove('active');
+    }
+
+    async function saveCurrencyName() {
+      const name = (document.getElementById('settingsCurrencyName').value.trim()) || 'Gold';
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/currency-name`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currency_name: name })
+        });
+        if (!resp.ok) throw new Error('Failed to save');
+        invCurrencyName = name;
+        const nameEl = document.getElementById('invCurrencyName');
+        if (nameEl) nameEl.textContent = name;
+        showPanelToast(`Currency set to "${name}"`, 'success');
+      } catch (e) {
+        showPanelToast('Could not save currency name', 'error');
+      }
+    }
+
+    async function saveCharacterMode() {
+      const mode = document.getElementById('settingsCharMode').value;
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ character_creation_mode: mode })
+        });
+        if (!resp.ok) throw new Error('Failed to save');
+        const labels = { open: 'Open', approval_required: 'Approval Required', sw_only: 'SW Only' };
+        showPanelToast(`Character mode set to "${labels[mode] || mode}"`, 'success');
+      } catch (e) {
+        showPanelToast('Could not save character mode', 'error');
+      }
+    }
+
+    // ===================================================================
+    // ===================================================================
+    // === SW Loot Pool ===================================================
+    // ===================================================================
+
+    let lootPoolItems = [];
+    let pendingAwardItemId = null;
+
+    async function loadLootPool() {
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/loot-pool`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        lootPoolItems = data.items || [];
+        renderLootPool();
+      } catch (e) { /* silent */ }
+    }
+
+    function renderLootPool() {
+      const list = document.getElementById('lootPoolList');
+      if (!list) return;
+      if (!lootPoolItems.length) {
+        list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">Loot pool is empty. Create items above.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      lootPoolItems.forEach(item => {
+        const icon = TYPE_ICON[item.item_type] || '🎒';
+        const typeClass = `type-${item.item_type.replace('_', '-')}`;
+        let meta = [`<span class="${typeClass}">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
+        if (item.item_type === 'consumable' && item.tier) {
+          if (item.effect_type === 'heal')  meta.push(`Tier ${item.tier} — heals ${TIER_HEAL[item.tier]} DP`);
+          else if (item.effect_type === 'buff') meta.push(`Tier ${item.tier} — +${TIER_MOD[item.tier]} for ${TIER_MOD[item.tier]} rd`);
+          else if (item.effect_type === 'damage') meta.push(`Tier ${item.tier} — combat roll`);
+        }
+        if (item.item_type === 'equipment' && item.bonus) meta.push(`+${item.bonus} ${item.bonus_type || 'rolls'}`);
+        if (item.description) meta.push(escHtml(item.description));
+
+        const div = document.createElement('div');
+        div.className = 'loot-item';
+        div.innerHTML = `
+          <span style="font-size:1.1rem;">${icon}</span>
+          <div class="loot-item-body">
+            <div class="loot-item-name">${escHtml(item.name)} <span style="color:var(--text-muted);font-size:0.75rem;">×${item.quantity}</span></div>
+            <div class="loot-item-meta">${meta.join(' · ')}</div>
+          </div>
+          <div class="loot-item-actions">
+            <button class="btn" style="font-size:0.75rem;padding:3px 10px;" onclick="openAwardLootModal('${item.id}', '${escHtml(item.name).replace(/'/g, "\\'")}', ${item.quantity})">Award</button>
+            <button class="inv-del-btn" onclick="deleteLootItem('${item.id}')" title="Delete">✕</button>
+          </div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function openLootItemModal() {
+      const btn = document.getElementById('invSaveItemBtn');
+      btn.dataset.lootPool = 'true';
+      btn.dataset.targetChar = '';
+      document.getElementById('addItemModalTitle').textContent = 'Add to Loot Pool';
+      document.getElementById('invItemName').value = '';
+      document.getElementById('invItemType').value = 'misc';
+      document.getElementById('invItemQty').value = '1';
+      document.getElementById('invItemTier').value = '1';
+      document.getElementById('invItemEffect').value = 'heal';
+      document.getElementById('invItemBonus').value = '0';
+      document.getElementById('invItemBonusType').value = 'attack';
+      document.getElementById('invItemDesc').value = '';
+      onItemTypeChange();
+      document.getElementById('addItemModal').classList.add('active');
+      document.getElementById('invItemName').focus();
+    }
+
+    async function deleteLootItem(itemId) {
+      if (!confirm('Remove from loot pool?')) return;
+      try {
+        await fetch(`/api/campaigns/${campaignId}/loot-pool/${itemId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        lootPoolItems = lootPoolItems.filter(i => i.id !== itemId);
+        renderLootPool();
+      } catch (e) {
+        showPanelToast(`Delete failed: ${e.message}`, 'error');
+      }
+    }
+
+    function openAwardLootModal(itemId, itemName, maxQty) {
+      pendingAwardItemId = itemId;
+      document.getElementById('awardLootLabel').textContent = `Award "${itemName}" to:`;
+      document.getElementById('awardLootQty').value = 1;
+      document.getElementById('awardLootQty').max = maxQty;
+
+      // Populate with all PCs and NPCs in the campaign
+      const sel = document.getElementById('awardLootTarget');
+      sel.innerHTML = '';
+      document.querySelectorAll('.character-bubble[data-char-id]').forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.dataset.charId;
+        opt.textContent = b.querySelector('.bubble-name')?.textContent || b.dataset.charId;
+        sel.appendChild(opt);
+      });
+
+      document.getElementById('awardLootModal').classList.add('active');
+    }
+
+    function closeAwardLootModal() {
+      document.getElementById('awardLootModal').classList.remove('active');
+      pendingAwardItemId = null;
+    }
+
+    async function confirmAwardLoot() {
+      const targetId = document.getElementById('awardLootTarget').value;
+      const qty = parseInt(document.getElementById('awardLootQty').value || '1', 10);
+      if (!targetId || !pendingAwardItemId) return;
+      const itemId = pendingAwardItemId;
+      closeAwardLootModal();
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/loot-pool/${itemId}/award`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ character_id: targetId, quantity: qty })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        showPanelToast('Item awarded!', 'success');
+        // Pool item stays — no need to reload
+      } catch (e) {
+        showPanelToast(`Award failed: ${e.message}`, 'error');
+      }
+    }
+
     // === Player Notepad (auto-save, player only) ========================
     // ===================================================================
 
@@ -3822,6 +4681,9 @@
       // Load and render abilities
       await loadNpcAbilities(npcId, npc.level);
 
+      // Load NPC inventory
+      loadNpcInventory(npcId);
+
       // Show edit panel
       document.getElementById('npcEditPanel').classList.add('active');
     }
@@ -3911,6 +4773,52 @@
 
     function closeNpcEditPanel() {
       document.getElementById('npcEditPanel').classList.remove('active');
+    }
+
+    async function loadNpcInventory(npcId) {
+      const list = document.getElementById('npcInventoryList');
+      if (!list) return;
+      try {
+        const resp = await fetch(`/api/characters/${npcId}/inventory`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) { list.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:12px;">Could not load.</div>'; return; }
+        const data = await resp.json();
+        const items = data.items || [];
+        if (!items.length) {
+          list.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:12px;">No items.</div>';
+          return;
+        }
+        list.innerHTML = '';
+        items.forEach(item => {
+          const icon = TYPE_ICON[item.item_type] || '🎒';
+          const typeClass = `type-${item.item_type.replace('_', '-')}`;
+          let meta = [`<span class="${typeClass}" style="font-size:0.7rem;">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
+          if (item.item_type === 'equipment' && item.bonus) meta.push(`+${item.bonus}`);
+          const div = document.createElement('div');
+          div.className = 'loot-item';
+          div.innerHTML = `
+            <span>${icon}</span>
+            <div class="loot-item-body">
+              <div class="loot-item-name" style="font-size:0.85rem;">${escHtml(item.name)} <span style="color:var(--text-muted);font-size:0.72rem;">×${item.quantity}</span></div>
+              <div class="loot-item-meta">${meta.join(' · ')}</div>
+            </div>
+            <button class="inv-del-btn" onclick="removeNpcItem('${npcId}','${item.id}')" title="Remove">✕</button>`;
+          list.appendChild(div);
+        });
+      } catch (e) {
+        list.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:12px;">Error loading inventory.</div>';
+      }
+    }
+
+    async function removeNpcItem(npcId, itemId) {
+      if (!confirm('Remove this item from the NPC?')) return;
+      try {
+        await fetch(`/api/characters/${npcId}/inventory/${itemId}`, {
+          method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        loadNpcInventory(npcId);
+      } catch (e) { showPanelToast('Remove failed', 'error'); }
     }
 
     // Handle NPC edit form
@@ -6204,6 +7112,29 @@
             } else if (data.type === 'lore_deleted') {
               loadLore();
 
+            } else if (data.type === 'item_added') {
+              // SW gifted an item — notify the recipient, refresh their inventory
+              if (data.given_by_sw && data.character_id === characterId) {
+                showPanelToast(`🎁 ${data.given_to ? 'SW' : 'Someone'} gave you: ${data.item.name}!`, 'success');
+                loadInventory();
+              } else if (userRole === 'Player' && data.character_id === characterId) {
+                loadInventory();
+              }
+              // If NPC edit panel is open and this item was added to that NPC, refresh it
+              const openNpcId = document.getElementById('editNpcId')?.value;
+              if (openNpcId && data.character_id === openNpcId) loadNpcInventory(openNpcId);
+
+            } else if (data.type === 'item_used') {
+              // Broadcast use message to story chat
+              const msgDiv = document.createElement('div');
+              msgDiv.className = 'message-card';
+              msgDiv.style.cssText = 'border-left:3px solid #86efac; background:rgba(134,239,172,0.06); padding:8px 14px; margin:4px 0;';
+              msgDiv.innerHTML = `<span style="font-size:0.875rem;">${escHtml(data.chat_message)}</span>`;
+              const chatEl = document.getElementById('chatMessages');
+              if (chatEl) { chatEl.appendChild(msgDiv); chatEl.scrollTop = chatEl.scrollHeight; }
+              // Refresh own inventory if it was us
+              if (data.character_id === characterId) loadInventory();
+
             } else if (data.type === 'system') {
               // Silently ignore join/leave events — too noisy in an active campaign
               if (data.event === 'player_joined' || data.event === 'player_left') return;
@@ -7170,6 +8101,10 @@
 
     // SW-only UI setup
     if (userRole === 'SW') {
+      // Show campaign settings gear button
+      const settingsBtn = document.getElementById('campaignSettingsBtn');
+      if (settingsBtn) settingsBtn.style.display = '';
+
       // Show sidebar initiative tab bar
       const tabBar = document.getElementById('sidebarTabBar');
       if (tabBar) tabBar.style.display = 'flex';
@@ -7178,7 +8113,7 @@
       const loreSWToolbar = document.getElementById('loreSWToolbar');
       if (loreSWToolbar) loreSWToolbar.style.display = '';
 
-      // Inject SW Notes tab into chat tab bar
+      // Inject SW Notes + Loot Pool tabs into chat tab bar
       const tabBarEl = document.getElementById('tabBar');
       if (tabBarEl) {
         const notesBtn = document.createElement('button');
@@ -7187,10 +8122,18 @@
         notesBtn.onclick = () => switchTab('sw_notes');
         notesBtn.textContent = '📝 Notes';
         tabBarEl.appendChild(notesBtn);
+
+        const lootBtn = document.createElement('button');
+        lootBtn.className = 'tab-btn';
+        lootBtn.dataset.tab = 'loot_pool';
+        lootBtn.onclick = () => switchTab('loot_pool');
+        lootBtn.textContent = '🎒 Loot Pool';
+        tabBarEl.appendChild(lootBtn);
       }
 
-      // Load SW notes
+      // Load SW notes + loot pool
       loadSWNotes();
+      loadLootPool();
     }
 
     // Player-only UI setup
@@ -7203,8 +8146,16 @@
         notesBtn.onclick = () => switchTab('player_notes');
         notesBtn.textContent = '📓 Notes';
         tabBarEl.appendChild(notesBtn);
+
+        const invBtn = document.createElement('button');
+        invBtn.className = 'tab-btn';
+        invBtn.dataset.tab = 'inventory';
+        invBtn.onclick = () => switchTab('inventory');
+        invBtn.textContent = '📦 Inventory';
+        tabBarEl.appendChild(invBtn);
       }
       loadPlayerNotes();
+      loadInventory();
     }
 
     // Load lore for everyone

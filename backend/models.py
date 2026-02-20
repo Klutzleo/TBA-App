@@ -219,6 +219,7 @@ class Character(Base):
     
     # Phase 2d: Additional character columns
     notes = Column(String, nullable=True)  # Character backstory, personality notes
+    currency = Column(Integer, nullable=False, default=0)  # Player wallet
     max_uses_per_encounter = Column(Integer, nullable=False, default=3)  # Limited ability uses
     current_uses = Column(Integer, nullable=False, default=3)  # Remaining uses this encounter
     weapon_bonus = Column(Integer, nullable=False, default=0)  # Weapon attack bonus
@@ -298,6 +299,9 @@ class Campaign(Base):
 
     # SW private notes / lore scratchpad
     sw_notes = Column(Text, nullable=True)
+
+    # Currency name chosen by the SW (e.g. "Gold", "Credits", "Chips")
+    currency_name = Column(String(50), nullable=False, default='Gold')
 
     # Legacy fields (kept for backward compatibility)
     created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
@@ -648,3 +652,27 @@ class LoreEntry(Base):
 
     def __repr__(self):
         return f"<LoreEntry(id={str(self.id)[:8]}..., title='{self.title[:30]}')>"
+
+
+class InventoryItem(Base):
+    """An item in a character's inventory."""
+    __tablename__ = "inventory_items"
+    __table_args__ = {'extend_existing': True}
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=True,  index=True)  # NULL = SW loot pool
+    campaign_id  = Column(UUID(as_uuid=True), ForeignKey("campaigns.id",  ondelete="CASCADE"), nullable=False, index=True)
+    name         = Column(String(100), nullable=False)
+    item_type    = Column(String(20),  nullable=False, default='misc')  # consumable | key_item | quest_item | equipment | misc
+    quantity     = Column(Integer,     nullable=False, default=1)
+    description  = Column(Text,        nullable=True)
+    tier         = Column(Integer,     nullable=True)   # 1-6, consumables only
+    effect_type  = Column(String(20),  nullable=True)   # heal | buff | damage | other
+    bonus        = Column(Integer,     nullable=True)   # flat bonus for equipment
+    bonus_type   = Column(String(20),  nullable=True)   # 'attack' | 'defense' | None
+    is_equipped  = Column(Boolean,     nullable=False,  default=False)
+    given_by_sw  = Column(Boolean,     nullable=False,  default=False)
+    created_at   = Column(DateTime,    default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<InventoryItem(id={str(self.id)[:8]}..., name='{self.name}', type={self.item_type})>"
