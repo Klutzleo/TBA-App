@@ -1113,3 +1113,46 @@ async def award_loot_pool_item(
         pass
 
     return _item_dict(clone)
+
+
+@router.delete("/{campaign_id}", status_code=204)
+async def delete_campaign(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """SW deletes a campaign. Notifies all members via push before deletion."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if str(campaign.story_weaver_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can delete a campaign")
+
+    campaign_name = campaign.name
+
+    # Notify all members before deletion
+    try:
+        from backend.notifications import send_push_to_campaign
+        send_push_to_campaign(
+            db=db,
+            campaign_id=str(campaign_id),
+            exclude_user_id=str(current_user.id),
+            title="📢 Campaign Deleted",
+            body=f'"{campaign_name}" has been deleted by the Story Weaver.',
+            url="/campaigns.html",
+        )
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning(f"Push failed on campaign delete: {_e}")
+
+    # Manually delete characters (and their abilities — FK cascades from character).
+    # The FK on characters.campaign_id is SET NULL, not CASCADE, so we must do this explicitly.
+    characters = db.query(Character).filter(Character.campaign_id == campaign_id).all()
+    for char in characters:
+        db.delete(char)
+
+    # Messages have no FK to campaigns (plain UUID column), so they orphan without this.
+    db.query(Message).filter(Message.campaign_id == str(campaign_id)).delete(synchronize_session=False)
+
+    db.delete(campaign)
+    db.commit()

@@ -2135,6 +2135,9 @@
         <span class="subtitle">Tabletop Adventure Platform</span>
       </div>
       <div class="connection-status">
+        <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener"
+          title="Free rulebook on itch.io"
+          style="font-size:0.75rem; color:#a78bfa; text-decoration:none; margin-right:8px; opacity:0.8;">📖 Rules</a>
         <span class="status-indicator disconnected" id="statusIndicator"></span>
         <span id="statusText">Disconnected</span>
         <button id="notifBellBtn" title="Enable push notifications"
@@ -2652,9 +2655,18 @@
           <li>✦ The SW awards you a <strong>BAP token</strong></li>
           <li>✅ Your character is <strong>approved</strong> or rejected</li>
         </ul>
-        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:20px;">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
           Your browser will ask for permission next. Pick <strong>"Allow"</strong> and set the duration to <strong>"forever"</strong> so you're not asked again.
         </p>
+        <details style="margin-bottom:16px; font-size:0.82rem; color:var(--text-muted);">
+          <summary style="cursor:pointer; color:var(--accent-primary);">Using Brave?</summary>
+          <p style="margin-top:8px; line-height:1.6;">
+            Brave blocks push notifications by default. To enable:<br>
+            1. Go to <strong>brave://settings/privacy</strong><br>
+            2. Turn on <strong>"Use Google services for push messaging"</strong><br>
+            3. Restart Brave, then come back and enable notifications.
+          </p>
+        </details>
         <div style="display:flex; gap:10px;">
           <button class="btn" style="flex:1;" onclick="document.getElementById('notifExplainerModal').classList.remove('active'); enablePushNotifications();">
             Enable Notifications
