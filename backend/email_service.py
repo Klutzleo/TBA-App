@@ -10,9 +10,7 @@ Required environment variables:
 
 import os
 import logging
-import urllib.request
-import urllib.error
-import json
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -69,30 +67,25 @@ def send_password_reset_email(to_email: str, reset_token: str) -> None:
         print("="*60 + "\n")
         return
 
-    payload = json.dumps({
-        "from": f"TBA App <{from_email}>",
-        "to": [to_email],
-        "subject": "Reset Your TBA Password",
-        "html": html_content,
-    }).encode("utf-8")
-
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            logger.info(f"Password reset email sent to {to_email} (status {resp.status})")
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        logger.error(f"Resend API error {e.code}: {body}")
-        raise
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": f"TBA App <{from_email}>",
+                "to": [to_email],
+                "subject": "Reset Your TBA Password",
+                "html": html_content,
+            },
+            timeout=10,
+        )
+        if not resp.ok:
+            logger.error(f"Resend API error {resp.status_code}: {resp.text}")
+            resp.raise_for_status()
+        logger.info(f"Password reset email sent to {to_email} (status {resp.status_code})")
     except Exception as e:
         logger.error(f"Failed to send password reset email: {e}")
         raise
