@@ -15,7 +15,7 @@ from sqlalchemy.orm import relationship
 import uuid
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from argon2 import PasswordHasher
 from backend.db import Base  # ✅ This works from project root
 
@@ -137,7 +137,7 @@ class PasswordResetToken(Base):
         """Check if the token is still valid (not used and not expired)."""
         if self.used:
             return False
-        if datetime.utcnow() > self.expires_at:
+        if datetime.now(timezone.utc) > self.expires_at:
             return False
         return True
 
