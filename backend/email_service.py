@@ -1,36 +1,28 @@
 """
 Email Service
-Sends transactional emails via SMTP (e.g. Skystra/cPanel hosting).
+Sends transactional emails via Resend API (https://resend.com).
 
 Required environment variables:
-    SMTP_HOST     — e.g. mail.gameoctane.com
-    SMTP_PORT     — e.g. 587
-    SMTP_USER     — e.g. no-reply@gameoctane.com
-    SMTP_PASSWORD — account password
-    FROM_EMAIL    — defaults to SMTP_USER if not set
-    FRONTEND_URL  — defaults to https://tba-app-production.up.railway.app
+    RESEND_API_KEY — API key from Resend dashboard
+    FROM_EMAIL     — verified sender, e.g. no-reply@gameoctane.com
+    FRONTEND_URL   — defaults to https://tba-app-production.up.railway.app
 """
 
 import os
-import smtplib
 import logging
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import urllib.request
+import urllib.error
+import json
 
 logger = logging.getLogger(__name__)
 
 
 def send_password_reset_email(to_email: str, reset_token: str) -> None:
-    smtp_host     = os.getenv("SMTP_HOST", "")
-    smtp_port     = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user     = os.getenv("SMTP_USER", "")
-    smtp_password = os.getenv("SMTP_PASSWORD", "")
-    from_email    = os.getenv("FROM_EMAIL", smtp_user)
-    frontend_url  = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
+    api_key      = os.getenv("RESEND_API_KEY", "")
+    from_email   = os.getenv("FROM_EMAIL", "no-reply@gameoctane.com")
+    frontend_url = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
 
     reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
-
-    subject = "Reset Your TBA Password"
 
     html_content = f"""<!DOCTYPE html>
 <html>
@@ -69,40 +61,38 @@ def send_password_reset_email(to_email: str, reset_token: str) -> None:
 </body>
 </html>"""
 
-    plain_text = f"""Reset Your TBA Password
-
-Click the link below to set a new password:
-{reset_url}
-
-This link expires in 1 hour.
-
-If you didn't request this, ignore this email.
-"""
-
-    if not smtp_host or not smtp_user or not smtp_password:
-        # Dev fallback — print to console
-        logger.warning("SMTP not configured — printing reset link to console")
+    if not api_key:
+        logger.warning("RESEND_API_KEY not set — printing reset link to console")
         print("\n" + "="*60)
         print(f"PASSWORD RESET for {to_email}")
         print(f"Link: {reset_url}")
         print("="*60 + "\n")
         return
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"TBA App <{from_email}>"
-    msg["To"]      = to_email
-    msg.attach(MIMEText(plain_text, "plain"))
-    msg.attach(MIMEText(html_content, "html"))
+    payload = json.dumps({
+        "from": f"TBA App <{from_email}>",
+        "to": [to_email],
+        "subject": "Reset Your TBA Password",
+        "html": html_content,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
 
     try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            server.login(smtp_user, smtp_password)
-            server.sendmail(from_email, to_email, msg.as_string())
-        logger.info(f"Password reset email sent to {to_email}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            logger.info(f"Password reset email sent to {to_email} (status {resp.status})")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        logger.error(f"Resend API error {e.code}: {body}")
+        raise
     except Exception as e:
         logger.error(f"Failed to send password reset email: {e}")
         raise
