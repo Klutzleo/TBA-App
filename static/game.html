@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>TBA Chat - Tabletop Adventure</title>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#1a1a2e" />
@@ -1163,6 +1163,7 @@
     /* === Chat Input === */
     .chat-input-container {
       padding: 20px 24px;
+      padding-bottom: max(20px, calc(20px + env(safe-area-inset-bottom)));
       background: var(--bg-panel);
       border-top: 1px solid var(--border-color);
       box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.2);
