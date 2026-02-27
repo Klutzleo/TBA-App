@@ -52,7 +52,7 @@
       display: grid;
       grid-template-rows: auto 1fr;
       height: 100vh;
-      height: 100dvh;
+      height: calc(var(--vh, 1vh) * 100);
     }
 
     /* === Header === */
@@ -8451,6 +8451,16 @@
         console.warn('SW registration failed:', err);
       });
     });
+
+  // ─── Mobile viewport height fix ──────────────────────────────────────────
+  // Android PWA: set --vh to actual visible height to avoid nav bar overlap
+  function setVh() {
+    const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+  }
+  setVh();
+  window.addEventListener('resize', setVh);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', setVh);
   }
 
   // ─── Push Notifications ──────────────────────────────────────────────────
