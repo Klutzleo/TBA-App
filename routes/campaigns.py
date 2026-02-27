@@ -449,6 +449,7 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
     )
 
 
+@router.patch("/{campaign_id}", response_model=CampaignResponse)
 @router.put("/{campaign_id}", response_model=CampaignResponse)
 def update_campaign(
     campaign_id: str,
