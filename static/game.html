@@ -52,6 +52,7 @@
       display: grid;
       grid-template-rows: auto 1fr;
       height: 100vh;
+      height: 100dvh;
     }
 
     /* === Header === */
@@ -1167,14 +1168,7 @@
       box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.2);
     }
 
-    .chat-input-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .chat-input-main {
+.chat-input-main {
       display: flex;
       gap: 12px;
     }
@@ -1794,11 +1788,7 @@
         display: none;
       }
 
-      .chat-input-row {
-        grid-template-columns: 1fr;
-      }
-
-      .chat-input-container input,
+.chat-input-container input,
       .chat-input-container textarea {
         font-size: 16px;
       }
@@ -2436,16 +2426,6 @@
         </div>
 
         <div class="chat-input-container">
-          <div class="chat-input-row">
-            <div class="form-group">
-              <label class="form-label">Context</label>
-              <input type="text" class="form-input" id="contextQuick" placeholder="Quick context override">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Encounter</label>
-              <input type="text" class="form-input" id="encounterQuick" placeholder="Quick encounter override">
-            </div>
-          </div>
           <div class="chat-input-main">
             <textarea
               class="form-input"
@@ -2871,8 +2851,6 @@
     }
 
     // === DOM Element References ===
-    const contextQuickEl = document.getElementById('contextQuick');
-    const encounterQuickEl = document.getElementById('encounterQuick');
     const sendBtn = document.getElementById('sendBtn');
     const chatMessagesEl = document.getElementById('chatMessages');
     const msgInput = document.getElementById('messageInput');
@@ -8031,12 +8009,6 @@
           payload.whisper_targets = chatCmd.targets; // Array of targets
         }
 
-        // Use quick context/encounter if provided
-        const ctx = contextQuickEl.value.trim();
-        const encId = encounterQuickEl.value.trim();
-        if (ctx) payload.context = ctx;
-        if (encId) payload.encounter_id = encId;
-
         // Add active speaker context (for NPC/Ally/Narrator support)
         if (activeSpeaker) {
           payload.speaker_id = activeSpeaker.id;
@@ -8123,10 +8095,6 @@
         if (knownCommands.includes(command)) {
           // System command - send as legacy message
           const payload = { type: 'message', actor, text };
-          const ctx = contextQuickEl.value.trim();
-          const encId = encounterQuickEl.value.trim();
-          if (ctx) payload.context = ctx;
-          if (encId) payload.encounter_id = encId;
           ws.send(JSON.stringify(payload));
         } else {
           // Unknown command - assume it's a custom ability/spell/technique
@@ -8170,12 +8138,6 @@
           payload.whisper_targets = whisperTargets;
         }
 
-        // Use quick context/encounter if provided
-        const ctx = contextQuickEl.value.trim();
-        const encId = encounterQuickEl.value.trim();
-
-        if (ctx) payload.context = ctx;
-        if (encId) payload.encounter_id = encId;
 
         ws.send(JSON.stringify(payload));
       }
