@@ -365,6 +365,17 @@ CREATE TABLE IF NOT EXISTS encounters (
 );
 -- Add column to existing DBs (idempotent)
 ALTER TABLE encounters ADD COLUMN IF NOT EXISTS current_turn_index INTEGER NOT NULL DEFAULT 0;
+
+-- Ensure campaign columns exist for DBs created before these were added
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS join_code VARCHAR(6) UNIQUE;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS min_players INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_players INTEGER NOT NULL DEFAULT 6;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS timezone VARCHAR NOT NULL DEFAULT 'America/New_York';
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS character_creation_mode VARCHAR NOT NULL DEFAULT 'open' CHECK (character_creation_mode IN ('open', 'approval_required', 'sw_only'));
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_characters_per_player INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS posting_frequency posting_frequency_enum NOT NULL DEFAULT 'medium';
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status campaign_status_enum NOT NULL DEFAULT 'active';
 CREATE INDEX IF NOT EXISTS idx_encounters_campaign ON encounters(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_encounters_active ON encounters(campaign_id, is_active);
 

@@ -42,14 +42,14 @@ class CampaignResponse(BaseModel):
     """Campaign response (Phase 3)."""
     id: UUID
     name: str
-    description: str
-    join_code: str
-    is_public: bool
-    min_players: int
-    max_players: int
-    timezone: str
-    posting_frequency: str
-    status: str
+    description: Optional[str] = None
+    join_code: Optional[str] = None
+    is_public: Optional[bool] = True
+    min_players: Optional[int] = 2
+    max_players: Optional[int] = 6
+    timezone: Optional[str] = 'America/New_York'
+    posting_frequency: Optional[str] = 'medium'
+    status: Optional[str] = 'active'
     story_weaver_id: Optional[UUID] = None
     created_by_user_id: Optional[UUID] = None
     is_active: bool
