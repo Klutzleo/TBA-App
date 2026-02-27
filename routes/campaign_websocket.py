@@ -282,7 +282,10 @@ async def campaign_websocket(
                 await handle_narration(campaign_uuid, data)
 
             elif message_type == "dice_roll":
-                await handle_dice_roll(campaign_uuid, data, user_uuid, db)  # Pass user_id from WebSocket
+                await handle_dice_roll(campaign_uuid, data, user_uuid, db)
+
+            elif message_type == "secret_roll":
+                await handle_secret_roll(campaign_uuid, data, user_uuid, websocket, db)
 
             elif message_type == "stat_check":
                 await handle_stat_check(campaign_uuid, data, user_uuid, db)
@@ -1221,6 +1224,33 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
     
     # Broadcast to all clients
     await manager.broadcast(campaign_id, broadcast_data.model_dump(mode='json'))
+
+
+async def handle_secret_roll(campaign_id: UUID, data: dict, user_id: UUID, websocket: WebSocket, db: Session):
+    """SW-only secret roll. Result sent only to the requesting websocket, never broadcast or persisted."""
+    from backend.models import Campaign
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign or str(campaign.story_weaver_id) != str(user_id):
+        await websocket.send_json({"type": "error", "message": "Only the Story Weaver can use secret rolls."})
+        return
+
+    dice_notation = data.get("dice", "1d20").strip()
+    reason = data.get("reason", "")
+
+    try:
+        breakdown = roll_dice(dice_notation)
+        total = sum(breakdown)
+    except ValueError:
+        await websocket.send_json({"type": "error", "message": f"Invalid dice notation '{dice_notation}'. Use format like 1d20, 2d6+3."})
+        return
+
+    await websocket.send_json({
+        "type": "secret_roll_result",
+        "dice": dice_notation,
+        "breakdown": breakdown,
+        "total": total,
+        "reason": reason,
+    })
 
 
 async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Session):
@@ -2207,6 +2237,7 @@ async def send_help_text(websocket: WebSocket):
 
 **Dice & Stat Checks:**
 • `/roll XdY+Z` - Roll dice (e.g., /roll 2d6+3)
+• `/s XdY` - Secret roll (SW only — result visible only to you)
 • `/pp`, `/ip`, `/sp` - Roll stat checks (1d6 + stat + Edge)
 • `/who` - List party members with stats
 

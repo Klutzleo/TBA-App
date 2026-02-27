@@ -7356,6 +7356,29 @@
               else {
                 displaySystemMessage(text);
               }
+            } else if (data.type === 'secret_roll_result') {
+              // SW-only secret roll — only ever received by SW
+              const container = document.createElement('div');
+              container.className = 'msg dice_roll';
+              container.style.borderLeft = '3px solid #6366f1';
+              container.style.opacity = '0.9';
+
+              const now = new Date();
+              const ts = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const diceExpr = data.dice || '1d20';
+              const breakdown = Array.isArray(data.breakdown) ? data.breakdown.join(' + ') : '';
+              const reason = data.reason ? ` — ${data.reason}` : '';
+
+              container.innerHTML = `
+                <span style="color:var(--text-muted);font-size:0.85em;margin-right:8px;">[${ts}]</span>
+                <span style="color:#6366f1;">🔒 Secret Roll</span>
+                <strong style="color:#a5b4fc;margin-left:6px;">${diceExpr}${reason}</strong>
+                <span style="margin-left:8px;">→ <strong style="font-size:1.1em;">${data.total}</strong></span>
+                ${breakdown ? `<div style="font-family:monospace;font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;">Rolls: ${breakdown}</div>` : ''}
+              `;
+              getChatContainer().appendChild(container);
+              getChatContainer().scrollTop = getChatContainer().scrollHeight;
+
             } else if (data.type === 'dice_roll_result') {  // ✅ Changed from 'dice_roll'
               // Render dice expression, equation text, and breakdown
               const container = document.createElement('div');
@@ -8044,6 +8067,11 @@
           payload.attacker_id = activeSpeaker.id;
         }
         ws.send(JSON.stringify(payload));
+
+      } else if (text.startsWith('/s ') || text === '/s') {
+        // Secret roll — SW only, result visible only to SW
+        const diceNotation = text.slice(3).trim() || '1d20';
+        ws.send(JSON.stringify({ type: 'secret_roll', dice: diceNotation }));
 
       } else if (text.startsWith('/roll')) {
         // Dice roll command
