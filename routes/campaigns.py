@@ -445,7 +445,16 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
         created_by_id=campaign.created_by_id,
         is_active=campaign.is_active,
         story_channel_id=story_channel.id if story_channel else None,
-        ooc_channel_id=ooc_channel.id if ooc_channel else None
+        ooc_channel_id=ooc_channel.id if ooc_channel else None,
+        join_code=campaign.join_code,
+        is_public=campaign.is_public,
+        min_players=campaign.min_players,
+        max_players=campaign.max_players,
+        timezone=campaign.timezone,
+        posting_frequency=str(campaign.posting_frequency) if campaign.posting_frequency else 'medium',
+        status=str(campaign.status) if campaign.status else 'active',
+        character_creation_mode=campaign.character_creation_mode or 'open',
+        max_characters_per_player=campaign.max_characters_per_player or 1,
     )
 
 
