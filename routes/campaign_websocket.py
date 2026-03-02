@@ -267,7 +267,7 @@ async def campaign_websocket(
                 await handle_legacy_message(campaign_uuid, data, user_uuid, display_name, db)
 
             elif message_type == "chat":
-                await handle_chat(campaign_uuid, data, user_uuid)
+                await handle_chat(campaign_uuid, data, user_uuid, db)
 
             elif message_type == "whisper":
                 await handle_whisper(campaign_uuid, data, user_uuid)
@@ -387,9 +387,19 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
     await manager.broadcast(campaign_id, broadcast_data)
 
 
-async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID):
+async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session = None):
     """Handle regular chat message (IC or OOC)."""
     msg = ChatMessage(**data)
+
+    # Block IC chat for players whose character is pending approval
+    if db and msg.mode.upper() == 'IC':
+        char = db.query(Character).filter(
+            Character.user_id == user_id,
+            Character.campaign_id == campaign_id,
+            Character.is_npc == False
+        ).first()
+        if char and char.status != 'active':
+            return  # Silently block — spectators/pending chars can't speak IC
 
     # Get display name and username from connection manager
     display_name = manager.get_display_name(campaign_id, user_id)  # Character name or username
@@ -415,6 +425,30 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID):
         message=msg.message,
         attachment=msg.attachment
     ).model_dump(mode='json'))
+
+    # Push notification to offline campaign members (skip connected users — they got WS msg)
+    if db:
+        try:
+            from backend.notifications import send_push
+            connected_ids = {str(uid) for uid, _ in manager.get_connected_users(campaign_id)}
+            members = db.query(CampaignMembership).filter(
+                CampaignMembership.campaign_id == campaign_id
+            ).all()
+            preview = msg.message[:80] + ('…' if len(msg.message) > 80 else '')
+            for m in members:
+                if str(m.user_id) == str(user_id):
+                    continue  # Skip sender
+                if str(m.user_id) in connected_ids:
+                    continue  # Already receiving via WebSocket
+                send_push(
+                    db, str(m.user_id),
+                    f"💬 {sender}",
+                    preview,
+                    url=f"/game.html?campaign_id={campaign_id}",
+                    campaign_id=str(campaign_id),
+                )
+        except Exception as _pe:
+            logger.warning(f"Chat push notification failed: {_pe}")
 
 
 async def handle_whisper(campaign_id: UUID, data: dict, user_id: UUID):
@@ -1174,25 +1208,35 @@ async def handle_narration(campaign_id: UUID, data: dict):
 
 async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Session):
     """Handle dice roll requests with error handling for invalid notation."""
+    import re as _re
     display_name = manager.get_display_name(campaign_id, user_id)
-    dice_notation = data.get("dice", "1d6")
+    dice_notation = data.get("dice", "1d6").strip()
     reason = data.get("reason", "")
-    
+
+    # Parse optional flat modifier e.g. "2d10+4" or "1d6-2"
+    modifier = 0
+    match = _re.match(r'^(\d+d\d+)([+-]\d+)$', dice_notation, _re.IGNORECASE)
+    if match:
+        dice_part = match.group(1)
+        modifier = int(match.group(2))
+    else:
+        dice_part = dice_notation
+
     # ✅ Use roll_dice for breakdown, sum for total
     try:
-        breakdown = roll_dice(dice_notation)  # [3, 5] 
-        total = sum(breakdown)  # 8
-    except ValueError as e:
-        # Invalid dice notation - send error message
-        error_msg = f"❌ Invalid dice notation '{dice_notation}'. Use format like 2d6, 3d4, 1d12."
+        breakdown = roll_dice(dice_part)
+        total = sum(breakdown) + modifier
+    except ValueError:
+        error_msg = f"❌ Invalid dice notation '{dice_notation}'. Use format like 2d6, 3d4+2, 1d12-1."
         await manager.broadcast(campaign_id, {
             "type": "system",
             "text": error_msg
         })
-        return  # Stop processing
+        return
     
     # Format the result text
-    result_text = f"rolled {total}"
+    modifier_str = f"{modifier:+}" if modifier != 0 else ""
+    result_text = f"rolled {total}{(' (' + modifier_str + ' modifier)') if modifier else ''}"
     
     # Build broadcast message
     broadcast_data = DiceRollBroadcast(

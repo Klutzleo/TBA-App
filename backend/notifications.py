@@ -126,12 +126,16 @@ def send_push_to_campaign(
 ) -> int:
     """Send a notification to everyone in a campaign except the sender."""
     from backend.models import PushSubscription
-    from sqlalchemy import distinct
+    from sqlalchemy import distinct, or_
 
+    # Include subscriptions registered for this campaign OR globally (campaign_id=None)
     user_ids = (
         db.query(distinct(PushSubscription.user_id))
         .filter(
-            PushSubscription.campaign_id == campaign_id
+            or_(
+                PushSubscription.campaign_id == campaign_id,
+                PushSubscription.campaign_id == None,  # noqa: E711
+            )
         )
         .all()
     )

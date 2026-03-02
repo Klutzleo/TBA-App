@@ -2868,6 +2868,7 @@
     const messagesLimit = 50; // How many messages to load per request
     const displayedMessageIds = new Set(); // Prevent duplicate display on reconnect
     let historyLoaded = false; // Only load initial history once per page load (skip on reconnect)
+    let loadingHistory = false; // Suppress unread badge increments during history load
 
     // === Tab State ===
     let activeTab = 'story';  // 'story', 'whisper-{name}', or 'ooc'
@@ -5606,15 +5607,15 @@
     }
 
     // Add message to storage and optionally display
-    function storeAndDisplayMessage(element, data) {
+    function storeAndDisplayMessage(element, data, fromHistory = false) {
       const messageTab = getMessageTab(data);
       data._tab = messageTab;
       data._element = element;
 
       allMessages.push(data);
 
-      // If message is for inactive tab, increment unread count
-      if (messageTab !== activeTab) {
+      // If message is for inactive tab, increment unread count (skip during history load)
+      if (messageTab !== activeTab && !fromHistory && !loadingHistory) {
         unreadCounts[messageTab]++;
         updateBadge(messageTab);
       }
@@ -5817,7 +5818,7 @@
 
     // Display typed message (IC, OOC, Whisper)
     // targets can be a string (single target) or array (multiple targets)
-    function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false, storedTimestamp = null) {
+    function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false, storedTimestamp = null, fromHistory = false) {
       const container = document.createElement('div');
 
       const timestamp = (storedTimestamp ? new Date(storedTimestamp) : new Date()).toLocaleString([], {
@@ -5900,7 +5901,7 @@
       container.appendChild(textDiv);
 
       // Store and display via tab system
-      storeAndDisplayMessage(container, data);
+      storeAndDisplayMessage(container, data, fromHistory);
     }
 
     // Parse chat command and return mode info
@@ -6372,7 +6373,8 @@
             // Reverse messages so they display in chronological order (API returns newest first)
             const messagesInOrder = data.messages.reverse();
 
-            // Display each message in the correct tab
+            // Display each message in the correct tab (suppress unread badges during history load)
+            loadingHistory = true;
             for (const msg of messagesInOrder) {
               // Skip messages already displayed (prevents duplicates on reconnect)
               if (msg.id && displayedMessageIds.has(msg.id)) continue;
@@ -6861,9 +6863,11 @@
 
                 const tab = getMessageTab(messageData);
                 const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
-                displayTypedMessage(mode, msg.sender_name, msg.content, null, false, msg.timestamp);
+                displayTypedMessage(mode, msg.sender_name, msg.content, null, false, msg.timestamp, true);
               }
             }
+
+            loadingHistory = false;
 
             // Update offset
             messagesOffset += data.messages.length;
@@ -6893,6 +6897,7 @@
           }
         }
       } catch (err) {
+        loadingHistory = false;
         console.warn('Failed to load message history:', err);
       }
     }
