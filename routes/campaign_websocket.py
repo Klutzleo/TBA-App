@@ -1285,17 +1285,30 @@ async def handle_secret_roll(campaign_id: UUID, data: dict, user_id: UUID, webso
     dice_notation = data.get("dice", "1d20").strip()
     reason = data.get("reason", "")
 
+    # Parse optional flat modifier e.g. "2d10+2" or "1d8-1"
+    import re as _re
+    modifier = 0
+    match = _re.match(r'^(\d+d\d+)([+-]\d+)$', dice_notation, _re.IGNORECASE)
+    if match:
+        dice_part = match.group(1)
+        modifier = int(match.group(2))
+    else:
+        dice_part = dice_notation
+
     try:
-        breakdown = roll_dice(dice_notation)
-        total = sum(breakdown)
+        breakdown = roll_dice(dice_part)
+        total = sum(breakdown) + modifier
     except ValueError:
         await websocket.send_json({"type": "error", "message": f"Invalid dice notation '{dice_notation}'. Use format like 1d20, 2d6+3."})
         return
 
+    modifier_str = f"{modifier:+}" if modifier != 0 else ""
     await websocket.send_json({
         "type": "secret_roll_result",
         "dice": dice_notation,
         "breakdown": breakdown,
+        "modifier": modifier,
+        "modifier_str": modifier_str,
         "total": total,
         "reason": reason,
     })

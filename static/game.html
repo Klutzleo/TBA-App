@@ -7366,7 +7366,9 @@
               const now = new Date();
               const ts = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               const diceExpr = data.dice || '1d20';
-              const breakdown = Array.isArray(data.breakdown) ? data.breakdown.join(' + ') : '';
+              const rolls = Array.isArray(data.breakdown) ? data.breakdown.join(' + ') : '';
+              const modStr = data.modifier_str || '';
+              const breakdown = rolls ? (modStr ? `${rolls} ${modStr}` : rolls) : '';
               const reason = data.reason ? ` — ${data.reason}` : '';
 
               container.innerHTML = `
