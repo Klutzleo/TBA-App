@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from uuid import UUID, uuid4
+import logging
 import random
 import string
+
+logger = logging.getLogger(__name__)
 
 from backend.db import get_db
 from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem
@@ -359,6 +362,20 @@ async def join_campaign(
         asyncio.create_task(broadcast_player_joined(campaign.id, current_user.username))
     except Exception:
         pass
+
+    # Push notify the SW (they may be offline)
+    if campaign.story_weaver_id:
+        try:
+            from backend.notifications import send_push
+            send_push(
+                db, str(campaign.story_weaver_id),
+                "🧑‍🤝‍🧑 New Player Joined",
+                f"{current_user.username} joined {campaign.name}.",
+                url=f"/game.html?campaign_id={campaign.id}",
+                campaign_id=str(campaign.id),
+            )
+        except Exception as _pe:
+            logger.warning(f"Push notification failed (player joined): {_pe}")
 
     return {"success": True, "message": f"Successfully joined {campaign.name}"}
 

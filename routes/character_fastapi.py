@@ -337,6 +337,20 @@ async def create_character_full(
         except Exception as _be:
             logger.warning(f"Could not broadcast character creation: {_be}")
 
+        # Push notify SW when character needs approval (they may be offline)
+        if character.status == 'pending_approval' and campaign.story_weaver_id:
+            try:
+                from backend.notifications import send_push
+                send_push(
+                    db, str(campaign.story_weaver_id),
+                    "📋 Character Awaiting Approval",
+                    f"{current_user.username} submitted '{character.name}' for review.",
+                    url=f"/game.html?campaign_id={character.campaign_id}",
+                    campaign_id=str(character.campaign_id),
+                )
+            except Exception as _pe:
+                logger.warning(f"Push notification failed (pending approval): {_pe}")
+
         # =====================================================================
         # 10. Build response
         # =====================================================================
