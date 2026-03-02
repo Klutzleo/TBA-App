@@ -7378,8 +7378,8 @@
                 <span style="margin-left:8px;">→ <strong style="font-size:1.1em;">${data.total}</strong></span>
                 ${breakdown ? `<div style="font-family:monospace;font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;">Rolls: ${breakdown}</div>` : ''}
               `;
-              getChatContainer().appendChild(container);
-              getChatContainer().scrollTop = getChatContainer().scrollHeight;
+              chatMessagesEl.appendChild(container);
+              chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 
             } else if (data.type === 'dice_roll_result') {  // ✅ Changed from 'dice_roll'
               // Render dice expression, equation text, and breakdown
