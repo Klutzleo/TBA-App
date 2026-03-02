@@ -609,6 +609,7 @@ async def get_campaign_members(
             "role": member.role,
             "character": {
                 "id": str(character.id),
+                "user_id": str(character.user_id) if character.user_id else None,
                 "name": character.name,
                 "level": character.level,
                 "dp": character.dp,

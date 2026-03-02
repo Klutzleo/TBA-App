@@ -3003,6 +3003,17 @@
         updateBadge(tab);
       }
 
+      // Spectators can read Story but not write — disable input on Story tab
+      if (userRole === 'Spectator' && tab === 'story') {
+        messageInput.disabled = true;
+        messageInput.placeholder = '👁 Story is read-only — create a character to join.';
+        sendBtn.disabled = true;
+      } else if (userRole === 'Spectator') {
+        messageInput.disabled = false;
+        messageInput.placeholder = 'Type a message or command...';
+        sendBtn.disabled = false;
+      }
+
       // Re-render messages for the active tab
       renderMessages();
     }
@@ -6936,6 +6947,11 @@
           addMessage('Connected to campaign.', 'message-card message-system');
           updateConnectionStatus(true);
           sendBtn.disabled = false;
+
+          // Spectators start on OOC tab — Story is read-only for them
+          if (userRole === 'Spectator') {
+            switchTab('ooc');
+          }
 
           // Load initial message history
           await loadMessageHistory();

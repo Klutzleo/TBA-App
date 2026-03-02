@@ -391,15 +391,19 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
     """Handle regular chat message (IC or OOC)."""
     msg = ChatMessage(**data)
 
-    # Block IC chat for players whose character is pending approval
+    # Block IC chat for anyone without an active character (SW is exempt)
     if db and msg.mode.upper() == 'IC':
-        char = db.query(Character).filter(
-            Character.user_id == user_id,
-            Character.campaign_id == campaign_id,
-            Character.is_npc == False
-        ).first()
-        if char and char.status != 'active':
-            return  # Silently block — spectators/pending chars can't speak IC
+        campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        is_sw = campaign_obj and str(campaign_obj.story_weaver_id) == str(user_id)
+        if not is_sw:
+            char = db.query(Character).filter(
+                Character.user_id == user_id,
+                Character.campaign_id == campaign_id,
+                Character.is_npc == False,
+                Character.status == 'active'
+            ).first()
+            if not char:
+                return  # Silently block — no active character
 
     # Get display name and username from connection manager
     display_name = manager.get_display_name(campaign_id, user_id)  # Character name or username
