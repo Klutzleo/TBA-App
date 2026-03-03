@@ -1409,6 +1409,53 @@ async def get_character_abilities(
         raise HTTPException(status_code=500, detail=f"Ability fetch failed: {str(e)}")
 
 
+@character_blp_fastapi.patch("/{character_id}/abilities/{ability_id}")
+async def patch_ability(
+    character_id: str,
+    ability_id: str,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Edit a single ability field. Character owner or SW of the campaign."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.user_id != current_user.id and not _is_sw(char.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    ability = db.query(Ability).filter(
+        Ability.id == UUID(ability_id),
+        Ability.character_id == UUID(character_id),
+    ).first()
+    if not ability:
+        raise HTTPException(status_code=404, detail="Ability not found")
+
+    if "display_name"  in req: ability.display_name  = req["display_name"].strip() or ability.display_name
+    if "macro_command" in req: ability.macro_command = req["macro_command"].strip()
+    if "power_source"  in req: ability.power_source  = req["power_source"]
+    if "die"           in req: ability.die           = req["die"]
+    if "effect_type"   in req: ability.effect_type   = req["effect_type"]
+    if "is_aoe"        in req: ability.is_aoe        = bool(req["is_aoe"])
+
+    db.commit()
+    db.refresh(ability)
+    return {
+        "id":            str(ability.id),
+        "slot_number":   ability.slot_number,
+        "ability_type":  ability.ability_type,
+        "display_name":  ability.display_name,
+        "macro_command": ability.macro_command,
+        "power_source":  ability.power_source,
+        "effect_type":   ability.effect_type,
+        "die":           ability.die,
+        "is_aoe":        ability.is_aoe,
+        "max_uses":      ability.max_uses,
+        "uses_remaining":ability.uses_remaining,
+    }
+
+
 @character_blp_fastapi.post("/{character_id}/abilities", status_code=200)
 async def update_character_abilities(
     character_id: str,

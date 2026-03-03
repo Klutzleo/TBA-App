@@ -4502,6 +4502,17 @@
       return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
+    function renderMarkdown(text) {
+      // Escape HTML first — prevents XSS regardless of user input
+      let s = escHtml(text);
+      // Bold: **text**  (must come before italic to avoid double-matching)
+      s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // Italic: *text* or _text_
+      s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      s = s.replace(/_([^_\s][^_]*)_/g, '<em>$1</em>');
+      return s;
+    }
+
     function openLoreEditor(entryId) {
       loreEditingId = entryId || null;
       const entry = entryId ? loreEntries.find(e => e.id === entryId) : null;
@@ -5939,7 +5950,11 @@
       // Message text
       const textDiv = document.createElement('div');
       textDiv.className = 'message-text';
-      textDiv.textContent = mode === 'ic' || mode === 'whisper' ? `"${text}"` : `[${actor}] ${text}`;
+      if (mode === 'ic' || mode === 'whisper') {
+        textDiv.innerHTML = `"${renderMarkdown(text)}"`;
+      } else {
+        textDiv.innerHTML = `[${escHtml(actor)}] ${renderMarkdown(text)}`;
+      }
       container.appendChild(textDiv);
 
       // Store and display via tab system
@@ -7953,7 +7968,7 @@
               container.style.backgroundColor = 'rgba(100, 100, 100, 0.05)';
               container.style.border = '1px solid rgba(100, 100, 100, 0.2)';
               container.style.borderRadius = '8px';
-              container.textContent = data.text;
+              container.innerHTML = renderMarkdown(data.text);
 
               storeAndDisplayMessage(container, data);
 
@@ -8669,9 +8684,16 @@
   }
   // ─── SW: View / Edit Player Character Sheet ──────────────────────────────
   let _swSheetCharId = null;
+  let _swSheetCampaignId = null;
+  let _swSheetAbilities = [];
+  let _swSheetItems = [];
+  let _swSheetCharList = null;
 
   async function openSwSheetModal(charId, charName) {
     _swSheetCharId = charId;
+    _swSheetAbilities = [];
+    _swSheetItems = [];
+    _swSheetCharList = null;
     document.getElementById('swSheetCharName').textContent = charName;
     document.getElementById('swSheetSaveBtn').style.display = 'block';
     document.getElementById('swSheetBody').innerHTML = '<p style="color:var(--text-muted);">Loading...</p>';
@@ -8696,8 +8718,9 @@
         return;
       }
 
-      const abilities = Array.isArray(abData) ? abData : (abData.abilities || []);
-      const items = invData.items || [];
+      _swSheetCampaignId = char.campaign_id;
+      _swSheetAbilities = Array.isArray(abData) ? abData : (abData.abilities || []);
+      _swSheetItems = invData.items || [];
 
       const statRow = (label, val) => `
         <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
@@ -8712,28 +8735,57 @@
             style="width:60px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:0.85rem;text-align:center;">
         </div>`;
 
-      const abilityRows = abilities.length
-        ? abilities.map(a => `
-            <div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-              <div style="display:flex;justify-content:space-between;">
-                <strong style="font-size:0.85rem;">${escHtml(a.display_name || 'Unnamed')}</strong>
-                <span style="font-size:0.75rem;color:var(--text-muted);">Slot ${a.slot_number} · ${a.ability_type || '?'}</span>
-              </div>
-              ${a.power_source ? `<div style="font-size:0.75rem;color:#a5b4fc;">Source: ${a.power_source}</div>` : ''}
-              ${a.macro_command ? `<div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;">${escHtml(a.macro_command)}</div>` : ''}
-            </div>`).join('')
+      const abilityRows = _swSheetAbilities.length
+        ? _swSheetAbilities.map((a, i) => {
+            const srcOpts = ['PP','IP','SP'].map(s =>
+              `<option value="${s}"${a.power_source === s ? ' selected' : ''}>${s}</option>`
+            ).join('');
+            return `
+              <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;">Slot ${a.slot_number} · ${a.ability_type || '?'}</span>
+                  <button class="btn" style="font-size:0.75rem;padding:2px 10px;" onclick="saveAbilityEdits(${i})">💾 Save</button>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:4px;">
+                  <input id="swAb_name_${i}" value="${escHtml(a.display_name || '')}" placeholder="Ability name"
+                    style="background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.85rem;">
+                  <select id="swAb_src_${i}"
+                    style="background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 6px;color:var(--text-primary);font-size:0.85rem;">
+                    ${srcOpts}
+                  </select>
+                </div>
+                <input id="swAb_macro_${i}" value="${escHtml(a.macro_command || '')}" placeholder="Macro (e.g. /fireball)"
+                  style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.8rem;font-family:monospace;">
+              </div>`;
+          }).join('')
         : '<p style="color:var(--text-muted);font-size:0.85rem;">No abilities.</p>';
 
-      const itemRows = items.length
-        ? items.map(i => `
-            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-              <span style="font-size:0.85rem;">${escHtml(i.name || i.item_type || 'Item')}</span>
-              <span style="font-size:0.75rem;color:var(--text-muted);">${i.item_type || ''}${i.is_equipped ? ' ✓ Equipped' : ''}</span>
+      const itemRows = _swSheetItems.length
+        ? _swSheetItems.map((item, i) => `
+            <div id="swItemRow_${i}" style="background:var(--bg-secondary);border-radius:6px;padding:7px 10px;margin-bottom:6px;">
+              <div style="display:flex;align-items:center;gap:5px;">
+                <input id="swItem_name_${i}" value="${escHtml(item.name || '')}"
+                  style="flex:1;min-width:0;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 7px;color:var(--text-primary);font-size:0.85rem;">
+                <input id="swItem_qty_${i}" type="number" min="1" value="${item.quantity || 1}"
+                  style="width:44px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 4px;color:var(--text-primary);font-size:0.85rem;text-align:center;">
+                <span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">${item.item_type || ''}</span>
+                <button title="Save name/qty" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="saveItemEdits(${i})">💾</button>
+                <button title="Transfer to another character" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="startItemTransfer(${i})">🔀</button>
+                <button id="swRemoveBtn_${i}" title="Silently remove — player not notified" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="promptRemoveItem(${i})">🗑️</button>
+              </div>
+              <div id="swItemTransferPanel_${i}" style="display:none;gap:6px;align-items:center;margin-top:6px;">
+                <select id="swTransferTarget_${i}"
+                  style="flex:1;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 6px;color:var(--text-primary);font-size:0.8rem;">
+                  <option value="">Loading…</option>
+                </select>
+                <button class="btn" style="font-size:0.75rem;padding:2px 8px;" onclick="confirmItemTransfer(${i})">Send</button>
+                <button class="btn-secondary btn" style="font-size:0.75rem;padding:2px 8px;" onclick="cancelItemTransfer(${i})">✕</button>
+              </div>
             </div>`).join('')
-        : '<p style="color:var(--text-muted);font-size:0.85rem;">Empty inventory.</p>';
+        : '<p style="color:var(--text-muted);font-size:0.85rem;" id="swEmptyInv">Empty inventory.</p>';
 
       document.getElementById('swSheetBody').innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
           <div>
             <h4 style="color:var(--accent-primary);margin-bottom:8px;">Core Stats</h4>
             ${editableStatRow('PP (Physical)', 'pp', char.pp, 1, 3)}
@@ -8749,16 +8801,238 @@
             ${statRow('Attack Style', char.attack_style || '—')}
             ${statRow('Defense Die', char.defense_die || '—')}
             <h4 style="color:var(--accent-primary);margin:12px 0 8px;">Currency</h4>
-            ${statRow('💰 Coins', invData.currency ?? 0)}
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="color:var(--text-muted);font-size:0.85rem;">💰</span>
+              <input id="swEdit_currency" type="number" min="0" value="${invData.currency ?? 0}"
+                style="width:72px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:0.85rem;text-align:center;">
+              <button class="btn" style="font-size:0.75rem;padding:2px 8px;" onclick="swSaveCurrency()">Save</button>
+            </div>
           </div>
         </div>
-        <h4 style="color:var(--accent-primary);margin:16px 0 8px;">Abilities</h4>
-        <div>${abilityRows}</div>
+        <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
+        <div id="swAbilitiesContainer">${abilityRows}</div>
         <h4 style="color:var(--accent-primary);margin:16px 0 8px;">Inventory</h4>
-        <div>${itemRows}</div>
+        <div id="swItemsContainer">${itemRows}</div>
+        <div id="swAddItemForm" style="display:none;background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-top:6px;">
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;margin-bottom:6px;">
+            <input id="swNewItemName" placeholder="Item name"
+              style="background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.85rem;">
+            <select id="swNewItemType"
+              style="background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 6px;color:var(--text-primary);font-size:0.85rem;">
+              <option value="equipment">Equipment</option>
+              <option value="consumable">Consumable</option>
+              <option value="key_item">Key Item</option>
+              <option value="misc">Misc</option>
+            </select>
+            <input id="swNewItemQty" type="number" min="1" value="1"
+              style="width:50px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 5px;color:var(--text-primary);font-size:0.85rem;text-align:center;">
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn" style="flex:1;font-size:0.8rem;padding:4px;" onclick="swDoAddItem()">Add Item</button>
+            <button class="btn-secondary btn" style="font-size:0.8rem;padding:4px 10px;" onclick="document.getElementById('swAddItemForm').style.display='none'">Cancel</button>
+          </div>
+        </div>
+        <button class="btn-secondary btn" style="width:100%;margin-top:8px;font-size:0.8rem;padding:5px;"
+          onclick="document.getElementById('swAddItemForm').style.display=document.getElementById('swAddItemForm').style.display==='none'?'block':'none'">+ Add Item</button>
       `;
     } catch (e) {
       document.getElementById('swSheetBody').innerHTML = `<p style="color:var(--accent-danger);">Error: ${e.message}</p>`;
+    }
+  }
+
+  async function saveAbilityEdits(idx) {
+    const ab = _swSheetAbilities[idx];
+    if (!ab) return;
+    const name  = document.getElementById(`swAb_name_${idx}`)?.value.trim();
+    const src   = document.getElementById(`swAb_src_${idx}`)?.value;
+    const macro = document.getElementById(`swAb_macro_${idx}`)?.value.trim();
+    try {
+      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/abilities/${ab.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ display_name: name, power_source: src, macro_command: macro }),
+      });
+      if (res.ok) {
+        _swSheetAbilities[idx] = await res.json();
+        showToast(`Ability "${name}" saved.`, 'success');
+      } else {
+        const e = await res.json();
+        showToast(e.detail || 'Save failed', 'error');
+      }
+    } catch (e) {
+      showToast('Save failed: ' + e.message, 'error');
+    }
+  }
+
+  async function saveItemEdits(idx) {
+    const item = _swSheetItems[idx];
+    if (!item) return;
+    const name = document.getElementById(`swItem_name_${idx}`)?.value.trim();
+    const qty  = parseInt(document.getElementById(`swItem_qty_${idx}`)?.value) || 1;
+    try {
+      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ name, quantity: qty }),
+      });
+      if (res.ok) {
+        _swSheetItems[idx] = await res.json();
+        showToast(`"${name}" saved.`, 'success');
+      } else {
+        const e = await res.json();
+        showToast(e.detail || 'Save failed', 'error');
+      }
+    } catch (e) {
+      showToast('Save failed: ' + e.message, 'error');
+    }
+  }
+
+  async function startItemTransfer(idx) {
+    const panel = document.getElementById(`swItemTransferPanel_${idx}`);
+    if (!panel) return;
+    panel.style.display = 'flex';
+
+    if (!_swSheetCharList) {
+      const base = 'https://tba-app-production.up.railway.app';
+      const headers = { 'Authorization': `Bearer ${authToken}` };
+      try {
+        const [memRes, npcRes] = await Promise.all([
+          fetch(`${base}/api/campaigns/${campaignId}/members`, { headers }),
+          fetch(`${base}/api/campaigns/${campaignId}/npcs`, { headers }),
+        ]);
+        const memData = memRes.ok ? await memRes.json() : { characters: [] };
+        const npcData = npcRes.ok ? await npcRes.json() : [];
+        const pcs  = (memData.characters || []).filter(c => c.id !== _swSheetCharId);
+        const npcs = Array.isArray(npcData) ? npcData : (npcData.npcs || []);
+        _swSheetCharList = [
+          ...pcs.map(c  => ({ id: c.id,  label: `${c.name} (PC)` })),
+          ...npcs.map(n => ({ id: n.id,  label: `${n.name} (NPC)` })),
+        ];
+      } catch (e) {
+        showToast('Could not load characters', 'error');
+        panel.style.display = 'none';
+        return;
+      }
+    }
+
+    const sel = document.getElementById(`swTransferTarget_${idx}`);
+    if (sel) {
+      sel.innerHTML = _swSheetCharList.map(c =>
+        `<option value="${c.id}">${escHtml(c.label)}</option>`
+      ).join('');
+    }
+  }
+
+  function cancelItemTransfer(idx) {
+    const panel = document.getElementById(`swItemTransferPanel_${idx}`);
+    if (panel) panel.style.display = 'none';
+  }
+
+  async function confirmItemTransfer(idx) {
+    const item = _swSheetItems[idx];
+    if (!item) return;
+    const targetId   = document.getElementById(`swTransferTarget_${idx}`)?.value;
+    if (!targetId) return;
+    const targetName = _swSheetCharList?.find(c => c.id === targetId)?.label || targetId;
+    try {
+      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory/${item.id}/give`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ target_character_id: targetId }),
+      });
+      if (res.ok) {
+        showToast(`"${item.name}" transferred to ${targetName}.`, 'success');
+        _swSheetItems.splice(idx, 1);
+        _swSheetCharList = null;
+        document.getElementById(`swItemRow_${idx}`)?.remove();
+        if (_swSheetItems.length === 0) {
+          const c = document.getElementById('swItemsContainer');
+          if (c) c.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Empty inventory.</p>';
+        }
+      } else {
+        const e = await res.json();
+        showToast(e.detail || 'Transfer failed', 'error');
+      }
+    } catch (e) {
+      showToast('Transfer failed: ' + e.message, 'error');
+    }
+  }
+
+  function promptRemoveItem(idx) {
+    const btn = document.getElementById(`swRemoveBtn_${idx}`);
+    if (!btn) return;
+    btn.textContent = '⚠️ Confirm';
+    btn.style.color = 'var(--accent-danger)';
+    btn.onclick = () => doRemoveItem(idx);
+    setTimeout(() => {
+      if (btn && btn.textContent === '⚠️ Confirm') {
+        btn.textContent = '🗑️';
+        btn.style.color = '';
+        btn.onclick = () => promptRemoveItem(idx);
+      }
+    }, 3000);
+  }
+
+  async function doRemoveItem(idx) {
+    const item = _swSheetItems[idx];
+    if (!item) return;
+    try {
+      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory/${item.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (res.ok || res.status === 204) {
+        showToast(`"${item.name}" silently removed.`, 'success');
+        _swSheetItems.splice(idx, 1);
+        document.getElementById(`swItemRow_${idx}`)?.remove();
+        if (_swSheetItems.length === 0) {
+          const c = document.getElementById('swItemsContainer');
+          if (c) c.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Empty inventory.</p>';
+        }
+      } else {
+        const e = await res.json();
+        showToast(e.detail || 'Remove failed', 'error');
+      }
+    } catch (e) {
+      showToast('Remove failed: ' + e.message, 'error');
+    }
+  }
+
+  async function swSaveCurrency() {
+    const val = parseInt(document.getElementById('swEdit_currency')?.value) || 0;
+    try {
+      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/currency`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ currency: val }),
+      });
+      if (res.ok) showToast('Currency saved.', 'success');
+      else { const e = await res.json(); showToast(e.detail || 'Save failed', 'error'); }
+    } catch (e) {
+      showToast('Save failed: ' + e.message, 'error');
+    }
+  }
+
+  async function swDoAddItem() {
+    const name = document.getElementById('swNewItemName')?.value.trim();
+    const type = document.getElementById('swNewItemType')?.value;
+    const qty  = parseInt(document.getElementById('swNewItemQty')?.value) || 1;
+    if (!name) { showToast('Item needs a name.', 'error'); return; }
+    try {
+      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ name, item_type: type, quantity: qty, given_by_sw: true }),
+      });
+      if (res.ok) {
+        showToast(`"${name}" added.`, 'success');
+        await openSwSheetModal(_swSheetCharId, document.getElementById('swSheetCharName').textContent);
+      } else {
+        const e = await res.json();
+        showToast(e.detail || 'Add failed', 'error');
+      }
+    } catch (e) {
+      showToast('Add failed: ' + e.message, 'error');
     }
   }
 
@@ -8780,7 +9054,7 @@
         body: JSON.stringify({ pp, ip, sp }),
       });
       if (res.ok) {
-        showToast('Character stats updated!', 'success');
+        showToast('Stats saved!', 'success');
         closeSwSheetModal();
       } else {
         const err = await res.json();

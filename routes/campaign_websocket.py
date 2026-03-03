@@ -2296,6 +2296,11 @@ async def send_help_text(websocket: WebSocket):
 • `/whisper @player <message>` - Private message (purple)
 • `/w @player <message>` - Whisper shorthand
 
+**Formatting:**
+• `**bold**` - **Bold text**
+• `*italic*` or `_italic_` - *Italic text*
+• Emojis work anywhere 🎲 ⚔️ ✨
+
 **Dice & Stat Checks:**
 • `/roll XdY+Z` - Roll dice (e.g., /roll 2d6+3)
 • `/s XdY` - Secret roll (SW only — result visible only to you)
