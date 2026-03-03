@@ -2107,9 +2107,22 @@
         padding: 6px 10px;
       }
     }
+    .install-banner {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #1e1b4b; border-top: 1px solid #6c63ff;
+      padding: 10px 16px; display: flex; align-items: center;
+      gap: 10px; font-size: 0.85rem; color: #e2e8f0; z-index: 9999;
+    }
+    .install-banner img { width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0; }
+    .install-banner span { flex: 1; }
+    .install-banner .dismiss {
+      background: none; border: none; color: #94a3b8;
+      font-size: 1.1rem; padding: 0 4px; cursor: pointer;
+    }
   </style>
 </head>
 <body>
+  <div id="installBanner" class="install-banner" style="display:none;"></div>
   <div class="app-container">
     <!-- Header -->
     <header class="header">
@@ -2121,7 +2134,7 @@
       </button>
       
       <div class="header-title">
-        <span class="icon">⚔️</span>
+        <img src="/icons/icon-192.png" alt="TBA" style="width:32px;height:32px;border-radius:8px;flex-shrink:0;">
         <h1>TBA Chat</h1>
         <span class="subtitle">Tabletop Adventure Platform</span>
       </div>
@@ -8669,9 +8682,9 @@
 
     try {
       const [charRes, abRes, invRes] = await Promise.all([
-        fetch(`${base}/api/campaigns/${campaignId}/characters/${charId}`, { headers }),
-        fetch(`${base}/api/campaigns/${campaignId}/characters/${charId}/abilities`, { headers }),
-        fetch(`${base}/api/campaigns/${campaignId}/characters/${charId}/inventory`, { headers }),
+        fetch(`${base}/api/characters/${charId}`, { headers }),
+        fetch(`${base}/api/characters/${charId}/abilities`, { headers }),
+        fetch(`${base}/api/characters/${charId}/inventory`, { headers }),
       ]);
 
       const char = charRes.ok ? await charRes.json() : null;
@@ -8761,7 +8774,7 @@
     }
 
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/characters/${_swSheetCharId}`, {
+      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ pp, ip, sp }),
@@ -8783,6 +8796,26 @@
     _swSheetCharId = null;
   }
 
+  </script>
+  <script>
+    (function() {
+      if (localStorage.getItem('installBannerDismissed')) return;
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+      if (isStandalone) return;
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isAndroid = /android/i.test(navigator.userAgent);
+      if (!isIOS && !isAndroid) return;
+      const msg = isIOS
+        ? "Tap the <strong>Share ↑</strong> button then <strong>Add to Home Screen</strong> to enable push notifications."
+        : "Tap <strong>⋮ Menu</strong> then <strong>Add to Home Screen</strong> to install TBA and enable push notifications.";
+      const banner = document.getElementById('installBanner');
+      banner.innerHTML = `
+        <img src="/icons/icon-192.png" alt="TBA">
+        <span>📲 ${msg}</span>
+        <button class="dismiss" onclick="this.closest('#installBanner').style.display='none';localStorage.setItem('installBannerDismissed','1');">✕</button>
+      `;
+      banner.style.display = 'flex';
+    })();
   </script>
 </body>
 </html>

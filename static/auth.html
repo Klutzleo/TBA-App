@@ -230,11 +230,47 @@
             margin-bottom: 20px;
             display: none;
         }
+
+        .install-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1e1b4b;
+            border-top: 1px solid #6c63ff;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            z-index: 9999;
+        }
+        .install-banner img { width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0; }
+        .install-banner span { flex: 1; }
+        .install-banner button {
+            background: #6c63ff;
+            border: none;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+        .install-banner .dismiss {
+            background: none;
+            color: #94a3b8;
+            font-size: 1.1rem;
+            padding: 0 4px;
+        }
     </style>
 </head>
 <body>
+    <div id="installBanner" class="install-banner" style="display:none;"></div>
     <div class="auth-container">
         <div class="logo">
+            <img src="/icons/icon-192.png" alt="TBA" style="width:72px;height:72px;border-radius:16px;margin-bottom:8px;">
             <h1>TBA</h1>
             <p>Tools for the Bad Ass</p>
         </div>
@@ -510,6 +546,26 @@
                 showError('Your session expired. Please login again.');
             }
         });
+    </script>
+    <script>
+      (function() {
+        if (localStorage.getItem('installBannerDismissed')) return;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        if (isStandalone) return;
+        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const isAndroid = /android/i.test(navigator.userAgent);
+        if (!isIOS && !isAndroid) return;
+        const msg = isIOS
+          ? "Tap the <strong>Share ↑</strong> button then <strong>Add to Home Screen</strong> to enable push notifications."
+          : "Tap <strong>⋮ Menu</strong> then <strong>Add to Home Screen</strong> to install TBA and enable push notifications.";
+        const banner = document.getElementById('installBanner');
+        banner.innerHTML = `
+          <img src="/icons/icon-192.png" alt="TBA">
+          <span>📲 ${msg}</span>
+          <button class="dismiss" onclick="this.closest('#installBanner').style.display='none';localStorage.setItem('installBannerDismissed','1');">✕</button>
+        `;
+        banner.style.display = 'flex';
+      })();
     </script>
 </body>
 </html>

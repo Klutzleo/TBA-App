@@ -409,11 +409,25 @@
                 align-items: stretch;
             }
         }
+        .install-banner {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: #1e1b4b; border-top: 1px solid #6c63ff;
+            padding: 10px 16px; display: flex; align-items: center;
+            gap: 10px; font-size: 0.85rem; color: #e2e8f0; z-index: 9999;
+        }
+        .install-banner img { width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0; }
+        .install-banner span { flex: 1; }
+        .install-banner .dismiss {
+            background: none; border: none; color: #94a3b8;
+            font-size: 1.1rem; padding: 0 4px; cursor: pointer;
+        }
     </style>
 </head>
 <body>
+    <div id="installBanner" class="install-banner" style="display:none;"></div>
     <div class="header">
-        <h1>🎮 Campaign Management</h1>
+        <img src="/icons/icon-192.png" alt="TBA" style="width:56px;height:56px;border-radius:12px;margin-bottom:6px;">
+        <h1>Campaign Management</h1>
         <div id="user-info" class="user-info"></div>
     </div>
 
@@ -1267,5 +1281,25 @@
     New to TBA? <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener"
       style="color:#a78bfa;">Grab the free rulebook on itch.io</a> before your first session.
   </footer>
+  <script>
+    (function() {
+      if (localStorage.getItem('installBannerDismissed')) return;
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+      if (isStandalone) return;
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isAndroid = /android/i.test(navigator.userAgent);
+      if (!isIOS && !isAndroid) return;
+      const msg = isIOS
+        ? "Tap the <strong>Share ↑</strong> button then <strong>Add to Home Screen</strong> to enable push notifications."
+        : "Tap <strong>⋮ Menu</strong> then <strong>Add to Home Screen</strong> to install TBA and enable push notifications.";
+      const banner = document.getElementById('installBanner');
+      banner.innerHTML = `
+        <img src="/icons/icon-192.png" alt="TBA">
+        <span>📲 ${msg}</span>
+        <button class="dismiss" onclick="this.closest('#installBanner').style.display='none';localStorage.setItem('installBannerDismissed','1');">✕</button>
+      `;
+      banner.style.display = 'flex';
+    })();
+  </script>
 </body>
 </html>
