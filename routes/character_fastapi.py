@@ -442,9 +442,9 @@ async def get_character(
             logger.warning(f"[{request_id}] Access denied - membership exists: {membership is not None}, role: {membership.role if membership else 'N/A'}")
             raise HTTPException(status_code=403, detail="Only Story Weaver can access NPCs")
     else:
-        # Check if user owns this character
+        # Owner or SW of that campaign can view a PC
         logger.info(f"[{request_id}] PC access check - character.user_id: {character.user_id}, current_user.id: {current_user.id}")
-        if character.user_id != current_user.id:
+        if character.user_id != current_user.id and not _is_sw(character.campaign_id, current_user.id, db):
             raise HTTPException(status_code=403, detail="You don't own this character")
 
     return character
@@ -455,21 +455,25 @@ async def update_character(
     character_id: str,
     updates: CharacterUpdate,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Update a character.
-    
+    Update a character. Owner or SW of that campaign can edit.
+
     - If level changes, auto-recalculates Edge, BAP, max_dp, defense_die
     - If attack_style changes, validates against current level
     - If dp changes, validates >= 0 and <= max_dp
     """
     request_id = getattr(request.state, "request_id", "unknown")
     logger.info(f"[{request_id}] Updating character: {character_id}")
-    
+
     character = db.query(Character).filter(Character.id == character_id).first()
     if not character:
         raise HTTPException(status_code=404, detail=f"Character {character_id} not found")
+
+    if character.user_id != current_user.id and not _is_sw(character.campaign_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="You don't have permission to edit this character")
     
     try:
         # Handle level change (auto-recalculate stats)
@@ -501,6 +505,14 @@ async def update_character(
             if updates.dp > character.max_dp:
                 raise ValueError(f"DP cannot exceed max_dp ({character.max_dp})")
             character.dp = updates.dp
+
+        # Handle stat adjustments (SW corrections)
+        if updates.pp is not None:
+            character.pp = updates.pp
+        if updates.ip is not None:
+            character.ip = updates.ip
+        if updates.sp is not None:
+            character.sp = updates.sp
         
         # Handle equipment
         if updates.weapon is not None:
@@ -1362,8 +1374,8 @@ async def get_character_abilities(
             if not membership or membership.role != 'story_weaver':
                 raise HTTPException(status_code=403, detail="Only Story Weaver can view NPC abilities")
         else:
-            # Check if user owns this character
-            if character.user_id != current_user.id:
+            # Owner or SW of that campaign can view PC abilities
+            if character.user_id != current_user.id and not _is_sw(character.campaign_id, current_user.id, db):
                 raise HTTPException(status_code=403, detail="You don't own this character")
 
         # Get abilities

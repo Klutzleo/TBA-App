@@ -83,6 +83,9 @@ class CharacterUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     level: Optional[int] = Field(None, ge=1, le=10, description="Level (auto-recalculates stats)")
     dp: Optional[int] = Field(None, ge=0, description="Current DP (manual adjustment)")
+    pp: Optional[int] = Field(None, ge=1, le=3, description="Physical Proficiency (1-3)")
+    ip: Optional[int] = Field(None, ge=1, le=3, description="Intellect Proficiency (1-3)")
+    sp: Optional[int] = Field(None, ge=1, le=3, description="Social Proficiency (1-3)")
     attack_style: Optional[str] = Field(None, description="Change attack style")
     weapon: Optional[WeaponSchema] = None
     armor: Optional[ArmorSchema] = None
