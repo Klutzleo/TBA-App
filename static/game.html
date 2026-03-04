@@ -2471,6 +2471,22 @@
     </div>
   </div>
 
+  <!-- Party Member Sheet (read-only, visible to all players) -->
+  <div id="playerSheetModal" class="modal">
+    <div class="modal-content" style="max-width:500px; max-height:85vh; overflow-y:auto;">
+      <div class="modal-header">
+        <h2>📋 <span id="playerSheetCharName" style="color:var(--accent-primary);"></span></h2>
+        <button class="modal-close" onclick="closePlayerSheetModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="playerSheetBody">
+        <p style="color:var(--text-muted);">Loading...</p>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border-color);">
+        <button class="btn" onclick="closePlayerSheetModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- NPC Creation Modal (Story Weaver only) -->
   <!-- Transfer PC to Player Modal -->
   <div id="transferPCModal" class="modal">
@@ -4485,7 +4501,7 @@
             <span class="lore-card-title">${escHtml(entry.title)}</span>
             ${actionsHtml}
           </div>
-          <div class="lore-card-body">${escHtml(entry.content)}</div>`;
+          <div class="lore-card-body" style="white-space:pre-wrap;">${renderMarkdown(entry.content)}</div>`;
 
         list.appendChild(card);
       });
@@ -8319,6 +8335,7 @@
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
+                  ${!isSW() ? `<button class="btn-icon" title="View character sheet" style="font-size:0.9rem;opacity:0.6;" onclick="openPlayerSheetModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">📋</button>` : ''}
                   ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}')">⚙</button>` : ''}
                 </div>
               </div>
@@ -9068,6 +9085,96 @@
   function closeSwSheetModal() {
     document.getElementById('swSheetModal').classList.remove('active');
     _swSheetCharId = null;
+  }
+
+  // ─── Read-Only Party Member Sheet (Players) ───────────────────────────────
+  async function openPlayerSheetModal(charId, charName) {
+    document.getElementById('playerSheetCharName').textContent = charName;
+    document.getElementById('playerSheetBody').innerHTML = '<p style="color:var(--text-muted);">Loading...</p>';
+    document.getElementById('playerSheetModal').classList.add('active');
+
+    const base = 'https://tba-app-production.up.railway.app';
+    const headers = { 'Authorization': `Bearer ${authToken}` };
+
+    try {
+      const [charRes, abRes] = await Promise.all([
+        fetch(`${base}/api/characters/${charId}`, { headers }),
+        fetch(`${base}/api/characters/${charId}/abilities`, { headers }),
+      ]);
+
+      const char = charRes.ok ? await charRes.json() : null;
+      const abData = abRes.ok ? await abRes.json() : [];
+
+      if (!char) {
+        document.getElementById('playerSheetBody').innerHTML = '<p style="color:var(--accent-danger);">Failed to load character.</p>';
+        return;
+      }
+
+      const abilities = Array.isArray(abData) ? abData : (abData.abilities || []);
+
+      const row = (label, val) => `
+        <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span style="color:var(--text-muted);font-size:0.85rem;">${label}</span>
+          <strong style="font-size:0.9rem;">${val}</strong>
+        </div>`;
+
+      const statBadge = (label, val, color) => `
+        <div style="text-align:center;background:var(--bg-secondary);border-radius:8px;padding:10px 0;border:1px solid var(--border-color);">
+          <div style="font-size:1.4rem;font-weight:700;color:${color};">${val}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">${label}</div>
+        </div>`;
+
+      const abilityRows = abilities.length
+        ? abilities.map(a => `
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                <strong style="font-size:0.9rem;">${escHtml(a.display_name || 'Unnamed')}</strong>
+                <span style="font-size:0.75rem;color:var(--text-muted);">Slot ${a.slot_number}</span>
+              </div>
+              <div style="display:flex;gap:8px;font-size:0.75rem;color:var(--text-muted);">
+                <span style="color:#a5b4fc;">${a.power_source || ''}</span>
+                <span>${a.die || ''}</span>
+                ${a.is_aoe ? '<span style="color:#f59e0b;">AoE</span>' : ''}
+              </div>
+              ${a.macro_command ? `<div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;margin-top:2px;">${escHtml(a.macro_command)}</div>` : ''}
+            </div>`).join('')
+        : '<p style="color:var(--text-muted);font-size:0.85rem;">No abilities.</p>';
+
+      const dpPct  = Math.min(100, Math.max(0, (char.dp / char.max_dp) * 100));
+      const dpColor = dpPct > 50 ? 'var(--accent-success)' : dpPct > 20 ? '#f59e0b' : 'var(--accent-danger)';
+
+      document.getElementById('playerSheetBody').innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+          ${statBadge('Physical', char.pp, '#60a5fa')}
+          ${statBadge('Intellect', char.ip, '#a78bfa')}
+          ${statBadge('Social', char.sp, '#34d399')}
+        </div>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:0.8rem;color:var(--text-muted);">DP</span>
+            <span style="font-size:0.85rem;font-weight:600;">${char.dp} / ${char.max_dp}</span>
+          </div>
+          <div style="height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${dpPct}%;background:${dpColor};border-radius:4px;transition:width 0.3s;"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:16px;">
+          ${row('Level', char.level)}
+          ${row('Edge', char.edge)}
+          ${row('BAP', char.bap)}
+          ${row('Attack Style', char.attack_style || '—')}
+          ${row('Defense Die', char.defense_die || '—')}
+        </div>
+        <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
+        ${abilityRows}
+      `;
+    } catch (e) {
+      document.getElementById('playerSheetBody').innerHTML = `<p style="color:var(--accent-danger);">Error: ${e.message}</p>`;
+    }
+  }
+
+  function closePlayerSheetModal() {
+    document.getElementById('playerSheetModal').classList.remove('active');
   }
 
   </script>

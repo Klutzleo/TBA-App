@@ -442,10 +442,11 @@ async def get_character(
             logger.warning(f"[{request_id}] Access denied - membership exists: {membership is not None}, role: {membership.role if membership else 'N/A'}")
             raise HTTPException(status_code=403, detail="Only Story Weaver can access NPCs")
     else:
-        # Owner or SW of that campaign can view a PC
+        # Owner, SW, or any fellow campaign member can view a PC (read-only for others)
         logger.info(f"[{request_id}] PC access check - character.user_id: {character.user_id}, current_user.id: {current_user.id}")
         if character.user_id != current_user.id and not _is_sw(character.campaign_id, current_user.id, db):
-            raise HTTPException(status_code=403, detail="You don't own this character")
+            if not character.campaign_id or not _is_campaign_member(character.campaign_id, current_user.id, db):
+                raise HTTPException(status_code=403, detail="You don't own this character")
 
     return character
 
@@ -1374,9 +1375,10 @@ async def get_character_abilities(
             if not membership or membership.role != 'story_weaver':
                 raise HTTPException(status_code=403, detail="Only Story Weaver can view NPC abilities")
         else:
-            # Owner or SW of that campaign can view PC abilities
+            # Owner, SW, or any fellow campaign member can view PC abilities
             if character.user_id != current_user.id and not _is_sw(character.campaign_id, current_user.id, db):
-                raise HTTPException(status_code=403, detail="You don't own this character")
+                if not character.campaign_id or not _is_campaign_member(character.campaign_id, current_user.id, db):
+                    raise HTTPException(status_code=403, detail="You don't own this character")
 
         # Get abilities
         abilities = db.query(Ability).filter(Ability.character_id == char_uuid).order_by(Ability.slot_number).all()
@@ -2581,6 +2583,16 @@ def _is_sw(campaign_id, user_id, db) -> bool:
         CampaignMembership.user_id == user_id
     ).first()
     return m is not None and m.role == 'story_weaver'
+
+
+def _is_campaign_member(campaign_id, user_id, db) -> bool:
+    """Return True if user is any active member of the campaign."""
+    m = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == user_id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    return m is not None
 
 
 @character_blp_fastapi.get("/{character_id}/inventory")
