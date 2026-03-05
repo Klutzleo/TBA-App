@@ -645,7 +645,8 @@ async def get_campaign_members(
     
     # Get all members with their characters
     members = db.query(CampaignMembership).filter(
-        CampaignMembership.campaign_id == campaign_id
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.left_at.is_(None)
     ).all()
     
     result = []
