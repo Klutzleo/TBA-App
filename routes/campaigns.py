@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from uuid import UUID, uuid4
+from datetime import datetime
 import logging
 import random
 import string
@@ -380,6 +381,29 @@ async def join_campaign(
     return {"success": True, "message": f"Successfully joined {campaign.name}"}
 
 
+@router.delete("/{campaign_id}/leave")
+async def leave_campaign(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Leave a campaign. Story Weavers cannot leave (they must delete the campaign)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+
+    if not membership:
+        raise HTTPException(status_code=404, detail="You are not a member of this campaign")
+
+    if membership.role == "story_weaver":
+        raise HTTPException(status_code=403, detail="Story Weavers cannot leave a campaign. Transfer ownership or delete the campaign instead.")
+
+    membership.left_at = datetime.utcnow()
+    db.commit()
+    return {"success": True, "message": "You have left the campaign"}
+
 @router.get("/{campaign_id}/check-character")
 def check_campaign_character(
     campaign_id: str,
@@ -398,9 +422,10 @@ def check_campaign_character(
     # Check membership role first
     membership = db.query(CampaignMembership).filter(
         CampaignMembership.campaign_id == campaign_id,
-        CampaignMembership.user_id == current_user.id
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
     ).first()
-    
+
     if membership and membership.role == "story_weaver":
         return {"role": "story_weaver", "has_character": False, "can_create": False}
 
