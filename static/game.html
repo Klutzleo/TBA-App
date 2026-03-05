@@ -2159,9 +2159,7 @@
           <button class="back-button" style="flex:1;" onclick="window.location.href='/campaigns.html'">
             ← Campaigns
           </button>
-          <button class="back-button" style="color:var(--accent-danger);border-color:var(--accent-danger);flex-shrink:0;" title="Leave this campaign" onclick="leaveCampaignFromGame()">
-            Leave
-          </button>
+          <button title="Leave this campaign" onclick="leaveCampaignFromGame()" style="background:none;border:none;color:var(--accent-danger);font-size:0.72rem;cursor:pointer;padding:4px 8px;opacity:0.65;white-space:nowrap;align-self:center;flex-shrink:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.65">Leave ✕</button>
         </div>
 
         <!-- SW-only sidebar tab switcher -->
@@ -7271,6 +7269,12 @@
               // SW gets notified when a new player joins the campaign
               if (userRole === 'SW') {
                 showPanelToast(`👋 ${data.username} joined the campaign`, 'success');
+                loadCharacters();
+              }
+
+            } else if (data.type === 'player_left_campaign') {
+              if (userRole === 'SW') {
+                showPanelToast(`🚪 ${data.username} left the campaign`, 'info');
                 loadCharacters();
               }
 

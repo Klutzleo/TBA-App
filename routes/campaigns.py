@@ -402,6 +402,35 @@ async def leave_campaign(
 
     membership.left_at = datetime.utcnow()
     db.commit()
+
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+
+    # Notify SW via WebSocket (if online)
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(campaign_id, {
+            "type": "player_left_campaign",
+            "username": current_user.username,
+            "message": f"{current_user.username} left the campaign."
+        }))
+    except Exception:
+        pass
+
+    # Push notify SW (if offline)
+    if campaign and campaign.story_weaver_id:
+        try:
+            from backend.notifications import send_push
+            send_push(
+                db, str(campaign.story_weaver_id),
+                "🚪 Player Left",
+                f"{current_user.username} left {campaign.name}.",
+                url=f"/game.html?campaign_id={campaign_id}",
+                campaign_id=str(campaign_id),
+            )
+        except Exception as _pe:
+            logger.warning(f"Push notification failed (player left): {_pe}")
+
     return {"success": True, "message": "You have left the campaign"}
 
 @router.get("/{campaign_id}/check-character")
