@@ -8729,9 +8729,11 @@
 
 Your character will remain until the Story Weaver removes it.')) return;
     try {
-      const res = await fetch(, {
+      const _token = getAuthToken();
+      const _cid = new URLSearchParams(window.location.search).get('campaign_id');
+      const res = await fetch(`/api/campaigns/${_cid}/leave`, {
         method: 'DELETE',
-        headers: { 'Authorization':  }
+        headers: { 'Authorization': `Bearer ${_token}` }
       });
       if (res.ok) {
         window.location.href = '/campaigns.html';
