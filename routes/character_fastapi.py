@@ -1903,6 +1903,52 @@ async def resolve_the_calling(
     return result_payload
 
 
+@character_blp_fastapi.post("/{character_id}/heal")
+async def heal_character(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Heal a character's DP (SW only). Body: { amount: int } or { to_full: bool }"""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+    request_id = getattr(request.state, "request_id", "unknown")
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership or membership.role != "story_weaver":
+        raise HTTPException(status_code=403, detail="Only Story Weaver can heal characters")
+    old_dp = char.dp
+    if req.get("to_full"):
+        char.dp = char.max_dp
+    else:
+        amount = int(req.get("amount", 0))
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Heal amount must be positive")
+        char.dp = min(char.dp + amount, char.max_dp)
+    db.commit()
+    db.refresh(char)
+    healed = char.dp - old_dp
+    logger.info(f"[{request_id}] {char.name} healed {healed} DP ({old_dp} -> {char.dp}/{char.max_dp}) by {current_user.username}")
+    try:
+        from routes.campaign_websocket import broadcast_dp_healed
+        import asyncio
+        asyncio.create_task(broadcast_dp_healed(
+            char.campaign_id, str(char.id), char.name,
+            old_dp, char.dp, char.max_dp, current_user.username
+        ))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast dp_healed: {_be}")
+    return {"character_id": str(char.id), "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp, "healed": healed}
+
 @character_blp_fastapi.post("/{character_id}/battle-scar")
 async def add_battle_scar(
     character_id: str,

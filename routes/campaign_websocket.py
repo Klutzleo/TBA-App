@@ -1542,6 +1542,19 @@ async def broadcast_level_up(campaign_id: UUID, character_id: str, character_nam
     })
 
 
+async def broadcast_dp_healed(campaign_id: UUID, character_id: str, character_name: str, old_dp: int, new_dp: int, max_dp: int, healed_by: str):
+    """Notify all campaign members that a character was healed."""
+    await manager.broadcast(campaign_id, {
+        "type": "dp_healed",
+        "character_id": character_id,
+        "character_name": character_name,
+        "old_dp": old_dp,
+        "new_dp": new_dp,
+        "max_dp": max_dp,
+        "healed_by": healed_by,
+    })
+
+
 async def broadcast_bap_granted(campaign_id: UUID, character_id: str, character_name: str, owner_id: str, token_type: str):
     """SW granted a BAP token to a character. All clients update the party panel."""
     await manager.broadcast(campaign_id, {
