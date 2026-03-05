@@ -7041,6 +7041,24 @@
                 currentActor = data.character_name;
                 const roleText = data.role === 'SW' ? ' (Story Weaver)' : '';
                 addMessage(`Welcome, ${data.character_name}${roleText}!`, 'message-card message-system');
+
+                // First-time hint -- shown once per campaign per device
+                const hintKey = `tba_hint_${campaignId}`;
+                if (!localStorage.getItem(hintKey)) {
+                  localStorage.setItem(hintKey, '1');
+                  const hints = {
+                    SW: `👋 <strong>Story Weaver tips:</strong> Use the <strong>⚙ menu</strong> on character cards to manage players. Type <strong>/help</strong> for all commands. <strong>/s XdY</strong> for secret rolls. Add lore in the <strong>Lore</strong> tab — all players can read it.`,
+                    player: `👋 <strong>Getting started:</strong> Use the <strong>Story</strong> tab to speak in-character, <strong>OOC</strong> for out-of-character. Type <strong>/help</strong> for all commands. Click the 📋 on a party card to view their character sheet.`,
+                    Spectator: `👋 <strong>Welcome!</strong> You are connected as a spectator. Click <strong>Create Character</strong> in the party panel to join the story. Use <strong>OOC</strong> to chat while you wait.`,
+                  };
+                  const hint = hints[data.role] || hints.player;
+                  const hintEl = document.createElement('div');
+                  hintEl.className = 'message-card message-system';
+                  hintEl.style.cssText = 'border-left:3px solid var(--accent-primary);padding-left:12px;';
+                  hintEl.innerHTML = hint;
+                  chatMessagesEl.appendChild(hintEl);
+                  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+                }
               } else if (data.character_id) {
                 // Character ID provided but not found in database
                 addMessage(`⚠️ Character ID "${data.character_id}" not found. Please check your Character ID in the connection settings.`, 'message-card message-error');
