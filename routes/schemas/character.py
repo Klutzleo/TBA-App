@@ -108,6 +108,7 @@ class CharacterResponse(BaseModel):
     defense_die: str
     weapon: Optional[dict] = None
     armor: Optional[dict] = None
+    notes: Optional[str] = None
     in_calling: bool = False
     times_called: int = 0
     is_called: bool = False
