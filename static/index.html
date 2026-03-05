@@ -3,79 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TBA - Main Game</title>
+    <title>TBA</title>
     <script src="/js/auth-helper.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #1a1d29;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            color: #e4e6eb;
-        }
-        .container {
-            text-align: center;
-            background: #252937;
-            border: 1px solid #3a3f54;
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
-            padding: 40px;
-            border-radius: 12px;
-            max-width: 500px;
-        }
-        h1 {
-            color: #d4af37;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-            margin-bottom: 20px;
-        }
-        #user-info {
-            margin-bottom: 20px;
-            font-size: 1.1rem;
-            color: #e4e6eb;
-        }
-        p {
-            color: #b0b3ba;
-            line-height: 1.6;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 1rem;
-            cursor: pointer;
-            background: #d4af37;
-            color: #13151f;
-            border: none;
-            border-radius: 8px;
-            font-weight: 700;
-            margin: 5px;
-            transition: all 0.3s ease;
-        }
-        button:hover {
-            background: #9d7c2f;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
-        }
-    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎮 TBA Main Game</h1>
-        <div id="user-info"></div>
-        <p>✅ Authentication is working!</p>
-        <p>✅ You're logged in!</p>
-        <p style="margin-top: 30px; color: #ddd;">
-            Game interface coming soon...<br>
-            (Combat, characters, WebSocket chat, etc.)
-        </p>
-    </div>
-
     <script>
-        // Protect this page - require login
-        requireAuth();
-        
-        // Display user info with logout button
-        displayUserInfo();
+        const _token = getAuthToken();
+        if (_token) {
+            window.location.replace('/campaigns.html');
+        } else {
+            window.location.replace('/auth.html');
+        }
     </script>
 </body>
 </html>
