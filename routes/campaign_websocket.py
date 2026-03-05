@@ -767,9 +767,13 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
 
     except Exception as e:
         logger.error(f"Combat command error: {str(e)}", exc_info=True)
-        await manager.broadcast(campaign_id, {
-            "type": "system",
-            "text": f"❌ Combat error: {str(e)}"
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        await websocket.send_json({
+            "type": "error",
+            "message": "❌ Something went wrong with that combat action. Please try again."
         })
 
 
@@ -1193,9 +1197,13 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
     except Exception as e:
         logger.error(f"Ability cast error: {str(e)}", exc_info=True)
-        await manager.broadcast(campaign_id, {
-            "type": "system",
-            "text": f"❌ Ability cast error: {str(e)}"
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        await websocket.send_json({
+            "type": "error",
+            "message": "❌ Something went wrong casting that ability. Please try again."
         })
 
 
@@ -1232,9 +1240,9 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
         total = sum(breakdown) + modifier
     except ValueError:
         error_msg = f"❌ Invalid dice notation '{dice_notation}'. Use format like 2d6, 3d4+2, 1d12-1."
-        await manager.broadcast(campaign_id, {
-            "type": "system",
-            "text": error_msg
+        await manager.send_to_user(campaign_id, user_id, {
+            "type": "error",
+            "message": error_msg
         })
         return
     
@@ -1700,7 +1708,7 @@ async def roll_initiative_self(
         logger.error(f"Initiative self-roll error: {e}")
         await websocket.send_json({
             "type": "error",
-            "message": f"Initiative roll failed: {str(e)}"
+            "message": "❌ Initiative roll failed. Please try again."
         })
 
 
@@ -1847,7 +1855,7 @@ async def roll_initiative_target(
         logger.error(f"Initiative target-roll error: {e}")
         await websocket.send_json({
             "type": "error",
-            "message": f"Initiative roll failed: {str(e)}"
+            "message": "❌ Initiative roll failed. Please try again."
         })
 
 
@@ -1914,10 +1922,14 @@ async def start_encounter(
         db.commit()
 
     except Exception as e:
-        logger.error(f"Start encounter error: {e}")
+        logger.error(f"Start encounter error: {e}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
         await websocket.send_json({
             "type": "error",
-            "message": f"Failed to start encounter: {str(e)}"
+            "message": "❌ Failed to start encounter. Please try again."
         })
 
 
@@ -2010,10 +2022,10 @@ async def show_initiative_order(
         })
 
     except Exception as e:
-        logger.error(f"Show initiative error: {e}")
+        logger.error(f"Show initiative error: {e}", exc_info=True)
         await websocket.send_json({
             "type": "error",
-            "message": f"Failed to show initiative: {str(e)}"
+            "message": "❌ Failed to show initiative order. Please try again."
         })
 
 
@@ -2113,10 +2125,14 @@ async def end_encounter(
         db.commit()
 
     except Exception as e:
-        logger.error(f"End encounter error: {e}")
+        logger.error(f"End encounter error: {e}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
         await websocket.send_json({
             "type": "error",
-            "message": f"Failed to end encounter: {str(e)}"
+            "message": "❌ Failed to end encounter. Please try again."
         })
 
 
@@ -2192,10 +2208,14 @@ async def clear_initiative(
         db.commit()
 
     except Exception as e:
-        logger.error(f"Clear initiative error: {e}")
+        logger.error(f"Clear initiative error: {e}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
         await websocket.send_json({
             "type": "error",
-            "message": f"Failed to clear initiative: {str(e)}"
+            "message": "❌ Failed to clear initiative. Please try again."
         })
 
 
@@ -2279,8 +2299,12 @@ async def advance_turn(
                     logger.warning(f"Push notification failed (your_turn): {_pe}")
 
     except Exception as e:
-        logger.error(f"Advance turn error: {e}")
-        await websocket.send_json({"type": "error", "message": f"Failed to advance turn: {str(e)}"})
+        logger.error(f"Advance turn error: {e}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        await websocket.send_json({"type": "error", "message": "❌ Failed to advance turn. Please try again."})
 
 
 async def send_help_text(websocket: WebSocket):
@@ -2405,10 +2429,14 @@ async def restore_all_abilities(
         db.commit()
 
     except Exception as e:
-        logger.error(f"Restore abilities error: {e}")
+        logger.error(f"Restore abilities error: {e}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
         await websocket.send_json({
             "type": "error",
-            "message": f"Failed to restore abilities: {str(e)}"
+            "message": "❌ Failed to restore abilities. Please try again."
         })
 
 
@@ -2509,5 +2537,5 @@ async def handle_initiative_command(
         logger.error(f"Initiative command error: {e}")
         await websocket.send_json({
             "type": "error",
-            "message": f"Initiative command failed: {str(e)}"
+            "message": "❌ Initiative command failed. Please try again."
         })
