@@ -107,6 +107,18 @@ class CampaignConnectionManager:
             if conn in self.active_connections[campaign_id]:
                 self.active_connections[campaign_id].remove(conn)
     
+    async def broadcast_except(self, campaign_id: UUID, exclude_ws, message: dict):
+        """Send message to all connections in a campaign except the given websocket."""
+        if campaign_id not in self.active_connections:
+            return
+        for websocket, user_id, display_name, username in self.active_connections[campaign_id]:
+            if websocket is exclude_ws:
+                continue
+            try:
+                await websocket.send_json(message)
+            except Exception as e:
+                logger.warning(f"Failed to send to {display_name}: {e}")
+
     async def send_to_user(self, campaign_id: UUID, target_user_id: UUID, message: dict):
         """Send message to a specific user in a campaign (for whispers)."""
         if campaign_id not in self.active_connections:
@@ -310,6 +322,13 @@ async def campaign_websocket(
 
             elif message_type == "help_command":
                 await send_help_text(websocket)
+
+            elif message_type == "typing":
+                actor = data.get("actor", display_name)
+                await manager.broadcast_except(campaign_uuid, websocket, {
+                    "type": "typing",
+                    "actor": actor
+                })
 
             else:
                 logger.warning(f"Unknown message type: {message_type}")

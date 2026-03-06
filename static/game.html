@@ -2535,6 +2535,8 @@
           </div>
         </div>
 
+        <div id="typingIndicator" style="display:none; padding:2px 12px 4px; font-size:0.78rem; color:var(--text-muted); font-style:italic; min-height:18px;"></div>
+
         <div class="chat-input-container">
           <div id="chatToolbar" style="display:none;"></div>
           <div id="mentionDropdown" style="display:none;"></div>
@@ -8676,6 +8678,17 @@
               // Whisper message (only received if you're the target or SW)
               const targets = data.whisper_targets || data.whisper_target;
               displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets, false, null, false, data.chat_color || null);
+            } else if (data.type === 'typing') {
+              const typingEl = document.getElementById('typingIndicator');
+              if (typingEl) {
+                typingEl.textContent = `${data.actor} is typing…`;
+                typingEl.style.display = '';
+                clearTimeout(typingEl._clearTimer);
+                typingEl._clearTimer = setTimeout(() => {
+                  typingEl.style.display = 'none';
+                  typingEl.textContent = '';
+                }, 3000);
+              }
             } else if (data.type === 'online_users') {
               renderOnlineUsers(data.users);
             } else if (data.type === 'defend') {
@@ -8918,11 +8931,19 @@
       }
     });
 
-    // Auto-resize textarea as user types + trigger @ mention dropdown
+    // Auto-resize textarea as user types + trigger @ mention dropdown + typing indicator
+    let _typingTimer = null;
     msgInput.addEventListener('input', () => {
       msgInput.style.height = 'auto';
       msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
       updateMentionDropdown();
+      // Broadcast typing event (debounced — only send once per 2s burst)
+      if (!_typingTimer && ws && ws.readyState === WebSocket.OPEN) {
+        const actor = (activeSpeaker ? activeSpeaker.name : currentActor.trim()) || 'User';
+        ws.send(JSON.stringify({ type: 'typing', actor }));
+      }
+      clearTimeout(_typingTimer);
+      _typingTimer = setTimeout(() => { _typingTimer = null; }, 2000);
     });
 
     msgInput.addEventListener('blur', () => {
