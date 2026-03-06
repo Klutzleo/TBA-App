@@ -3087,6 +3087,7 @@
 
     function selectChatColor(hex, persist = false) {
       myChatColor = hex;
+      if (persist) localStorage.setItem('tba_chat_color', hex);
       const btn = document.getElementById('colorPickerBtn');
       if (btn) btn.style.background = hex;
       const pop = document.getElementById('colorPickerPopover');
@@ -7409,7 +7410,16 @@
 
                 const tab = getMessageTab(messageData);
                 const mode = msg.chat_mode ? msg.chat_mode.toLowerCase() : 'ic';
-                displayTypedMessage(mode, msg.sender_name, msg.content, null, false, msg.timestamp, true);
+                // Apply current color for own messages; try knownPCs for others
+                const myName = activeSpeaker ? activeSpeaker.name : currentActor;
+                let histColor = null;
+                if (msg.sender_name === myName) {
+                  histColor = myChatColor;
+                } else {
+                  const pc = (knownPCs || []).find(c => c.name === msg.sender_name);
+                  if (pc && pc.chat_color) histColor = pc.chat_color;
+                }
+                displayTypedMessage(mode, msg.sender_name, msg.content, null, false, msg.timestamp, true, histColor);
               }
             }
 
@@ -8793,14 +8803,15 @@
         }
 
         // Display locally with styled message
-        displayTypedMessage(chatMode, actor, text, whisperTargets, false);
+        displayTypedMessage(chatMode, actor, text, whisperTargets, false, null, false, myChatColor);
 
         // Build payload
         const payload = {
           type: 'message',
           actor,
           text,
-          chat_mode: chatMode
+          chat_mode: chatMode,
+          chat_color: myChatColor
         };
 
         // Add whisper targets if applicable
