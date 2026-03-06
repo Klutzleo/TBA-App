@@ -396,17 +396,26 @@ async def create_character_full(
 
 
 @character_blp_fastapi.get("", response_model=List[CharacterResponse])
-async def list_characters(owner_id: str, request: Request, db: Session = Depends(get_db)):
+async def list_characters(
+    request: Request,
+    db: Session = Depends(get_db),
+    owner_id: Optional[str] = None,
+    campaign_id: Optional[str] = None,
+):
     """
-    List all characters owned by a user.
-    
+    List all characters for a campaign.
+
     Query params:
-        owner_id: User ID to filter by
+        owner_id: Campaign ID (characters.owner_id stores campaign_id at creation)
+        campaign_id: Alias for owner_id, accepted for backwards compatibility
     """
     request_id = getattr(request.state, "request_id", "unknown")
-    logger.info(f"[{request_id}] Listing characters for owner: {owner_id}")
-    
-    characters = db.query(Character).filter(Character.owner_id == owner_id).all()
+    filter_id = owner_id or campaign_id
+    if not filter_id:
+        raise HTTPException(status_code=422, detail="owner_id or campaign_id query parameter is required")
+    logger.info(f"[{request_id}] Listing characters for owner/campaign: {filter_id}")
+
+    characters = db.query(Character).filter(Character.owner_id == filter_id).all()
     return characters
 
 
