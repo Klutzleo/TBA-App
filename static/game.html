@@ -9046,7 +9046,9 @@
           // Players without an active character (spectators/pending) are not shown in the party panel
         }
 
-        
+        // Now that knownPCs is populated, recolor any history already loaded
+        recolorAllHistory();
+
       } catch (error) {
         console.error('Error loading characters:', error);
         charactersContainer.innerHTML = '<div style="color: var(--accent-danger); font-size: 13px; text-align: center; padding: 20px;">Failed to load characters</div>';
