@@ -3137,9 +3137,12 @@
     }
 
     // Recolor ALL history messages — renderMessages() applies colors fresh on every clone pass.
+    // Debounced: rapid sequential calls (history + bubble bar + loadCharacters + welcome) collapse into one rebuild.
+    let _recolorTimer = null;
     function recolorAllHistory() {
       if (!allMessages || allMessages.length === 0) return;
-      renderMessages();
+      clearTimeout(_recolorTimer);
+      _recolorTimer = setTimeout(renderMessages, 50);
     }
 
     // Close color picker when clicking outside
