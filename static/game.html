@@ -7104,16 +7104,20 @@
     }
 
     // Auto-connect on page load
-    async function connectToCampaign() {
+    async function connectToCampaign(isReconnect = false) {
       const wsUrl = buildWSUrl(campaignId, authToken);
 
-      // Show loading spinner
-      const spinner = document.getElementById('loadingSpinner');
-      if (spinner) spinner.style.display = 'flex';
+      // Only show the full-screen spinner on the initial connect, not on auto-reconnects
+      if (!isReconnect) {
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner) spinner.style.display = 'flex';
+      }
 
-      const statusMsg = characterId
-        ? `Connecting to campaign...`
-        : userRole === 'SW' ? `Connecting as Story Weaver...` : `Connecting to campaign as spectator...`;
+      const statusMsg = isReconnect
+        ? `Reconnecting...`
+        : characterId
+          ? `Connecting to campaign...`
+          : userRole === 'SW' ? `Connecting as Story Weaver...` : `Connecting to campaign as spectator...`;
       addMessage(statusMsg, 'message-card message-system');
 
       try {
@@ -7143,7 +7147,7 @@
         // Note: Join notification is now handled by the backend after caching character data
         // The backend will broadcast "{character_name} joined the party" to all clients
 
-        ws.onmessage = (ev) => {
+        ws.onmessage = async (ev) => {
           try {
             const data = JSON.parse(ev.data);
 
@@ -8252,18 +8256,18 @@
           }
 
           let attempt = 0;
-          const maxAttempts = 5;
+          const maxAttempts = 12;
           const tryReconnect = () => {
             attempt++;
             if (attempt > maxAttempts) {
               addMessage(`⚠️ Could not reconnect after ${maxAttempts} attempts. Please refresh the page.`, 'message-card message-system');
               return;
             }
-            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 15000); // 1s, 2s, 4s, 8s, 15s
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // 1s, 2s, 4s, 8s, 16s, 30s cap
             addMessage(`⚠️ Disconnected. Reconnecting in ${Math.round(delay / 1000)}s... (attempt ${attempt}/${maxAttempts})`, 'message-card message-system');
             setTimeout(async () => {
               try {
-                await connectToCampaign();
+                await connectToCampaign(true);
               } catch {
                 tryReconnect();
               }
