@@ -1162,8 +1162,8 @@
 
     /* === Chat Input === */
     .chat-input-container {
-      padding: 20px 24px;
-      padding-bottom: max(20px, calc(20px + env(safe-area-inset-bottom)));
+      padding: 10px 16px;
+      padding-bottom: max(10px, calc(10px + env(safe-area-inset-bottom)));
       background: var(--bg-panel);
       border-top: 1px solid var(--border-color);
       box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.2);
@@ -1189,7 +1189,7 @@
       align-items: center;
       gap: 6px;
       flex-wrap: wrap;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
     #chatToolbar .fmt-btn {
       background: var(--bg-input, #1e2130);
@@ -3544,8 +3544,8 @@
         }
       }
 
-      // Hide toolbar entirely for Narrator with no abilities
-      if (activeSpeaker && activeSpeaker.type === 'narrator' && abilities.length === 0) {
+      // Hide toolbar only when not connected yet
+      if (!activeSpeaker && abilities.length === 0) {
         toolbar.style.display = 'none';
         return;
       }

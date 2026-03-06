@@ -115,6 +115,7 @@ class CharacterResponse(BaseModel):
     battle_scars: Optional[list] = None
     tethers: Optional[list] = None
     active_tether_modifier: int = 0
+    abilities: list["AbilityResponse"] = []
     created_at: datetime
     updated_at: datetime
 
