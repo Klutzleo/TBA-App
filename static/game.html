@@ -1183,6 +1183,40 @@
       min-width: 100px;
     }
 
+    /* === Chat Formatting Toolbar === */
+    #chatToolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    #chatToolbar .fmt-btn {
+      background: var(--bg-input, #1e2130);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: 4px;
+      padding: 2px 9px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      line-height: 1.6;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    #chatToolbar .fmt-btn:hover { background: var(--bg-hover, #252937); }
+    #chatToolbar .fmt-btn.macro-btn {
+      color: var(--accent-primary);
+      border-color: var(--accent-primary);
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
+    #chatToolbar .toolbar-sep {
+      width: 1px;
+      height: 18px;
+      background: var(--border-color);
+      flex-shrink: 0;
+    }
+
     /* === Textarea for Message Input === */
     .chat-input-main textarea.form-input {
       flex: 1;
@@ -2442,6 +2476,7 @@
         </div>
 
         <div class="chat-input-container">
+          <div id="chatToolbar" style="display:none;"></div>
           <div class="chat-input-main">
             <textarea
               class="form-input"
@@ -3465,7 +3500,66 @@
     function setActiveSpeaker(character) {
       activeSpeaker = character;
       renderBubbleBar();
+      renderChatToolbar();
       console.log('Active speaker:', activeSpeaker);
+    }
+
+    // Insert formatting wrapper around selected text (or placeholder)
+    function wrapInputText(before, after, placeholder) {
+      const ta = document.getElementById('messageInput');
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selected = ta.value.slice(start, end) || placeholder;
+      const replacement = before + selected + after;
+      ta.value = ta.value.slice(0, start) + replacement + ta.value.slice(end);
+      // Place cursor inside the wrapper if no text was selected
+      if (start === end) {
+        ta.setSelectionRange(start + before.length, start + before.length + placeholder.length);
+      }
+      ta.focus();
+    }
+
+    // Insert macro text at cursor position
+    function insertMacro(text) {
+      const ta = document.getElementById('messageInput');
+      const start = ta.selectionStart;
+      ta.value = ta.value.slice(0, start) + text + ta.value.slice(start);
+      ta.setSelectionRange(start + text.length, start + text.length);
+      ta.focus();
+    }
+
+    // Render the formatting + macro toolbar above the input
+    function renderChatToolbar() {
+      const toolbar = document.getElementById('chatToolbar');
+      if (!toolbar) return;
+
+      // Find abilities for the active speaker (PC/NPC/Ally with a character id)
+      let abilities = [];
+      if (activeSpeaker && activeSpeaker.id) {
+        // Try playerCharacters first, then campaignNPCs
+        const charData = [...(playerCharacters || []), ...(campaignNPCs || [])]
+          .find(c => c.id === activeSpeaker.id);
+        if (charData && charData.abilities) {
+          abilities = charData.abilities.filter(a => a.macro_command);
+        }
+      }
+
+      // Hide toolbar entirely for Narrator with no abilities
+      if (activeSpeaker && activeSpeaker.type === 'narrator' && abilities.length === 0) {
+        toolbar.style.display = 'none';
+        return;
+      }
+
+      toolbar.style.display = 'flex';
+      toolbar.innerHTML = `
+        <button class="fmt-btn" title="Bold" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
+        <button class="fmt-btn" title="Italic" onclick="wrapInputText('*','*','italic text')"><em>I</em></button>
+        ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
+        ${abilities.map(a => `
+          <button class="fmt-btn macro-btn" title="${escHtml(a.display_name)}"
+            onclick="insertMacro(${JSON.stringify(a.macro_command)})">${escHtml(a.macro_command)}</button>
+        `).join('')}
+      `;
     }
 
     // Show context menu for NPCs
@@ -7142,6 +7236,7 @@
 
           // Load bubble bar (NPCs for SW, PC+Ally for players)
           await loadBubbleBar();
+          renderChatToolbar();
         };
 
         // Note: Join notification is now handled by the backend after caching character data
