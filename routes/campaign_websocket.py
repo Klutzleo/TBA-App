@@ -314,7 +314,7 @@ async def campaign_websocket(
             else:
                 logger.warning(f"Unknown message type: {message_type}")
     
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         display_name = manager.disconnect(campaign_uuid, websocket)
         if display_name:
             await manager.broadcast(campaign_uuid, SystemNotification(
