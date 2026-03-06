@@ -8676,6 +8676,10 @@
     });
 
     // Macro buttons — delegated click on toolbar
+    // Prevent toolbar clicks from blurring the textarea (which would hide the dropdown)
+    document.getElementById('chatToolbar').addEventListener('mousedown', (e) => {
+      e.preventDefault();
+    });
     document.getElementById('chatToolbar').addEventListener('click', (e) => {
       const btn = e.target.closest('.macro-btn');
       if (btn && btn.dataset.macro) insertMacro(btn.dataset.macro);
