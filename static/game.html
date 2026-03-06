@@ -3534,6 +3534,8 @@
         }
 
         renderBubbleBar();
+        // activeSpeaker is now set — recolor history so self-messages get the right color
+        recolorAllHistory();
       } catch (error) {
         console.error('Failed to load bubble bar:', error);
       }
