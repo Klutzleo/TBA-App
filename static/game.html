@@ -3282,7 +3282,7 @@
           // renderBubbleBar will show pending/rejected/create-character state
         } else {
           // Load player's characters (PC + Ally if exists)
-          const response = await fetch(`/api/characters?campaign_id=${campaignId}`, {
+          const response = await fetch(`/api/characters?owner_id=${campaignId}`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
           });
 
