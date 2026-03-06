@@ -4934,6 +4934,8 @@
     function renderMarkdown(text) {
       // Escape HTML first — prevents XSS regardless of user input
       let s = escHtml(text);
+      // Newlines → <br> (Shift+Enter line breaks)
+      s = s.replace(/\n/g, '<br>');
       // Bold: **text**  (must come before italic to avoid double-matching)
       s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       // Italic: *text* or _text_
@@ -7566,16 +7568,17 @@
             switchTab('ooc');
           }
 
-          // Load initial message history
-          await loadMessageHistory();
-
           // Show sidebar tab bar for all users (initiative tab shown for SW only)
           const tabBarEl = document.getElementById('sidebarTabBar');
           if (tabBarEl) tabBarEl.style.display = 'flex';
 
-          // Load bubble bar (NPCs for SW, PC+Ally for players)
-          await loadBubbleBar();
+          // Load bubble bar and characters FIRST so activeSpeaker + knownPCs are ready
+          // before history is appended — messages are colored inline on first render, no repaint needed
+          await Promise.all([loadBubbleBar(), loadCharacters()]);
           renderChatToolbar();
+
+          // Now load history — activeSpeaker and knownPCs are populated, colors apply immediately
+          await loadMessageHistory();
         };
 
         // Note: Join notification is now handled by the backend after caching character data
@@ -9137,7 +9140,6 @@
 
     // === Initialize on Page Load ===
     initColorPicker();
-    loadCharacters();
     connectToCampaign();
 
     // SW-only UI setup
