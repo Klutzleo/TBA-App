@@ -9000,6 +9000,7 @@
           </div>
         </div>
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
+        ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}
         <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
         <div id="swAbilitiesContainer">${abilityRows}</div>
         <h4 style="color:var(--accent-primary);margin:16px 0 8px;">Inventory</h4>
@@ -9342,6 +9343,7 @@
         <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
         ${abilityRows}
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
+        ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}
       `;
     } catch (e) {
       document.getElementById('playerSheetBody').innerHTML = `<p style="color:var(--accent-danger);">Error: ${e.message}</p>`;

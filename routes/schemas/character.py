@@ -112,6 +112,7 @@ class CharacterResponse(BaseModel):
     in_calling: bool = False
     times_called: int = 0
     is_called: bool = False
+    battle_scars: Optional[list] = None
     created_at: datetime
     updated_at: datetime
 
