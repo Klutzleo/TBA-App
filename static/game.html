@@ -2547,7 +2547,7 @@
               placeholder="Type a message or command..."
             ></textarea>
             <button id="colorPickerBtn" title="Chat color" onclick="toggleColorPicker()"
-              style="width:28px;height:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;background:#d4af37;"></button>
+              style="width:28px;height:28px;min-width:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:#d4af37;"></button>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
           </div>
         </div>
@@ -3099,28 +3099,25 @@
       if (!persist) return;
       // Persist: if active speaker is an NPC/ally, save to that character's color;
       // if player speaking as own PC, save to character; otherwise save to membership (SW own voice).
-      const token = getAuthToken();
-      if (!token) return;
+      if (!authToken) return;
       const speakerIsChar = activeSpeaker && activeSpeaker.id &&
         (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally' || activeSpeaker.type === 'pc');
       if (speakerIsChar) {
         fetch(`/api/characters/${activeSpeaker.id}/chat-color`, {
           method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ color: hex })
         }).catch(() => {});
       } else if (characterId) {
-        // Player speaking as own character
         fetch(`/api/characters/${characterId}/chat-color`, {
           method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ color: hex })
         }).catch(() => {});
       } else {
-        // SW own voice — save to membership
         fetch(`/api/characters/my-color?campaign_id=${campaignId}`, {
           method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ color: hex })
         }).catch(() => {});
       }
