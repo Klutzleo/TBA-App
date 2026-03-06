@@ -39,6 +39,7 @@ class CampaignCreate(BaseModel):
     posting_frequency: str = Field(..., pattern="^(slow|medium|high)$")
     min_players: int = Field(..., ge=2, le=20)
     max_players: int = Field(..., ge=2, le=20)
+    max_spectators: Optional[int] = Field(None, ge=0, le=500)  # None = unlimited
     timezone: str = Field(..., min_length=1)
 
 
@@ -51,6 +52,7 @@ class CampaignResponse(BaseModel):
     is_public: Optional[bool] = True
     min_players: Optional[int] = 2
     max_players: Optional[int] = 6
+    max_spectators: Optional[int] = None  # None = unlimited
     timezone: Optional[str] = 'America/New_York'
     posting_frequency: Optional[str] = 'medium'
     status: Optional[str] = 'active'
@@ -83,6 +85,7 @@ class CampaignUpdate(BaseModel):
     status: Optional[str] = Field(None, pattern="^(active|archived|on_break)$")
     character_creation_mode: Optional[str] = Field(None, pattern="^(open|approval_required|sw_only)$")
     max_characters_per_player: Optional[int] = Field(None, ge=1, le=999)
+    max_spectators: Optional[int] = Field(None, ge=0, le=500)  # None = unlimited
 
 
 @router.post("/create", response_model=CampaignResponse)
@@ -110,6 +113,7 @@ def create_campaign(
         is_public=req.is_public,
         min_players=req.min_players,
         max_players=req.max_players,
+        max_spectators=req.max_spectators,
         timezone=req.timezone,
         posting_frequency=req.posting_frequency,
         status='active',
@@ -139,6 +143,7 @@ def create_campaign(
         is_public=campaign.is_public,
         min_players=campaign.min_players,
         max_players=campaign.max_players,
+        max_spectators=campaign.max_spectators,
         timezone=campaign.timezone,
         posting_frequency=campaign.posting_frequency,
         status=campaign.status,
@@ -209,6 +214,7 @@ def list_my_campaigns(
             is_public=c.is_public,
             min_players=c.min_players,
             max_players=c.max_players,
+            max_spectators=c.max_spectators,
             timezone=c.timezone,
             posting_frequency=c.posting_frequency,
             status=c.status,
@@ -246,6 +252,7 @@ def list_my_campaigns(
                 is_public=c.is_public,
                 min_players=c.min_players,
                 max_players=c.max_players,
+                max_spectators=c.max_spectators,
                 timezone=c.timezone,
                 posting_frequency=c.posting_frequency,
                 status=c.status,
@@ -297,6 +304,7 @@ def browse_public_campaigns(
             is_public=c.is_public,
             min_players=c.min_players,
             max_players=c.max_players,
+            max_spectators=c.max_spectators,
             timezone=c.timezone,
             posting_frequency=c.posting_frequency,
             status=c.status,
@@ -338,14 +346,38 @@ async def join_campaign(
     if existing:
         raise HTTPException(status_code=400, detail="You are already a member of this campaign")
 
-    # Check if campaign is full
-    member_count = db.query(func.count(CampaignMembership.id)).filter(
+    # Count active PC-holders (player memberships with an active character)
+    pc_count = db.query(func.count(CampaignMembership.id)).filter(
         CampaignMembership.campaign_id == campaign.id,
-        CampaignMembership.left_at.is_(None)
+        CampaignMembership.left_at.is_(None),
+        CampaignMembership.role == 'player'
+    ).join(
+        Character,
+        (Character.owner_id == CampaignMembership.user_id) &
+        (Character.campaign_id == campaign.id) &
+        (Character.status == 'active') &
+        (Character.is_npc == False)
     ).scalar()
 
-    if member_count >= campaign.max_players:
-        raise HTTPException(status_code=400, detail="Campaign is full")
+    if pc_count >= campaign.max_players:
+        raise HTTPException(status_code=400, detail="Campaign is full — no open player slots")
+
+    # If spectator cap is set, check spectators (players without an active PC)
+    if campaign.max_spectators is not None:
+        spectator_count = db.query(func.count(CampaignMembership.id)).filter(
+            CampaignMembership.campaign_id == campaign.id,
+            CampaignMembership.left_at.is_(None),
+            CampaignMembership.role == 'player'
+        ).outerjoin(
+            Character,
+            (Character.owner_id == CampaignMembership.user_id) &
+            (Character.campaign_id == campaign.id) &
+            (Character.status == 'active') &
+            (Character.is_npc == False)
+        ).filter(Character.id.is_(None)).scalar()
+
+        if spectator_count >= campaign.max_spectators:
+            raise HTTPException(status_code=400, detail="Campaign has reached its spectator limit")
 
     # Create membership
     membership = CampaignMembership(
@@ -521,6 +553,7 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
         is_public=campaign.is_public,
         min_players=campaign.min_players,
         max_players=campaign.max_players,
+        max_spectators=campaign.max_spectators,
         timezone=campaign.timezone,
         posting_frequency=str(campaign.posting_frequency) if campaign.posting_frequency else 'medium',
         status=str(campaign.status) if campaign.status else 'active',
@@ -571,6 +604,8 @@ def update_campaign(
         campaign.character_creation_mode = updates.character_creation_mode
     if updates.max_characters_per_player is not None:
         campaign.max_characters_per_player = updates.max_characters_per_player
+    if 'max_spectators' in updates.model_fields_set:
+        campaign.max_spectators = updates.max_spectators  # None = unlimited
 
     db.commit()
     db.refresh(campaign)

@@ -290,6 +290,7 @@ class Campaign(Base):
     # Player limits
     min_players = Column(Integer, nullable=False, default=2)
     max_players = Column(Integer, nullable=False, default=6)
+    max_spectators = Column(Integer, nullable=True, default=None)  # NULL = unlimited
 
     # Campaign settings
     timezone = Column(String, nullable=False, default="America/New_York")

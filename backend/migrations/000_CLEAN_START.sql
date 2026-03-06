@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     is_public BOOLEAN NOT NULL DEFAULT TRUE,
     min_players INTEGER NOT NULL DEFAULT 2,
     max_players INTEGER NOT NULL DEFAULT 6,
+    max_spectators INTEGER NULL,
     timezone VARCHAR NOT NULL DEFAULT 'America/New_York',
     posting_frequency posting_frequency_enum NOT NULL DEFAULT 'medium',
     status campaign_status_enum NOT NULL DEFAULT 'active',
@@ -417,6 +418,7 @@ ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS join_code VARCHAR(6) UNIQUE;
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS min_players INTEGER NOT NULL DEFAULT 2;
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_players INTEGER NOT NULL DEFAULT 6;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_spectators INTEGER NULL;
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS timezone VARCHAR NOT NULL DEFAULT 'America/New_York';
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS character_creation_mode VARCHAR NOT NULL DEFAULT 'open' CHECK (character_creation_mode IN ('open', 'approval_required', 'sw_only'));
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_characters_per_player INTEGER NOT NULL DEFAULT 1;

@@ -3144,11 +3144,13 @@
       (allMessages || []).forEach(msg => {
         if (!msg._element || msg.chat_mode === 'whisper') return;
         let hex = null;
-        if (msg.actor === myName) {
+        // Check knownPCs first — works for ALL PCs including the current player's own character
+        const pc = (knownPCs || []).find(c => c.name === msg.actor);
+        if (pc && pc.chat_color) {
+          hex = pc.chat_color;
+        } else if (myName && msg.actor === myName) {
+          // Fall back to myChatColor for speakers not in knownPCs (e.g. SW Narrator)
           hex = myChatColor;
-        } else {
-          const pc = (knownPCs || []).find(c => c.name === msg.actor);
-          if (pc && pc.chat_color) hex = pc.chat_color;
         }
         if (!hex) return;
         if (!colorCache[hex]) colorCache[hex] = hexToRgba(hex, 0.1);
@@ -7486,6 +7488,10 @@
             // Mark initial history as loaded so reconnects don't re-fetch
             if (!append) historyLoaded = true;
 
+            // Recolor now that history is in allMessages — if knownPCs isn't ready yet,
+            // loadCharacters() will call recolorAllHistory() again when it finishes.
+            recolorAllHistory();
+
             // Show "Load More" button if we got exactly messagesLimit messages (might be more)
             if (data.messages.length === messagesLimit) {
               loadMoreBtn.style.display = 'block';
@@ -7579,6 +7585,11 @@
               // without character_id). The URL is the source of truth for spectators.
               if (data.role && urlRoleParam !== 'player') {
                 userRole = data.role;
+              }
+
+              // Set currentActor early so recolorAllHistory knows who "self" is
+              if (data.character_name && data.character_name !== 'Unknown') {
+                currentActor = data.character_name;
               }
 
               // Load chat color from server (membership color = user's own voice)
