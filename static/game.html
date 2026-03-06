@@ -3097,6 +3097,18 @@
         });
         if (persist) pop.classList.remove('open');
       }
+      // Retroactively recolor all history messages from this speaker
+      const speakerName = activeSpeaker ? activeSpeaker.name : currentActor;
+      if (speakerName) {
+        const bg = hexToRgba(hex, 0.1);
+        (allMessages || []).forEach(msg => {
+          if (msg.actor !== speakerName || msg.chat_mode === 'whisper' || !msg._element) return;
+          msg._element.style.borderLeftColor = hex;
+          if (bg) msg._element.style.backgroundColor = bg;
+          const modeLabel = msg._element.querySelector('.mode-label');
+          if (modeLabel) modeLabel.style.color = hex;
+        });
+      }
       if (!persist) return;
       // Persist: if active speaker is an NPC/ally, save to that character's color;
       // if player speaking as own PC, save to character; otherwise save to membership (SW own voice).
