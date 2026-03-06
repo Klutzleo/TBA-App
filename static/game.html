@@ -3620,8 +3620,8 @@
         t.name.toLowerCase().startsWith(partial)
       );
       if (!targets.length) { hideMentionDropdown(); return; }
-      dd.innerHTML = targets.map((t, i) => `
-        <div class="mention-item" data-name="${escHtml(t.name)}" onmousedown="event.preventDefault(); insertMention(${escHtml(JSON.stringify(t.name))})">
+      dd.innerHTML = targets.map(t => `
+        <div class="mention-item" data-name="${escHtml(t.name)}">
           <span>${escHtml(t.name)}</span>
           <span class="mention-type">${t.type}</span>
         </div>
@@ -3656,8 +3656,7 @@
         <button class="fmt-btn" title="Bold" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
         ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
         ${abilities.map(a => `
-          <button class="fmt-btn macro-btn" title="${escHtml(a.display_name)}"
-            onclick="insertMacro(${escHtml(JSON.stringify(a.macro_command))})">${escHtml(a.macro_command)}</button>
+          <button class="fmt-btn macro-btn" data-macro="${escHtml(a.macro_command)}" title="${escHtml(a.display_name)}">${escHtml(a.macro_command)}</button>
         `).join('')}
       `;
     }
@@ -8651,7 +8650,7 @@
         if (dd && dd.style.display !== 'none') {
           // Select first mention item on Enter
           const first = dd.querySelector('.mention-item');
-          if (first) { first.click(); e.preventDefault(); return; }
+          if (first) { insertMention(first.dataset.name); e.preventDefault(); return; }
         }
         e.preventDefault();
         sendBtn.click();
@@ -8666,8 +8665,20 @@
     });
 
     msgInput.addEventListener('blur', () => {
-      // Small delay so click on dropdown item fires first
       setTimeout(hideMentionDropdown, 150);
+    });
+
+    // Mention dropdown — delegated mousedown so blur never fires
+    document.getElementById('mentionDropdown').addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const item = e.target.closest('.mention-item');
+      if (item) insertMention(item.dataset.name);
+    });
+
+    // Macro buttons — delegated click on toolbar
+    document.getElementById('chatToolbar').addEventListener('click', (e) => {
+      const btn = e.target.closest('.macro-btn');
+      if (btn && btn.dataset.macro) insertMacro(btn.dataset.macro);
     });
 
     // Load More Messages button
