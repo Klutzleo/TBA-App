@@ -1833,8 +1833,8 @@
     /* === Bubble Bar (Character/NPC Switching) === */
     .bubble-bar {
       display: flex;
-      gap: 8px;
-      padding: 12px 16px;
+      gap: 6px;
+      padding: 6px 12px;
       background: var(--bg-darker);
       border-bottom: 1px solid var(--border-color);
       overflow-x: auto;
@@ -1859,14 +1859,14 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      padding: 8px 12px;
+      gap: 2px;
+      padding: 5px 10px;
       background: var(--bg-panel);
       border: 2px solid var(--border-color);
       border-radius: var(--radius-md);
       cursor: pointer;
       transition: all 0.2s ease;
-      min-width: 80px;
+      min-width: 60px;
       user-select: none;
     }
 
@@ -1904,11 +1904,11 @@
     }
 
     .bubble-avatar {
-      font-size: 24px;
+      font-size: 18px;
     }
 
     .bubble-name {
-      font-size: 12px;
+      font-size: 11px;
       text-align: center;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3434,15 +3434,20 @@
         }
 
       } else {
-        // Player: PC + Ally (if exists)
-        playerCharacters.forEach(char => {
-          const bubble = createBubble({
-            id: char.id,
-            name: char.name,
-            type: char.is_ally ? 'ally' : 'pc'
+        // Player: hide bubble bar if only one speaker (no ally)
+        if (playerCharacters.length <= 1) {
+          bubbleBar.style.display = 'none';
+        } else {
+          bubbleBar.style.display = '';
+          playerCharacters.forEach(char => {
+            const bubble = createBubble({
+              id: char.id,
+              name: char.name,
+              type: char.is_ally ? 'ally' : 'pc'
+            });
+            bubbleBar.appendChild(bubble);
           });
-          bubbleBar.appendChild(bubble);
-        });
+        }
       }
     }
 
@@ -3553,7 +3558,6 @@
       toolbar.style.display = 'flex';
       toolbar.innerHTML = `
         <button class="fmt-btn" title="Bold" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
-        <button class="fmt-btn" title="Italic" onclick="wrapInputText('*','*','italic text')"><em>I</em></button>
         ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
         ${abilities.map(a => `
           <button class="fmt-btn macro-btn" title="${escHtml(a.display_name)}"
