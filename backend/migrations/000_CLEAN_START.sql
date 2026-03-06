@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     archived_at TIMESTAMPTZ,
+    last_notified_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     join_code VARCHAR(6) UNIQUE,

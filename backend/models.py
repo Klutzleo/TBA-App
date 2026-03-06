@@ -307,6 +307,7 @@ class Campaign(Base):
     created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
     is_active = Column(Boolean, nullable=False, default=True)
     archived_at = Column(DateTime, nullable=True)
+    last_notified_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

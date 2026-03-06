@@ -430,29 +430,31 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
         attachment=msg.attachment
     ).model_dump(mode='json'))
 
-    # Push notification to offline campaign members (skip connected users — they got WS msg)
-    if db:
+    # Push notification to all campaign members (online + offline) for Story (IC) messages.
+    # Cooldown: max one push per campaign per 10 minutes to avoid spam.
+    if db and msg.mode.upper() == 'IC':
         try:
-            from backend.notifications import send_push
-            connected_ids = {str(uid) for uid, _ in manager.get_connected_users(campaign_id)}
-            members = db.query(CampaignMembership).filter(
-                CampaignMembership.campaign_id == campaign_id
-            ).all()
-            preview = msg.message[:80] + ('…' if len(msg.message) > 80 else '')
-            for m in members:
-                if str(m.user_id) == str(user_id):
-                    continue  # Skip sender
-                if str(m.user_id) in connected_ids:
-                    continue  # Already receiving via WebSocket
-                send_push(
-                    db, str(m.user_id),
-                    f"💬 {sender}",
-                    preview,
-                    url=f"/game.html?campaign_id={campaign_id}",
-                    campaign_id=str(campaign_id),
-                )
+            from backend.notifications import send_push_to_campaign
+            from datetime import timedelta
+            campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            if campaign_obj:
+                cooldown = timedelta(minutes=10)
+                now = datetime.utcnow()
+                last = campaign_obj.last_notified_at
+                if last is None or (now - last) >= cooldown:
+                    preview = msg.message[:80] + ('…' if len(msg.message) > 80 else '')
+                    send_push_to_campaign(
+                        db,
+                        campaign_id=str(campaign_id),
+                        exclude_user_id=str(user_id),
+                        title=f"📜 {sender}",
+                        body=preview,
+                        url=f"/game.html?campaign_id={campaign_id}",
+                    )
+                    campaign_obj.last_notified_at = now
+                    db.commit()
         except Exception as _pe:
-            logger.warning(f"Chat push notification failed: {_pe}")
+            logger.warning(f"Story push notification failed: {_pe}")
 
 
 async def handle_whisper(campaign_id: UUID, data: dict, user_id: UUID):
