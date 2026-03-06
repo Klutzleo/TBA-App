@@ -4779,6 +4779,8 @@
       // Italic: *text* or _text_
       s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
       s = s.replace(/_([^_\s][^_]*)_/g, '<em>$1</em>');
+      // Mentions: @[Name With Spaces] or @Word → bold
+      s = s.replace(/@\[([^\]]+)\]|@(\w+)/g, (m, bracketed, plain) => `<strong>@${bracketed || plain}</strong>`);
       return s;
     }
 

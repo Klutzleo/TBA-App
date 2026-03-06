@@ -430,6 +430,35 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
         attachment=msg.attachment
     ).model_dump(mode='json'))
 
+    # Push notifications to mentioned players (@Name or @[Name With Spaces])
+    if db:
+        try:
+            import re as _re
+            from backend.notifications import send_push
+            mention_names = []
+            for m in _re.finditer(r'@\[([^\]]+)\]|@(\S+)', msg.message):
+                mention_names.append(m.group(1) if m.group(1) else m.group(2))
+            for mention_name in set(mention_names):
+                mentioned_char = db.query(Character).filter(
+                    Character.name == mention_name,
+                    Character.campaign_id == campaign_id,
+                    Character.is_npc == False  # noqa: E712
+                ).first()
+                if mentioned_char and mentioned_char.user_id and str(mentioned_char.user_id) != str(user_id):
+                    try:
+                        send_push(
+                            db,
+                            user_id=str(mentioned_char.user_id),
+                            title=f"💬 {sender} mentioned you",
+                            body=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                            url=f"/game.html?campaign_id={campaign_id}&character_id={mentioned_char.id}",
+                            campaign_id=str(campaign_id),
+                        )
+                    except Exception as _pe:
+                        logger.warning(f"Mention push failed for {mention_name}: {_pe}")
+        except Exception as _e:
+            logger.warning(f"Mention push detection failed: {_e}")
+
     # Push notification to all campaign members (online + offline) for Story (IC) messages.
     # Cooldown: max one push per campaign per 10 minutes to avoid spam.
     if db and msg.mode.upper() == 'IC':
