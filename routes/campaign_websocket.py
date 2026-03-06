@@ -815,7 +815,13 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             return
 
         macro_command = parts[0].lower()  # e.g., "/heal"
-        target_names = [p.lstrip("@") for p in parts[1:] if p.startswith("@")]
+        # Parse targets: supports @Name, @[Name With Spaces], @Name_With_Underscores
+        import re as _re
+        raw_after = cmd.raw_command[len(parts[0]):].strip()
+        target_names = []
+        for m in _re.finditer(r'@\[([^\]]+)\]|@(\S+)', raw_after):
+            name = m.group(1) if m.group(1) else m.group(2).replace('_', ' ')
+            target_names.append(name)
 
         # Get caster's character (PC lookup by user_id, or NPC lookup by speaker_id)
         if cmd.speaker_id and cmd.speaker_type == 'npc':

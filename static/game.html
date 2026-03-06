@@ -1161,6 +1161,33 @@
     }
 
     /* === Chat Input === */
+    #mentionDropdown {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.4);
+      margin-bottom: 4px;
+      overflow: hidden;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .mention-item {
+      padding: 7px 14px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.12s;
+    }
+    .mention-item:hover, .mention-item.focused {
+      background: var(--bg-hover, #252937);
+    }
+    .mention-item .mention-type {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
     .chat-input-container {
       padding: 10px 16px;
       padding-bottom: max(10px, calc(10px + env(safe-area-inset-bottom)));
@@ -2477,6 +2504,7 @@
 
         <div class="chat-input-container">
           <div id="chatToolbar" style="display:none;"></div>
+          <div id="mentionDropdown" style="display:none;"></div>
           <div class="chat-input-main">
             <textarea
               class="form-input"
@@ -3524,13 +3552,76 @@
       ta.focus();
     }
 
-    // Insert macro text at cursor position
+    // Insert macro text at cursor position; appends space+@ so user picks target
     function insertMacro(text) {
       const ta = document.getElementById('messageInput');
       const start = ta.selectionStart;
-      ta.value = ta.value.slice(0, start) + text + ta.value.slice(start);
-      ta.setSelectionRange(start + text.length, start + text.length);
+      const insert = text + ' @';
+      ta.value = ta.value.slice(0, start) + insert + ta.value.slice(start);
+      const pos = start + insert.length;
+      ta.setSelectionRange(pos, pos);
       ta.focus();
+      updateMentionDropdown();
+    }
+
+    // Insert a resolved @mention name at the current @ position
+    function insertMention(name) {
+      const ta = document.getElementById('messageInput');
+      const val = ta.value;
+      const cursor = ta.selectionStart;
+      // Find the @ that triggered this mention
+      const atPos = val.lastIndexOf('@', cursor - 1);
+      if (atPos === -1) return;
+      const formatted = name.includes(' ') ? `@[${name}]` : `@${name}`;
+      const before = val.slice(0, atPos);
+      const after = val.slice(cursor);
+      ta.value = before + formatted + ' ' + after;
+      const newPos = before.length + formatted.length + 1;
+      ta.setSelectionRange(newPos, newPos);
+      ta.focus();
+      hideMentionDropdown();
+    }
+
+    function hideMentionDropdown() {
+      const d = document.getElementById('mentionDropdown');
+      if (d) d.style.display = 'none';
+    }
+
+    // Build list of all targetable names for @ mentions
+    function getMentionTargets() {
+      const targets = [];
+      (playerCharacters || []).forEach(c => {
+        if (!c.is_npc) targets.push({ name: c.name, type: c.is_ally ? 'Ally' : 'PC' });
+      });
+      (campaignNPCs || []).forEach(c => {
+        targets.push({ name: c.name, type: 'NPC' });
+      });
+      return targets;
+    }
+
+    function updateMentionDropdown() {
+      const ta = document.getElementById('messageInput');
+      const dd = document.getElementById('mentionDropdown');
+      if (!dd) return;
+      const val = ta.value;
+      const cursor = ta.selectionStart;
+      // Find @ before cursor (no space between @ and cursor)
+      const textBefore = val.slice(0, cursor);
+      const atMatch = textBefore.match(/@(\w*)$/);
+      if (!atMatch) { hideMentionDropdown(); return; }
+      const partial = atMatch[1].toLowerCase();
+      const targets = getMentionTargets().filter(t =>
+        t.name.toLowerCase().replace(/\s+/g, '').startsWith(partial) ||
+        t.name.toLowerCase().startsWith(partial)
+      );
+      if (!targets.length) { hideMentionDropdown(); return; }
+      dd.innerHTML = targets.map((t, i) => `
+        <div class="mention-item" data-name="${escHtml(t.name)}" onclick="insertMention(${JSON.stringify(t.name)})">
+          <span>${escHtml(t.name)}</span>
+          <span class="mention-type">${t.type}</span>
+        </div>
+      `).join('');
+      dd.style.display = 'block';
     }
 
     // Render the formatting + macro toolbar above the input
@@ -8546,16 +8637,29 @@
 
     // Allow Enter key to send message (Shift+Enter for newlines)
     msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { hideMentionDropdown(); return; }
       if (e.key === 'Enter' && !e.shiftKey && !sendBtn.disabled) {
+        const dd = document.getElementById('mentionDropdown');
+        if (dd && dd.style.display !== 'none') {
+          // Select first mention item on Enter
+          const first = dd.querySelector('.mention-item');
+          if (first) { first.click(); e.preventDefault(); return; }
+        }
         e.preventDefault();
         sendBtn.click();
       }
     });
 
-    // Auto-resize textarea as user types
+    // Auto-resize textarea as user types + trigger @ mention dropdown
     msgInput.addEventListener('input', () => {
       msgInput.style.height = 'auto';
       msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+      updateMentionDropdown();
+    });
+
+    msgInput.addEventListener('blur', () => {
+      // Small delay so click on dropdown item fires first
+      setTimeout(hideMentionDropdown, 150);
     });
 
     // Load More Messages button
