@@ -96,6 +96,9 @@ class CharacterResponse(BaseModel):
     id: UUID
     name: str
     owner_id: str
+    user_id: Optional[UUID] = None
+    is_npc: bool = False
+    is_ally: bool = False
     level: int
     pp: int
     ip: int

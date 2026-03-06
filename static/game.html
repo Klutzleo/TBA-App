@@ -3544,8 +3544,8 @@
         }
       }
 
-      // Hide toolbar only when not connected yet
-      if (!activeSpeaker && abilities.length === 0) {
+      // Always show at minimum the B/I buttons once connected
+      if (!ws) {
         toolbar.style.display = 'none';
         return;
       }
