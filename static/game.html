@@ -3139,10 +3139,12 @@
     // Recolor ALL history messages based on each sender's known character color.
     // Called after welcome so knownPCs is populated and myChatColor is set.
     function recolorAllHistory() {
+      if (!allMessages || allMessages.length === 0) return;
       const colorCache = {};
       const myName = activeSpeaker ? activeSpeaker.name : currentActor;
+      let anyColored = false;
       (allMessages || []).forEach(msg => {
-        if (!msg._element || msg.chat_mode === 'whisper') return;
+        if (!msg._element || msg.chat_mode === 'whisper' || !msg.actor) return;
         let hex = null;
         // Check knownPCs first — works for ALL PCs including the current player's own character
         const pc = (knownPCs || []).find(c => c.name === msg.actor);
@@ -3153,6 +3155,7 @@
           hex = myChatColor;
         }
         if (!hex) return;
+        anyColored = true;
         if (!colorCache[hex]) colorCache[hex] = hexToRgba(hex, 0.1);
         msg._element.style.borderLeftColor = hex;
         const bg = colorCache[hex];
@@ -3160,6 +3163,8 @@
         const modeLabel = msg._element.querySelector('.mode-label');
         if (modeLabel) modeLabel.style.color = hex;
       });
+      // Force-refresh the active tab so any cloned elements also pick up the new colors
+      if (anyColored) renderMessages();
     }
 
     // Close color picker when clicking outside
