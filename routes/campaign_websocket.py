@@ -254,6 +254,12 @@ async def campaign_websocket(
     except Exception:
         pass
 
+    # Broadcast updated online users list to everyone
+    try:
+        await broadcast_online_users(campaign_uuid, db)
+    except Exception as _e:
+        logger.warning(f"broadcast_online_users on connect failed: {_e}")
+
     try:
         while True:
             # Receive message from client
@@ -309,6 +315,10 @@ async def campaign_websocket(
                 event="player_left",
                 message=f"{display_name} left the campaign"
             ).model_dump(mode='json'))
+        try:
+            await broadcast_online_users(campaign_uuid, db)
+        except Exception as _e:
+            logger.warning(f"broadcast_online_users on disconnect failed: {_e}")
 
 
 # ============================================================================
@@ -1551,6 +1561,40 @@ async def broadcast_character_rejected(campaign_id: UUID, character_id: str, cha
         "owner_id": owner_id,
         "reason": reason
     })
+
+
+async def broadcast_online_users(campaign_uuid: UUID, db: Session):
+    """Broadcast current connected users list (SW / players / spectators)."""
+    memberships = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.left_at.is_(None)
+    ).all()
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+    sw_id = str(campaign.story_weaver_id) if campaign else None
+    connected_ids = set()
+    if campaign_uuid in manager.active_connections:
+        connected_ids = {str(c[1]) for c in manager.active_connections[campaign_uuid]}
+    users = []
+    for m in memberships:
+        from backend.models import User as _User
+        user = db.query(_User).filter(_User.id == m.user_id).first()
+        if not user:
+            continue
+        uid = str(m.user_id)
+        if uid == sw_id:
+            role = 'SW'
+        else:
+            char = db.query(Character).filter(
+                Character.user_id == m.user_id,
+                Character.campaign_id == campaign_uuid,
+                Character.is_npc == False,  # noqa: E712
+                Character.status == 'active'
+            ).first()
+            role = 'player' if char else 'spectator'
+        users.append({'username': user.username, 'role': role, 'connected': uid in connected_ids})
+    role_order = {'SW': 0, 'player': 1, 'spectator': 2}
+    users.sort(key=lambda u: (role_order.get(u['role'], 3), u['username']))
+    await manager.broadcast(campaign_uuid, {'type': 'online_users', 'users': users})
 
 
 async def broadcast_player_joined(campaign_id: UUID, username: str):

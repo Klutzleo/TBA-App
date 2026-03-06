@@ -2228,7 +2228,15 @@
         <div id="sidebarTabBar" style="display:none; padding:0 8px 4px;">
           <div style="display:flex; gap:4px;">
             <button class="sidebar-tab-btn active" id="sidebarTabParty" onclick="switchSidebarTab('party')" style="flex:1;">Party</button>
-            <button class="sidebar-tab-btn" id="sidebarTabInit" onclick="switchSidebarTab('initiative')" style="flex:1;">⚔️ Initiative</button>
+            <button class="sidebar-tab-btn" id="sidebarTabInit" onclick="switchSidebarTab('initiative')" style="display:none; flex:1;">⚔️ Initiative</button>
+            <button class="sidebar-tab-btn" id="sidebarTabOnline" onclick="switchSidebarTab('online')" style="flex:1;">👥 Online</button>
+          </div>
+        </div>
+
+        <!-- Who's Online Panel -->
+        <div id="sidebarOnlinePanel" style="display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
+          <div id="onlineUsersList" style="flex:1; overflow-y:auto; padding:12px 16px;">
+            <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Waiting...</div>
           </div>
         </div>
 
@@ -4854,21 +4862,52 @@
     let currentTurnIndex = 0;
 
     function switchSidebarTab(tab) {
-      const partyPanel = document.getElementById('sidebarPartyPanel');
-      const initPanel  = document.getElementById('sidebarInitiativePanel');
-      const partyBtn   = document.getElementById('sidebarTabParty');
-      const initBtn    = document.getElementById('sidebarTabInit');
+      const partyPanel  = document.getElementById('sidebarPartyPanel');
+      const initPanel   = document.getElementById('sidebarInitiativePanel');
+      const onlinePanel = document.getElementById('sidebarOnlinePanel');
+      const partyBtn    = document.getElementById('sidebarTabParty');
+      const initBtn     = document.getElementById('sidebarTabInit');
+      const onlineBtn   = document.getElementById('sidebarTabOnline');
+      // Hide all panels and deactivate all buttons
+      partyPanel.style.display  = 'none';
+      if (initPanel)   initPanel.style.display   = 'none';
+      if (onlinePanel) onlinePanel.style.display  = 'none';
+      [partyBtn, initBtn, onlineBtn].forEach(b => b && b.classList.remove('active'));
       if (tab === 'initiative') {
-        partyPanel.style.display = 'none';
-        initPanel.style.display  = 'flex';
-        partyBtn.classList.remove('active');
-        initBtn.classList.add('active');
+        if (initPanel)  initPanel.style.display  = 'flex';
+        if (initBtn)    initBtn.classList.add('active');
+      } else if (tab === 'online') {
+        if (onlinePanel) onlinePanel.style.display = 'flex';
+        if (onlineBtn)   onlineBtn.classList.add('active');
       } else {
-        initPanel.style.display  = 'none';
         partyPanel.style.display = '';
-        initBtn.classList.remove('active');
         partyBtn.classList.add('active');
       }
+    }
+
+    function renderOnlineUsers(users) {
+      const container = document.getElementById('onlineUsersList');
+      if (!container) return;
+      if (!users || !users.length) {
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No one connected.</div>';
+        return;
+      }
+      const sections = [
+        { label: '🌟 Story Weaver', items: users.filter(u => u.role === 'SW') },
+        { label: '⚔️ Players',      items: users.filter(u => u.role === 'player') },
+        { label: '👁 Spectators',   items: users.filter(u => u.role === 'spectator') },
+      ];
+      container.innerHTML = sections.filter(s => s.items.length).map(s => `
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">${s.label}</div>
+          ${s.items.map(u => `
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+              <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${u.connected ? '#10b981' : '#6b7280'};"></span>
+              <span style="font-size:0.88rem;">${escHtml(u.username)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
     }
 
     function renderInitiativeTracker() {
@@ -7335,6 +7374,10 @@
           // Load initial message history
           await loadMessageHistory();
 
+          // Show sidebar tab bar for all users (initiative tab shown for SW only)
+          const tabBarEl = document.getElementById('sidebarTabBar');
+          if (tabBarEl) tabBarEl.style.display = 'flex';
+
           // Load bubble bar (NPCs for SW, PC+Ally for players)
           await loadBubbleBar();
           renderChatToolbar();
@@ -8421,6 +8464,8 @@
               // Handle both whisper_targets (array) and whisper_target (legacy single)
               const targets = data.whisper_targets || data.whisper_target;
               displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets, false);
+            } else if (data.type === 'online_users') {
+              renderOnlineUsers(data.users);
             } else if (data.type === 'defend') {
               // Defense roll result
               renderDefendRoll(data);
@@ -8881,9 +8926,11 @@
       const settingsBtn = document.getElementById('campaignSettingsBtn');
       if (settingsBtn) settingsBtn.style.display = '';
 
-      // Show sidebar initiative tab bar
+      // Show sidebar tab bar with initiative button for SW
       const tabBar = document.getElementById('sidebarTabBar');
       if (tabBar) tabBar.style.display = 'flex';
+      const initTabBtn = document.getElementById('sidebarTabInit');
+      if (initTabBtn) initTabBtn.style.display = '';
 
       // Show SW lore toolbar
       const loreSWToolbar = document.getElementById('loreSWToolbar');
