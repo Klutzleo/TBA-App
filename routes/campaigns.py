@@ -715,6 +715,7 @@ async def get_campaign_members(
                 "bap_token_active": character.bap_token_active or False,
                 "bap_token_type": character.bap_token_type,
                 "battle_scars": character.battle_scars or [],
+                "chat_color": character.chat_color or '#d4af37',
             } if character else None
         })
     
