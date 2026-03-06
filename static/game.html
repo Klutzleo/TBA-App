@@ -4502,14 +4502,16 @@
 
     let loreEntries = [];       // local cache
     let loreEditingId = null;   // null = new entry, string = editing existing
+    let memoryEchoes = [];
 
     async function loadLore() {
       try {
-        const resp = await fetch(`/api/campaigns/${campaignId}/lore`, {
-          headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        if (!resp.ok) return;
-        loreEntries = await resp.json();
+        const [loreResp, echoResp] = await Promise.all([
+          fetch(`/api/campaigns/${campaignId}/lore`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+          fetch(`/api/campaigns/${campaignId}/memory-echoes`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        ]);
+        if (loreResp.ok) loreEntries = await loreResp.json();
+        if (echoResp.ok) memoryEchoes = await echoResp.json();
         renderLore();
       } catch (e) {
         console.error('Failed to load lore:', e);
@@ -4520,12 +4522,13 @@
       const list = document.getElementById('loreList');
       if (!list) return;
 
-      if (!loreEntries.length) {
+      list.innerHTML = '';
+
+      if (!loreEntries.length && !memoryEchoes.length) {
         list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">No lore entries yet.</div>';
         return;
       }
 
-      list.innerHTML = '';
       loreEntries.forEach(entry => {
         const card = document.createElement('div');
         card.className = 'lore-card';
@@ -4548,6 +4551,20 @@
 
         list.appendChild(card);
       });
+
+      // ⚰️ Fallen — Memory Echoes section
+      if (memoryEchoes.length) {
+        const fallenHeader = document.createElement('div');
+        fallenHeader.style.cssText = 'margin:20px 0 10px;padding-top:16px;border-top:1px solid rgba(248,113,113,0.25);';
+        fallenHeader.innerHTML = '<span style="font-size:0.72rem;color:#f87171;text-transform:uppercase;letter-spacing:0.08em;">⚰️ Fallen</span>';
+        list.appendChild(fallenHeader);
+        memoryEchoes.forEach(echo => {
+          const card = document.createElement('div');
+          card.style.cssText = 'background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.2);border-radius:6px;padding:10px 12px;margin-bottom:8px;border-left:3px solid rgba(248,113,113,0.5);';
+          card.innerHTML = `<div style="font-size:0.75rem;color:#f87171;font-weight:600;margin-bottom:4px;">${escHtml(echo.character_name)}</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;font-style:italic;">${escHtml(echo.echo_text)}</div>`;
+          list.appendChild(card);
+        });
+      }
     }
 
     function toggleLoreCard(headerEl) {
@@ -5502,11 +5519,69 @@
       }
     }
 
-    function broadcastMemoryEcho() {
+    async function broadcastMemoryEcho() {
       const echo = document.getElementById('callingEchoText').value.trim();
-      if (!echo || !ws) return;
-      ws.send(JSON.stringify({ type: 'chat', mode: 'ooc', text: `💀 Memory Echo: ${echo}` }));
-      document.getElementById('callingEchoInput').style.display = 'none';
+      if (!echo) return;
+      // Get character name from the calling modal label
+      const labelEl = document.getElementById('callingCharLabel');
+      const charName = labelEl ? labelEl.textContent.replace(' enters The Calling!', '').trim() : 'Unknown';
+      try {
+        await fetch(`/api/campaigns/${campaignId}/memory-echoes`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ character_name: charName, character_id: callingCharId, echo_text: echo })
+        });
+        // WS broadcast handled by server via memory_echo_created event
+        document.getElementById('callingEchoInput').style.display = 'none';
+      } catch (e) {
+        alert('Failed to save Memory Echo: ' + e.message);
+      }
+    }
+
+    // =========================================================================
+    // Tether management (SW sheet)
+    // =========================================================================
+
+    async function swAddTether(charId) {
+      const input = document.getElementById('swNewTether');
+      const desc = input ? input.value.trim() : '';
+      if (!desc) return;
+      try {
+        await fetch(`/api/characters/${charId}/tethers`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: desc })
+        });
+        openSwSheetModal(charId, document.getElementById('swSheetCharName').textContent);
+      } catch (e) { alert('Failed to add tether: ' + e.message); }
+    }
+
+    async function swToggleTether(charId, tetherId, activate, currentModifier) {
+      let modifier = currentModifier;
+      if (activate) {
+        const raw = prompt('Set modifier level (-5 to +5). Positive = buff, negative = debuff:', modifier || '0');
+        if (raw === null) return;
+        modifier = Math.max(-5, Math.min(5, parseInt(raw, 10) || 0));
+      }
+      try {
+        await fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: activate, modifier })
+        });
+        openSwSheetModal(charId, document.getElementById('swSheetCharName').textContent);
+      } catch (e) { alert('Failed to toggle tether: ' + e.message); }
+    }
+
+    async function swRemoveTether(charId, tetherId) {
+      if (!confirm('Remove this tether?')) return;
+      try {
+        await fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        openSwSheetModal(charId, document.getElementById('swSheetCharName').textContent);
+      } catch (e) { alert('Failed to remove tether: ' + e.message); }
     }
 
     // =========================================================================
@@ -7478,6 +7553,22 @@
             } else if (data.type === 'lore_deleted') {
               loadLore();
 
+            } else if (data.type === 'memory_echo_created') {
+              memoryEchoes.push(data.echo);
+              renderLore();
+              showPanelToast(`⚰️ Memory Echo recorded: ${data.echo.character_name}`, 'warning');
+              if (activeTab !== 'lore') setTimeout(() => switchTab('lore'), 100);
+
+            } else if (data.type === 'tether_activated' || data.type === 'tether_deactivated') {
+              const active = data.type === 'tether_activated';
+              const modStr = data.modifier > 0 ? `+${data.modifier}` : String(data.modifier);
+              const icon = active ? '🔗' : '⛓️';
+              const msg = active
+                ? `${icon} ${data.character_name}'s Tether activated (${modStr}): "${data.description}"`
+                : `${icon} ${data.character_name}'s Tether released: "${data.description}"`;
+              addMessage(msg, 'message-card message-system');
+              await loadCharacters();
+
             } else if (data.type === 'item_added') {
               // SW gifted an item — notify the recipient, refresh their inventory
               if (data.given_by_sw && data.character_id === characterId) {
@@ -8435,6 +8526,9 @@
             const isCalledBadge = char.is_called
               ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;margin-left:4px;" title="The Called — haunted by visions and nightmares">The Called</span>`
               : '';
+            const tetherBadge = (char.active_tether_modifier && char.active_tether_modifier !== 0)
+              ? `<span style="font-size:0.7rem;color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};background:rgba(147,197,253,0.08);border:1px solid rgba(147,197,253,0.25);border-radius:4px;padding:1px 5px;margin-left:4px;" title="Active Tether modifier">🔗${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>`
+              : '';
             const scars = Array.isArray(char.battle_scars) ? char.battle_scars : [];
             const scarsHtml = scars.length > 0
               ? `<details style="margin-top:6px;">
@@ -8449,7 +8543,7 @@
               <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
                   <strong>${char.name}</strong>
-                  ${bapTokenBadge}${isCalledBadge}
+                  ${bapTokenBadge}${isCalledBadge}${tetherBadge}
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
@@ -9000,6 +9094,24 @@
           </div>
         </div>
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
+        ${(char.tethers && char.tethers.length > 0 || true) ? (() => {
+          const tList = (char.tethers || []).map(t => 
+            `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+              <span style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;">${escHtml(t.description)}</span>
+              <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;margin-left:8px;">
+                ${t.is_active ? `<span style="font-size:0.7rem;color:${t.modifier >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${t.modifier >= 0 ? '+' : ''}${t.modifier}</span>` : ''}
+                <button style="background:none;border:none;cursor:pointer;font-size:0.8rem;padding:0 2px;" title="${t.is_active ? 'Deactivate' : 'Activate'}" onclick="swToggleTether('${_swSheetCharId}','${t.id}',${!t.is_active},${t.modifier||0})">${t.is_active ? '🔗' : '⛓️'}</button>
+                <button style="background:none;border:none;cursor:pointer;font-size:0.8rem;padding:0 2px;" title="Remove" onclick="swRemoveTether('${_swSheetCharId}','${t.id}')">🗑️</button>
+              </div></div>`).join('');
+          return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(147,197,253,0.4);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;">🔗 Tethers ${char.tethers && char.tethers.length >= 3 ? '(max)' : ''}</span>
+              ${char.active_tether_modifier ? `<span style="font-size:0.72rem;padding:1px 6px;border-radius:3px;background:${char.active_tether_modifier > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'};color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};">Active: ${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>` : ''}
+            </div>
+            ${tList}
+            ${(char.tethers || []).length < 3 ? `<div style="display:flex;gap:6px;margin-top:8px;"><input id="swNewTether" placeholder="Add tether..." style="flex:1;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.82rem;"><button class="btn" style="font-size:0.75rem;padding:2px 8px;" onclick="swAddTether('${_swSheetCharId}')">Add</button></div>` : ''}
+          </div>`;
+        })() : ''}
         ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}
         <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
         <div id="swAbilitiesContainer">${abilityRows}</div>
@@ -9343,6 +9455,13 @@
         <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
         ${abilityRows}
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
+        ${(char.tethers && char.tethers.length > 0) ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid rgba(147,197,253,0.4);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;">🔗 Tethers</span>
+            ${char.active_tether_modifier ? `<span style="font-size:0.72rem;padding:1px 6px;border-radius:3px;background:${char.active_tether_modifier > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'};color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};">Active: ${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>` : ''}
+          </div>
+          ${char.tethers.map(t => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;">${escHtml(t.description)}</span>${t.is_active ? `<span style="font-size:0.7rem;color:${t.modifier >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${t.modifier >= 0 ? '+' : ''}${t.modifier}</span>` : ''}</div>`).join('')}
+        </div>` : ''}
         ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}
       `;
     } catch (e) {
