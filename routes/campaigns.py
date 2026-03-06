@@ -1239,3 +1239,82 @@ async def delete_campaign(
 
     db.delete(campaign)
     db.commit()
+
+
+# ============================================================
+# Memory Echoes
+# ============================================================
+
+def _echo_dict(echo) -> dict:
+    return {
+        "id": str(echo.id),
+        "campaign_id": str(echo.campaign_id),
+        "character_id": str(echo.character_id) if echo.character_id else None,
+        "character_name": echo.character_name,
+        "echo_text": echo.echo_text,
+        "created_at": echo.created_at.isoformat() if echo.created_at else None,
+    }
+
+
+@router.get("/{campaign_id}/memory-echoes")
+async def list_memory_echoes(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return all memory echoes for a campaign (all members)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+    from backend.models import MemoryEcho
+    echoes = db.query(MemoryEcho).filter(
+        MemoryEcho.campaign_id == campaign_id
+    ).order_by(MemoryEcho.created_at.asc()).all()
+    return [_echo_dict(e) for e in echoes]
+
+
+@router.post("/{campaign_id}/memory-echoes", status_code=201)
+async def create_memory_echo(
+    campaign_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW saves a memory echo for a fallen character."""
+    _require_sw(campaign_id, current_user, db)
+    from backend.models import MemoryEcho
+    from uuid import UUID as _UUID
+
+    character_name = (req.get("character_name") or "Unknown").strip()[:200]
+    echo_text = (req.get("echo_text") or "").strip()
+    if not echo_text:
+        raise HTTPException(status_code=400, detail="echo_text is required")
+    char_id_raw = req.get("character_id")
+    character_id = _UUID(char_id_raw) if char_id_raw else None
+
+    echo = MemoryEcho(
+        campaign_id=campaign_id,
+        character_id=character_id,
+        character_name=character_name,
+        echo_text=echo_text,
+        created_by_user_id=current_user.id,
+    )
+    db.add(echo)
+    db.commit()
+    db.refresh(echo)
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(str(campaign_id), {
+            "type": "memory_echo_created",
+            "echo": _echo_dict(echo),
+        }))
+    except Exception:
+        pass
+
+    return _echo_dict(echo)

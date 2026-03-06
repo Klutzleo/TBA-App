@@ -113,6 +113,8 @@ class CharacterResponse(BaseModel):
     times_called: int = 0
     is_called: bool = False
     battle_scars: Optional[list] = None
+    tethers: Optional[list] = None
+    active_tether_modifier: int = 0
     created_at: datetime
     updated_at: datetime
 

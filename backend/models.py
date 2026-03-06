@@ -231,6 +231,8 @@ class Character(Base):
     rejection_reason = Column(Text, nullable=True)  # Set by SW when rejecting a character in approval_required mode
     battle_scars = Column(JSON, nullable=True, default=list)  # Array of scar descriptions from surviving The Calling
     has_faced_calling_this_encounter = Column(Boolean, nullable=False, default=False)  # Prevent re-triggering in same encounter
+    tethers = Column(JSON, nullable=True, default=list)  # Array of {id, description, is_active, modifier}
+    active_tether_modifier = Column(Integer, nullable=False, default=0)  # Sum of active tether modifiers
 
     # BAP Token system
     bap_token_active = Column(Boolean, nullable=False, default=False)
@@ -654,6 +656,20 @@ class LoreEntry(Base):
 
     def __repr__(self):
         return f"<LoreEntry(id={str(self.id)[:8]}..., title='{self.title[:30]}')>"
+
+
+class MemoryEcho(Base):
+    """Permanent record of a fallen character's final act."""
+    __tablename__ = "memory_echoes"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)
+    character_name = Column(String(200), nullable=False)
+    echo_text = Column(Text, nullable=False)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class PushSubscription(Base):

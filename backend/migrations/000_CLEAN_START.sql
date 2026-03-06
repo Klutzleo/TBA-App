@@ -132,6 +132,8 @@ CREATE TABLE IF NOT EXISTS characters (
     rejection_reason TEXT,
     battle_scars JSON DEFAULT '[]',
     has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE,
+    tethers JSON DEFAULT '[]',
+    active_tether_modifier INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -160,11 +162,40 @@ EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
 
-DO $$ BEGIN
+DO $ BEGIN
     ALTER TABLE characters ADD COLUMN IF NOT EXISTS has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE;
 EXCEPTION
     WHEN duplicate_column THEN null;
-END $$;
+END $;
+
+DO $ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS tethers JSON DEFAULT '[]';
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $;
+
+DO $ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS active_tether_modifier INTEGER NOT NULL DEFAULT 0;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $;
+
+DO $ BEGIN
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_notified_at TIMESTAMPTZ;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $;
+
+CREATE TABLE IF NOT EXISTS memory_echoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    character_id UUID REFERENCES characters(id) ON DELETE SET NULL,
+    character_name VARCHAR(200) NOT NULL,
+    echo_text TEXT NOT NULL,
+    created_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_memory_echoes_campaign ON memory_echoes(campaign_id);
 
 -- Add comments to clarify column purposes
 COMMENT ON COLUMN characters.is_npc IS 'TRUE for NPCs created by SW, FALSE for player characters and allies';
@@ -399,6 +430,18 @@ CREATE INDEX IF NOT EXISTS idx_initiative_encounter ON initiative_rolls(encounte
 CREATE INDEX IF NOT EXISTS idx_initiative_character ON initiative_rolls(character_id);
 CREATE INDEX IF NOT EXISTS idx_initiative_npc ON initiative_rolls(npc_id);
 CREATE INDEX IF NOT EXISTS idx_initiative_order ON initiative_rolls(encounter_id, roll_result DESC);
+
+-- memory_echoes: Permanent records of fallen characters
+CREATE TABLE IF NOT EXISTS memory_echoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    character_id UUID REFERENCES characters(id) ON DELETE SET NULL,
+    character_name VARCHAR(200) NOT NULL,
+    echo_text TEXT NOT NULL,
+    created_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_memory_echoes_campaign ON memory_echoes(campaign_id);
 
 -- =====================================================================
 -- 7. Create view

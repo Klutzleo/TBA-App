@@ -2981,3 +2981,143 @@ async def give_inventory_item(
         pass
 
     return _item_dict(item)
+
+# ============================================================
+# Tethers
+# ============================================================
+
+@character_blp_fastapi.post("/{character_id}/tethers")
+async def add_tether(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a tether to a character (SW or the character's owner)."""
+    from uuid import UUID, uuid4
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    # Allow SW or the character's own player
+    campaign = db.query(Campaign).filter(Campaign.id == char.campaign_id).first()
+    is_sw = campaign and str(campaign.story_weaver_id) == str(current_user.id)
+    is_owner = char.user_id and str(char.user_id) == str(current_user.id)
+    if not is_sw and not is_owner:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    body = await request.json()
+    description = (body.get("description") or "").strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="description is required")
+
+    existing = char.tethers or []
+    if len(existing) >= 3:
+        raise HTTPException(status_code=400, detail="Maximum 3 tethers per character")
+
+    new_tether = {
+        "id": str(uuid4()),
+        "description": description,
+        "is_active": False,
+        "modifier": 0,
+    }
+    char.tethers = existing + [new_tether]
+    db.commit()
+    return {"tethers": char.tethers}
+
+
+@character_blp_fastapi.patch("/{character_id}/tethers/{tether_id}")
+async def update_tether(
+    character_id: str,
+    tether_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Activate/deactivate or edit a tether. Activation (with modifier) is SW only."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    campaign = db.query(Campaign).filter(Campaign.id == char.campaign_id).first()
+    is_sw = campaign and str(campaign.story_weaver_id) == str(current_user.id)
+    is_owner = char.user_id and str(char.user_id) == str(current_user.id)
+    if not is_sw and not is_owner:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    tethers = list(char.tethers or [])
+    idx = next((i for i, t in enumerate(tethers) if t.get("id") == tether_id), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="Tether not found")
+
+    body = await request.json()
+
+    # Description can be updated by owner or SW
+    if "description" in body:
+        tethers[idx]["description"] = body["description"].strip()
+
+    # Activation + modifier is SW only
+    if "is_active" in body or "modifier" in body:
+        if not is_sw:
+            raise HTTPException(status_code=403, detail="Only the SW can activate tethers")
+        if "is_active" in body:
+            tethers[idx]["is_active"] = bool(body["is_active"])
+        if "modifier" in body:
+            mod = int(body["modifier"])
+            tethers[idx]["modifier"] = max(-5, min(5, mod))
+
+    char.tethers = tethers
+    # Recalculate combined modifier
+    char.active_tether_modifier = sum(
+        t.get("modifier", 0) for t in tethers if t.get("is_active")
+    )
+    db.commit()
+
+    # Broadcast tether activation to campaign
+    if "is_active" in body and campaign:
+        try:
+            from routes.campaign_websocket import manager
+            import asyncio
+            t = tethers[idx]
+            asyncio.create_task(manager.broadcast(str(campaign.id), {
+                "type": "tether_activated" if t["is_active"] else "tether_deactivated",
+                "character_id": str(char.id),
+                "character_name": char.name,
+                "tether_id": tether_id,
+                "description": t["description"],
+                "modifier": t.get("modifier", 0),
+                "active_tether_modifier": char.active_tether_modifier,
+            }))
+        except Exception:
+            pass
+
+    return {"tethers": char.tethers, "active_tether_modifier": char.active_tether_modifier}
+
+
+@character_blp_fastapi.delete("/{character_id}/tethers/{tether_id}")
+async def delete_tether(
+    character_id: str,
+    tether_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Remove a tether (SW or owner)."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    campaign = db.query(Campaign).filter(Campaign.id == char.campaign_id).first()
+    is_sw = campaign and str(campaign.story_weaver_id) == str(current_user.id)
+    is_owner = char.user_id and str(char.user_id) == str(current_user.id)
+    if not is_sw and not is_owner:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    tethers = [t for t in (char.tethers or []) if t.get("id") != tether_id]
+    char.tethers = tethers
+    char.active_tether_modifier = sum(
+        t.get("modifier", 0) for t in tethers if t.get("is_active")
+    )
+    db.commit()
+    return {"tethers": char.tethers, "active_tether_modifier": char.active_tether_modifier}
