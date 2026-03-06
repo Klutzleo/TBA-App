@@ -3621,7 +3621,7 @@
       );
       if (!targets.length) { hideMentionDropdown(); return; }
       dd.innerHTML = targets.map((t, i) => `
-        <div class="mention-item" data-name="${escHtml(t.name)}" onclick="insertMention(${JSON.stringify(t.name)})">
+        <div class="mention-item" data-name="${escHtml(t.name)}" onmousedown="event.preventDefault(); insertMention(${escHtml(JSON.stringify(t.name))})">
           <span>${escHtml(t.name)}</span>
           <span class="mention-type">${t.type}</span>
         </div>
@@ -3657,7 +3657,7 @@
         ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
         ${abilities.map(a => `
           <button class="fmt-btn macro-btn" title="${escHtml(a.display_name)}"
-            onclick="insertMacro(${JSON.stringify(a.macro_command)})">${escHtml(a.macro_command)}</button>
+            onclick="insertMacro(${escHtml(JSON.stringify(a.macro_command))})">${escHtml(a.macro_command)}</button>
         `).join('')}
       `;
     }
