@@ -3136,35 +3136,10 @@
       }
     }
 
-    // Recolor ALL history messages based on each sender's known character color.
-    // Called after welcome so knownPCs is populated and myChatColor is set.
+    // Recolor ALL history messages — renderMessages() applies colors fresh on every clone pass.
     function recolorAllHistory() {
       if (!allMessages || allMessages.length === 0) return;
-      const colorCache = {};
-      const myName = activeSpeaker ? activeSpeaker.name : currentActor;
-      let anyColored = false;
-      (allMessages || []).forEach(msg => {
-        if (!msg._element || msg.chat_mode === 'whisper' || !msg.actor) return;
-        let hex = null;
-        // Check knownPCs first — works for ALL PCs including the current player's own character
-        const pc = (knownPCs || []).find(c => c.name === msg.actor);
-        if (pc && pc.chat_color) {
-          hex = pc.chat_color;
-        } else if (myName && msg.actor === myName) {
-          // Fall back to myChatColor for speakers not in knownPCs (e.g. SW Narrator)
-          hex = myChatColor;
-        }
-        if (!hex) return;
-        anyColored = true;
-        if (!colorCache[hex]) colorCache[hex] = hexToRgba(hex, 0.1);
-        msg._element.style.borderLeftColor = hex;
-        const bg = colorCache[hex];
-        if (bg) msg._element.style.backgroundColor = bg;
-        const modeLabel = msg._element.querySelector('.mode-label');
-        if (modeLabel) modeLabel.style.color = hex;
-      });
-      // Force-refresh the active tab so any cloned elements also pick up the new colors
-      if (anyColored) renderMessages();
+      renderMessages();
     }
 
     // Close color picker when clicking outside
@@ -6185,17 +6160,35 @@
     // END BUBBLE BAR & NPC MANAGEMENT
     // ===================================================================
 
-    // Re-render all messages for the current active tab
+    // Re-render all messages for the current active tab, applying chat colors fresh on every pass
     function renderMessages() {
       const chatMessagesEl = document.getElementById('chatMessages');
       chatMessagesEl.innerHTML = '';
 
+      const myName = activeSpeaker ? activeSpeaker.name : currentActor;
+      const colorCache = {};
       const filteredMessages = allMessages.filter(msg => msg._tab === activeTab);
 
       filteredMessages.forEach(msgData => {
-        if (msgData._element) {
-          chatMessagesEl.appendChild(msgData._element.cloneNode(true));
+        if (!msgData._element) return;
+        const el = msgData._element.cloneNode(true);
+        if (msgData.actor && msgData.chat_mode !== 'whisper') {
+          let hex = null;
+          const pc = (knownPCs || []).find(c => c.name === msgData.actor);
+          if (pc && pc.chat_color) {
+            hex = pc.chat_color;
+          } else if (myName && msgData.actor === myName) {
+            hex = myChatColor;
+          }
+          if (hex) {
+            if (!colorCache[hex]) colorCache[hex] = hexToRgba(hex, 0.1);
+            el.style.borderLeftColor = hex;
+            if (colorCache[hex]) el.style.backgroundColor = colorCache[hex];
+            const modeLabel = el.querySelector('.mode-label');
+            if (modeLabel) modeLabel.style.color = hex;
+          }
         }
+        chatMessagesEl.appendChild(el);
       });
 
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
@@ -7604,6 +7597,8 @@
                 myChatColor = data.my_chat_color;
                 // For players speaking as their character, use the character's color
                 if (data.character_chat_color) myChatColor = data.character_chat_color;
+                // Sync localStorage so future page loads don't flash a stale color
+                localStorage.setItem('tba_chat_color', myChatColor);
                 selectChatColor(myChatColor);
                 // Recolor ALL history messages using each sender's stored character color
                 recolorAllHistory();
@@ -8984,6 +8979,12 @@
         knownPCs = members
           .filter(m => m.character && !m.character.is_npc)
           .map(m => ({ id: m.character.id, name: m.character.name, chat_color: m.character.chat_color || null }));
+
+        // Add Narrator (SW voice) to knownPCs so history messages from SW get colored for all viewers
+        const swMember = members.find(m => m.role === 'story_weaver');
+        if (swMember && swMember.membership_chat_color) {
+          knownPCs.push({ id: null, name: 'Narrator', chat_color: swMember.membership_chat_color });
+        }
 
         // Find current user in members and set currentActor to their character name
         const currentMember = members.find(m => m.user_id === currentUser.id);

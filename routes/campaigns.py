@@ -697,6 +697,7 @@ async def get_campaign_members(
             "user_id": str(user.id),
             "username": user.username,
             "role": member.role,
+            "membership_chat_color": member.chat_color or '#d4af37',
             "character": {
                 "id": str(character.id),
                 "user_id": str(character.user_id) if character.user_id else None,
