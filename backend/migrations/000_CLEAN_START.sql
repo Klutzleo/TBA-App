@@ -162,29 +162,29 @@ EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
     ALTER TABLE characters ADD COLUMN IF NOT EXISTS has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE;
 EXCEPTION
     WHEN duplicate_column THEN null;
-END $;
+END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
     ALTER TABLE characters ADD COLUMN IF NOT EXISTS tethers JSON DEFAULT '[]';
 EXCEPTION
     WHEN duplicate_column THEN null;
-END $;
+END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
     ALTER TABLE characters ADD COLUMN IF NOT EXISTS active_tether_modifier INTEGER NOT NULL DEFAULT 0;
 EXCEPTION
     WHEN duplicate_column THEN null;
-END $;
+END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
     ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_notified_at TIMESTAMPTZ;
 EXCEPTION
     WHEN duplicate_column THEN null;
-END $;
+END $$;
 
 CREATE TABLE IF NOT EXISTS memory_echoes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
