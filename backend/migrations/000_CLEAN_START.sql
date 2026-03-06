@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS characters (
     rejection_reason TEXT,
     battle_scars JSON DEFAULT '[]',
     has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE,
+    chat_color VARCHAR(7) NOT NULL DEFAULT '#d4af37',
     tethers JSON DEFAULT '[]',
     active_tether_modifier INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -164,6 +165,18 @@ END $$;
 
 DO $$ BEGIN
     ALTER TABLE characters ADD COLUMN IF NOT EXISTS has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS chat_color VARCHAR(7) NOT NULL DEFAULT '#d4af37';
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE campaign_memberships ADD COLUMN IF NOT EXISTS chat_color VARCHAR(7) NOT NULL DEFAULT '#d4af37';
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
@@ -360,6 +373,7 @@ CREATE TABLE IF NOT EXISTS campaign_memberships (
     campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role campaign_role_enum NOT NULL DEFAULT 'player',
+    chat_color VARCHAR(7) NOT NULL DEFAULT '#d4af37',
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     left_at TIMESTAMPTZ
 );

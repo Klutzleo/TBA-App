@@ -3075,7 +3075,7 @@
       pop.addEventListener('click', (e) => {
         const sw = e.target.closest('.color-swatch');
         if (!sw) return;
-        selectChatColor(sw.dataset.hex);
+        selectChatColor(sw.dataset.hex, true);
       });
     }
 
@@ -3085,9 +3085,8 @@
       pop.classList.toggle('open');
     }
 
-    function selectChatColor(hex) {
+    function selectChatColor(hex, persist = false) {
       myChatColor = hex;
-      localStorage.setItem('tba_chat_color', hex);
       const btn = document.getElementById('colorPickerBtn');
       if (btn) btn.style.background = hex;
       const pop = document.getElementById('colorPickerPopover');
@@ -3095,7 +3094,35 @@
         pop.querySelectorAll('.color-swatch').forEach(s => {
           s.classList.toggle('selected', s.dataset.hex === hex);
         });
-        pop.classList.remove('open');
+        if (persist) pop.classList.remove('open');
+      }
+      if (!persist) return;
+      // Persist: if active speaker is an NPC/ally, save to that character's color;
+      // if player speaking as own PC, save to character; otherwise save to membership (SW own voice).
+      const token = getAuthToken();
+      if (!token) return;
+      const speakerIsChar = activeSpeaker && activeSpeaker.id &&
+        (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally' || activeSpeaker.type === 'pc');
+      if (speakerIsChar) {
+        fetch(`/api/characters/${activeSpeaker.id}/chat-color`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: hex })
+        }).catch(() => {});
+      } else if (characterId) {
+        // Player speaking as own character
+        fetch(`/api/characters/${characterId}/chat-color`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: hex })
+        }).catch(() => {});
+      } else {
+        // SW own voice — save to membership
+        fetch(`/api/characters/my-color?campaign_id=${campaignId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: hex })
+        }).catch(() => {});
       }
     }
 
@@ -3627,12 +3654,15 @@
       return bubble;
     }
 
-    // Set active speaker
+    // Set active speaker — update chat color to match the new speaker
     function setActiveSpeaker(character) {
       activeSpeaker = character;
+      // Switch color to this character's stored color, or fall back to gold
+      if (character && character.chat_color) {
+        selectChatColor(character.chat_color);
+      }
       renderBubbleBar();
       renderChatToolbar();
-      console.log('Active speaker:', activeSpeaker);
     }
 
     // Insert formatting wrapper around selected text (or placeholder)
@@ -7490,6 +7520,14 @@
               // without character_id). The URL is the source of truth for spectators.
               if (data.role && urlRoleParam !== 'player') {
                 userRole = data.role;
+              }
+
+              // Load chat color from server (membership color = user's own voice)
+              if (data.my_chat_color) {
+                myChatColor = data.my_chat_color;
+                // For players speaking as their character, use the character's color
+                if (data.character_chat_color) myChatColor = data.character_chat_color;
+                selectChatColor(myChatColor);
               }
 
               if (data.character_name && data.character_name !== 'Unknown') {

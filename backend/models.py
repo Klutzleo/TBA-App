@@ -231,6 +231,7 @@ class Character(Base):
     rejection_reason = Column(Text, nullable=True)  # Set by SW when rejecting a character in approval_required mode
     battle_scars = Column(JSON, nullable=True, default=list)  # Array of scar descriptions from surviving The Calling
     has_faced_calling_this_encounter = Column(Boolean, nullable=False, default=False)  # Prevent re-triggering in same encounter
+    chat_color = Column(String(7), nullable=False, default='#d4af37')  # Hex color shown in chat header
     tethers = Column(JSON, nullable=True, default=list)  # Array of {id, description, is_active, modifier}
     active_tether_modifier = Column(Integer, nullable=False, default=0)  # Sum of active tether modifiers
 
@@ -339,6 +340,7 @@ class CampaignMembership(Base):
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(Enum('player', 'story_weaver', name='campaign_role_enum'), nullable=False, default='player')
+    chat_color = Column(String(7), nullable=False, default='#d4af37')  # User's own chat color for this campaign
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     left_at = Column(DateTime, nullable=True)  # NULL = still active member
 

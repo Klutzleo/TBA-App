@@ -236,10 +236,15 @@ async def campaign_websocket(
 
     # Send welcome message directly to the connecting user with in_calling state
     try:
+        membership_rec = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == campaign_uuid,
+            CampaignMembership.user_id == user_uuid
+        ).first()
         welcome_payload = {
             "type": "welcome",
             "character_name": display_name,
             "role": "SW" if not character else "player",
+            "my_chat_color": (membership_rec.chat_color if membership_rec else None) or '#d4af37',
         }
         if character:
             welcome_payload["character_id"] = str(character.id)
@@ -250,6 +255,7 @@ async def campaign_websocket(
             welcome_payload["character_sp"] = character.sp or 0
             welcome_payload["character_edge"] = character.edge or 0
             welcome_payload["character_dp"] = character.dp or 0
+            welcome_payload["character_chat_color"] = character.chat_color or '#d4af37'
         await websocket.send_json(welcome_payload)
     except Exception:
         pass
