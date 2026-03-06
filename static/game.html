@@ -3589,16 +3589,15 @@
     }
 
     // Build list of targetable names for @ mentions
-    // SW sees everyone; players only see PCs + NPCs revealed in non-silent initiative
+    // SW sees all PCs + all NPCs; players see all PCs + only NPCs revealed in public initiative
     function getMentionTargets() {
       const targets = [];
-      (playerCharacters || []).forEach(c => {
-        if (!c.is_npc) targets.push({ name: c.name, type: c.is_ally ? 'Ally' : 'PC' });
-      });
+      // All party PCs from the party panel (includes other players, not just self)
+      (knownPCs || []).forEach(c => targets.push({ name: c.name, type: 'PC' }));
       if (userRole === 'SW') {
         (campaignNPCs || []).forEach(c => targets.push({ name: c.name, type: 'NPC' }));
       } else {
-        // Players only see NPCs that have appeared in public initiative
+        // Players only see NPCs revealed via non-silent initiative
         (campaignNPCs || []).filter(c => visibleNPCNames.has(c.name))
           .forEach(c => targets.push({ name: c.name, type: 'NPC' }));
       }
