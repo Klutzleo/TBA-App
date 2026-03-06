@@ -362,6 +362,7 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
             "actor": actor,
             "text": text,
             "whisper_targets": whisper_targets,
+            "chat_color": data.get("chat_color"),
             "timestamp": datetime.utcnow().isoformat()
         }
     else:
@@ -374,6 +375,7 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
             "actor": actor,
             "text": text,
             "is_ooc_command": is_ooc_command,
+            "chat_color": data.get("chat_color"),
             "timestamp": datetime.utcnow().isoformat()
         }
 
@@ -449,6 +451,25 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
             for m in _re.finditer(r'@\[([^\]]+)\]|@(\S+)', msg.message):
                 mention_names.append(m.group(1) if m.group(1) else m.group(2))
             for mention_name in set(mention_names):
+                # Check if mentioning the Story Weaver by their special name
+                if mention_name.replace('_', ' ').lower() == 'story weaver':
+                    try:
+                        sw_membership = db.query(CampaignMembership).filter(
+                            CampaignMembership.campaign_id == campaign_id,
+                            CampaignMembership.role == 'story_weaver'
+                        ).first()
+                        if sw_membership and str(sw_membership.user_id) != str(user_id):
+                            send_push(
+                                db,
+                                user_id=str(sw_membership.user_id),
+                                title=f"💬 {sender} mentioned you",
+                                body=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                                url=f"/game.html?campaign_id={campaign_id}",
+                                campaign_id=str(campaign_id),
+                            )
+                    except Exception as _pe:
+                        logger.warning(f"SW mention push failed: {_pe}")
+                    continue
                 mentioned_char = db.query(Character).filter(
                     Character.name == mention_name,
                     Character.campaign_id == campaign_id,

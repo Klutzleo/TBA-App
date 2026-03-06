@@ -1194,7 +1194,32 @@
       background: var(--bg-panel);
       border-top: 1px solid var(--border-color);
       box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.2);
+      position: relative;
     }
+    #colorPickerPopover {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      right: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px;
+      display: none;
+      flex-wrap: wrap;
+      gap: 7px;
+      width: 174px;
+      z-index: 200;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    #colorPickerPopover.open { display: flex; }
+    .color-swatch {
+      width: 26px; height: 26px; border-radius: 50%;
+      cursor: pointer; border: 2px solid transparent;
+      transition: transform 0.1s, border-color 0.1s;
+      flex-shrink: 0;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.selected { border-color: #fff; }
 
 .chat-input-main {
       display: flex;
@@ -2513,6 +2538,7 @@
         <div class="chat-input-container">
           <div id="chatToolbar" style="display:none;"></div>
           <div id="mentionDropdown" style="display:none;"></div>
+          <div id="colorPickerPopover"></div>
           <div class="chat-input-main">
             <textarea
               class="form-input"
@@ -2520,6 +2546,8 @@
               rows="1"
               placeholder="Type a message or command..."
             ></textarea>
+            <button id="colorPickerBtn" title="Chat color" onclick="toggleColorPicker()"
+              style="width:28px;height:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;background:#d4af37;"></button>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
           </div>
         </div>
@@ -3016,6 +3044,67 @@
     let allMessages = [];     // Store all messages with their tab info
     let unreadCounts = { story: 0, ooc: 0 };  // Dynamic whisper tabs added as needed
     let whisperTabs = {};     // Track active whisper tabs: { 'playername': { visible: true, element: btn } }
+
+    // === Chat Color ===
+    const CHAT_COLORS = [
+      { name: 'Gold',     hex: '#d4af37' },
+      { name: 'Sky',      hex: '#60a5fa' },
+      { name: 'Sage',     hex: '#6ee7b7' },
+      { name: 'Rose',     hex: '#f9a8d4' },
+      { name: 'Lavender', hex: '#c4b5fd' },
+      { name: 'Coral',    hex: '#fca5a5' },
+      { name: 'Cyan',     hex: '#67e8f9' },
+      { name: 'Peach',    hex: '#fdba74' },
+      { name: 'Mint',     hex: '#a7f3d0' },
+      { name: 'Steel',    hex: '#94a3b8' },
+      { name: 'Lilac',    hex: '#d8b4fe' },
+      { name: 'Amber',    hex: '#fbbf24' },
+    ];
+    let myChatColor = localStorage.getItem('tba_chat_color') || '#d4af37';
+
+    function initColorPicker() {
+      const btn = document.getElementById('colorPickerBtn');
+      if (btn) btn.style.background = myChatColor;
+      const pop = document.getElementById('colorPickerPopover');
+      if (!pop) return;
+      pop.innerHTML = CHAT_COLORS.map(c => `
+        <div class="color-swatch${myChatColor === c.hex ? ' selected' : ''}"
+          style="background:${c.hex};" title="${c.name}"
+          data-hex="${c.hex}"></div>
+      `).join('');
+      pop.addEventListener('click', (e) => {
+        const sw = e.target.closest('.color-swatch');
+        if (!sw) return;
+        selectChatColor(sw.dataset.hex);
+      });
+    }
+
+    function toggleColorPicker() {
+      const pop = document.getElementById('colorPickerPopover');
+      if (!pop) return;
+      pop.classList.toggle('open');
+    }
+
+    function selectChatColor(hex) {
+      myChatColor = hex;
+      localStorage.setItem('tba_chat_color', hex);
+      const btn = document.getElementById('colorPickerBtn');
+      if (btn) btn.style.background = hex;
+      const pop = document.getElementById('colorPickerPopover');
+      if (pop) {
+        pop.querySelectorAll('.color-swatch').forEach(s => {
+          s.classList.toggle('selected', s.dataset.hex === hex);
+        });
+        pop.classList.remove('open');
+      }
+    }
+
+    // Close color picker when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#colorPickerBtn') && !e.target.closest('#colorPickerPopover')) {
+        document.getElementById('colorPickerPopover')?.classList.remove('open');
+      }
+    });
 
     // === NPC/Character Bubble Bar State ===
     let activeSpeaker = null;  // { id, name, type: 'pc'|'npc'|'ally'|'narrator' }
@@ -3600,6 +3689,10 @@
     // SW sees all PCs + all NPCs; players see all PCs + only NPCs revealed in public initiative
     function getMentionTargets() {
       const targets = [];
+      // Non-SW users can always @mention the Story Weaver
+      if (userRole !== 'SW') {
+        targets.push({ name: 'Story Weaver', type: 'SW' });
+      }
       // All party PCs from the party panel (includes other players, not just self)
       (knownPCs || []).forEach(c => targets.push({ name: c.name, type: 'PC' }));
       if (userRole === 'SW') {
@@ -6239,7 +6332,7 @@
 
     // Display typed message (IC, OOC, Whisper)
     // targets can be a string (single target) or array (multiple targets)
-    function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false, storedTimestamp = null, fromHistory = false) {
+    function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false, storedTimestamp = null, fromHistory = false, chatColor = null) {
       const container = document.createElement('div');
 
       const timestamp = (storedTimestamp ? new Date(storedTimestamp) : new Date()).toLocaleString([], {
@@ -6297,6 +6390,7 @@
       const actorSpan = document.createElement('span');
       actorSpan.className = 'actor-name';
       actorSpan.textContent = actor;
+      if (chatColor) actorSpan.style.color = chatColor;
       headerRow.appendChild(actorSpan);
 
       if (mode === 'whisper' && targets) {
@@ -8445,25 +8539,22 @@
 
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
               // In-Character message - skip if from self (already displayed locally)
-              // Check against active speaker if set, otherwise current actor
               const myActor = (activeSpeaker ? activeSpeaker.name : (currentActor.trim() || 'User')).toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
-                displayTypedMessage('ic', data.actor || 'Unknown', data.text, null, false);
+                displayTypedMessage('ic', data.actor || 'Unknown', data.text, null, false, null, false, data.chat_color || null);
               }
             } else if (data.type === 'chat_ooc' || data.chat_mode === 'ooc') {
               // Out-of-Character message - skip if from self (already displayed locally)
-              // Check against active speaker if set, otherwise current actor
               const myActor = (activeSpeaker ? activeSpeaker.name : (currentActor.trim() || 'User')).toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
               if (msgActor !== myActor) {
-                displayTypedMessage('ooc', data.actor || 'Unknown', data.text, null, data.is_ooc_command || false);
+                displayTypedMessage('ooc', data.actor || 'Unknown', data.text, null, data.is_ooc_command || false, null, false, data.chat_color || null);
               }
             } else if (data.type === 'chat_whisper' || data.chat_mode === 'whisper') {
               // Whisper message (only received if you're the target or SW)
-              // Handle both whisper_targets (array) and whisper_target (legacy single)
               const targets = data.whisper_targets || data.whisper_target;
-              displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets, false);
+              displayTypedMessage('whisper', data.actor || 'Unknown', data.text, targets, false, null, false, data.chat_color || null);
             } else if (data.type === 'online_users') {
               renderOnlineUsers(data.users);
             } else if (data.type === 'defend') {
@@ -8536,8 +8627,8 @@
         // Check if it's an /ooc command
         const isOocCommand = chatCmd.mode === 'ooc' && text.toLowerCase().startsWith('/ooc');
 
-        // Display locally with styled message
-        displayTypedMessage(chatCmd.mode, actor, chatCmd.text, chatCmd.targets, isOocCommand);
+        // Display locally with styled message (apply own color)
+        displayTypedMessage(chatCmd.mode, actor, chatCmd.text, chatCmd.targets, isOocCommand, null, false, myChatColor);
 
         // Build payload with chat_mode for server
         const payload = {
@@ -8545,7 +8636,8 @@
           actor,
           text: chatCmd.text,
           chat_mode: chatCmd.mode,
-          is_ooc_command: isOocCommand
+          is_ooc_command: isOocCommand,
+          chat_color: myChatColor
         };
 
         if (chatCmd.targets) {
@@ -8917,6 +9009,7 @@
     }
 
     // === Initialize on Page Load ===
+    initColorPicker();
     loadCharacters();
     connectToCampaign();
 
