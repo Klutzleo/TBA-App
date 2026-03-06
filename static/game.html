@@ -3013,6 +3013,7 @@
     let activeSpeaker = null;  // { id, name, type: 'pc'|'npc'|'ally'|'narrator' }
     let playerCharacters = [];  // Player's PC and Ally (if any)
     let campaignNPCs = [];  // All NPCs for this campaign (SW only)
+    const visibleNPCNames = new Set(); // NPCs revealed to players via non-silent initiative
 
     // === Ally/NPC Leveling Tables ===
     // PC/NPC DP progression (from Leveling Table v2.0)
@@ -3587,15 +3588,20 @@
       if (d) d.style.display = 'none';
     }
 
-    // Build list of all targetable names for @ mentions
+    // Build list of targetable names for @ mentions
+    // SW sees everyone; players only see PCs + NPCs revealed in non-silent initiative
     function getMentionTargets() {
       const targets = [];
       (playerCharacters || []).forEach(c => {
         if (!c.is_npc) targets.push({ name: c.name, type: c.is_ally ? 'Ally' : 'PC' });
       });
-      (campaignNPCs || []).forEach(c => {
-        targets.push({ name: c.name, type: 'NPC' });
-      });
+      if (userRole === 'SW') {
+        (campaignNPCs || []).forEach(c => targets.push({ name: c.name, type: 'NPC' }));
+      } else {
+        // Players only see NPCs that have appeared in public initiative
+        (campaignNPCs || []).filter(c => visibleNPCNames.has(c.name))
+          .forEach(c => targets.push({ name: c.name, type: 'NPC' }));
+      }
       return targets;
     }
 
@@ -8251,6 +8257,9 @@
               const orderList = document.createElement('div');
               orderList.style.fontFamily = 'monospace';
               orderList.style.fontSize = '14px';
+
+              // Track which NPCs are now visible to players
+              data.rolls.forEach(roll => { if (!roll.is_silent) visibleNPCNames.add(roll.name); });
 
               data.rolls.forEach((roll, index) => {
                 const entry = document.createElement('div');
