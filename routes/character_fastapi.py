@@ -460,6 +460,81 @@ async def get_character(
     return character
 
 
+# ============================================================================
+# CHAT COLOR (must be registered before /{character_id} to avoid path conflicts)
+# ============================================================================
+
+_ALLOWED_COLORS = {
+    '#d4af37', '#60a5fa', '#6ee7b7', '#f9a8d4', '#c4b5fd',
+    '#fca5a5', '#67e8f9', '#fdba74', '#a7f3d0', '#94a3b8',
+    '#d8b4fe', '#fbbf24',
+}
+
+
+@character_blp_fastapi.patch("/my-color")
+async def set_my_chat_color(
+    request: Request,
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Set the current user's own chat color for a campaign (stored on membership)."""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
+    body = await request.json()
+    color = (body.get("color") or "").strip().lower()
+    if color not in _ALLOWED_COLORS:
+        raise HTTPException(status_code=400, detail="Invalid color value")
+
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
+    membership.chat_color = color
+    db.commit()
+    return {"chat_color": membership.chat_color}
+
+
+@character_blp_fastapi.patch("/{character_id}/chat-color")
+async def set_character_chat_color(
+    character_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Set the chat color for a character (owner or SW only)."""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+
+    body = await request.json()
+    color = (body.get("color") or "").strip().lower()
+    if color not in _ALLOWED_COLORS:
+        raise HTTPException(status_code=400, detail="Invalid color value")
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    is_owner = char.user_id and str(char.user_id) == str(current_user.id)
+    is_sw = membership and membership.role == 'story_weaver'
+    if not is_owner and not is_sw:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    char.chat_color = color
+    db.commit()
+    return {"character_id": str(char.id), "chat_color": char.chat_color}
+
+
 @character_blp_fastapi.patch("/{character_id}", response_model=CharacterResponse)
 async def update_character(
     character_id: str,
@@ -2114,80 +2189,6 @@ async def cleanse_called(
         "message": f"'{char.name}' has been cleansed. The Called status removed.",
         "times_called": char.times_called
     }
-
-
-# ============================================================================
-# CHAT COLOR
-# ============================================================================
-
-_ALLOWED_COLORS = {
-    '#d4af37', '#60a5fa', '#6ee7b7', '#f9a8d4', '#c4b5fd',
-    '#fca5a5', '#67e8f9', '#fdba74', '#a7f3d0', '#94a3b8',
-    '#d8b4fe', '#fbbf24',
-}
-
-@character_blp_fastapi.patch("/{character_id}/chat-color")
-async def set_character_chat_color(
-    character_id: str,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Set the chat color for a character (owner or SW only)."""
-    from uuid import UUID
-    from backend.models import CampaignMembership
-
-    body = await request.json()
-    color = (body.get("color") or "").strip().lower()
-    if color not in _ALLOWED_COLORS:
-        raise HTTPException(status_code=400, detail="Invalid color value")
-
-    char_uuid = UUID(character_id)
-    char = db.query(Character).filter(Character.id == char_uuid).first()
-    if not char:
-        raise HTTPException(status_code=404, detail="Character not found")
-
-    membership = db.query(CampaignMembership).filter(
-        CampaignMembership.campaign_id == char.campaign_id,
-        CampaignMembership.user_id == current_user.id
-    ).first()
-    is_owner = char.user_id and str(char.user_id) == str(current_user.id)
-    is_sw = membership and membership.role == 'story_weaver'
-    if not is_owner and not is_sw:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    char.chat_color = color
-    db.commit()
-    return {"character_id": str(char.id), "chat_color": char.chat_color}
-
-
-@character_blp_fastapi.patch("/my-color")
-async def set_my_chat_color(
-    request: Request,
-    campaign_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Set the current user's own chat color for a campaign (stored on membership)."""
-    from uuid import UUID
-    from backend.models import CampaignMembership
-
-    body = await request.json()
-    color = (body.get("color") or "").strip().lower()
-    if color not in _ALLOWED_COLORS:
-        raise HTTPException(status_code=400, detail="Invalid color value")
-
-    campaign_uuid = UUID(campaign_id)
-    membership = db.query(CampaignMembership).filter(
-        CampaignMembership.campaign_id == campaign_uuid,
-        CampaignMembership.user_id == current_user.id
-    ).first()
-    if not membership:
-        raise HTTPException(status_code=404, detail="Membership not found")
-
-    membership.chat_color = color
-    db.commit()
-    return {"chat_color": membership.chat_color}
 
 
 # ============================================================================
