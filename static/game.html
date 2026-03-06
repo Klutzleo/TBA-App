@@ -6282,7 +6282,7 @@
       if (mode === 'ic' || mode === 'whisper') {
         textDiv.innerHTML = `"${renderMarkdown(text)}"`;
       } else {
-        textDiv.innerHTML = `[${escHtml(actor)}] ${renderMarkdown(text)}`;
+        textDiv.innerHTML = renderMarkdown(text);
       }
       container.appendChild(textDiv);
 
