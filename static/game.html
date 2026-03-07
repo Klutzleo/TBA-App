@@ -8937,7 +8937,13 @@
       msgInput.style.height = 'auto';
       msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
       updateMentionDropdown();
-      // Broadcast typing event (debounced — only send once per 2s burst)
+      // If input cleared, reset throttle so next keystroke sends immediately
+      if (!msgInput.value.trim()) {
+        clearTimeout(_typingTimer);
+        _typingTimer = null;
+        return;
+      }
+      // Broadcast typing event (throttled — only send once per 2s burst)
       if (!_typingTimer && ws && ws.readyState === WebSocket.OPEN) {
         const actor = (activeSpeaker ? activeSpeaker.name : currentActor.trim()) || 'User';
         ws.send(JSON.stringify({ type: 'typing', actor }));
