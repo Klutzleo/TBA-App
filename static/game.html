@@ -5425,6 +5425,7 @@
             </div>
             <div style="display:flex;gap:4px;align-items:center;">
               ${item.item_type === 'equipment' ? `<button class="inv-equip-btn" onclick="equipNpcItem('${npcId}','${item.id}',this)" style="font-size:0.72rem;padding:2px 7px;">${item.is_equipped ? 'Unequip' : 'Equip'}</button>` : ''}
+              ${item.item_type === 'consumable' && item.effect_type !== 'damage' ? `<button class="inv-use-btn" onclick="useNpcItem('${npcId}','${item.id}')" style="font-size:0.72rem;padding:2px 7px;">Use</button>` : ''}
               <button class="inv-del-btn" onclick="removeNpcItem('${npcId}','${item.id}')" title="Remove">✕</button>
             </div>`;
           list.appendChild(div);
@@ -5442,6 +5443,23 @@
         });
         loadNpcInventory(npcId);
       } catch (e) { showPanelToast('Remove failed', 'error'); }
+    }
+
+    async function useNpcItem(npcId, itemId) {
+      const npcName = document.getElementById('npcNameDisplay')?.textContent || 'NPC';
+      const listEl = document.getElementById('npcInventoryList');
+      const itemNameEl = listEl?.querySelector(`[onclick*="${itemId}"]`)?.closest('.loot-item')?.querySelector('.loot-item-name');
+      const itemName = itemNameEl?.childNodes[0]?.textContent?.trim() || 'item';
+      if (!confirm(`Use "${itemName}" for ${npcName}?`)) return;
+      try {
+        const resp = await fetch(`/api/characters/${npcId}/inventory/${itemId}/use`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        loadNpcInventory(npcId);
+      } catch (e) { showPanelToast(`Use failed: ${e.message}`, 'error'); }
     }
 
     async function equipNpcItem(npcId, itemId, btn) {
