@@ -1502,6 +1502,7 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
         "type": "stat_roll",
         "message_id": str(message_record.id),
         "character_id": str(character.id),
+        "is_npc": character.is_npc,
         "actor": character.name,
         "stat": stat_type,
         "stat_name": stat_name,
