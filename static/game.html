@@ -9100,6 +9100,13 @@
           knownPCs.push({ id: null, name: 'Narrator', chat_color: swMember.membership_chat_color });
         }
 
+        // Add NPCs to knownPCs so their chat history messages get colored correctly
+        (campaignNPCs || []).forEach(npc => {
+          if (npc.chat_color) {
+            knownPCs.push({ id: npc.id, name: npc.name, chat_color: npc.chat_color });
+          }
+        });
+
         // Find current user in members and set currentActor to their character name
         const currentMember = members.find(m => m.user_id === currentUser.id);
         if (currentMember && currentMember.character) {
