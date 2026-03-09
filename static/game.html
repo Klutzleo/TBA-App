@@ -3544,7 +3544,8 @@
           const npcBubble = createBubble({
             id: npc.id,
             name: npc.name,
-            type: 'npc'
+            type: 'npc',
+            chat_color: npc.chat_color || null
           });
           bubbleBar.appendChild(npcBubble);
         });
@@ -3680,9 +3681,14 @@
     // Set active speaker — update chat color to match the new speaker
     function setActiveSpeaker(character) {
       activeSpeaker = character;
-      // Switch color to this character's stored color, or fall back to gold
       if (character && character.chat_color) {
         selectChatColor(character.chat_color);
+      } else if (!character || character.type === 'narrator') {
+        // Back to Narrator — use SW's own membership color
+        selectChatColor(myChatColor || '#d4af37');
+      } else {
+        // NPC with no saved color yet — default gold
+        selectChatColor('#d4af37');
       }
       renderBubbleBar();
       renderChatToolbar();
