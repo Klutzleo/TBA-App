@@ -3814,14 +3814,52 @@
       return targets;
     }
 
+    // All available chat commands
+    const CHAT_COMMANDS = [
+      { cmd: '/pp',          desc: 'Physical stat check (1d6 + PP + Edge)',    roles: ['player','SW'] },
+      { cmd: '/ip',          desc: 'Intellect stat check (1d6 + IP + Edge)',   roles: ['player','SW'] },
+      { cmd: '/sp',          desc: 'Social stat check (1d6 + SP + Edge)',      roles: ['player','SW'] },
+      { cmd: '/roll',        desc: 'Roll dice — e.g. /roll 2d6',              roles: ['player','SW'] },
+      { cmd: '/attack',      desc: 'Attack a target — e.g. /attack @Target',  roles: ['player','SW'] },
+      { cmd: '/cast',        desc: 'Cast a spell — e.g. /cast Fireball @Target', roles: ['player','SW'] },
+      { cmd: '/technique',   desc: 'Use a technique',                          roles: ['player','SW'] },
+      { cmd: '/initiative',  desc: 'Roll initiative for everyone',             roles: ['SW'] },
+      { cmd: '/rest',        desc: 'Rest — restore all ability uses',          roles: ['SW'] },
+      { cmd: '/s',           desc: 'Secret roll (SW only)',                    roles: ['SW'] },
+      { cmd: '/say',         desc: 'Speak in-character',                       roles: ['player','SW'] },
+      { cmd: '/ooc',         desc: 'Out-of-character message',                 roles: ['player','SW'] },
+      { cmd: '/whisper',     desc: 'Whisper to a player — e.g. /whisper @Name', roles: ['player','SW'] },
+      { cmd: '/help',        desc: 'Show all available commands',              roles: ['player','SW'] },
+    ];
+
     function updateMentionDropdown() {
       const ta = document.getElementById('messageInput');
       const dd = document.getElementById('mentionDropdown');
       if (!dd) return;
       const val = ta.value;
       const cursor = ta.selectionStart;
-      // Find @ before cursor (no space between @ and cursor)
       const textBefore = val.slice(0, cursor);
+
+      // --- / command autocomplete ---
+      const cmdMatch = textBefore.match(/^(\/\S*)$/);
+      if (cmdMatch) {
+        const partial = cmdMatch[1].toLowerCase();
+        const role = userRole === 'SW' ? 'SW' : 'player';
+        const matches = CHAT_COMMANDS.filter(c =>
+          c.cmd.startsWith(partial) && c.roles.includes(role)
+        );
+        if (!matches.length) { hideMentionDropdown(); return; }
+        dd.innerHTML = matches.map(c => `
+          <div class="mention-item cmd-item" data-cmd="${escHtml(c.cmd)}">
+            <span style="color:var(--accent-primary);font-family:monospace;">${escHtml(c.cmd)}</span>
+            <span class="mention-type" style="flex:1;text-align:right;">${escHtml(c.desc)}</span>
+          </div>
+        `).join('');
+        dd.style.display = 'block';
+        return;
+      }
+
+      // --- @ mention autocomplete ---
       const atMatch = textBefore.match(/@(\w*)$/);
       if (!atMatch) { hideMentionDropdown(); return; }
       const partial = atMatch[1].toLowerCase();
@@ -3864,6 +3902,8 @@
       toolbar.style.display = 'flex';
       toolbar.innerHTML = `
         <button class="fmt-btn" title="Bold" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
+        <button class="fmt-btn" title="Commands — type / to see all" onclick="msgInput.value='/';msgInput.focus();updateMentionDropdown();" style="font-size:0.8rem;">/</button>
+        <button class="fmt-btn" title="Help — show all commands" onclick="msgInput.value='/help';sendBtn.click();" style="font-size:0.8rem;">?</button>
         ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
         ${abilities.map(a => `
           <button class="fmt-btn macro-btn" data-macro="${escHtml(a.macro_command)}" title="${escHtml(a.display_name)}">${escHtml(a.macro_command)}</button>
@@ -8825,6 +8865,7 @@
 
     sendBtn.addEventListener('click', () => {
       const text = msgInput.value.trim();
+      const textLower = text.toLowerCase();
       // Use active speaker name if set, otherwise fall back to current actor
       const actor = (activeSpeaker ? activeSpeaker.name : currentActor.trim()) || 'User';
       if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
@@ -8860,7 +8901,7 @@
         }
 
         ws.send(JSON.stringify(payload));
-      } else if (text.startsWith('/attack')) {
+      } else if (textLower.startsWith('/attack')) {
         // Combat command - send to combat handler
         const payload = {
           type: 'combat_command',
@@ -8872,7 +8913,7 @@
         }
         ws.send(JSON.stringify(payload));
 
-      } else if (text.startsWith('/cast') || text.startsWith('/technique')) {
+      } else if (textLower.startsWith('/cast') || textLower.startsWith('/technique')) {
         // Magic/technique commands (future combat commands)
         const payload = {
           type: 'combat_command',
@@ -8883,12 +8924,12 @@
         }
         ws.send(JSON.stringify(payload));
 
-      } else if (text.startsWith('/s ') || text === '/s') {
+      } else if (textLower.startsWith('/s ') || text === '/s') {
         // Secret roll — SW only, result visible only to SW
         const diceNotation = text.slice(3).trim() || '1d20';
         ws.send(JSON.stringify({ type: 'secret_roll', dice: diceNotation }));
 
-      } else if (text.startsWith('/roll')) {
+      } else if (textLower.startsWith('/roll')) {
         // Dice roll command
         const diceNotation = text.replace('/roll ', '').trim();
         const payload = {
@@ -8899,23 +8940,27 @@
         };
         ws.send(JSON.stringify(payload));
 
-      } else if (text.startsWith('/pp') || text.startsWith('/ip') || text.startsWith('/sp')) {
+      } else if (textLower.startsWith('/pp') || textLower.startsWith('/ip') || textLower.startsWith('/sp')) {
         // Stat check macros - send as stat_check with full calculation
-        const stat = text.substring(1, 3).toUpperCase(); // Extract "PP", "IP", or "SP"
+        const stat = textLower.substring(1, 3).toUpperCase(); // Extract "PP", "IP", or "SP"
         const payload = {
           type: 'stat_check',
           stat: stat  // Backend will add: 1d6 + stat value + edge
         };
+        // If SW is speaking as an NPC, send the NPC's character ID
+        if (activeSpeaker && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally') && activeSpeaker.id) {
+          payload.character_id = activeSpeaker.id;
+        }
         ws.send(JSON.stringify(payload));
 
-      } else if (text.startsWith('/rest')) {
+      } else if (textLower.startsWith('/rest')) {
         // Rest command - restore ability uses for whole party
         const payload = {
           type: 'rest_command'
         };
         ws.send(JSON.stringify(payload));
 
-      } else if (text.startsWith('/initiative') || text.startsWith('/init')) {
+      } else if (textLower.startsWith('/initiative') || textLower.startsWith('/init')) {
         // Initiative command - send to new initiative handler
         const payload = {
           type: 'initiative_command',
@@ -8923,7 +8968,7 @@
         };
         ws.send(JSON.stringify(payload));
 
-      } else if (text.startsWith('/help')) {
+      } else if (textLower.startsWith('/help')) {
         // Help command - send to help handler
         const payload = {
           type: 'help_command'
@@ -9000,9 +9045,18 @@
       if (e.key === 'Enter' && !e.shiftKey && !sendBtn.disabled && !isMobile) {
         const dd = document.getElementById('mentionDropdown');
         if (dd && dd.style.display !== 'none') {
-          // Select first mention item on Enter
           const first = dd.querySelector('.mention-item');
-          if (first) { insertMention(first.dataset.name); e.preventDefault(); return; }
+          if (first) {
+            e.preventDefault();
+            if (first.dataset.cmd) {
+              msgInput.value = first.dataset.cmd + ' ';
+              msgInput.focus();
+              hideMentionDropdown();
+            } else {
+              insertMention(first.dataset.name);
+            }
+            return;
+          }
         }
         e.preventDefault();
         sendBtn.click();
@@ -9034,11 +9088,20 @@
       setTimeout(hideMentionDropdown, 150);
     });
 
-    // Mention dropdown — delegated mousedown so blur never fires
+    // Mention/command dropdown — delegated mousedown so blur never fires
     document.getElementById('mentionDropdown').addEventListener('mousedown', (e) => {
       e.preventDefault();
       const item = e.target.closest('.mention-item');
-      if (item) insertMention(item.dataset.name);
+      if (!item) return;
+      if (item.dataset.cmd) {
+        // Command selected — replace the partial /cmd with the full command + space
+        const ta = document.getElementById('messageInput');
+        ta.value = item.dataset.cmd + ' ';
+        ta.focus();
+        hideMentionDropdown();
+      } else if (item.dataset.name) {
+        insertMention(item.dataset.name);
+      }
     });
 
     // Macro buttons — delegated click on toolbar

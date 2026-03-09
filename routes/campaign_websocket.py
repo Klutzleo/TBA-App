@@ -312,7 +312,7 @@ async def campaign_websocket(
                 await handle_secret_roll(campaign_uuid, data, user_uuid, websocket, db)
 
             elif message_type == "stat_check":
-                await handle_stat_check(campaign_uuid, data, user_uuid, db)
+                await handle_stat_check(campaign_uuid, data, user_uuid, websocket, db)
 
             elif message_type == "initiative_command":
                 await handle_initiative_command(campaign_uuid, data, websocket, user_uuid, db)
@@ -1415,25 +1415,32 @@ async def handle_secret_roll(campaign_id: UUID, data: dict, user_id: UUID, webso
     })
 
 
-async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Session):
+async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websocket, db: Session):
     """
     Handle stat check macros (/pp, /ip, /sp).
 
     Rolls 1d6 + stat value + edge, shows full breakdown.
     Formula: 1d6 + PP/IP/SP + Edge = Total
     """
+    from uuid import UUID as UUID_type
     display_name = manager.get_display_name(campaign_id, user_id)
     stat_type = data.get("stat", "PP").upper()  # "PP", "IP", or "SP"
 
-    # Get character
-    character = db.query(Character).filter(
-        Character.user_id == str(user_id)
-    ).first()
+    # If a specific character_id is provided (e.g. SW rolling as NPC), use that
+    character_id = data.get("character_id")
+    if character_id:
+        character = db.query(Character).filter(
+            Character.id == UUID_type(character_id)
+        ).first()
+    else:
+        character = db.query(Character).filter(
+            Character.user_id == str(user_id)
+        ).first()
 
     if not character:
-        await manager.broadcast(campaign_id, {
+        await websocket.send_json({
             "type": "system",
-            "text": f"❌ {display_name} needs a character to perform stat checks"
+            "text": f"❌ No character found to perform stat checks"
         })
         return
 
@@ -1449,9 +1456,9 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, db: Se
         stat_value = character.sp
         stat_name = "Social"
     else:
-        await manager.broadcast(campaign_id, {
+        await websocket.send_json({
             "type": "system",
-            "text": f"❌ Invalid stat type: {stat_type}. Use PP, IP, or SP."
+            "text": f"❌ Invalid stat type: {stat_type}. Use /pp, /ip, or /sp."
         })
         return
 
