@@ -3781,6 +3781,16 @@
               }
             }
           }
+
+          // Players also need NPC list for chat color lookup (bubble UI is SW-only, but colors apply to all)
+          try {
+            const npcResp = await fetch(`/api/campaigns/${campaignId}/npcs`, {
+              headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            if (npcResp.ok) {
+              campaignNPCs = await npcResp.json();
+            }
+          } catch (_) { /* silent — color fallback is fine */ }
         }
 
         renderBubbleBar();
