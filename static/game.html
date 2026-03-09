@@ -8253,9 +8253,10 @@
           const tabBarEl = document.getElementById('sidebarTabBar');
           if (tabBarEl) tabBarEl.style.display = 'flex';
 
-          // Load bubble bar and characters FIRST so activeSpeaker + knownPCs are ready
-          // before history is appended — messages are colored inline on first render, no repaint needed
-          await Promise.all([loadBubbleBar(), loadCharacters()]);
+          // Run sequentially: loadBubbleBar populates campaignNPCs first,
+          // so loadCharacters can safely include NPC colors in knownPCs.
+          await loadBubbleBar();
+          await loadCharacters();
           renderChatToolbar();
 
           // Now load history — activeSpeaker and knownPCs are populated, colors apply immediately
