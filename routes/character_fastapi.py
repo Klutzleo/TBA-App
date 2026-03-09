@@ -796,22 +796,22 @@ async def list_npcs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List all NPCs for a campaign (Story Weaver only)."""
+    """List all NPCs for a campaign (all campaign members can read; SW only can manage)."""
     from backend.models import CampaignMembership
     from uuid import UUID
 
     request_id = getattr(request.state, "request_id", "unknown")
     logger.info(f"[{request_id}] Listing NPCs for campaign: {campaign_id}")
 
-    # Verify user is Story Weaver
+    # Verify user is a campaign member (read access for all; management actions gate separately)
     campaign_uuid = UUID(campaign_id)
     membership = db.query(CampaignMembership).filter(
         CampaignMembership.campaign_id == campaign_uuid,
         CampaignMembership.user_id == current_user.id
     ).first()
 
-    if not membership or membership.role != 'story_weaver':
-        raise HTTPException(status_code=403, detail="Only Story Weaver can manage NPCs")
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
     # Get all NPCs for this campaign, ordered by sort_order then creation time
     npcs = db.query(Character).filter(
