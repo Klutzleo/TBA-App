@@ -201,6 +201,36 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS pin_text TEXT;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS pin_actor VARCHAR(200);
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scene_note TEXT;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN NOT NULL DEFAULT FALSE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
     ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_notified_at TIMESTAMPTZ;
 EXCEPTION
     WHEN duplicate_column THEN null;

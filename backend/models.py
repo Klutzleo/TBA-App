@@ -305,6 +305,13 @@ class Campaign(Base):
     # SW private notes / lore scratchpad
     sw_notes = Column(Text, nullable=True)
 
+    # Pinned message — visible to all players in the chat banner
+    pin_text = Column(Text, nullable=True)
+    pin_actor = Column(String(200), nullable=True)
+
+    # Scene note — SW-authored scene description visible in the party sidebar
+    scene_note = Column(Text, nullable=True)
+
     # Currency name chosen by the SW (e.g. "Gold", "Credits", "Chips")
     currency_name = Column(String(50), nullable=False, default='Gold')
 
@@ -634,6 +641,9 @@ class Message(Base):
     content = Column(Text, nullable=False)  # Message body
     attachment_url = Column(String, nullable=True)  # Optional image/file URL
     extra_data = Column(JSONB, nullable=True)  # Structured data (e.g., dice roll breakdown: {"breakdown": [3, 5, 2]})
+
+    is_edited = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 

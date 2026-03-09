@@ -803,6 +803,36 @@ async def update_currency_name(
     return {"currency_name": campaign.currency_name}
 
 
+@router.patch("/{campaign_id}/pin")
+async def pin_message(
+    campaign_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW pins a message text to the campaign banner."""
+    _require_sw(campaign_id, current_user, db)
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign.pin_text = req.get("text", "").strip()[:500]
+    campaign.pin_actor = req.get("actor", "").strip()[:200]
+    db.commit()
+    return {"pin_text": campaign.pin_text, "pin_actor": campaign.pin_actor}
+
+
+@router.delete("/{campaign_id}/pin", status_code=204)
+async def unpin_message(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW clears the pinned message."""
+    _require_sw(campaign_id, current_user, db)
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign.pin_text = None
+    campaign.pin_actor = None
+    db.commit()
+
+
 @router.get("/{campaign_id}/channels")
 def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
     """Get all channels for a campaign."""
@@ -859,8 +889,10 @@ def get_campaign_messages(
         raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
     # Get messages for this campaign, sorted by time (newest first), with pagination
+    # Exclude soft-deleted messages
     messages = db.query(Message)\
         .filter(Message.campaign_id == campaign_id)\
+        .filter(Message.deleted_at == None)\
         .order_by(Message.created_at.desc())\
         .offset(offset)\
         .limit(limit)\
@@ -880,6 +912,7 @@ def get_campaign_messages(
                 "message_type": msg.message_type,  # Keep for backward compatibility
                 "mode": msg.mode,                  # Keep for backward compatibility
                 "extra_data": msg.extra_data,      # Include extra_data (dice roll breakdowns, etc.)
+                "is_edited": msg.is_edited or False,
                 "timestamp": msg.created_at.isoformat() if msg.created_at else None
             }
             for msg in messages

@@ -45,6 +45,10 @@ from routes.schemas.campaign import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/campaign", tags=["Campaign"])
 
+# In-memory store for pending AOE casts awaiting SW approval.
+# key: f"{campaign_id}:{caster_char_id}"
+_aoe_pending: Dict[str, dict] = {}
+
 # ============================================================================
 # CONNECTION MANAGER (Tracks active WebSocket connections per campaign)
 # ============================================================================
@@ -252,11 +256,15 @@ async def campaign_websocket(
             CampaignMembership.campaign_id == campaign_uuid,
             CampaignMembership.user_id == user_uuid
         ).first()
+        campaign_rec = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
         welcome_payload = {
             "type": "welcome",
             "character_name": display_name,
             "role": "SW" if not character else "player",
             "my_chat_color": (membership_rec.chat_color if membership_rec else None) or '#d4af37',
+            "pin_text": campaign_rec.pin_text if campaign_rec else None,
+            "pin_actor": campaign_rec.pin_actor if campaign_rec else None,
+            "scene_note": campaign_rec.scene_note if campaign_rec else None,
         }
         if character:
             welcome_payload["character_id"] = str(character.id)
@@ -330,9 +338,125 @@ async def campaign_websocket(
                     "actor": actor
                 })
 
+            elif message_type == "pin_message":
+                pin_text = data.get("text", "").strip()[:500]
+                pin_actor = data.get("actor", "").strip()[:200]
+                campaign_rec = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+                if campaign_rec:
+                    campaign_rec.pin_text = pin_text
+                    campaign_rec.pin_actor = pin_actor
+                    db.commit()
+                await manager.broadcast(campaign_uuid, {
+                    "type": "message_pinned",
+                    "text": pin_text,
+                    "actor": pin_actor
+                })
+
+            elif message_type == "unpin_message":
+                campaign_rec = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+                if campaign_rec:
+                    campaign_rec.pin_text = None
+                    campaign_rec.pin_actor = None
+                    db.commit()
+                await manager.broadcast(campaign_uuid, {"type": "message_unpinned"})
+
+            elif message_type == "scene_note_update":
+                note = data.get("note", "").strip()[:1000]
+                campaign_rec = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+                if campaign_rec:
+                    campaign_rec.scene_note = note or None
+                    db.commit()
+                await manager.broadcast(campaign_uuid, {
+                    "type": "scene_note_updated",
+                    "note": note
+                })
+
+            elif message_type == "delete_message":
+                from uuid import UUID as _UUID
+                from datetime import datetime as _dt
+                msg_id = data.get("message_id")
+                if msg_id:
+                    msg = db.query(Message).filter(Message.id == _UUID(msg_id)).first()
+                    if msg:
+                        # SW can delete any message; players can only delete their own
+                        is_sw = not character  # No character = SW
+                        is_own = character and str(msg.sender_id) == str(character.id)
+                        if is_sw or is_own:
+                            msg.deleted_at = _dt.utcnow()
+                            db.commit()
+                            await manager.broadcast(campaign_uuid, {
+                                "type": "message_deleted",
+                                "message_id": msg_id
+                            })
+
+            elif message_type == "edit_message":
+                from uuid import UUID as _UUID
+                msg_id = data.get("message_id")
+                new_text = (data.get("text") or "").strip()[:2000]
+                if msg_id and new_text:
+                    msg = db.query(Message).filter(Message.id == _UUID(msg_id)).first()
+                    if msg:
+                        is_sw = not character
+                        is_own = character and str(msg.sender_id) == str(character.id)
+                        if is_sw or is_own:
+                            msg.content = new_text
+                            msg.is_edited = True
+                            db.commit()
+                            await manager.broadcast(campaign_uuid, {
+                                "type": "message_edited",
+                                "message_id": msg_id,
+                                "text": new_text
+                            })
+
+            elif message_type == "aoe_approve":
+                # SW approved the AOE cast (with possibly modified target list)
+                pending_key = data.get("pending_key")
+                approved_targets = data.get("targets") or []
+                pending = _aoe_pending.get(pending_key)
+                if not pending:
+                    await websocket.send_json({"type": "system", "text": "❌ AOE request expired or not found."})
+                else:
+                    original = pending["proposed_targets"]
+                    if set(approved_targets) == set(original):
+                        # Unchanged — execute immediately
+                        del _aoe_pending[pending_key]
+                        approved_data = {**pending["data"], "_aoe_approved": True, "_approved_targets": approved_targets}
+                        await handle_ability_cast(campaign_uuid, approved_data, websocket, UUID(pending["caster_user_id"]), db)
+                    else:
+                        # Modified — send back to caster for confirmation
+                        await manager.send_to_user(campaign_uuid, UUID(pending["caster_user_id"]), {
+                            "type": "aoe_review",
+                            "pending_key": pending_key,
+                            "caster_name": pending["caster_name"],
+                            "ability_name": pending["ability_name"],
+                            "effect_type": pending["effect_type"],
+                            "original_targets": original,
+                            "approved_targets": approved_targets,
+                        })
+
+            elif message_type == "aoe_confirm":
+                # Caster accepted SW-modified target list — execute
+                pending_key = data.get("pending_key")
+                approved_targets = data.get("targets") or []
+                pending = _aoe_pending.pop(pending_key, None)
+                if pending:
+                    approved_data = {**pending["data"], "_aoe_approved": True, "_approved_targets": approved_targets}
+                    await handle_ability_cast(campaign_uuid, approved_data, websocket, UUID(pending["caster_user_id"]), db)
+
+            elif message_type == "aoe_cancel":
+                # Caster rejected SW-modified targets — clean up and notify
+                pending_key = data.get("pending_key")
+                pending = _aoe_pending.pop(pending_key, None)
+                if pending:
+                    await manager.broadcast(campaign_uuid, {
+                        "type": "aoe_cancelled",
+                        "caster_name": pending["caster_name"],
+                        "ability_name": pending["ability_name"],
+                    })
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
-    
+
     except (WebSocketDisconnect, RuntimeError):
         display_name = manager.disconnect(campaign_uuid, websocket)
         if display_name:
@@ -416,6 +540,9 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
         )
         db.add(message_record)
         db.commit()
+        # Add message_id and sender_id so clients can edit/delete
+        broadcast_data["message_id"] = str(message_record.id)
+        broadcast_data["sender_id"] = str(user_id)
     except Exception as e:
         logger.error(f"Failed to save message to database: {e}")
         db.rollback()
@@ -945,6 +1072,40 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 "text": f"❌ {ability.display_name} has no uses remaining! ({ability.uses_remaining}/{ability.max_uses})"
             })
             return
+
+        # --- AOE approval gate ---
+        # If this ability is marked AOE and the cast hasn't been SW-approved yet,
+        # pause execution and send a pending request to the SW for review.
+        if ability.is_aoe and not data.get("_aoe_approved"):
+            if not target_names:
+                await websocket.send_json({
+                    "type": "system",
+                    "text": f"❌ {ability.display_name} is an AOE ability and requires at least one target. Use: {macro_command} @Target"
+                })
+                return
+            pending_key = f"{campaign_id}:{caster.id}"
+            _aoe_pending[pending_key] = {
+                "data": data,
+                "caster_user_id": str(user_id),
+                "caster_char_id": str(caster.id),
+                "caster_name": caster.name,
+                "ability_name": ability.display_name,
+                "effect_type": ability.effect_type,
+                "proposed_targets": target_names,
+            }
+            await manager.broadcast(campaign_id, {
+                "type": "aoe_pending",
+                "pending_key": pending_key,
+                "caster_name": caster.name,
+                "ability_name": ability.display_name,
+                "effect_type": ability.effect_type,
+                "proposed_targets": target_names,
+            })
+            return
+
+        # If targets were pre-approved (SW confirmed), override parsed targets
+        if data.get("_aoe_approved") and data.get("_approved_targets") is not None:
+            target_names = data["_approved_targets"]
 
         # Get caster's power stat (PP, IP, or SP)
         power_stat = 0
