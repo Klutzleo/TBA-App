@@ -4088,7 +4088,7 @@
       { cmd: '/attack',      desc: 'Attack a target — e.g. /attack @Target',  roles: ['player','SW'] },
       { cmd: '/cast',        desc: 'Cast a spell — e.g. /cast Fireball @Target', roles: ['player','SW'] },
       { cmd: '/technique',   desc: 'Use a technique',                          roles: ['player','SW'] },
-      { cmd: '/initiative',  desc: 'Roll initiative for everyone',             roles: ['SW'] },
+      { cmd: '/initiative',  desc: 'Roll your initiative (1d6 + Edge)',        roles: ['player','SW'] },
       { cmd: '/rest',        desc: 'Rest — restore all ability uses',          roles: ['SW'] },
       { cmd: '/s',           desc: 'Secret roll (SW only)',                    roles: ['SW'] },
       { cmd: '/say',         desc: 'Speak in-character',                       roles: ['player','SW'] },
@@ -9591,6 +9591,11 @@
           type: 'initiative_command',
           raw_command: text
         };
+        // Include active NPC/ally speaker so backend can roll for them on /initiative
+        if (activeSpeaker && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally') && activeSpeaker.id) {
+          payload.speaker_id = activeSpeaker.id;
+          payload.speaker_type = activeSpeaker.type;
+        }
         ws.send(JSON.stringify(payload));
 
       } else if (textLower.startsWith('/help')) {

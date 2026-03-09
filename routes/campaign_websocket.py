@@ -1935,18 +1935,27 @@ async def roll_initiative_self(
     campaign_uuid: UUID,
     user_uuid: UUID,
     db: Session,
-    websocket: WebSocket
+    websocket: WebSocket,
+    speaker_id: str = None
 ):
     """
-    Player rolls initiative for themselves.
+    Player (or SW speaking as NPC) rolls initiative for themselves.
     Command: /initiative
     """
     try:
-        # Get user's character in this campaign
-        character = db.query(Character).filter(
-            Character.campaign_id == campaign_uuid,
-            Character.user_id == user_uuid
-        ).first()
+        # If SW is speaking as an NPC, look up by speaker_id instead of user_id
+        if speaker_id:
+            from uuid import UUID as _UUID
+            character = db.query(Character).filter(
+                Character.id == _UUID(speaker_id),
+                Character.campaign_id == campaign_uuid
+            ).first()
+        else:
+            # Get user's character in this campaign
+            character = db.query(Character).filter(
+                Character.campaign_id == campaign_uuid,
+                Character.user_id == user_uuid
+            ).first()
 
         if not character:
             await websocket.send_json({
@@ -2781,9 +2790,10 @@ async def handle_initiative_command(
         # Parse command
         parts = raw_command.split()
 
-        # /initiative (self-roll)
+        # /initiative (self-roll) — also handles SW rolling for active NPC speaker
         if len(parts) == 1:
-            await roll_initiative_self(campaign_uuid, user_uuid, db, websocket)
+            speaker_id = data.get("speaker_id")
+            await roll_initiative_self(campaign_uuid, user_uuid, db, websocket, speaker_id=speaker_id)
             return
 
         subcommand = parts[1].lower()
