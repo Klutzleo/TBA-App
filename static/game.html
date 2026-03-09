@@ -8916,10 +8916,14 @@
       msgInput.style.height = 'auto'; // Reset textarea height
     });
 
+    // On mobile (touch devices), Enter inserts a newline — use Send button to send.
+    // On desktop, Enter sends and Shift+Enter inserts a newline.
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
     // Allow Enter key to send message (Shift+Enter for newlines)
     msgInput.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { hideMentionDropdown(); return; }
-      if (e.key === 'Enter' && !e.shiftKey && !sendBtn.disabled) {
+      if (e.key === 'Enter' && !e.shiftKey && !sendBtn.disabled && !isMobile) {
         const dd = document.getElementById('mentionDropdown');
         if (dd && dd.style.display !== 'none') {
           // Select first mention item on Enter
