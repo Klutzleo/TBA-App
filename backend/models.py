@@ -232,6 +232,7 @@ class Character(Base):
     battle_scars = Column(JSON, nullable=True, default=list)  # Array of scar descriptions from surviving The Calling
     has_faced_calling_this_encounter = Column(Boolean, nullable=False, default=False)  # Prevent re-triggering in same encounter
     chat_color = Column(String(7), nullable=False, default='#d4af37')  # Hex color shown in chat header
+    sort_order = Column(Integer, nullable=False, default=0)  # Display order in the NPC bubble bar
     tethers = Column(JSON, nullable=True, default=list)  # Array of {id, description, is_active, modifier}
     active_tether_modifier = Column(Integer, nullable=False, default=0)  # Sum of active tether modifiers
 

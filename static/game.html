@@ -1945,6 +1945,21 @@
       box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
     }
 
+    .character-bubble.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+
+    .character-bubble.drag-over {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
+      transform: scale(1.05);
+    }
+
+    .character-bubble[draggable="true"] {
+      cursor: grab;
+    }
+
     .character-bubble.ally {
       border-color: #10b981;
     }
@@ -3657,14 +3672,49 @@
       // Click to set active speaker
       bubble.onclick = () => setActiveSpeaker(character);
 
-      // Context menu (NPCs only for SW)
+      // Context menu + drag-and-drop reorder (NPCs only for SW)
       if (character.type === 'npc' && userRole === 'SW') {
         bubble.oncontextmenu = (e) => {
           e.preventDefault();
           showContextMenu(e, character);
         };
 
-        // Long-press for mobile
+        // Drag to reorder
+        bubble.draggable = true;
+        bubble.ondragstart = (e) => {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', character.id);
+          bubble.classList.add('dragging');
+        };
+        bubble.ondragend = () => bubble.classList.remove('dragging');
+        bubble.ondragover = (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          bubble.classList.add('drag-over');
+        };
+        bubble.ondragleave = () => bubble.classList.remove('drag-over');
+        bubble.ondrop = (e) => {
+          e.preventDefault();
+          bubble.classList.remove('drag-over');
+          const draggedId = e.dataTransfer.getData('text/plain');
+          const targetId = character.id;
+          if (draggedId === targetId) return;
+          // Reorder campaignNPCs array
+          const fromIdx = campaignNPCs.findIndex(n => n.id === draggedId);
+          const toIdx = campaignNPCs.findIndex(n => n.id === targetId);
+          if (fromIdx === -1 || toIdx === -1) return;
+          const [moved] = campaignNPCs.splice(fromIdx, 1);
+          campaignNPCs.splice(toIdx, 0, moved);
+          renderBubbleBar();
+          // Persist order to DB
+          fetch(`/api/campaigns/${campaignId}/npcs/reorder`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordered_ids: campaignNPCs.map(n => n.id) })
+          }).catch(() => showPanelToast('Could not save NPC order', 'error'));
+        };
+
+        // Long-press for mobile context menu
         let pressTimer;
         bubble.ontouchstart = (e) => {
           pressTimer = setTimeout(() => {

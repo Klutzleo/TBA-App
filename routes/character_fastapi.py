@@ -813,14 +813,43 @@ async def list_npcs(
     if not membership or membership.role != 'story_weaver':
         raise HTTPException(status_code=403, detail="Only Story Weaver can manage NPCs")
 
-    # Get all NPCs for this campaign
+    # Get all NPCs for this campaign, ordered by sort_order then creation time
     npcs = db.query(Character).filter(
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True
-    ).all()
+    ).order_by(Character.sort_order, Character.created_at).all()
 
     logger.info(f"[{request_id}] Found {len(npcs)} NPCs")
     return npcs
+
+
+@npc_router.patch("/{campaign_id}/npcs/reorder")
+async def reorder_npcs(
+    campaign_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Save NPC sort order. Body: { ordered_ids: [uuid, uuid, ...] }"""
+    from uuid import UUID
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="Only Story Weaver can reorder NPCs")
+
+    body = await request.json()
+    ordered_ids = body.get("ordered_ids", [])
+    for index, npc_id in enumerate(ordered_ids):
+        db.query(Character).filter(
+            Character.id == UUID(npc_id),
+            Character.campaign_id == campaign_uuid,
+            Character.is_npc == True
+        ).update({"sort_order": index})
+    db.commit()
+    return {"ok": True}
 
 
 @npc_router.post("/{campaign_id}/npcs", response_model=CharacterResponse, status_code=201)

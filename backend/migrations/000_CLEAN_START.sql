@@ -195,6 +195,12 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
+    ALTER TABLE characters ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
     ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_notified_at TIMESTAMPTZ;
 EXCEPTION
     WHEN duplicate_column THEN null;

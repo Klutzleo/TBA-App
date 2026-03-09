@@ -119,6 +119,7 @@ class CharacterResponse(BaseModel):
     tethers: Optional[list] = None
     active_tether_modifier: int = 0
     chat_color: str = '#d4af37'
+    sort_order: int = 0
     abilities: list["AbilityResponse"] = []
     created_at: datetime
     updated_at: datetime
