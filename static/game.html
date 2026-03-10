@@ -5393,6 +5393,21 @@
     let currentInitiativeOrder = [];
     let currentTurnIndex = 0;
 
+    async function loadInitiativeState() {
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/initiative-state`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        const state = await resp.json();
+        if (state.active && state.rolls.length) {
+          currentInitiativeOrder = state.rolls;
+          currentTurnIndex = state.current_turn_index ?? 0;
+          renderInitiativeTracker();
+        }
+      } catch (_) { /* silent */ }
+    }
+
     function switchSidebarTab(tab) {
       const partyPanel  = document.getElementById('sidebarPartyPanel');
       const initPanel   = document.getElementById('sidebarInitiativePanel');
@@ -8290,6 +8305,9 @@
 
           // Now load history — activeSpeaker and knownPCs are populated, colors apply immediately
           await loadMessageHistory();
+
+          // Hydrate initiative tracker from REST (no WS needed on refresh)
+          await loadInitiativeState();
         };
 
         // Note: Join notification is now handled by the backend after caching character data

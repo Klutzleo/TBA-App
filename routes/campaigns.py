@@ -1388,3 +1388,64 @@ async def create_memory_echo(
         pass
 
     return _echo_dict(echo)
+
+
+# ─── Initiative State (REST) ───────────────────────────────────────────────────
+
+@router.get("/{campaign_id}/initiative-state")
+async def get_initiative_state(
+    campaign_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the active encounter's initiative order for page-load hydration."""
+    from backend.models import Encounter, InitiativeRoll
+    from routes.campaign_websocket import _sort_initiative_rolls
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+
+    encounter = db.query(Encounter).filter(
+        Encounter.campaign_id == campaign_id,
+        Encounter.is_active == True,
+    ).first()
+
+    if not encounter:
+        return {"active": False, "rolls": [], "current_turn_index": 0}
+
+    all_rolls = db.query(InitiativeRoll).filter(
+        InitiativeRoll.encounter_id == encounter.id
+    ).all()
+    all_rolls = _sort_initiative_rolls(all_rolls, db)
+
+    is_sw = membership.role == "story_weaver"
+    result = []
+    for roll in all_rolls:
+        if roll.is_silent and not is_sw:
+            continue
+        entry = {
+            "name": roll.name,
+            "roll": roll.roll_result,
+            "is_silent": roll.is_silent,
+            "rolled_by_sw": roll.rolled_by_sw,
+            "character_id": str(roll.character_id) if roll.character_id else None,
+            "is_npc": roll.npc_id is not None,
+            "dp": None,
+            "max_dp": None,
+        }
+        if roll.character_id:
+            char = db.query(Character).filter(Character.id == roll.character_id).first()
+            if char:
+                entry["dp"] = char.dp
+                entry["max_dp"] = char.max_dp
+        result.append(entry)
+
+    return {
+        "active": True,
+        "rolls": result,
+        "current_turn_index": encounter.current_turn_index,
+    }
