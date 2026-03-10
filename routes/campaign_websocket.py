@@ -1806,7 +1806,7 @@ async def broadcast_online_users(campaign_uuid: UUID, db: Session):
                 Character.status == 'active'
             ).first()
             role = 'player' if char else 'spectator'
-        users.append({'username': user.username, 'role': role, 'connected': uid in connected_ids})
+        users.append({'user_id': uid, 'username': user.username, 'role': role, 'connected': uid in connected_ids})
     role_order = {'SW': 0, 'player': 1, 'spectator': 2}
     users.sort(key=lambda u: (role_order.get(u['role'], 3), u['username']))
     await manager.broadcast(campaign_uuid, {'type': 'online_users', 'users': users})
@@ -2032,13 +2032,15 @@ async def roll_initiative_self(
                 "character_id": str(r.character_id) if r.character_id else None,
                 "is_npc": r.npc_id is not None,
                 "dp": None,
-                "max_dp": None
+                "max_dp": None,
+                "user_id": None
             }
             if r.character_id:
                 c = db.query(Character).filter(Character.id == r.character_id).first()
                 if c:
                     entry["dp"] = c.dp
                     entry["max_dp"] = c.max_dp
+                    entry["user_id"] = str(c.user_id) if c.user_id else None
             updated_order.append(entry)
 
         await manager.broadcast(campaign_uuid, {
@@ -2185,13 +2187,15 @@ async def roll_initiative_target(
                 "character_id": str(r.character_id) if r.character_id else None,
                 "is_npc": r.npc_id is not None,
                 "dp": None,
-                "max_dp": None
+                "max_dp": None,
+                "user_id": None
             }
             if r.character_id:
                 c = db.query(Character).filter(Character.id == r.character_id).first()
                 if c:
                     entry["dp"] = c.dp
                     entry["max_dp"] = c.max_dp
+                    entry["user_id"] = str(c.user_id) if c.user_id else None
             updated_order.append(entry)
 
         # Broadcast to all players

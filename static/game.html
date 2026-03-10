@@ -2371,8 +2371,9 @@
         <div id="sidebarTabBar" style="display:none; padding:0 8px 4px;">
           <div style="display:flex; gap:4px;">
             <button class="sidebar-tab-btn active" id="sidebarTabParty" onclick="switchSidebarTab('party')" style="flex:1;">Party</button>
-            <button class="sidebar-tab-btn" id="sidebarTabInit" onclick="switchSidebarTab('initiative')" style="display:none; flex:1;">⚔️ Initiative</button>
-            <button class="sidebar-tab-btn" id="sidebarTabOnline" onclick="switchSidebarTab('online')" style="flex:1;">👥 Online</button>
+            <button class="sidebar-tab-btn" id="sidebarTabInit" onclick="switchSidebarTab('initiative')" style="display:none; flex:1;">⚔️</button>
+            <button class="sidebar-tab-btn" id="sidebarTabDash" onclick="switchSidebarTab('dashboard')" style="display:none; flex:1;">📊</button>
+            <button class="sidebar-tab-btn" id="sidebarTabOnline" onclick="switchSidebarTab('online')" style="flex:1;">👥</button>
           </div>
         </div>
 
@@ -2380,6 +2381,13 @@
         <div id="sidebarOnlinePanel" style="display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
           <div id="onlineUsersList" style="flex:1; overflow-y:auto; padding:12px 16px;">
             <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Waiting...</div>
+          </div>
+        </div>
+
+        <!-- SW Dashboard Panel -->
+        <div id="sidebarDashPanel" style="display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
+          <div id="swDashboardList" style="flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px;">
+            <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Loading...</div>
           </div>
         </div>
 
@@ -5652,6 +5660,7 @@
 
     let currentInitiativeOrder = [];
     let currentTurnIndex = 0;
+    let onlineUserIds = new Set(); // Track connected user IDs for disconnect detection
 
     async function loadInitiativeState() {
       try {
@@ -5672,20 +5681,27 @@
       const partyPanel  = document.getElementById('sidebarPartyPanel');
       const initPanel   = document.getElementById('sidebarInitiativePanel');
       const onlinePanel = document.getElementById('sidebarOnlinePanel');
+      const dashPanel   = document.getElementById('sidebarDashPanel');
       const partyBtn    = document.getElementById('sidebarTabParty');
       const initBtn     = document.getElementById('sidebarTabInit');
       const onlineBtn   = document.getElementById('sidebarTabOnline');
+      const dashBtn     = document.getElementById('sidebarTabDash');
       // Hide all panels and deactivate all buttons
       partyPanel.style.display  = 'none';
       if (initPanel)   initPanel.style.display   = 'none';
       if (onlinePanel) onlinePanel.style.display  = 'none';
-      [partyBtn, initBtn, onlineBtn].forEach(b => b && b.classList.remove('active'));
+      if (dashPanel)   dashPanel.style.display    = 'none';
+      [partyBtn, initBtn, onlineBtn, dashBtn].forEach(b => b && b.classList.remove('active'));
       if (tab === 'initiative') {
         if (initPanel)  initPanel.style.display  = 'flex';
         if (initBtn)    initBtn.classList.add('active');
       } else if (tab === 'online') {
         if (onlinePanel) onlinePanel.style.display = 'flex';
         if (onlineBtn)   onlineBtn.classList.add('active');
+      } else if (tab === 'dashboard') {
+        if (dashPanel)   dashPanel.style.display  = 'flex';
+        if (dashBtn)     dashBtn.classList.add('active');
+        renderSWDashboard();
       } else {
         partyPanel.style.display = '';
         partyBtn.classList.add('active');
@@ -5693,6 +5709,11 @@
     }
 
     function renderOnlineUsers(users) {
+      // Keep online set in sync — used to detect disconnected players in initiative
+      onlineUserIds = new Set((users || []).filter(u => u.connected).map(u => u.user_id).filter(Boolean));
+      // If SW is viewing initiative and it's someone's turn, re-render to show/hide disconnect warning
+      if (isSW() && currentInitiativeOrder.length) renderInitiativeTracker();
+
       const container = document.getElementById('onlineUsersList');
       if (!container) return;
       if (!users || !users.length) {
@@ -5715,6 +5736,65 @@
           `).join('')}
         </div>
       `).join('');
+    }
+
+    async function renderSWDashboard() {
+      const container = document.getElementById('swDashboardList');
+      if (!container) return;
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/members`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) throw new Error();
+        const data = await resp.json();
+        const members = Array.isArray(data) ? data : data.members || [];
+        const pcs = members.filter(m => m.character && !m.character.is_npc);
+        if (!pcs.length) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No characters yet.</div>';
+          return;
+        }
+        container.innerHTML = '';
+        pcs.forEach(m => {
+          const c = m.character;
+          const dpPct = c.max_dp > 0 ? Math.max(0, Math.min(100, (c.dp / c.max_dp) * 100)) : 0;
+          const dpColor = dpPct > 50 ? '#10b981' : dpPct > 25 ? '#f59e0b' : '#ef4444';
+          const timesCalled = c.times_called || 0;
+          const calledColor = timesCalled >= 4 ? '#ff4444' : timesCalled >= 2 ? '#f87171' : '#6b7280';
+          const usesRemaining = c.uses_remaining ?? '?';
+          const maxUses = c.max_uses ?? (3 * (c.level || 1));
+          const usesColor = usesRemaining === 0 ? '#ef4444' : usesRemaining <= maxUses * 0.33 ? '#f59e0b' : '#10b981';
+          const isOnline = c.user_id && onlineUserIds.has(String(c.user_id));
+          const card = document.createElement('div');
+          card.style.cssText = 'background:var(--bg-secondary);border-radius:8px;padding:8px 10px;border:1px solid var(--border-color);';
+          card.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:7px;height:7px;border-radius:50%;background:${isOnline ? '#10b981' : '#6b7280'};flex-shrink:0;" title="${isOnline ? 'Online' : 'Offline'}"></span>
+                <strong style="font-size:0.88rem;">${escHtml(c.name)}</strong>
+                <span style="font-size:0.72rem;color:var(--text-muted);">Lvl ${c.level}</span>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;">
+                ${timesCalled > 0 ? `<span style="font-size:0.72rem;color:${calledColor};" title="${timesCalled}/5 Callings">💀${timesCalled}</span>` : ''}
+                ${c.bap_token_active ? `<span style="font-size:0.72rem;color:#f59e0b;" title="BAP token active">✦</span>` : ''}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <div style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+                <div style="width:${dpPct}%;height:100%;background:${dpColor};border-radius:3px;transition:width 0.3s;"></div>
+              </div>
+              <span style="font-size:0.75rem;color:${dpColor};min-width:48px;text-align:right;">${c.dp}/${c.max_dp} DP</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted);">
+              <span>PP ${c.pp||0} · IP ${c.ip||0} · SP ${c.sp||0}</span>
+              <span style="color:${usesColor};">⚡ ${usesRemaining}/${maxUses} uses</span>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (_) {
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Could not load dashboard.</div>';
+      }
     }
 
     function renderInitiativeTracker() {
@@ -5764,6 +5844,19 @@
           entry.appendChild(barWrap);
         }
 
+        // SW: ping button for PC entries
+        if (isSW() && !isNpc && roll.user_id) {
+          const pingBtn = document.createElement('button');
+          pingBtn.className = 'btn-icon';
+          pingBtn.title = `Ping ${roll.name}`;
+          pingBtn.textContent = '📣';
+          pingBtn.style.cssText = 'font-size:0.8rem;opacity:0.5;padding:0 2px;flex-shrink:0;';
+          pingBtn.onmouseenter = () => pingBtn.style.opacity = '1';
+          pingBtn.onmouseleave = () => pingBtn.style.opacity = '0.5';
+          pingBtn.onclick = (e) => { e.stopPropagation(); pingPlayer(roll.user_id, roll.name); };
+          entry.appendChild(pingBtn);
+        }
+
         tracker.appendChild(entry);
       });
 
@@ -5778,6 +5871,24 @@
       counter.textContent = activeRoll
         ? `Turn ${currentTurnIndex + 1} / ${currentInitiativeOrder.length} — ${activeRoll.name}`
         : '';
+
+      // SW: Show disconnect warning if current turn's player is offline
+      let disconnectBanner = document.getElementById('initDisconnectBanner');
+      if (isSW() && activeRoll && activeRoll.user_id && onlineUserIds.size > 0 && !onlineUserIds.has(activeRoll.user_id)) {
+        if (!disconnectBanner) {
+          disconnectBanner = document.createElement('div');
+          disconnectBanner.id = 'initDisconnectBanner';
+          disconnectBanner.style.cssText = 'margin-top:8px;padding:8px 12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);border-radius:6px;font-size:0.82rem;display:flex;justify-content:space-between;align-items:center;gap:8px;';
+          tracker.parentNode.insertBefore(disconnectBanner, counter.nextSibling);
+        }
+        disconnectBanner.innerHTML = `
+          <span>⚠️ <strong>${escHtml(activeRoll.name)}</strong> appears to be disconnected.</span>
+          <button class="btn btn-sm" style="font-size:0.75rem;padding:3px 10px;background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.5);" onclick="advanceTurn()">Skip Turn ▶</button>
+        `;
+        disconnectBanner.style.display = 'flex';
+      } else if (disconnectBanner) {
+        disconnectBanner.style.display = 'none';
+      }
     }
 
     function advanceTurn() {
@@ -10368,6 +10479,8 @@
       if (tabBar) tabBar.style.display = 'flex';
       const initTabBtn = document.getElementById('sidebarTabInit');
       if (initTabBtn) initTabBtn.style.display = '';
+      const dashTabBtn = document.getElementById('sidebarTabDash');
+      if (dashTabBtn) dashTabBtn.style.display = '';
 
       // Show SW lore toolbar
       const loreSWToolbar = document.getElementById('loreSWToolbar');

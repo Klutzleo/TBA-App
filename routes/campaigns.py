@@ -1436,12 +1436,14 @@ async def get_initiative_state(
             "is_npc": roll.npc_id is not None,
             "dp": None,
             "max_dp": None,
+            "user_id": None,
         }
         if roll.character_id:
             char = db.query(Character).filter(Character.id == roll.character_id).first()
             if char:
                 entry["dp"] = char.dp
                 entry["max_dp"] = char.max_dp
+                entry["user_id"] = str(char.user_id) if char.user_id else None
         result.append(entry)
 
     return {
