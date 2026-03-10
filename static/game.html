@@ -184,6 +184,14 @@
       margin-bottom: 0;
     }
 
+    .btn-icon {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
     .char-header {
       display: flex;
       align-items: center;
@@ -2923,13 +2931,27 @@
 
         <!-- Dice Commands -->
         <div>
-          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Dice Commands</div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Dice Commands — Players</div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
             <div><span style="color:var(--accent-dice);">/roll 2d6+3</span> <span style="color:var(--text-muted);">— Roll any dice expression</span></div>
             <div><span style="color:var(--accent-dice);">/attack</span> <span style="color:var(--text-muted);">— Roll your attack (weapon die + PP)</span></div>
             <div><span style="color:var(--accent-dice);">/defend</span> <span style="color:var(--text-muted);">— Roll your defense die</span></div>
             <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge)</span></div>
             <div><span style="color:var(--accent-dice);">/IP</span> <span style="color:var(--text-muted);">— Roll using IP instead of PP</span></div>
+          </div>
+        </div>
+
+        <!-- SW Commands -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Commands — Story Weaver</div>
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
+            <div><span style="color:#a78bfa;">/initiative start</span> <span style="color:var(--text-muted);">— Start encounter without rolling</span></div>
+            <div><span style="color:#a78bfa;">/initiative @Name</span> <span style="color:var(--text-muted);">— Roll initiative for a PC or NPC</span></div>
+            <div><span style="color:#a78bfa;">/initiative silent @Name</span> <span style="color:var(--text-muted);">— Hidden roll, only SW sees result</span></div>
+            <div><span style="color:#a78bfa;">/initiative next</span> <span style="color:var(--text-muted);">— Advance to the next turn</span></div>
+            <div><span style="color:#a78bfa;">/initiative end</span> <span style="color:var(--text-muted);">— End encounter & restore all ability uses</span></div>
+            <div><span style="color:#a78bfa;">/initiative clear</span> <span style="color:var(--text-muted);">— Clear rolls without ending encounter</span></div>
+            <div><span style="color:#a78bfa;">/rest</span> <span style="color:var(--text-muted);">— Short rest — restore ability uses only</span></div>
           </div>
         </div>
 
@@ -2942,15 +2964,15 @@
               <div style="color:var(--text-muted);font-size:0.78rem;">Adds to attack rolls and physical initiative.</div>
             </div>
             <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
-              <div style="font-weight:bold;color:#a78bfa;margin-bottom:4px;">IP — Inner Power</div>
+              <div style="font-weight:bold;color:#a78bfa;margin-bottom:4px;">IP — Intellect Power</div>
               <div style="color:var(--text-muted);font-size:0.78rem;">Used for magic/technique rolls. Initiative tiebreaker #2.</div>
             </div>
             <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
-              <div style="font-weight:bold;color:#34d399;margin-bottom:4px;">SP — Support Power</div>
+              <div style="font-weight:bold;color:#34d399;margin-bottom:4px;">SP — Social Power</div>
               <div style="color:var(--text-muted);font-size:0.78rem;">Used for healing and support. Initiative tiebreaker #3.</div>
             </div>
             <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
-              <div style="font-weight:bold;color:#fbbf24;margin-bottom:4px;">DP — Defense Points</div>
+              <div style="font-weight:bold;color:#fbbf24;margin-bottom:4px;">DP — Damage Points</div>
               <div style="color:var(--text-muted);font-size:0.78rem;">Your hit points. Reaches 0 = trigger The Calling.</div>
             </div>
             <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
@@ -2958,7 +2980,7 @@
               <div style="color:var(--text-muted);font-size:0.78rem;">Adds to initiative roll and special bonuses. Grows with level.</div>
             </div>
             <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
-              <div style="font-weight:bold;color:#fb923c;margin-bottom:4px;">BAP — Bonus Action Points</div>
+              <div style="font-weight:bold;color:#fb923c;margin-bottom:4px;">BAP — Bad Ass Points</div>
               <div style="color:var(--text-muted);font-size:0.78rem;">Granted by SW for creative play. Adds a bonus die to your next roll.</div>
             </div>
           </div>
