@@ -2001,7 +2001,9 @@ async def roll_initiative_self(
 
         # Roll 1d6 + PP + Edge (TBA rules)
         die_result = roll_dice("1d6")[0]
-        roll_total = die_result + (character.pp or 0) + (character.edge or 0)
+        char_pp   = character.pp   or 0
+        char_edge = character.edge or 0
+        roll_total = die_result + char_pp + char_edge
 
         # Create initiative roll
         initiative_roll = InitiativeRoll(
@@ -2043,6 +2045,9 @@ async def roll_initiative_self(
             "type": "initiative_roll",
             "actor": character.name,
             "roll": roll_total,
+            "die_result": die_result,
+            "pp": char_pp,
+            "edge": char_edge,
             "is_silent": False,
             "updated_order": updated_order,
             "current_turn_index": encounter.current_turn_index,
@@ -2060,6 +2065,9 @@ async def roll_initiative_self(
             extra_data={
                 "actor": character.name,
                 "roll": roll_total,
+                "die_result": die_result,
+                "pp": char_pp,
+                "edge": char_edge,
                 "is_silent": False
             }
         )
@@ -2164,24 +2172,17 @@ async def roll_initiative_target(
 
         # Broadcast to all players
         if is_silent:
-            # Silent roll: Send full details to SW only, broadcast hidden version to everyone
-            # Send full details to Story Weaver
+            # Silent roll: Send full details to SW only — no public notice
             await websocket.send_json({
                 "type": "initiative_roll",
                 "actor": name,
                 "roll": roll_total,
+                "die_result": die_result,
+                "pp": pp,
+                "edge": edge,
                 "is_silent": True,
                 "rolled_by_sw": True,
-                "sw_only": True,  # Tag for SW
-                "timestamp": datetime.now().isoformat()
-            })
-            # Broadcast hidden version to everyone else
-            await manager.broadcast(campaign_uuid, {
-                "type": "initiative_roll",
-                "actor": name,
-                "roll": "???",
-                "is_silent": True,
-                "rolled_by_sw": True,
+                "sw_only": True,
                 "timestamp": datetime.now().isoformat()
             })
         else:
@@ -2190,6 +2191,9 @@ async def roll_initiative_target(
                 "type": "initiative_roll",
                 "actor": name,
                 "roll": roll_total,
+                "die_result": die_result,
+                "pp": pp,
+                "edge": edge,
                 "is_silent": False,
                 "rolled_by_sw": True,
                 "timestamp": datetime.now().isoformat()
@@ -2205,7 +2209,10 @@ async def roll_initiative_target(
             content=f"{name} rolled {roll_total if not is_silent else '???'} for initiative (SW rolled)",
             extra_data={
                 "actor": name,
-                "roll": roll_total,  # Always store actual roll
+                "roll": roll_total,
+                "die_result": die_result,
+                "pp": pp,
+                "edge": edge,
                 "is_silent": is_silent,
                 "rolled_by_sw": True,
                 "entity_type": entity_type

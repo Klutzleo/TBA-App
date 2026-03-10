@@ -7074,6 +7074,13 @@
     }
 
     // Shared helper: compact [timestamp] · Title row with optional toggle + tab
+    function buildInitBreakdown(data) {
+      if (data.die_result == null) return '';
+      const parts = [`1d6(${data.die_result})`];
+      if (data.pp) parts.push(`PP(${data.pp})`);
+      if (data.edge) parts.push(`Edge(${data.edge})`);
+      return parts.length > 1 ? ` [${parts.join(' + ')}]` : ` [${parts[0]}]`;
+    }
     function fmtNow() {
       return new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
@@ -8039,9 +8046,10 @@
                 const container = document.createElement('div');
                 container.className = 'message-card initiative-roll';
 
+                const initHistBreakdown = buildInitBreakdown(data);
                 const initHistTitle = data.is_silent
                   ? `🔒 ${data.actor} rolled initiative (hidden)`
-                  : `🎲 ${data.actor} rolled initiative: ${data.roll}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
+                  : `🎲 ${data.actor} rolled initiative: ${data.roll}${initHistBreakdown}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
 
                 container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), initHistTitle, { tab: 'STORY' }));
                 storeAndDisplayMessage(container, { type: 'initiative_roll', ...data });
@@ -9196,13 +9204,16 @@
               }
 
             } else if (data.type === 'initiative_roll') {
-              // Single initiative roll
+              // Silent rolls only go to SW — skip display for non-SW
+              if (data.is_silent && !isSW()) return;
+
               const container = document.createElement('div');
               container.className = 'message-card initiative-roll';
 
+              const initBreakdown = buildInitBreakdown(data);
               const initTitle = data.is_silent
-                ? `🔒 ${data.actor} rolled initiative (hidden)`
-                : `🎲 ${data.actor} rolled initiative: ${data.roll}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
+                ? `🔒 ${data.actor} rolled initiative: ${data.roll}${initBreakdown} (silent)`
+                : `🎲 ${data.actor} rolled initiative: ${data.roll}${initBreakdown}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
 
               container.appendChild(makeHeaderRow(fmtNow(), initTitle, { tab: 'STORY' }));
               storeAndDisplayMessage(container, data);
