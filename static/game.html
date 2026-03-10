@@ -2350,6 +2350,8 @@
         <button id="soundToggleBtn" title="Toggle message sounds"
           onclick="toggleMessageSound()"
           style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;margin-left:2px;">🔇</button>
+        <button title="Quick Reference" onclick="document.getElementById('quickRefModal').classList.add('active')"
+          style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;margin-left:2px;opacity:0.6;">📖</button>
       </div>
     </header>
 
@@ -2799,6 +2801,132 @@
     </div>
   </div>
 
+  <!-- Quick Reference Modal -->
+  <div id="quickRefModal" class="modal">
+    <div class="modal-content" style="max-width:560px;max-height:85vh;overflow-y:auto;">
+      <div class="modal-header">
+        <h2>📖 Quick Reference</h2>
+        <button class="modal-close" onclick="document.getElementById('quickRefModal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:20px;font-size:0.875rem;">
+
+        <!-- Roles -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Roles</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;margin-bottom:2px;">🎲 Story Weaver</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">GM. Controls NPCs, encounters, and the world. Has campaign settings and full initiative control.</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;margin-bottom:2px;">⚔️ Player</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Has an approved character. Rolls dice, attacks, defends, and casts abilities.</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;margin-bottom:2px;">👁 Spectator</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Joined but hasn't created a character yet. Can watch but not act.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dice Commands -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Dice Commands</div>
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
+            <div><span style="color:var(--accent-dice);">/roll 2d6+3</span> <span style="color:var(--text-muted);">— Roll any dice expression</span></div>
+            <div><span style="color:var(--accent-dice);">/attack</span> <span style="color:var(--text-muted);">— Roll your attack (weapon die + PP)</span></div>
+            <div><span style="color:var(--accent-dice);">/defend</span> <span style="color:var(--text-muted);">— Roll your defense die</span></div>
+            <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge)</span></div>
+            <div><span style="color:var(--accent-dice);">/IP</span> <span style="color:var(--text-muted);">— Roll using IP instead of PP</span></div>
+          </div>
+        </div>
+
+        <!-- Combat Stats -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Stats</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;color:#60a5fa;margin-bottom:4px;">PP — Physical Power</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Adds to attack rolls and physical initiative.</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;color:#a78bfa;margin-bottom:4px;">IP — Inner Power</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Used for magic/technique rolls. Initiative tiebreaker #2.</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;color:#34d399;margin-bottom:4px;">SP — Support Power</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Used for healing and support. Initiative tiebreaker #3.</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;color:#fbbf24;margin-bottom:4px;">DP — Defense Points</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Your hit points. Reaches 0 = trigger The Calling.</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;color:#f472b6;margin-bottom:4px;">Edge</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Adds to initiative roll and special bonuses. Grows with level.</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+              <div style="font-weight:bold;color:#fb923c;margin-bottom:4px;">BAP — Bonus Action Points</div>
+              <div style="color:var(--text-muted);font-size:0.78rem;">Granted by SW for creative play. Adds a bonus die to your next roll.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Initiative & Tiebreakers -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Initiative</div>
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;color:var(--text-muted);font-size:0.82rem;line-height:1.6;">
+            Formula: <strong style="color:var(--text-primary);">1d6 + PP + Edge</strong><br>
+            Tiebreaker order: <strong style="color:var(--text-primary);">PP → IP → SP</strong><br>
+            Ability uses reset at end of encounter.
+          </div>
+        </div>
+
+        <!-- The Calling -->
+        <div>
+          <div style="font-weight:bold;color:var(--accent-danger);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">💀 The Calling</div>
+          <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:10px;color:var(--text-muted);font-size:0.82rem;line-height:1.6;">
+            Triggered when DP reaches 0. SW asks a threshold question.<br>
+            <strong style="color:#f87171;">Outcomes:</strong> Survive · Scarred (permanent consequence) · Dead<br>
+            <strong style="color:#ff4444;">5th Calling = permanent death.</strong> Characters with 4 Callings are on the edge.
+          </div>
+        </div>
+
+        <!-- Leveling -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Leveling (Key Values)</div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.78rem;font-family:monospace;">
+              <thead>
+                <tr style="color:var(--text-muted);border-bottom:1px solid var(--border-color);">
+                  <th style="padding:4px 8px;text-align:left;">Lvl</th>
+                  <th style="padding:4px 8px;text-align:center;">DP</th>
+                  <th style="padding:4px 8px;text-align:center;">Edge</th>
+                  <th style="padding:4px 8px;text-align:center;">BAP</th>
+                  <th style="padding:4px 8px;text-align:center;">Uses/Enc</th>
+                  <th style="padding:4px 8px;text-align:center;">Def Die</th>
+                </tr>
+              </thead>
+              <tbody style="color:var(--text-secondary);">
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">1</td><td style="padding:3px 8px;text-align:center;">10</td><td style="padding:3px 8px;text-align:center;">0</td><td style="padding:3px 8px;text-align:center;">1</td><td style="padding:3px 8px;text-align:center;">3</td><td style="padding:3px 8px;text-align:center;">1d4</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">2</td><td style="padding:3px 8px;text-align:center;">15</td><td style="padding:3px 8px;text-align:center;">1</td><td style="padding:3px 8px;text-align:center;">1</td><td style="padding:3px 8px;text-align:center;">6</td><td style="padding:3px 8px;text-align:center;">1d4</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">3</td><td style="padding:3px 8px;text-align:center;">20</td><td style="padding:3px 8px;text-align:center;">1</td><td style="padding:3px 8px;text-align:center;">2</td><td style="padding:3px 8px;text-align:center;">9</td><td style="padding:3px 8px;text-align:center;">1d6</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">4</td><td style="padding:3px 8px;text-align:center;">25</td><td style="padding:3px 8px;text-align:center;">2</td><td style="padding:3px 8px;text-align:center;">2</td><td style="padding:3px 8px;text-align:center;">12</td><td style="padding:3px 8px;text-align:center;">1d6</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">5</td><td style="padding:3px 8px;text-align:center;">30</td><td style="padding:3px 8px;text-align:center;">2</td><td style="padding:3px 8px;text-align:center;">3</td><td style="padding:3px 8px;text-align:center;">15</td><td style="padding:3px 8px;text-align:center;">1d8</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">6</td><td style="padding:3px 8px;text-align:center;">35</td><td style="padding:3px 8px;text-align:center;">3</td><td style="padding:3px 8px;text-align:center;">3</td><td style="padding:3px 8px;text-align:center;">18</td><td style="padding:3px 8px;text-align:center;">1d8</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">7</td><td style="padding:3px 8px;text-align:center;">40</td><td style="padding:3px 8px;text-align:center;">3</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">21</td><td style="padding:3px 8px;text-align:center;">1d10</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">8</td><td style="padding:3px 8px;text-align:center;">45</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">24</td><td style="padding:3px 8px;text-align:center;">1d10</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">9</td><td style="padding:3px 8px;text-align:center;">50</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">27</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+                <tr><td style="padding:3px 8px;color:var(--primary);">10</td><td style="padding:3px 8px;text-align:center;">55</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">30</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- Campaign Settings Modal (SW only) -->
   <div id="campaignSettingsModal" class="modal">
     <div class="modal-content" style="max-width:400px;">
@@ -2815,6 +2943,15 @@
               style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.9rem;">
             <button class="btn" style="padding:6px 14px; font-size:0.85rem;" onclick="saveCurrencyName()">Save</button>
           </div>
+        </div>
+        <!-- Join Code -->
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Campaign Join Code</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span id="settingsJoinCode" style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:1.1rem; font-family:monospace; letter-spacing:0.15em; font-weight:bold;">—</span>
+            <button class="btn" style="padding:6px 14px; font-size:0.85rem;" onclick="copyJoinCode()">Copy</button>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Share this code with players — they enter it on the home screen to join.</div>
         </div>
         <!-- Character Creation Mode -->
         <div>
@@ -4901,6 +5038,7 @@
         if (campResp.ok) {
           const camp = await campResp.json();
           document.getElementById('settingsCharMode').value = camp.character_creation_mode || 'open';
+          document.getElementById('settingsJoinCode').textContent = camp.join_code || '—';
         }
       } catch (e) { /* show modal anyway */ }
       document.getElementById('campaignSettingsModal').classList.add('active');
@@ -4908,6 +5046,16 @@
 
     function closeCampaignSettings() {
       document.getElementById('campaignSettingsModal').classList.remove('active');
+    }
+
+    function copyJoinCode() {
+      const code = document.getElementById('settingsJoinCode').textContent.trim();
+      if (!code || code === '—') return;
+      navigator.clipboard.writeText(code).then(() => {
+        showPanelToast(`Join code "${code}" copied!`, 'success');
+      }).catch(() => {
+        showPanelToast('Could not copy — code is: ' + code, 'info');
+      });
     }
 
     async function saveCurrencyName() {
@@ -6923,6 +7071,75 @@
       } catch (e) { /* audio not supported — silently ignore */ }
     }
 
+    function playDiceSound() {
+      if (!_soundEnabled) return;
+      try {
+        const ctx = _getAudioCtx();
+        const now = ctx.currentTime;
+        // Quick rattling clicks: 3 short noise bursts
+        [0, 0.07, 0.14].forEach(offset => {
+          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+          const src = ctx.createBufferSource();
+          const gain = ctx.createGain();
+          src.buffer = buf;
+          gain.gain.setValueAtTime(0.25, now + offset);
+          gain.gain.linearRampToValueAtTime(0, now + offset + 0.04);
+          src.connect(gain);
+          gain.connect(ctx.destination);
+          src.start(now + offset);
+        });
+        // Final "landing" tone
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = 520;
+        gain.gain.setValueAtTime(0.15, now + 0.22);
+        gain.gain.linearRampToValueAtTime(0, now + 0.38);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(now + 0.22); osc.stop(now + 0.39);
+      } catch (e) {}
+    }
+
+    function playInitiativeSound() {
+      if (!_soundEnabled) return;
+      try {
+        const ctx = _getAudioCtx();
+        const now = ctx.currentTime;
+        // Rising 3-tone fanfare: 440 → 550 → 660
+        [[440, now], [550, now + 0.1], [660, now + 0.2]].forEach(([freq, start]) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.12, start + 0.01);
+          gain.gain.linearRampToValueAtTime(0, start + 0.09);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(start); osc.stop(start + 0.1);
+        });
+      } catch (e) {}
+    }
+
+    function playCallingSound() {
+      if (!_soundEnabled) return;
+      try {
+        const ctx = _getAudioCtx();
+        const now = ctx.currentTime;
+        // Ominous descending tone + low rumble
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.linearRampToValueAtTime(80, now + 1.0);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 1.2);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(now); osc.stop(now + 1.2);
+      } catch (e) {}
+    }
+
     function toggleMessageSound() {
       _soundEnabled = !_soundEnabled;
       localStorage.setItem('tba_sound', _soundEnabled ? 'on' : 'off');
@@ -8440,13 +8657,17 @@
 
             if (data.type === 'combat_event') {
               renderCombatEvent(data);
+              playDiceSound();
               if (data.calling_triggered && data.character_id) {
+                playCallingSound();
                 openCallingModal(data.character_id, data.defender, data.defender_new_dp,
                   data.defender_ip, data.defender_sp, data.defender_edge, data.defender_times_called);
               }
             } else if (data.type === 'spell_cast') {
               renderSpellCast(data);
+              playDiceSound();
               if (data.calling_triggered && data.character_id) {
+                playCallingSound();
                 openCallingModal(data.character_id, data.target_name, data.target_new_dp,
                   data.defender_ip, data.defender_sp, data.defender_edge, data.defender_times_called);
               }
@@ -8839,6 +9060,7 @@
               chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 
             } else if (data.type === 'dice_roll_result') {  // ✅ Changed from 'dice_roll'
+              playDiceSound();
               // Render dice expression, equation text, and breakdown
               const container = document.createElement('div');
               container.className = 'msg dice_roll';
@@ -9221,6 +9443,7 @@
             } else if (data.type === 'initiative_roll') {
               // Silent rolls only go to SW — skip display for non-SW
               if (data.is_silent && !isSW()) return;
+              playInitiativeSound();
 
               const container = document.createElement('div');
               container.className = 'message-card initiative-roll';
@@ -9829,7 +10052,21 @@
         const members = Array.isArray(data) ? data : data.members || [];
 
         if (members.length === 0) {
-          charactersContainer.innerHTML = '...';
+          if (isSW()) {
+            const joinCode = document.getElementById('settingsJoinCode')?.textContent?.trim();
+            charactersContainer.innerHTML = `
+              <div style="text-align:center; padding:24px 16px; color:var(--text-muted);">
+                <div style="font-size:2rem; margin-bottom:8px;">🎲</div>
+                <div style="font-weight:bold; color:var(--text-primary); margin-bottom:6px;">No characters yet</div>
+                <div style="font-size:0.85rem; margin-bottom:12px;">Share the campaign code with your players so they can join and create characters.</div>
+                <button class="btn" style="font-size:0.85rem;" onclick="openCampaignSettings()">⚙ View Campaign Code</button>
+              </div>`;
+          } else {
+            charactersContainer.innerHTML = `
+              <div style="text-align:center; padding:24px 16px; color:var(--text-muted);">
+                <div style="font-size:0.85rem;">No characters in this campaign yet.</div>
+              </div>`;
+          }
           return;
         }
 
@@ -9872,10 +10109,17 @@
 
             const characterCard = document.createElement('div');
             characterCard.className = 'character-card';
+            const timesCalled = char.times_called || 0;
+            const callingDanger = timesCalled >= 4 ? 'color:#ff4444;' : 'color:var(--accent-danger);';
+            const callingTitle = timesCalled >= 4
+              ? `⚠️ ${timesCalled}/5 Callings — next is permanent death!`
+              : `In The Calling (${timesCalled}/5) — click to open`;
             const callingSkull = char.in_calling
-              ? `<button class="btn-icon" title="In The Calling — click to open" style="color:var(--accent-danger); font-size:1.1rem; animation: pulse 1.5s infinite;"
-                  onclick="openCallingModal('${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.dp}, ${char.ip}, ${char.sp}, ${char.edge || 0}, ${char.times_called || 0})">💀</button>`
-              : '';
+              ? `<button class="btn-icon" title="${callingTitle}" style="${callingDanger} font-size:1.1rem; animation: pulse 1.5s infinite;"
+                  onclick="openCallingModal('${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.dp}, ${char.ip}, ${char.sp}, ${char.edge || 0}, ${timesCalled})">💀${timesCalled > 0 ? `<sup style="font-size:0.6rem;">${timesCalled}</sup>` : ''}</button>`
+              : (timesCalled > 0
+                ? `<span title="${timesCalled}/5 Callings survived" style="font-size:0.7rem;color:${timesCalled >= 4 ? '#ff4444' : '#f87171'};opacity:0.7;cursor:default;">💀${timesCalled}</span>`
+                : '');
             const bapTokenBadge = char.bap_token_active
               ? `<span class="bap-token-badge" title="BAP token active (${char.bap_token_type || 'sw_choice'})">✦ BAP</span>`
               : '';
