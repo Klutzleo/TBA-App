@@ -2801,6 +2801,90 @@
     </div>
   </div>
 
+  <!-- Player Welcome Modal (first-time Spectator) -->
+  <div id="playerWelcomeModal" class="modal">
+    <div class="modal-content" style="max-width:480px;text-align:center;">
+      <div class="modal-body" style="padding:32px 28px;display:flex;flex-direction:column;align-items:center;gap:20px;">
+        <div style="font-size:3rem;">🎲</div>
+        <div>
+          <h2 style="margin:0 0 8px;font-size:1.5rem;">Welcome to <span style="color:var(--primary);">TBA</span>!</h2>
+          <div style="color:var(--text-muted);font-size:0.85rem;line-height:1.5;">
+            <em>Tools for the Bad Ass</em> — a tabletop RPG built for epic stories, wild dice rolls, and people who show up ready to make something unforgettable.
+          </div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:10px;padding:16px 20px;text-align:left;width:100%;box-sizing:border-box;">
+          <div style="font-weight:bold;margin-bottom:10px;font-size:0.9rem;">Here's where you're at:</div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:0.85rem;color:var(--text-muted);">
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:1.1rem;">👁</span>
+              <div><strong style="color:var(--text-primary);">You're a Spectator right now.</strong> You've joined the campaign but haven't created your character yet. That's totally normal — you're one step away from jumping in.</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:1.1rem;">⚔️</span>
+              <div><strong style="color:var(--text-primary);">Create your character to play.</strong> Look for the <strong>+ New Character</strong> button in the sidebar. Fill in your name, pick your stats, and you're ready to roll.</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:1.1rem;">✅</span>
+              <div><strong style="color:var(--text-primary);">Your Story Weaver may need to approve it.</strong> If so, just hang tight — you'll be notified the moment you're in.</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.5;">
+          Never played TBA before? Check out the full rules at<br>
+          <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" style="color:var(--primary);font-weight:bold;">klutzleo.itch.io/tba-rpg</a> — it's a quick read, we promise. 😄
+        </div>
+        <div style="display:flex;gap:10px;width:100%;">
+          <button class="btn" style="flex:1;padding:10px;" onclick="dismissPlayerWelcome()">Let's go! ⚡</button>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-muted);opacity:0.6;">You can always open the 📖 Quick Reference from the top bar.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SW Welcome Modal (first-time Story Weaver) -->
+  <div id="swWelcomeModal" class="modal">
+    <div class="modal-content" style="max-width:500px;text-align:center;">
+      <div class="modal-body" style="padding:32px 28px;display:flex;flex-direction:column;align-items:center;gap:20px;">
+        <div style="font-size:3rem;">🌍</div>
+        <div>
+          <h2 style="margin:0 0 8px;font-size:1.5rem;">You're the <span style="color:var(--primary);">Story Weaver</span>!</h2>
+          <div style="color:var(--text-muted);font-size:0.85rem;line-height:1.5;">
+            You're the narrator, the world-builder, the one who makes everything feel alive. Your players are counting on you — and this app is built to make that as fun as possible.
+          </div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:10px;padding:16px 20px;text-align:left;width:100%;box-sizing:border-box;">
+          <div style="font-weight:bold;margin-bottom:10px;font-size:0.9rem;">Get your session started:</div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:0.85rem;color:var(--text-muted);">
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:1.1rem;">🔑</span>
+              <div><strong style="color:var(--text-primary);">Share your campaign code with players.</strong> Hit <strong>⚙ Settings</strong> in the sidebar to copy it. Players enter it on the home screen to join.</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:1.1rem;">🧑‍🤝‍🧑</span>
+              <div><strong style="color:var(--text-primary);">Approve characters as players join.</strong> Depending on your settings, you may need to review and approve each character before they can play.</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:1.1rem;">⚔️</span>
+              <div><strong style="color:var(--text-primary);">Start combat when the story calls for it.</strong> Type <strong>/initiative start</strong> in chat to kick off an encounter. Players will roll their own initiative.</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:1.1rem;">🧌</span>
+              <div><strong style="color:var(--text-primary);">Create NPCs from the sidebar.</strong> Build villains, allies, and monsters — then speak as them directly in chat using the bubble bar.</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.5;">
+          New to TBA? Read the full rules at<br>
+          <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" style="color:var(--primary);font-weight:bold;">klutzleo.itch.io/tba-rpg</a> — everything you need is in there. 🎲
+        </div>
+        <div style="display:flex;gap:10px;width:100%;">
+          <button class="btn" style="flex:1;padding:10px;" onclick="dismissSWWelcome()">I'm ready to run a session! 🌟</button>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-muted);opacity:0.6;">You can always open the 📖 Quick Reference from the top bar.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Quick Reference Modal -->
   <div id="quickRefModal" class="modal">
     <div class="modal-content" style="max-width:560px;max-height:85vh;overflow-y:auto;">
@@ -2921,6 +3005,13 @@
               </tbody>
             </table>
           </div>
+        </div>
+
+        <!-- Footer: Show Welcome Guide Again -->
+        <div style="border-top:1px solid var(--border-color);padding-top:14px;text-align:center;">
+          <button class="btn-secondary btn" style="font-size:0.8rem;padding:6px 16px;" onclick="showWelcomeAgain()">
+            👋 Show Welcome Guide Again
+          </button>
         </div>
 
       </div>
@@ -5046,6 +5137,27 @@
 
     function closeCampaignSettings() {
       document.getElementById('campaignSettingsModal').classList.remove('active');
+    }
+
+    function showWelcomeAgain() {
+      document.getElementById('quickRefModal').classList.remove('active');
+      if (userRole === 'SW') {
+        localStorage.removeItem(`tba_seen_sw_welcome_${campaignId}`);
+        document.getElementById('swWelcomeModal').classList.add('active');
+      } else {
+        localStorage.removeItem(`tba_seen_player_welcome_${campaignId}`);
+        document.getElementById('playerWelcomeModal').classList.add('active');
+      }
+    }
+
+    function dismissPlayerWelcome() {
+      localStorage.setItem(`tba_seen_player_welcome_${campaignId}`, '1');
+      document.getElementById('playerWelcomeModal').classList.remove('active');
+    }
+
+    function dismissSWWelcome() {
+      localStorage.setItem(`tba_seen_sw_welcome_${campaignId}`, '1');
+      document.getElementById('swWelcomeModal').classList.remove('active');
     }
 
     function copyJoinCode() {
@@ -10305,6 +10417,17 @@
       loadPlayerNotes();
       loadInventory();
     }
+
+    // === First-Time Welcome Modals ===
+    (function checkWelcomeModals() {
+      const swKey = `tba_seen_sw_welcome_${campaignId}`;
+      const playerKey = `tba_seen_player_welcome_${campaignId}`;
+      if (userRole === 'SW' && !localStorage.getItem(swKey)) {
+        setTimeout(() => document.getElementById('swWelcomeModal').classList.add('active'), 800);
+      } else if (userRole === 'Spectator' && !localStorage.getItem(playerKey)) {
+        setTimeout(() => document.getElementById('playerWelcomeModal').classList.add('active'), 800);
+      }
+    })();
 
     // Load lore for everyone
     loadLore();
