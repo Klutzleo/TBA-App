@@ -990,6 +990,12 @@ async def update_npc(
             npc.weapon = req.weapon.model_dump()
         if req.armor is not None:
             npc.armor = req.armor.model_dump()
+        if req.pp is not None:
+            npc.pp = req.pp
+        if req.ip is not None:
+            npc.ip = req.ip
+        if req.sp is not None:
+            npc.sp = req.sp
 
         db.commit()
         db.refresh(npc)

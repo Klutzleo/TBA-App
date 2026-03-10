@@ -1931,6 +1931,25 @@ async def get_or_create_active_encounter(campaign_uuid: UUID, db: Session) -> En
     return encounter
 
 
+def _sort_initiative_rolls(rolls, db):
+    """
+    Sort initiative rolls by TBA rules:
+    1. Highest roll_result
+    2. Tie → highest PP
+    3. Tie → highest IP
+    4. Tie → highest SP
+    5. Tie → snacks (SW's discretion — we just keep insertion order)
+    """
+    def sort_key(roll):
+        pp = ip = sp = 0
+        if roll.character_id:
+            c = db.query(Character).filter(Character.id == roll.character_id).first()
+            if c:
+                pp, ip, sp = (c.pp or 0), (c.ip or 0), (c.sp or 0)
+        return (-roll.roll_result, -pp, -ip, -sp)
+    return sorted(rolls, key=sort_key)
+
+
 async def roll_initiative_self(
     campaign_uuid: UUID,
     user_uuid: UUID,
@@ -1980,9 +1999,9 @@ async def roll_initiative_self(
             })
             return
 
-        # Roll 1d6 + Edge (TBA v1.5)
+        # Roll 1d6 + PP + Edge (TBA rules)
         die_result = roll_dice("1d6")[0]
-        roll_total = die_result + character.edge
+        roll_total = die_result + (character.pp or 0) + (character.edge or 0)
 
         # Create initiative roll
         initiative_roll = InitiativeRoll(
@@ -1996,11 +2015,11 @@ async def roll_initiative_self(
         db.add(initiative_roll)
         db.commit()
 
-        # Broadcast to all players
-        # Build updated order so SW tracker refreshes immediately
+        # Build updated order with tiebreaker sort so SW tracker refreshes immediately
         all_rolls = db.query(InitiativeRoll).filter(
             InitiativeRoll.encounter_id == encounter.id
-        ).order_by(InitiativeRoll.roll_result.desc()).all()
+        ).all()
+        all_rolls = _sort_initiative_rolls(all_rolls, db)
         updated_order = []
         for r in all_rolls:
             entry = {
@@ -2124,10 +2143,11 @@ async def roll_initiative_target(
             })
             return
 
-        # Roll 1d6 + Edge (TBA v1.5)
+        # Roll 1d6 + PP + Edge (TBA rules)
         die_result = roll_dice("1d6")[0]
-        edge = character.edge if character else npc.edge
-        roll_total = die_result + edge
+        pp   = (character.pp   if character else getattr(npc, 'pp',   0)) or 0
+        edge = (character.edge if character else getattr(npc, 'edge', 0)) or 0
+        roll_total = die_result + pp + edge
 
         # Create initiative roll
         initiative_roll = InitiativeRoll(
@@ -2307,12 +2327,11 @@ async def show_initiative_order(
             })
             return
 
-        # Get all initiative rolls for this encounter
-        rolls_query = db.query(InitiativeRoll).filter(
+        # Get all initiative rolls with tiebreaker sort (PP → IP → SP)
+        all_rolls = db.query(InitiativeRoll).filter(
             InitiativeRoll.encounter_id == encounter.id
-        ).order_by(InitiativeRoll.roll_result.desc())
-
-        all_rolls = rolls_query.all()
+        ).all()
+        all_rolls = _sort_initiative_rolls(all_rolls, db)
 
         if not all_rolls:
             await websocket.send_json({

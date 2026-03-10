@@ -2726,8 +2726,9 @@
       <div class="modal-body" id="playerSheetBody">
         <p style="color:var(--text-muted);">Loading...</p>
       </div>
-      <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border-color);">
-        <button class="btn" onclick="closePlayerSheetModal()">Close</button>
+      <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border-color);">
+        <button id="playerSheetEditBtn" class="btn" style="display:none;" onclick="openPlayerSheetEdit()">✏️ Edit Stats</button>
+        <button class="btn btn-secondary" onclick="closePlayerSheetModal()">Close</button>
       </div>
     </div>
   </div>
@@ -3164,6 +3165,20 @@
             <option value="2d6">2d6 (High Variance)</option>
             <option value="1d12">1d12 (Max Variance)</option>
           </select>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">PP</label>
+            <input type="number" id="editNpcPP" class="form-input" min="0" max="20">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">IP</label>
+            <input type="number" id="editNpcIP" class="form-input" min="0" max="20">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">SP</label>
+            <input type="number" id="editNpcSP" class="form-input" min="0" max="20">
+          </div>
         </div>
 
         <!-- Abilities Section -->
@@ -5654,6 +5669,9 @@
       document.getElementById('editNpcName').value = npc.name;
       document.getElementById('editNpcLevel').value = npc.level;
       document.getElementById('editNpcDP').value = npc.dp;
+      document.getElementById('editNpcPP').value = npc.pp || 0;
+      document.getElementById('editNpcIP').value = npc.ip || 0;
+      document.getElementById('editNpcSP').value = npc.sp || 0;
 
       // Populate weapon dropdown based on NPC's level, then set current value
       updateEditNpcWeaponOptions(npc.level, npc.attack_style);
@@ -5844,7 +5862,10 @@
         name: document.getElementById('editNpcName').value,
         level: level,
         dp: parseInt(document.getElementById('editNpcDP').value),
-        attack_style: document.getElementById('editNpcAttackStyle').value
+        attack_style: document.getElementById('editNpcAttackStyle').value,
+        pp: parseInt(document.getElementById('editNpcPP').value) || 0,
+        ip: parseInt(document.getElementById('editNpcIP').value) || 0,
+        sp: parseInt(document.getElementById('editNpcSP').value) || 0
       };
 
       try {
@@ -10688,9 +10709,16 @@
   }
 
   // ─── Read-Only Party Member Sheet (Players) ───────────────────────────────
+  let _playerSheetCharId = null;
+  let _playerSheetChar = null;
+
   async function openPlayerSheetModal(charId, charName) {
+    _playerSheetCharId = charId;
     document.getElementById('playerSheetCharName').textContent = charName;
     document.getElementById('playerSheetBody').innerHTML = '<p style="color:var(--text-muted);">Loading...</p>';
+    // Show edit button only for own character
+    const editBtn = document.getElementById('playerSheetEditBtn');
+    if (editBtn) editBtn.style.display = (charId === characterId) ? '' : 'none';
     document.getElementById('playerSheetModal').classList.add('active');
 
     const base = 'https://tba-app-production.up.railway.app';
@@ -10703,6 +10731,7 @@
       ]);
 
       const char = charRes.ok ? await charRes.json() : null;
+      _playerSheetChar = char;
       const abData = abRes.ok ? await abRes.json() : [];
 
       if (!char) {
@@ -10784,6 +10813,83 @@
 
   function closePlayerSheetModal() {
     document.getElementById('playerSheetModal').classList.remove('active');
+  }
+
+  function openPlayerSheetEdit() {
+    if (!_playerSheetChar) return;
+    const c = _playerSheetChar;
+    document.getElementById('playerSheetEditBtn').style.display = 'none';
+    document.getElementById('playerSheetBody').innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Character Name</label>
+        <input type="text" id="psEditName" class="form-input" value="${escHtml(c.name || '')}">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">PP</label>
+          <input type="number" id="psEditPP" class="form-input" min="0" max="20" value="${c.pp || 0}">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">IP</label>
+          <input type="number" id="psEditIP" class="form-input" min="0" max="20" value="${c.ip || 0}">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">SP</label>
+          <input type="number" id="psEditSP" class="form-input" min="0" max="20" value="${c.sp || 0}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Attack Style</label>
+        <select id="psEditAttack" class="form-input">
+          <option value="1d6" ${c.attack_style==='1d6'?'selected':''}>1d6</option>
+          <option value="2d4" ${c.attack_style==='2d4'?'selected':''}>2d4</option>
+          <option value="1d8" ${c.attack_style==='1d8'?'selected':''}>1d8</option>
+          <option value="2d6" ${c.attack_style==='2d6'?'selected':''}>2d6</option>
+          <option value="3d4" ${c.attack_style==='3d4'?'selected':''}>3d4</option>
+          <option value="1d10" ${c.attack_style==='1d10'?'selected':''}>1d10</option>
+          <option value="2d8" ${c.attack_style==='2d8'?'selected':''}>2d8</option>
+          <option value="3d6" ${c.attack_style==='3d6'?'selected':''}>3d6</option>
+          <option value="4d4" ${c.attack_style==='4d4'?'selected':''}>4d4</option>
+          <option value="1d12" ${c.attack_style==='1d12'?'selected':''}>1d12</option>
+          <option value="2d10" ${c.attack_style==='2d10'?'selected':''}>2d10</option>
+          <option value="3d8" ${c.attack_style==='3d8'?'selected':''}>3d8</option>
+          <option value="4d6" ${c.attack_style==='4d6'?'selected':''}>4d6</option>
+          <option value="5d4" ${c.attack_style==='5d4'?'selected':''}>5d4</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes / Backstory</label>
+        <textarea id="psEditNotes" class="form-input" rows="4" style="resize:vertical;">${escHtml(c.notes || '')}</textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="btn" style="flex:1;" onclick="savePlayerSheetEdit()">Save</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="openPlayerSheetModal(_playerSheetCharId, '${escHtml(c.name)}')">Cancel</button>
+      </div>
+    `;
+  }
+
+  async function savePlayerSheetEdit() {
+    const name = document.getElementById('psEditName').value.trim();
+    const pp = parseInt(document.getElementById('psEditPP').value) || 0;
+    const ip = parseInt(document.getElementById('psEditIP').value) || 0;
+    const sp = parseInt(document.getElementById('psEditSP').value) || 0;
+    const attack_style = document.getElementById('psEditAttack').value;
+    const notes = document.getElementById('psEditNotes').value;
+
+    if (!name) { alert('Character name cannot be empty.'); return; }
+
+    try {
+      const resp = await fetch(`/api/characters/${_playerSheetCharId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, pp, ip, sp, attack_style, notes })
+      });
+      if (!resp.ok) throw new Error((await resp.json()).detail || 'Save failed');
+      // Reload the view
+      await openPlayerSheetModal(_playerSheetCharId, name);
+    } catch (e) {
+      alert(`Failed to save: ${e.message}`);
+    }
   }
 
   </script>
