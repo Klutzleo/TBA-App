@@ -9186,6 +9186,13 @@
               container.appendChild(makeHeaderRow(fmtNow(), initTitle, { tab: 'STORY' }));
               storeAndDisplayMessage(container, data);
 
+              // SW: update tracker immediately without needing /initiative show
+              if (isSW() && data.updated_order) {
+                currentInitiativeOrder = data.updated_order;
+                currentTurnIndex = data.current_turn_index ?? 0;
+                renderInitiativeTracker();
+              }
+
             } else if (data.type === 'initiative_order') {
               // Initiative order display
               const container = document.createElement('div');

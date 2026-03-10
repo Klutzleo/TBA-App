@@ -1997,11 +1997,36 @@ async def roll_initiative_self(
         db.commit()
 
         # Broadcast to all players
+        # Build updated order so SW tracker refreshes immediately
+        all_rolls = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id
+        ).order_by(InitiativeRoll.roll_result.desc()).all()
+        updated_order = []
+        for r in all_rolls:
+            entry = {
+                "name": r.name,
+                "roll": r.roll_result,
+                "is_silent": r.is_silent,
+                "rolled_by_sw": r.rolled_by_sw,
+                "character_id": str(r.character_id) if r.character_id else None,
+                "is_npc": r.npc_id is not None,
+                "dp": None,
+                "max_dp": None
+            }
+            if r.character_id:
+                c = db.query(Character).filter(Character.id == r.character_id).first()
+                if c:
+                    entry["dp"] = c.dp
+                    entry["max_dp"] = c.max_dp
+            updated_order.append(entry)
+
         await manager.broadcast(campaign_uuid, {
             "type": "initiative_roll",
             "actor": character.name,
             "roll": roll_total,
             "is_silent": False,
+            "updated_order": updated_order,
+            "current_turn_index": encounter.current_turn_index,
             "timestamp": datetime.now().isoformat()
         })
 
