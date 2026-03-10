@@ -3042,7 +3042,8 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div>
             <label class="form-label">Modifier</label>
-            <input type="number" id="addEffectModifier" class="form-input" value="0" min="-20" max="20" placeholder="0">
+            <input type="number" id="addEffectModifier" class="form-input" value="0" min="-20" max="20" placeholder="0"
+              oninput="const v=Math.abs(parseInt(this.value)||0); if(v>0) document.getElementById('addEffectDuration').value=v;">
           </div>
           <div>
             <label class="form-label">Type</label>
@@ -3057,7 +3058,7 @@
         <div>
           <label class="form-label">Duration (rounds)</label>
           <input type="number" id="addEffectDuration" class="form-input" placeholder="Leave blank for permanent" min="1" max="99">
-          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">Ticks down each time you hit Next Turn. Leave blank to remove manually.</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">Per TBA rules, duration = modifier value (e.g. +3 lasts 3 rounds). Auto-filled from modifier — override if needed. Leave blank to remove manually.</div>
         </div>
         <div style="display:flex;gap:8px;margin-top:4px;">
           <button class="btn" style="flex:1;" onclick="submitAddEffect()">Add Effect</button>
