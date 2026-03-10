@@ -716,15 +716,8 @@ def resolve_multi_die_attack(
     # Roll each attacker die separately
     attacker_rolls = roll_dice(attacker_die_str)
 
-    # Roll defense die once
-    # Unconscious defenders don't defend
-    if defender_dp is not None and defender_dp <= 0:
-        raw_defense_roll = 0
-    else:
-        raw_defense_roll = roll_die(defense_die_str)
-
-    # Defense total = die + stat + edge + armor bonus  (same formula as attack)
-    defense_total = raw_defense_roll + defender_stat_value + defender_edge + armor_bonus
+    # Per TBA rules: defender rolls separately for each attack die
+    unconscious = defender_dp is not None and defender_dp <= 0
 
     # Calculate individual results
     individual_rolls = []
@@ -732,6 +725,14 @@ def resolve_multi_die_attack(
     hit_count = 0
 
     for atk_die_roll in attacker_rolls:
+        # Roll a fresh defense die for each attack
+        if unconscious:
+            raw_defense_roll = 0
+        else:
+            raw_defense_roll = roll_die(defense_die_str)
+
+        defense_total = raw_defense_roll + defender_stat_value + defender_edge + armor_bonus
+
         # Attack total = die + stat + edge + weapon bonus
         effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus
 

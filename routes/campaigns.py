@@ -1550,3 +1550,45 @@ async def remove_effect(
     db.delete(effect)
     db.commit()
     return {"deleted": True}
+
+
+@router.post("/{campaign_id}/full-rest")
+async def full_rest(
+    campaign_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Restore all active PCs in the campaign to max DP (SW only)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.role == "story_weaver",
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can call a full rest")
+
+    chars = db.query(Character).filter(
+        Character.campaign_id == campaign_id,
+        Character.is_npc == False,
+        Character.status == "active",
+    ).all()
+
+    healed = []
+    for c in chars:
+        if c.dp < c.max_dp:
+            c.dp = c.max_dp
+            healed.append({"id": str(c.id), "name": c.name, "max_dp": c.max_dp})
+
+    db.commit()
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(campaign_id, {
+            "type": "full_rest",
+            "healed": healed,
+        }))
+    except Exception as e:
+        logger.warning(f"Could not broadcast full_rest: {e}")
+
+    return {"healed": healed}
