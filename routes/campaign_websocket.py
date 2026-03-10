@@ -454,6 +454,13 @@ async def campaign_websocket(
                         "ability_name": pending["ability_name"],
                     })
 
+            elif message_type == "effects_sync":
+                # SW added/removed an effect — broadcast updated list to all other clients
+                await manager.broadcast(campaign_uuid, {
+                    "type": "effects_sync",
+                    "effects": data.get("effects", []),
+                })
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
 
@@ -2667,7 +2674,33 @@ async def advance_turn(
         # Advance index (wrapping)
         new_index = (encounter.current_turn_index + 1) % len(rolls)
         encounter.current_turn_index = new_index
+
+        # Decrement active effect durations — remove expired ones
+        from backend.models import ActiveEffect
+        effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_uuid).all()
+        expired_ids = []
+        for effect in effects:
+            if effect.duration_rounds is not None:
+                effect.duration_rounds -= 1
+                if effect.duration_rounds <= 0:
+                    expired_ids.append(str(effect.id))
+                    db.delete(effect)
+
         db.commit()
+
+        # Build updated effects list for broadcast
+        remaining_effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_uuid).all()
+        effects_payload = [
+            {
+                "id": str(e.id),
+                "character_id": str(e.character_id) if e.character_id else None,
+                "name": e.name,
+                "modifier": e.modifier,
+                "modifier_type": e.modifier_type,
+                "duration_rounds": e.duration_rounds,
+            }
+            for e in remaining_effects
+        ]
 
         active_roll = rolls[new_index]
         whose_turn = {
@@ -2681,6 +2714,8 @@ async def advance_turn(
             "current_turn_index": new_index,
             "turn_count": len(rolls),
             "whose_turn": whose_turn,
+            "effects": effects_payload,
+            "expired_effect_ids": expired_ids,
         })
 
         # Push "your turn" to the active combatant's player (PCs only)

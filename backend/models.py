@@ -729,3 +729,24 @@ class InventoryItem(Base):
 
     def __repr__(self):
         return f"<InventoryItem(id={str(self.id)[:8]}..., name='{self.name}', type={self.item_type})>"
+
+
+class ActiveEffect(Base):
+    """Buff/debuff applied to a character during a campaign."""
+    __tablename__ = "active_effects"
+    __table_args__ = {'extend_existing': True}
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id    = Column(UUID(as_uuid=True), ForeignKey("campaigns.id",   ondelete="CASCADE"), nullable=False, index=True)
+    character_id   = Column(UUID(as_uuid=True), ForeignKey("characters.id",  ondelete="CASCADE"), nullable=True,  index=True)
+    name           = Column(String(100), nullable=False)
+    modifier       = Column(Integer,     nullable=False, default=0)
+    modifier_type  = Column(String(20),  nullable=False, default='custom')  # attack | defense | initiative | custom
+    duration_rounds= Column(Integer,     nullable=True)   # NULL = permanent until removed
+    applied_by     = Column(String(100), nullable=True)
+    created_at     = Column(DateTime,    default=datetime.utcnow)
+
+    character = relationship("Character", foreign_keys=[character_id])
+
+    def __repr__(self):
+        return f"<ActiveEffect(id={str(self.id)[:8]}..., name='{self.name}', char={str(self.character_id)[:8] if self.character_id else 'None'})>"

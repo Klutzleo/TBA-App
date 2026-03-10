@@ -3026,6 +3026,47 @@
     </div>
   </div>
 
+  <!-- Add Effect Modal (SW only) -->
+  <div id="addEffectModal" class="modal">
+    <div class="modal-content" style="max-width:380px;">
+      <div class="modal-header">
+        <h2>✨ Add Effect</h2>
+        <button class="modal-close" onclick="closeAddEffectModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div id="addEffectTargetLabel" style="font-size:0.85rem;color:var(--text-muted);"></div>
+        <div>
+          <label class="form-label">Effect Name</label>
+          <input type="text" id="addEffectName" class="form-input" placeholder="e.g. Blessed, Poisoned, +3 Attack" maxlength="60">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label class="form-label">Modifier</label>
+            <input type="number" id="addEffectModifier" class="form-input" value="0" min="-20" max="20" placeholder="0">
+          </div>
+          <div>
+            <label class="form-label">Type</label>
+            <select id="addEffectType" class="form-input">
+              <option value="custom">Custom</option>
+              <option value="attack">Attack</option>
+              <option value="defense">Defense</option>
+              <option value="initiative">Initiative</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Duration (rounds)</label>
+          <input type="number" id="addEffectDuration" class="form-input" placeholder="Leave blank for permanent" min="1" max="99">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">Ticks down each time you hit Next Turn. Leave blank to remove manually.</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button class="btn" style="flex:1;" onclick="submitAddEffect()">Add Effect</button>
+          <button class="btn btn-secondary" style="flex:1;" onclick="closeAddEffectModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Campaign Settings Modal (SW only) -->
   <div id="campaignSettingsModal" class="modal">
     <div class="modal-content" style="max-width:400px;">
@@ -5168,6 +5209,116 @@
       document.getElementById('swWelcomeModal').classList.remove('active');
     }
 
+    // =========================================================================
+    // Active Effects (Buff/Debuff Tracking)
+    // =========================================================================
+    let campaignEffects = []; // { id, character_id, name, modifier, modifier_type, duration_rounds }
+    let _addEffectTargetId = null;
+    let _addEffectTargetName = null;
+
+    async function loadEffects() {
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/effects`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) {
+          campaignEffects = await resp.json();
+          renderAllEffectChips();
+        }
+      } catch (_) {}
+    }
+
+    function getEffectsForChar(charId) {
+      return campaignEffects.filter(e => e.character_id === charId);
+    }
+
+    function buildEffectChipsHtml(charId, editable = false) {
+      const effects = getEffectsForChar(charId);
+      if (!effects.length) return '';
+      return `<div class="effect-chips" style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">
+        ${effects.map(e => {
+          const isDebuff = e.modifier < 0;
+          const color = isDebuff ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)';
+          const border = isDebuff ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)';
+          const textColor = isDebuff ? '#f87171' : '#6ee7b7';
+          const modStr = e.modifier !== 0 ? (e.modifier > 0 ? ` +${e.modifier}` : ` ${e.modifier}`) : '';
+          const durStr = e.duration_rounds != null ? ` (${e.duration_rounds}r)` : '';
+          const removeBtn = editable ? `<span onclick="removeEffect('${e.id}')" style="margin-left:3px;cursor:pointer;opacity:0.6;" title="Remove">×</span>` : '';
+          return `<span style="font-size:0.7rem;padding:1px 6px;border-radius:10px;background:${color};border:1px solid ${border};color:${textColor};"
+            title="${e.modifier_type}${modStr}${durStr}">${escHtml(e.name)}${modStr}${durStr}${removeBtn}</span>`;
+        }).join('')}
+      </div>`;
+    }
+
+    function renderAllEffectChips() {
+      // Re-render effect chips on all party cards
+      document.querySelectorAll('[data-effect-char-id]').forEach(el => {
+        const charId = el.dataset.effectCharId;
+        const editable = el.dataset.effectEditable === 'true';
+        el.innerHTML = buildEffectChipsHtml(charId, editable);
+      });
+    }
+
+    function openAddEffectModal(charId, charName) {
+      _addEffectTargetId = charId;
+      _addEffectTargetName = charName;
+      document.getElementById('addEffectTargetLabel').textContent = `Target: ${charName}`;
+      document.getElementById('addEffectName').value = '';
+      document.getElementById('addEffectModifier').value = '0';
+      document.getElementById('addEffectType').value = 'custom';
+      document.getElementById('addEffectDuration').value = '';
+      document.getElementById('addEffectModal').classList.add('active');
+    }
+
+    function closeAddEffectModal() {
+      document.getElementById('addEffectModal').classList.remove('active');
+      _addEffectTargetId = null;
+    }
+
+    async function submitAddEffect() {
+      const name = document.getElementById('addEffectName').value.trim();
+      if (!name) { showPanelToast('Effect name is required', 'error'); return; }
+      const modifier = parseInt(document.getElementById('addEffectModifier').value) || 0;
+      const modifier_type = document.getElementById('addEffectType').value;
+      const durVal = document.getElementById('addEffectDuration').value;
+      const duration_rounds = durVal ? parseInt(durVal) : null;
+
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/effects`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ character_id: _addEffectTargetId, name, modifier, modifier_type, duration_rounds })
+        });
+        if (!resp.ok) throw new Error((await resp.json()).detail || 'Failed');
+        const effect = await resp.json();
+        campaignEffects.push(effect);
+        renderAllEffectChips();
+        closeAddEffectModal();
+        // Broadcast to all clients
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'effects_sync', effects: campaignEffects }));
+        }
+        showPanelToast(`✨ "${name}" added`, 'success');
+      } catch (e) {
+        showPanelToast('Could not add effect: ' + e.message, 'error');
+      }
+    }
+
+    async function removeEffect(effectId) {
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/effects/${effectId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) throw new Error();
+        campaignEffects = campaignEffects.filter(e => e.id !== effectId);
+        renderAllEffectChips();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'effects_sync', effects: campaignEffects }));
+        }
+      } catch (_) { showPanelToast('Could not remove effect', 'error'); }
+    }
+
     function copyJoinCode() {
       const code = document.getElementById('settingsJoinCode').textContent.trim();
       if (!code || code === '—') return;
@@ -5788,6 +5939,10 @@
             <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted);">
               <span>PP ${c.pp||0} · IP ${c.ip||0} · SP ${c.sp||0}</span>
               <span style="color:${usesColor};">⚡ ${usesRemaining}/${maxUses} uses</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
+              <div data-effect-char-id="${c.id}" data-effect-editable="true" style="flex:1;">${buildEffectChipsHtml(c.id, true)}</div>
+              <button class="btn-icon" title="Add effect" style="font-size:0.8rem;opacity:0.5;flex-shrink:0;" onclick="openAddEffectModal('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}')">✨</button>
             </div>
           `;
           container.appendChild(card);
@@ -9807,6 +9962,14 @@
               // Toast for everyone showing whose turn it is
               const whose = data.whose_turn?.name || '???';
               showPanelToast(`⚔️ ${whose}'s turn`, 'info');
+              // Sync effects — decrement happened server-side
+              if (data.effects) {
+                campaignEffects = data.effects;
+                renderAllEffectChips();
+                if (data.expired_effect_ids && data.expired_effect_ids.length) {
+                  showPanelToast(`⏱ ${data.expired_effect_ids.length} effect(s) expired`, 'info');
+                }
+              }
 
             } else if (data.type === 'abilities_restored') {
               // Party rest - abilities restored
@@ -9930,6 +10093,10 @@
               storeAndDisplayMessage(notice, { type: 'system', actor: 'system' });
             } else if (data.type === 'online_users') {
               renderOnlineUsers(data.users);
+            } else if (data.type === 'effects_sync') {
+              // Another client (SW) added/removed an effect — update local state
+              campaignEffects = data.effects || [];
+              renderAllEffectChips();
             } else if (data.type === 'defend') {
               // Defense roll result
               renderDefendRoll(data);
@@ -10372,6 +10539,7 @@
                   ${callingSkull}
                   ${!isSW() ? `<button class="btn-icon" title="View character sheet" style="font-size:0.9rem;opacity:0.6;" onclick="openPlayerSheetModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">📋</button>` : ''}
                   ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}')">⚙</button>` : ''}
+                  ${isSW() ? `<button class="btn-icon" title="Add buff/debuff" style="font-size:0.85rem;opacity:0.55;" onclick="openAddEffectModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">✨</button>` : ''}
                 </div>
               </div>
               <div class="character-details">
@@ -10381,6 +10549,7 @@
                   <span class="hp-text">${char.dp}/${char.max_dp} DP</span>
                 </div>
                 ${scarsHtml}
+                <div data-effect-char-id="${char.id}" data-effect-editable="${isSW()}">${buildEffectChipsHtml(char.id, isSW())}</div>
               </div>
             `;
             charactersContainer.appendChild(characterCard);
@@ -10541,6 +10710,9 @@
         setTimeout(() => document.getElementById('playerWelcomeModal').classList.add('active'), 800);
       }
     })();
+
+    // Load active effects for everyone
+    loadEffects();
 
     // Load lore for everyone
     loadLore();

@@ -14,7 +14,7 @@ import string
 logger = logging.getLogger(__name__)
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect
 from backend.auth.jwt import get_current_user
 from sqlalchemy import or_, func
 
@@ -1451,3 +1451,102 @@ async def get_initiative_state(
         "rolls": result,
         "current_turn_index": encounter.current_turn_index,
     }
+
+
+# ============================================================================
+# Active Effects (Buff/Debuff Tracking)
+# ============================================================================
+
+class AddEffectRequest(BaseModel):
+    character_id: Optional[str] = None
+    name: str
+    modifier: int = 0
+    modifier_type: str = "custom"  # attack | defense | initiative | custom
+    duration_rounds: Optional[int] = None  # None = permanent
+
+
+def _effect_to_dict(e: ActiveEffect) -> dict:
+    return {
+        "id": str(e.id),
+        "character_id": str(e.character_id) if e.character_id else None,
+        "name": e.name,
+        "modifier": e.modifier,
+        "modifier_type": e.modifier_type,
+        "duration_rounds": e.duration_rounds,
+        "applied_by": e.applied_by,
+    }
+
+
+@router.get("/{campaign_id}/effects")
+async def get_effects(
+    campaign_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+
+    effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_id).all()
+    return [_effect_to_dict(e) for e in effects]
+
+
+@router.post("/{campaign_id}/effects")
+async def add_effect(
+    campaign_id: UUID,
+    req: AddEffectRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.role == "story_weaver",
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can add effects")
+
+    from uuid import UUID as _UUID
+    effect = ActiveEffect(
+        campaign_id=campaign_id,
+        character_id=_UUID(req.character_id) if req.character_id else None,
+        name=req.name.strip(),
+        modifier=req.modifier,
+        modifier_type=req.modifier_type,
+        duration_rounds=req.duration_rounds,
+        applied_by=current_user.username,
+    )
+    db.add(effect)
+    db.commit()
+    db.refresh(effect)
+    return _effect_to_dict(effect)
+
+
+@router.delete("/{campaign_id}/effects/{effect_id}")
+async def remove_effect(
+    campaign_id: UUID,
+    effect_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.role == "story_weaver",
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can remove effects")
+
+    effect = db.query(ActiveEffect).filter(
+        ActiveEffect.id == effect_id,
+        ActiveEffect.campaign_id == campaign_id,
+    ).first()
+    if not effect:
+        raise HTTPException(status_code=404, detail="Effect not found")
+
+    db.delete(effect)
+    db.commit()
+    return {"deleted": True}
