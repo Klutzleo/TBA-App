@@ -2170,9 +2170,33 @@ async def roll_initiative_target(
         db.add(initiative_roll)
         db.commit()
 
+        # Build updated order for tracker refresh
+        all_rolls = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id
+        ).all()
+        all_rolls = _sort_initiative_rolls(all_rolls, db)
+        updated_order = []
+        for r in all_rolls:
+            entry = {
+                "name": r.name,
+                "roll": r.roll_result,
+                "is_silent": r.is_silent,
+                "rolled_by_sw": r.rolled_by_sw,
+                "character_id": str(r.character_id) if r.character_id else None,
+                "is_npc": r.npc_id is not None,
+                "dp": None,
+                "max_dp": None
+            }
+            if r.character_id:
+                c = db.query(Character).filter(Character.id == r.character_id).first()
+                if c:
+                    entry["dp"] = c.dp
+                    entry["max_dp"] = c.max_dp
+            updated_order.append(entry)
+
         # Broadcast to all players
         if is_silent:
-            # Silent roll: Send full details to SW only — no public notice
+            # Silent roll: Send full details + tracker update to SW only — no public notice
             await websocket.send_json({
                 "type": "initiative_roll",
                 "actor": name,
@@ -2183,6 +2207,8 @@ async def roll_initiative_target(
                 "is_silent": True,
                 "rolled_by_sw": True,
                 "sw_only": True,
+                "updated_order": updated_order,
+                "current_turn_index": encounter.current_turn_index,
                 "timestamp": datetime.now().isoformat()
             })
         else:
@@ -2196,6 +2222,8 @@ async def roll_initiative_target(
                 "edge": edge,
                 "is_silent": False,
                 "rolled_by_sw": True,
+                "updated_order": updated_order,
+                "current_turn_index": encounter.current_turn_index,
                 "timestamp": datetime.now().isoformat()
             })
 
