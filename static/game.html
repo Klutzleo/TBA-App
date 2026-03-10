@@ -2819,40 +2819,67 @@
 
   <!-- Player Welcome Modal (first-time Spectator) -->
   <div id="playerWelcomeModal" class="modal">
-    <div class="modal-content" style="max-width:480px;text-align:center;">
-      <div class="modal-body" style="padding:32px 28px;display:flex;flex-direction:column;align-items:center;gap:20px;">
+    <div class="modal-content" style="max-width:500px;max-height:90vh;overflow-y:auto;">
+      <div class="modal-body" style="padding:28px 24px;display:flex;flex-direction:column;align-items:center;gap:18px;">
         <div style="font-size:3rem;">🎲</div>
-        <div>
+        <div style="text-align:center;">
           <h2 style="margin:0 0 8px;font-size:1.5rem;">Welcome to <span style="color:var(--primary);">TBA</span>!</h2>
           <div style="color:var(--text-muted);font-size:0.85rem;line-height:1.5;">
             <em>Tools for the Bad Ass</em> — a tabletop RPG built for epic stories, wild dice rolls, and people who show up ready to make something unforgettable.
           </div>
         </div>
-        <div style="background:var(--bg-secondary);border-radius:10px;padding:16px 20px;text-align:left;width:100%;box-sizing:border-box;">
-          <div style="font-weight:bold;margin-bottom:10px;font-size:0.9rem;">Here's where you're at:</div>
-          <div style="display:flex;flex-direction:column;gap:10px;font-size:0.85rem;color:var(--text-muted);">
+
+        <!-- Step 1: You're a spectator -->
+        <div style="background:var(--bg-secondary);border-radius:10px;padding:14px 18px;text-align:left;width:100%;box-sizing:border-box;">
+          <div style="font-weight:bold;margin-bottom:10px;font-size:0.85rem;color:var(--accent-primary);">Step 1 — Get into the game</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:0.83rem;color:var(--text-muted);">
             <div style="display:flex;gap:10px;align-items:flex-start;">
-              <span style="font-size:1.1rem;">👁</span>
-              <div><strong style="color:var(--text-primary);">You're a Spectator right now.</strong> You've joined the campaign but haven't created your character yet. That's totally normal — you're one step away from jumping in.</div>
+              <span>👁</span>
+              <div><strong style="color:var(--text-primary);">You're a Spectator right now.</strong> You've joined but haven't created your character yet — you're one step away from jumping in.</div>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;">
-              <span style="font-size:1.1rem;">⚔️</span>
-              <div><strong style="color:var(--text-primary);">Create your character to play.</strong> Look for the <strong>+ New Character</strong> button in the sidebar. Fill in your name, pick your stats, and you're ready to roll.</div>
+              <span>⚔️</span>
+              <div><strong style="color:var(--text-primary);">Hit "+ New Character"</strong> in the sidebar. Fill in your name and stats, and you're ready to roll.</div>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;">
-              <span style="font-size:1.1rem;">✅</span>
-              <div><strong style="color:var(--text-primary);">Your Story Weaver may need to approve it.</strong> If so, just hang tight — you'll be notified the moment you're in.</div>
+              <span>✅</span>
+              <div><strong style="color:var(--text-primary);">Your Story Weaver may approve it first.</strong> Just hang tight — you'll be notified the moment you're in.</div>
             </div>
           </div>
         </div>
-        <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.5;">
-          Never played TBA before? Check out the full rules at<br>
+
+        <!-- Step 2: Core stats -->
+        <div style="background:var(--bg-secondary);border-radius:10px;padding:14px 18px;text-align:left;width:100%;box-sizing:border-box;">
+          <div style="font-weight:bold;margin-bottom:10px;font-size:0.85rem;color:var(--accent-primary);">Step 2 — Know your stats</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.8rem;">
+            <div><span style="color:#60a5fa;font-weight:bold;">PP</span> <span style="color:var(--text-muted);">Physical Power — punching, running, lifting</span></div>
+            <div><span style="color:#a78bfa;font-weight:bold;">IP</span> <span style="color:var(--text-muted);">Intellect Power — magic, tech, tactics</span></div>
+            <div><span style="color:#34d399;font-weight:bold;">SP</span> <span style="color:var(--text-muted);">Social Power — charm, heal, support</span></div>
+            <div><span style="color:#fbbf24;font-weight:bold;">DP</span> <span style="color:var(--text-muted);">Damage Points — your hit points</span></div>
+            <div><span style="color:#f472b6;font-weight:bold;">Edge</span> <span style="color:var(--text-muted);">Bonus from experience — grows with level</span></div>
+            <div><span style="color:#fb923c;font-weight:bold;">BAP</span> <span style="color:var(--text-muted);">Bad Ass Points — earned for epic moments</span></div>
+          </div>
+        </div>
+
+        <!-- Step 3: How rolls work -->
+        <div style="background:var(--bg-secondary);border-radius:10px;padding:14px 18px;text-align:left;width:100%;box-sizing:border-box;">
+          <div style="font-weight:bold;margin-bottom:10px;font-size:0.85rem;color:var(--accent-primary);">Step 3 — How rolling works</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.7;">
+            <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Attack:</strong> Roll your weapon die + your stat (PP/IP/SP) + Edge. Beat the defender's roll to deal damage.</div>
+            <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Defend:</strong> Roll your defense die + your stat + Edge. Higher = less damage taken.</div>
+            <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Initiative:</strong> 1d6 + PP + Edge. Highest goes first.</div>
+            <div><strong style="color:#fb923c;">BAP token</strong> — awarded by the SW for bold, creative, or hilarious plays. Adds a bonus die to your next roll. Use it wisely!</div>
+          </div>
+        </div>
+
+        <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.5;text-align:center;">
+          Want the full rules? Check out<br>
           <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" style="color:var(--primary);font-weight:bold;">klutzleo.itch.io/tba-rpg</a> — it's a quick read, we promise. 😄
         </div>
         <div style="display:flex;gap:10px;width:100%;">
           <button class="btn" style="flex:1;padding:10px;" onclick="dismissPlayerWelcome()">Let's go! ⚡</button>
         </div>
-        <div style="font-size:0.75rem;color:var(--text-muted);opacity:0.6;">You can always open the 📖 Quick Reference from the top bar.</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);opacity:0.6;">The 📖 Quick Reference in the top bar has everything, any time.</div>
       </div>
     </div>
   </div>
@@ -3249,6 +3276,16 @@
             <textarea id="callingScarText" rows="2"
               style="width:100%; margin-top:6px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:4px; color:var(--text-primary); padding:6px; resize:vertical; box-sizing:border-box;"></textarea>
             <button class="btn" style="width:100%; margin-top:8px;" onclick="saveBattleScar()">Save Scar</button>
+          </div>
+          <!-- Tether prompt (appears after scar is saved) -->
+          <div id="callingTetherPrompt" style="display:none; margin-bottom:12px; background:rgba(147,197,253,0.07); border:1px solid rgba(147,197,253,0.25); border-radius:8px; padding:12px;">
+            <div style="font-size:0.82rem; color:#93c5fd; margin-bottom:8px;">🔗 <strong>Add as Tether?</strong> — This scar can become a permanent Tether that affects future rolls.</div>
+            <textarea id="callingTetherText" rows="2"
+              style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:4px; color:var(--text-primary); padding:6px; resize:vertical; box-sizing:border-box; font-size:0.85rem;"></textarea>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button class="btn" style="flex:1; font-size:0.85rem;" onclick="saveScarAsTether()">🔗 Add Tether</button>
+              <button class="btn btn-secondary" style="flex:1; font-size:0.85rem;" onclick="document.getElementById('callingTetherPrompt').style.display='none'">Skip</button>
+            </div>
           </div>
           <!-- Memory Echo input (death outcome, SW only) -->
           <div id="callingEchoInput" style="display:none; margin-bottom:12px;">
@@ -6992,8 +7029,28 @@
           body: JSON.stringify({ scar })
         });
         document.getElementById('callingScarInput').style.display = 'none';
+        // Prompt SW to optionally add as a Tether
+        const tetherPrompt = document.getElementById('callingTetherPrompt');
+        document.getElementById('callingTetherText').value = scar;
+        tetherPrompt.style.display = '';
       } catch (e) {
         alert(`Failed to save scar: ${e.message}`);
+      }
+    }
+
+    async function saveScarAsTether() {
+      const desc = document.getElementById('callingTetherText').value.trim();
+      if (!desc || !callingCharId) return;
+      try {
+        await fetch(`/api/characters/${callingCharId}/tethers`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: desc })
+        });
+        document.getElementById('callingTetherPrompt').style.display = 'none';
+        showPanelToast('🔗 Tether added from battle scar', 'success');
+      } catch (e) {
+        alert(`Failed to add tether: ${e.message}`);
       }
     }
 
@@ -8810,6 +8867,19 @@
 
                 storeAndDisplayMessage(container, { type: 'abilities_restored', ...data });
               }
+              // ✅ BAP granted/revoked from history
+              else if (msg.message_type === 'bap_granted' || msg.message_type === 'bap_revoked') {
+                const d = msg.extra_data || {};
+                const isGrant = msg.message_type === 'bap_granted';
+                const typeLabels = { encounter: 'this encounter', '24hrs': 'next 24 hrs', sw_choice: "SW's choice" };
+                const el = document.createElement('div');
+                el.className = 'message-card message-system';
+                el.style.cssText = `border-left:3px solid ${isGrant ? '#f59e0b' : '#6b7280'};padding-left:12px;`;
+                el.innerHTML = isGrant
+                  ? `✦ <strong>${escHtml(d.character_name)}</strong> received a <strong style="color:#f59e0b;">BAP token</strong>${d.token_type ? ` — ${typeLabels[d.token_type] || d.token_type}` : ''}`
+                  : `✦ <strong>${escHtml(d.character_name)}</strong>'s BAP token was <span style="color:#6b7280;">revoked</span>`;
+                storeAndDisplayMessage(el, { type: msg.message_type, actor: 'system' });
+              }
               // ✅ Handle The Calling trigger from database
               else if (msg.message_type === 'calling_triggered') {
                 const d = msg.extra_data || {};
@@ -9370,11 +9440,26 @@
               if (isSW()) renderSWDashboard();
 
             } else if (data.type === 'bap_granted') {
-              showPanelToast(`✦ ${data.character_name} received a BAP token! (${data.token_type || 'sw_choice'})`, 'warning');
+              const typeLabels = { encounter: 'this encounter', '24hrs': 'next 24 hrs', sw_choice: "SW's choice" };
+              const grantEl = document.createElement('div');
+              grantEl.className = 'message-card message-system';
+              grantEl.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;';
+              grantEl.innerHTML = `✦ <strong>${escHtml(data.character_name)}</strong> received a <strong style="color:#f59e0b;">BAP token</strong>${data.token_type ? ` — ${typeLabels[data.token_type] || data.token_type}` : ''}`;
+              document.getElementById('chatMessages').appendChild(grantEl);
+              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
               loadCharacters();
-              if (data.owner_id === currentUser?.id) loadBubbleBar();
+              if (data.owner_id === currentUser?.id) {
+                showPanelToast('✦ You received a BAP token!', 'warning');
+                loadBubbleBar();
+              }
 
             } else if (data.type === 'bap_revoked') {
+              const revokeEl = document.createElement('div');
+              revokeEl.className = 'message-card message-system';
+              revokeEl.style.cssText = 'border-left:3px solid #6b7280;padding-left:12px;';
+              revokeEl.innerHTML = `✦ <strong>${escHtml(data.character_name)}</strong>'s BAP token was <span style="color:#6b7280;">revoked</span>`;
+              document.getElementById('chatMessages').appendChild(revokeEl);
+              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
               loadCharacters();
               if (data.owner_id === currentUser?.id) {
                 showPanelToast('Your BAP token was revoked.', 'info');

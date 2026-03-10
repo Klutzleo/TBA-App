@@ -2407,6 +2407,19 @@ async def grant_bap_token(
     char.bap_token_expires_at = (
         datetime.now(timezone.utc) + timedelta(hours=24) if token_type == "24hrs" else None
     )
+
+    type_labels = {"encounter": "this encounter", "24hrs": "the next 24 hours", "sw_choice": "SW's choice"}
+    duration_label = type_labels.get(token_type, token_type)
+    bap_msg = Message(
+        campaign_id=char.campaign_id,
+        party_id=None,
+        sender_id=current_user.id,
+        sender_name="Story Weaver",
+        message_type="bap_granted",
+        content=f"✦ BAP token granted to {char.name} ({duration_label})",
+        extra_data={"character_id": str(char.id), "character_name": char.name, "token_type": token_type}
+    )
+    db.add(bap_msg)
     db.commit()
     db.refresh(char)
 
@@ -2465,6 +2478,17 @@ async def revoke_bap_token(
     char.bap_token_active = False
     char.bap_token_expires_at = None
     char.bap_token_type = None
+
+    revoke_msg = Message(
+        campaign_id=char.campaign_id,
+        party_id=None,
+        sender_id=current_user.id,
+        sender_name="Story Weaver",
+        message_type="bap_revoked",
+        content=f"✦ BAP token revoked from {char.name}",
+        extra_data={"character_id": str(char.id), "character_name": char.name}
+    )
+    db.add(revoke_msg)
     db.commit()
 
     owner_id = str(char.user_id) if char.user_id else str(char.owner_id)
