@@ -2315,6 +2315,10 @@
         padding: 6px 10px;
       }
     }
+    @media (orientation: portrait) {
+      .portrait-hide { display: none !important; }
+    }
+
     .install-banner {
       position: fixed; bottom: 0; left: 0; right: 0;
       background: #1e1b4b; border-top: 1px solid #6c63ff;
@@ -2350,8 +2354,8 @@
         <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener"
           title="Free rulebook on itch.io"
           style="font-size:0.75rem; color:#a78bfa; text-decoration:none; margin-right:8px; opacity:0.8;">📖 Rules</a>
-        <span class="status-indicator disconnected" id="statusIndicator"></span>
-        <span id="statusText">Disconnected</span>
+        <span class="status-indicator disconnected portrait-hide" id="statusIndicator"></span>
+        <span id="statusText" class="portrait-hide">Disconnected</span>
         <button id="notifBellBtn" title="Enable push notifications"
           onclick="toggleNotifications()"
           style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;opacity:0.45;margin-left:4px;">🔕</button>
