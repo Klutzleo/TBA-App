@@ -2318,6 +2318,7 @@
     }
     @media (max-width: 600px) {
       .portrait-hide { display: none !important; }
+      #campaignNameBar { display: block !important; }
     }
 
     .install-banner {
@@ -2349,7 +2350,7 @@
       <div class="header-title">
         <img src="/icons/icon-192.png" alt="TBA" style="width:32px;height:32px;border-radius:8px;flex-shrink:0;">
         <h1>TBA Chat</h1>
-        <span class="subtitle">Tabletop Adventure Platform</span>
+        <span class="subtitle" id="campaignSubtitle">Tabletop Adventure Platform</span>
       </div>
       <div class="connection-status">
         <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener"
@@ -2369,6 +2370,7 @@
           style="font-size:1.1rem;padding:2px 6px;margin-left:2px;opacity:0.45;text-decoration:none;">☕</a>
       </div>
     </header>
+    <div id="campaignNameBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:3px 8px;font-size:0.75rem;color:var(--text-muted);font-style:italic;border-bottom:1px solid rgba(255,255,255,0.05);"></div>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -10892,6 +10894,16 @@
         setTimeout(() => document.getElementById('playerWelcomeModal').classList.add('active'), 800);
       }
     })();
+
+    // Set campaign name in header
+    fetch(`/api/campaigns/${campaignId}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(c => {
+        if (c && c.name) {
+          document.getElementById('campaignSubtitle').textContent = c.name;
+          document.getElementById('campaignNameBar').textContent = c.name;
+        }
+      }).catch(() => {});
 
     // Load active effects for everyone
     loadEffects();
