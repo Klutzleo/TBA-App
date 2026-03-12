@@ -779,8 +779,11 @@
         // Load my campaigns
         async function loadMyCampaigns() {
             try {
-                const campaigns = await apiCall('/api/campaigns');
-                renderMyCampaigns(campaigns);
+                const [campaigns, unread] = await Promise.all([
+                    apiCall('/api/campaigns'),
+                    apiCall('/api/campaigns/unread-counts').catch(() => ({}))
+                ]);
+                renderMyCampaigns(campaigns, unread);
             } catch (error) {
                 console.error('Failed to load campaigns:', error);
                 document.getElementById('my-campaigns-list').innerHTML = `
@@ -793,7 +796,7 @@
         }
 
         // Render my campaigns
-        function renderMyCampaigns(campaigns) {
+        function renderMyCampaigns(campaigns, unread = {}) {
             const container = document.getElementById('my-campaigns-list');
 
             if (campaigns.length === 0) {
@@ -807,11 +810,16 @@
                 return;
             }
 
-            container.innerHTML = campaigns.map(campaign => `
+            container.innerHTML = campaigns.map(campaign => {
+                const unreadCount = unread[campaign.id] || 0;
+                return `
                 <div class="campaign-card">
                     <div class="campaign-header">
                         <div>
-                            <div class="campaign-title">${escapeHtml(campaign.name)}</div>
+                            <div class="campaign-title">
+                                ${escapeHtml(campaign.name)}
+                                ${unreadCount > 0 ? `<span style="display:inline-block;background:#6c63ff;color:#fff;font-size:0.7rem;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:6px;vertical-align:middle;">${unreadCount}</span>` : ''}
+                            </div>
                             <span class="campaign-badge ${campaign.user_role === 'story_weaver' ? 'badge-sw' : 'badge-player'}">
                                 ${campaign.user_role === 'story_weaver' ? 'Story Weaver' : 'Player'}
                             </span>
@@ -861,7 +869,7 @@
                         <button class="btn-secondary btn btn-small" onclick="copyjoinCode('${campaign.join_code}')">📋 Copy Code</button>
                     </div>
                 </div>
-            `).join('');
+            `; }).join('');
         }
 
         // Load public campaigns
@@ -995,13 +1003,14 @@
             try {
                 const response = await apiCall(`/api/campaigns/${campaignId}/check-character`);
 
+                // Record visit before navigating (fire and forget)
+                apiCall(`/api/campaigns/${campaignId}/visit`, { method: 'POST' }).catch(() => {});
+
                 if (response.role === 'story_weaver') {
                     window.location.href = `/game.html?campaign_id=${campaignId}`;
                 } else if (response.has_character) {
-                    // Active character — full player mode
                     window.location.href = `/game.html?campaign_id=${campaignId}&character_id=${response.character_id}`;
                 } else {
-                    // No active character (none, pending, or rejected) — enter as spectator
                     const status = response.character_status || 'none';
                     window.location.href = `/game.html?campaign_id=${campaignId}&role=player&character_status=${status}`;
                 }

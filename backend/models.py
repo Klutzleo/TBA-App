@@ -750,3 +750,13 @@ class ActiveEffect(Base):
 
     def __repr__(self):
         return f"<ActiveEffect(id={str(self.id)[:8]}..., name='{self.name}', char={str(self.character_id)[:8] if self.character_id else 'None'})>"
+
+
+class CampaignLastVisited(Base):
+    """Tracks when each user last visited each campaign — used for unread message counts."""
+    __tablename__ = "campaign_last_visited"
+    __table_args__ = {'extend_existing': True}
+
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("users.id",     ondelete="CASCADE"), primary_key=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    visited_at  = Column(DateTime, default=datetime.utcnow, nullable=False)

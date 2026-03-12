@@ -14,7 +14,7 @@ import string
 logger = logging.getLogger(__name__)
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect, CampaignLastVisited
 from backend.auth.jwt import get_current_user
 from sqlalchemy import or_, func, cast, String
 
@@ -300,6 +300,41 @@ def list_my_campaigns(
 
     # Sort by created_at descending (Story Weaver campaigns first, then player campaigns)
     result.sort(key=lambda x: (x.user_role != 'story_weaver', x.created_by_user_id), reverse=True)
+
+    return result
+
+
+@router.get("/unread-counts")
+async def get_unread_counts(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return unread message counts per campaign for the current user."""
+    memberships = db.query(CampaignMembership).filter(
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).all()
+
+    result = {}
+    for m in memberships:
+        last = db.query(CampaignLastVisited).filter(
+            CampaignLastVisited.user_id == current_user.id,
+            CampaignLastVisited.campaign_id == m.campaign_id,
+        ).first()
+
+        if last:
+            count = db.query(func.count(Message.id)).filter(
+                Message.campaign_id == str(m.campaign_id),
+                Message.timestamp > last.visited_at,
+                Message.sender_id != str(current_user.id),
+            ).scalar()
+        else:
+            count = db.query(func.count(Message.id)).filter(
+                Message.campaign_id == str(m.campaign_id),
+                Message.sender_id != str(current_user.id),
+            ).scalar()
+
+        result[str(m.campaign_id)] = count or 0
 
     return result
 
@@ -1638,3 +1673,24 @@ async def full_rest(
         logger.warning(f"Could not broadcast full_rest: {e}")
 
     return {"healed": healed}
+
+
+@router.post("/{campaign_id}/visit", status_code=204)
+async def record_visit(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record that the current user visited this campaign (for unread counts)."""
+    from datetime import datetime, timezone
+    row = db.query(CampaignLastVisited).filter(
+        CampaignLastVisited.user_id == current_user.id,
+        CampaignLastVisited.campaign_id == campaign_id,
+    ).first()
+    if row:
+        row.visited_at = datetime.now(timezone.utc)
+    else:
+        db.add(CampaignLastVisited(user_id=current_user.id, campaign_id=campaign_id))
+    db.commit()
+
+
