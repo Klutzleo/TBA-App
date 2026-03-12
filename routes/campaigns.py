@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from backend.db import get_db
 from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect
 from backend.auth.jwt import get_current_user
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, cast, String
 
 router = APIRouter(tags=["campaigns"])
 
@@ -353,7 +353,7 @@ async def join_campaign(
         CampaignMembership.role == 'player'
     ).join(
         Character,
-        (Character.owner_id == CampaignMembership.user_id) &
+        (Character.owner_id == cast(CampaignMembership.user_id, String)) &
         (Character.campaign_id == campaign.id) &
         (Character.status == 'active') &
         (Character.is_npc == False)
@@ -370,7 +370,7 @@ async def join_campaign(
             CampaignMembership.role == 'player'
         ).outerjoin(
             Character,
-            (Character.owner_id == CampaignMembership.user_id) &
+            (Character.owner_id == cast(CampaignMembership.user_id, String)) &
             (Character.campaign_id == campaign.id) &
             (Character.status == 'active') &
             (Character.is_npc == False)
