@@ -835,7 +835,7 @@
                             <span>👥</span>
                             <span>${campaign.pc_count ?? campaign.member_count}/${campaign.max_players}</span>
                         </div>
-                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>spec. ${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
+                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
                         <div class="campaign-meta-item">
                             <span>📅</span>
                             <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
@@ -907,7 +907,7 @@
                             <span>👥</span>
                             <span>${campaign.pc_count ?? campaign.member_count}/${campaign.max_players}</span>
                         </div>
-                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>spec. ${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
+                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
                         <div class="campaign-meta-item">
                             <span>📅</span>
                             <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
