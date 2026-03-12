@@ -4408,7 +4408,7 @@
       // Find the @ that triggered this mention
       const atPos = val.lastIndexOf('@', cursor - 1);
       if (atPos === -1) return;
-      const formatted = name.includes(' ') ? `@[${name}]` : `@${name}`;
+      const formatted = /[\s*_[\]()]/.test(name) ? `@[${name}]` : `@${name}`;
       const before = val.slice(0, atPos);
       const after = val.slice(cursor);
       ta.value = before + formatted + ' ' + after;
