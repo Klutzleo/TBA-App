@@ -60,7 +60,9 @@ class CampaignResponse(BaseModel):
     created_by_user_id: Optional[UUID] = None
     is_active: bool
     user_role: Optional[str] = None  # 'story_weaver' or 'player'
-    member_count: Optional[int] = None  # Number of active members
+    member_count: Optional[int] = None  # Number of active members (legacy)
+    pc_count: Optional[int] = None      # Players with active characters
+    spectator_count: Optional[int] = None  # Players without an active character
     character_creation_mode: Optional[str] = 'open'  # 'open', 'approval_required', 'sw_only'
     max_characters_per_player: Optional[int] = 1
     my_character_status: Optional[str] = None  # Player's character status: 'active', 'pending_approval', 'rejected'
@@ -86,6 +88,7 @@ class CampaignUpdate(BaseModel):
     character_creation_mode: Optional[str] = Field(None, pattern="^(open|approval_required|sw_only)$")
     max_characters_per_player: Optional[int] = Field(None, ge=1, le=999)
     max_spectators: Optional[int] = Field(None, ge=0, le=500)  # None = unlimited
+    max_players: Optional[int] = Field(None, ge=2, le=20)
 
 
 @router.post("/create", response_model=CampaignResponse)
@@ -200,6 +203,18 @@ def list_my_campaigns(
             CampaignMembership.left_at.is_(None)
         ).scalar()
 
+        pc_count = db.query(func.count(Character.id)).filter(
+            Character.campaign_id == c.id,
+            Character.status == 'active',
+            Character.is_npc == False
+        ).scalar()
+
+        total_players = db.query(func.count(CampaignMembership.id)).filter(
+            CampaignMembership.campaign_id == c.id,
+            CampaignMembership.left_at.is_(None),
+            CampaignMembership.role == 'player'
+        ).scalar()
+
         pending_count = db.query(func.count(Character.id)).filter(
             Character.campaign_id == c.id,
             Character.status == 'pending_approval',
@@ -223,6 +238,8 @@ def list_my_campaigns(
             is_active=c.is_active,
             user_role='story_weaver',
             member_count=member_count or 0,
+            pc_count=pc_count or 0,
+            spectator_count=max(0, (total_players or 0) - (pc_count or 0)),
             character_creation_mode=c.character_creation_mode,
             max_characters_per_player=c.max_characters_per_player,
             pending_approval_count=pending_count or 0
@@ -235,6 +252,18 @@ def list_my_campaigns(
             member_count = db.query(func.count(CampaignMembership.id)).filter(
                 CampaignMembership.campaign_id == c.id,
                 CampaignMembership.left_at.is_(None)
+            ).scalar()
+
+            pc_count = db.query(func.count(Character.id)).filter(
+                Character.campaign_id == c.id,
+                Character.status == 'active',
+                Character.is_npc == False
+            ).scalar()
+
+            total_players = db.query(func.count(CampaignMembership.id)).filter(
+                CampaignMembership.campaign_id == c.id,
+                CampaignMembership.left_at.is_(None),
+                CampaignMembership.role == 'player'
             ).scalar()
 
             # Check player's character status in this campaign
@@ -261,6 +290,8 @@ def list_my_campaigns(
                 is_active=c.is_active,
                 user_role='player',
                 member_count=member_count or 0,
+                pc_count=pc_count or 0,
+                spectator_count=max(0, (total_players or 0) - (pc_count or 0)),
                 character_creation_mode=c.character_creation_mode,
                 max_characters_per_player=c.max_characters_per_player,
                 my_character_status=my_char.status if my_char else None,
@@ -290,10 +321,21 @@ def browse_public_campaigns(
 
     result = []
     for c in campaigns:
-        # Get member count for each campaign
         member_count = db.query(func.count(CampaignMembership.id)).filter(
             CampaignMembership.campaign_id == c.id,
             CampaignMembership.left_at.is_(None)
+        ).scalar()
+
+        pc_count = db.query(func.count(Character.id)).filter(
+            Character.campaign_id == c.id,
+            Character.status == 'active',
+            Character.is_npc == False
+        ).scalar()
+
+        total_players = db.query(func.count(CampaignMembership.id)).filter(
+            CampaignMembership.campaign_id == c.id,
+            CampaignMembership.left_at.is_(None),
+            CampaignMembership.role == 'player'
         ).scalar()
 
         result.append(CampaignResponse(
@@ -311,8 +353,10 @@ def browse_public_campaigns(
             story_weaver_id=c.story_weaver_id,
             created_by_user_id=c.created_by_user_id,
             is_active=c.is_active,
-            user_role=None,  # Not showing role for browse
+            user_role=None,
             member_count=member_count or 0,
+            pc_count=pc_count or 0,
+            spectator_count=max(0, (total_players or 0) - (pc_count or 0)),
             character_creation_mode=c.character_creation_mode,
             max_characters_per_player=c.max_characters_per_player
         ))
@@ -606,6 +650,8 @@ def update_campaign(
         campaign.max_characters_per_player = updates.max_characters_per_player
     if 'max_spectators' in updates.model_fields_set:
         campaign.max_spectators = updates.max_spectators  # None = unlimited
+    if updates.max_players is not None:
+        campaign.max_players = updates.max_players
 
     db.commit()
     db.refresh(campaign)

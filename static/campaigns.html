@@ -605,6 +605,19 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="settings-max-players">Max Players *</label>
+                    <select id="settings-max-players" required>
+                        <option value="2">2 players</option>
+                        <option value="3">3 players</option>
+                        <option value="4">4 players</option>
+                        <option value="5">5 players</option>
+                        <option value="6">6 players</option>
+                        <option value="8">8 players</option>
+                        <option value="10">10 players</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="settings-max-spectators">Maximum Spectators</label>
                     <input type="number" id="settings-max-spectators" min="0" max="500" placeholder="Leave blank for unlimited">
                     <p style="margin-top: 8px; font-size: 0.85rem; color: #b0b3ba;">
@@ -820,8 +833,9 @@
                     <div class="campaign-meta">
                         <div class="campaign-meta-item">
                             <span>👥</span>
-                            <span>${campaign.member_count}/${campaign.max_players}</span>
+                            <span>${campaign.pc_count ?? campaign.member_count}/${campaign.max_players}</span>
                         </div>
+                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>spec. ${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
                         <div class="campaign-meta-item">
                             <span>📅</span>
                             <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
@@ -891,8 +905,9 @@
                     <div class="campaign-meta">
                         <div class="campaign-meta-item">
                             <span>👥</span>
-                            <span>${campaign.member_count}/${campaign.max_players}</span>
+                            <span>${campaign.pc_count ?? campaign.member_count}/${campaign.max_players}</span>
                         </div>
+                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>spec. ${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
                         <div class="campaign-meta-item">
                             <span>📅</span>
                             <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
@@ -1021,6 +1036,7 @@
                 document.getElementById('settings-posting-frequency').value = campaign.posting_frequency;
                 document.getElementById('settings-status').value = campaign.status;
                 document.getElementById('settings-character-creation-mode').value = campaign.character_creation_mode || 'open';
+                document.getElementById('settings-max-players').value = campaign.max_players || 6;
                 document.getElementById('settings-max-characters').value = campaign.max_characters_per_player || 1;
                 document.getElementById('settings-max-spectators').value = campaign.max_spectators != null ? campaign.max_spectators : '';
                 document.getElementById('settings-join-code').textContent = campaign.join_code;
@@ -1213,6 +1229,7 @@
                 posting_frequency: document.getElementById('settings-posting-frequency').value,
                 status: document.getElementById('settings-status').value,
                 character_creation_mode: document.getElementById('settings-character-creation-mode').value,
+                max_players: parseInt(document.getElementById('settings-max-players').value),
                 max_characters_per_player: parseInt(document.getElementById('settings-max-characters').value),
                 max_spectators: document.getElementById('settings-max-spectators').value !== '' ? parseInt(document.getElementById('settings-max-spectators').value) : null
             };
