@@ -3048,7 +3048,7 @@ async def use_inventory_item(
         else:
             msg = f"🎒 {char.name} uses {item.name}{on_whom}."
 
-        await manager.broadcast(str(char.campaign_id), {
+        await manager.broadcast(char.campaign_id, {
             "type":           "item_used",
             "character_id":   str(char.id),
             "target_id":      str(target.id),
