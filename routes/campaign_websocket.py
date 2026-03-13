@@ -723,7 +723,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             })
             return
 
-        target_name = match.group(1).strip()
+        target_name = match.group(1).strip().replace('_', ' ')
+        # Handle @[Name with spaces] format inserted by autocomplete
+        if target_name.startswith('[') and target_name.endswith(']'):
+            target_name = target_name[1:-1].strip()
 
         # =====================================================================
         # Look up attacker (user's character, or SW-specified NPC/ally)
