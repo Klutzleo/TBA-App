@@ -325,7 +325,7 @@ async def get_unread_counts(
         if last:
             count = db.query(func.count(Message.id)).filter(
                 Message.campaign_id == str(m.campaign_id),
-                Message.timestamp > last.visited_at,
+                Message.created_at > last.visited_at,
                 Message.sender_id != str(current_user.id),
             ).scalar()
         else:
