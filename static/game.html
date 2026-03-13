@@ -4191,7 +4191,8 @@
             id: npc.id,
             name: npc.name,
             type: 'npc',
-            chat_color: npc.chat_color || null
+            chat_color: npc.chat_color || null,
+            visible_to_players: npc.visible_to_players || false
           });
           bubbleBar.appendChild(npcBubble);
         });
