@@ -9603,6 +9603,7 @@
               if (openNpcId && data.character_id === openNpcId) loadNpcInventory(openNpcId);
 
             } else if (data.type === 'item_used') {
+              console.log('🎒 item_used received:', data);
               addMessage(data.chat_message, 'message-card message-system', { type: 'item_used', target_tab: 'story' });
               // Refresh own inventory if it was us
               if (data.character_id === characterId) loadInventory();
