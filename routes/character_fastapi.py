@@ -3039,7 +3039,6 @@ async def use_inventory_item(
     # Broadcast to chat
     try:
         from routes.campaign_websocket import manager
-        import asyncio
         tier_die = TIER_DIE.get(item.tier, "?") if item.tier else ""
         on_whom = f" on {target.name}" if target.id != char.id else ""
         if result["effect"] == "heal":
@@ -3049,7 +3048,7 @@ async def use_inventory_item(
         else:
             msg = f"🎒 {char.name} uses {item.name}{on_whom}."
 
-        asyncio.create_task(manager.broadcast(str(char.campaign_id), {
+        await manager.broadcast(str(char.campaign_id), {
             "type":           "item_used",
             "character_id":   str(char.id),
             "target_id":      str(target.id),
@@ -3060,9 +3059,9 @@ async def use_inventory_item(
             "new_quantity":   max(0, item.quantity),
             "result":         result,
             "chat_message":   msg,
-        }))
-    except Exception:
-        pass
+        })
+    except Exception as e:
+        logger.warning(f"item_used broadcast failed: {e}")
 
     return {**result, "item_id": item_id, "remaining": max(0, item.quantity)}
 
