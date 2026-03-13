@@ -4295,9 +4295,11 @@
       else if (character.type === 'npc') avatar = '🎭';
       else if (character.type === 'ally') avatar = '🤝';
 
+      const hiddenBadge = (character.type === 'npc' && userRole === 'SW' && !character.visible_to_players)
+        ? `<span style="font-size:0.55rem;opacity:0.5;display:block;line-height:1;">🙈</span>` : '';
       bubble.innerHTML = `
         <div class="bubble-avatar">${avatar}</div>
-        <div class="bubble-name">${character.name}</div>
+        <div class="bubble-name">${character.name}${hiddenBadge}</div>
       `;
 
       // Click to set active speaker
@@ -6352,7 +6354,8 @@
         // Update local campaignNPCs immediately (WS will sync players)
         const npc = campaignNPCs.find(n => n.id === npcId);
         if (npc) npc.visible_to_players = makeVisible;
-        showPanelToast(makeVisible ? `${npc?.name} revealed to players` : `${npc?.name} hidden from players`, 'success');
+        showPanelToast(makeVisible ? `👁 ${npc?.name} revealed to players` : `🙈 ${npc?.name} hidden from players`, 'success');
+        renderBubbleBar();
       } catch (e) {
         showPanelToast(`Visibility change failed: ${e.message}`, 'error');
       }
