@@ -2484,10 +2484,10 @@
 
         <button id="scrollToBottomBtn" title="Scroll to latest" onclick="chatMessagesEl.scrollTop=chatMessagesEl.scrollHeight" style="display:none;">↓</button>
 
+        <button id="loadMoreBtn" class="load-more-btn" style="display: none;">
+          Load Older Messages
+        </button>
         <div class="chat-messages" id="chatMessages">
-          <button id="loadMoreBtn" class="load-more-btn" style="display: none;">
-            Load Older Messages
-          </button>
           <div id="loadingSpinner" class="loading-spinner">
             <div class="spinner"></div>
             <p>Connecting to party chat...</p>
@@ -9603,13 +9603,7 @@
               if (openNpcId && data.character_id === openNpcId) loadNpcInventory(openNpcId);
 
             } else if (data.type === 'item_used') {
-              // Broadcast use message to story chat
-              const msgDiv = document.createElement('div');
-              msgDiv.className = 'message-card';
-              msgDiv.style.cssText = 'border-left:3px solid #86efac; background:rgba(134,239,172,0.06); padding:8px 14px; margin:4px 0;';
-              msgDiv.innerHTML = `<span style="font-size:0.875rem;">${escHtml(data.chat_message)}</span>`;
-              const chatEl = document.getElementById('chatMessages');
-              if (chatEl) { chatEl.appendChild(msgDiv); chatEl.scrollTop = chatEl.scrollHeight; }
+              addMessage(data.chat_message, 'message-card message-system', { type: 'item_used', target_tab: 'story' });
               // Refresh own inventory if it was us
               if (data.character_id === characterId) loadInventory();
 
