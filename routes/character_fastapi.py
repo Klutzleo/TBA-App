@@ -2068,6 +2068,54 @@ async def heal_character(
         logger.warning(f"Could not broadcast dp_healed: {_be}")
     return {"character_id": str(char.id), "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp, "healed": healed}
 
+@character_blp_fastapi.post("/{character_id}/restore-uses")
+async def restore_ability_uses(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Restore ability uses for a character (SW only). Body: { amount: int } or { restore_all: bool }"""
+    from uuid import UUID
+    from backend.models import CampaignMembership, Ability
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership or membership.role != "story_weaver":
+        raise HTTPException(status_code=403, detail="Only Story Weaver can restore ability uses")
+    abilities = db.query(Ability).filter(Ability.character_id == char.id).all()
+    if not abilities:
+        return {"character_id": str(char.id), "restored": 0, "message": "No abilities found"}
+    restore_all = req.get("restore_all", False)
+    amount = int(req.get("amount", 1))
+    restored = 0
+    if restore_all:
+        for ability in abilities:
+            ability.uses_remaining = ability.max_uses
+            restored += 1
+    else:
+        # Add `amount` uses back, filling depleted abilities first
+        remaining_to_add = amount
+        for ability in sorted(abilities, key=lambda a: a.uses_remaining):
+            if remaining_to_add <= 0:
+                break
+            can_add = ability.max_uses - ability.uses_remaining
+            if can_add > 0:
+                add = min(can_add, remaining_to_add)
+                ability.uses_remaining += add
+                restored += add
+                remaining_to_add -= add
+    db.commit()
+    total_remaining = sum(a.uses_remaining for a in abilities)
+    return {"character_id": str(char.id), "restored": restored, "total_remaining": total_remaining}
+
 @character_blp_fastapi.post("/{character_id}/battle-scar")
 async def add_battle_scar(
     character_id: str,

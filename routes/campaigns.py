@@ -14,7 +14,7 @@ import string
 logger = logging.getLogger(__name__)
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect, CampaignLastVisited
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect, CampaignLastVisited, Ability
 from backend.auth.jwt import get_current_user
 from sqlalchemy import or_, func, cast, String
 
@@ -773,13 +773,13 @@ async def get_campaign_members(
             Character.user_id == member.user_id,
             Character.status == 'active'
         ).first()
-        
-        result.append({
-            "user_id": str(user.id),
-            "username": user.username,
-            "role": member.role,
-            "membership_chat_color": member.chat_color or '#d4af37',
-            "character": {
+
+        char_data = None
+        if character:
+            abilities = db.query(Ability).filter(Ability.character_id == character.id).all()
+            total_uses_remaining = sum(a.uses_remaining for a in abilities) if abilities else 0
+            max_uses = character.max_uses_per_encounter or (3 * (character.level or 1))
+            char_data = {
                 "id": str(character.id),
                 "user_id": str(character.user_id) if character.user_id else None,
                 "name": character.name,
@@ -798,7 +798,17 @@ async def get_campaign_members(
                 "bap_token_type": character.bap_token_type,
                 "battle_scars": character.battle_scars or [],
                 "chat_color": character.chat_color or '#d4af37',
-            } if character else None
+                "uses_remaining": total_uses_remaining,
+                "max_uses": max_uses,
+                "ability_count": len(abilities),
+            }
+
+        result.append({
+            "user_id": str(user.id),
+            "username": user.username,
+            "role": member.role,
+            "membership_chat_color": member.chat_color or '#d4af37',
+            "character": char_data
         })
     
     return result
