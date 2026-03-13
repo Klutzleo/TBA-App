@@ -9017,13 +9017,12 @@
             if (!append) historyLoaded = true;
 
             // For Load More: older messages were pushed to the END of allMessages.
-            // Splice them out and prepend so they appear before existing messages.
+            // Splice them out and prepend so renderMessages() shows them at the top.
             if (append) {
               const actualAdded = allMessages.length - allMsgsBefore;
               if (actualAdded > 0) {
                 const newMsgs = allMessages.splice(allMsgsBefore, actualAdded);
                 allMessages.unshift(...newMsgs);
-                renderMessages();
               }
             }
 
