@@ -813,12 +813,15 @@ async def list_npcs(
     if not membership:
         raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
-    # Get all NPCs for this campaign, ordered by sort_order then creation time
-    npcs = db.query(Character).filter(
+    # SW sees all NPCs; players only see ones marked visible_to_players
+    query = db.query(Character).filter(
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True
-    ).order_by(Character.sort_order, Character.created_at).all()
+    )
+    if membership.role != 'story_weaver':
+        query = query.filter(Character.visible_to_players == True)
 
+    npcs = query.order_by(Character.sort_order, Character.created_at).all()
     logger.info(f"[{request_id}] Found {len(npcs)} NPCs")
     return npcs
 
@@ -1008,6 +1011,51 @@ async def update_npc(
     except Exception as e:
         logger.error(f"[{request_id}] NPC update error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"NPC update failed: {str(e)}")
+
+
+@npc_router.patch("/{campaign_id}/npcs/{npc_id}/visibility")
+async def set_npc_visibility(
+    campaign_id: str,
+    npc_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Toggle NPC visibility for players (SW only). Broadcasts update via WebSocket."""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+    campaign_uuid = UUID(campaign_id)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_uuid,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+    npc = db.query(Character).filter(
+        Character.id == UUID(npc_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_npc == True
+    ).first()
+    if not npc:
+        raise HTTPException(status_code=404, detail="NPC not found")
+    req = await request.json()
+    npc.visible_to_players = req.get("visible_to_players", not npc.visible_to_players)
+    db.commit()
+    db.refresh(npc)
+    # Broadcast so players' autocomplete updates live
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(campaign_uuid, {
+            "type": "npc_visibility_changed",
+            "npc_id": str(npc.id),
+            "npc_name": npc.name,
+            "visible_to_players": npc.visible_to_players,
+            "chat_color": npc.chat_color or "#d4af37"
+        }))
+    except Exception as _e:
+        logger.warning(f"Could not broadcast npc_visibility_changed: {_e}")
+    return {"npc_id": str(npc.id), "visible_to_players": npc.visible_to_players}
 
 
 @npc_router.delete("/{campaign_id}/npcs/{npc_id}", status_code=204)

@@ -233,6 +233,7 @@ class Character(Base):
     has_faced_calling_this_encounter = Column(Boolean, nullable=False, default=False)  # Prevent re-triggering in same encounter
     chat_color = Column(String(7), nullable=False, default='#d4af37')  # Hex color shown in chat header
     sort_order = Column(Integer, nullable=False, default=0)  # Display order in the NPC bubble bar
+    visible_to_players = Column(Boolean, nullable=False, default=False)  # NPCs hidden from players until SW reveals them
     tethers = Column(JSON, nullable=True, default=list)  # Array of {id, description, is_active, modifier}
     active_tether_modifier = Column(Integer, nullable=False, default=0)  # Sum of active tether modifiers
 

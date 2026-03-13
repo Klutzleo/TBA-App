@@ -4551,9 +4551,11 @@
       // Create context menu
       const menu = document.createElement('div');
       menu.className = 'context-menu active';
+      const isVisible = character.visible_to_players || false;
       menu.innerHTML = `
         <button class="context-menu-item" onclick="editNpc('${character.id}')">✏️ Edit</button>
         <button class="context-menu-item" onclick="duplicateNpc('${character.id}')">📋 Duplicate</button>
+        <button class="context-menu-item" onclick="toggleNpcVisibility('${character.id}', ${!isVisible})">${isVisible ? '🙈 Hide from Players' : '👁 Reveal to Players'}</button>
         <button class="context-menu-item" onclick="openTransferModal('${character.id}', '${character.name}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="deleteNpc('${character.id}')">🗑️ Delete</button>
       `;
@@ -6336,6 +6338,25 @@
         alert(`Error creating NPC: ${error.message}`);
       }
     });
+
+    async function toggleNpcVisibility(npcId, makeVisible) {
+      const menu = document.querySelector('.context-menu');
+      if (menu) menu.remove();
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/npcs/${npcId}/visibility`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visible_to_players: makeVisible })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        // Update local campaignNPCs immediately (WS will sync players)
+        const npc = campaignNPCs.find(n => n.id === npcId);
+        if (npc) npc.visible_to_players = makeVisible;
+        showPanelToast(makeVisible ? `${npc?.name} revealed to players` : `${npc?.name} hidden from players`, 'success');
+      } catch (e) {
+        showPanelToast(`Visibility change failed: ${e.message}`, 'error');
+      }
+    }
 
     // Edit NPC
     async function editNpc(npcId) {
@@ -10307,6 +10328,24 @@
             } else if (data.type === 'defend') {
               // Defense roll result
               renderDefendRoll(data);
+            } else if (data.type === 'npc_visibility_changed') {
+              // SW revealed or hid an NPC — update local campaignNPCs list
+              const { npc_id, npc_name, visible_to_players, chat_color } = data;
+              if (userRole === 'SW') {
+                // SW: just update the flag in local cache
+                const npc = campaignNPCs.find(n => n.id === npc_id);
+                if (npc) npc.visible_to_players = visible_to_players;
+              } else {
+                // Players: add or remove from local list
+                if (visible_to_players) {
+                  if (!campaignNPCs.find(n => n.id === npc_id)) {
+                    campaignNPCs.push({ id: npc_id, name: npc_name, chat_color: chat_color, visible_to_players: true });
+                  }
+                } else {
+                  const idx = campaignNPCs.findIndex(n => n.id === npc_id);
+                  if (idx !== -1) campaignNPCs.splice(idx, 1);
+                }
+              }
             } else {
               const content = document.createElement('div');
               content.textContent = `[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`;
