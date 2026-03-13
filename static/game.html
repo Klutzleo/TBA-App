@@ -9008,6 +9008,15 @@
             // Mark initial history as loaded so reconnects don't re-fetch
             if (!append) historyLoaded = true;
 
+            // For Load More: older messages were pushed to the END of allMessages.
+            // Splice them out and prepend so they appear before existing messages.
+            if (append) {
+              const newCount = data.messages.length;
+              const newMsgs = allMessages.splice(allMessages.length - newCount, newCount);
+              allMessages.unshift(...newMsgs);
+              renderMessages();
+            }
+
             // Recolor now that history is in allMessages — if knownPCs isn't ready yet,
             // loadCharacters() will call recolorAllHistory() again when it finishes.
             recolorAllHistory();
@@ -9103,6 +9112,7 @@
         ws.onmessage = async (ev) => {
           try {
             const data = JSON.parse(ev.data);
+            console.log('📡 WS message:', data.type, data);
 
             // Handle welcome message - update Actor field with character name
             if (data.type === 'welcome') {
