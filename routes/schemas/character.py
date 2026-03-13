@@ -99,6 +99,7 @@ class CharacterResponse(BaseModel):
     user_id: Optional[UUID] = None
     is_npc: bool = False
     is_ally: bool = False
+    visible_to_players: bool = True
     level: int
     pp: int
     ip: int
