@@ -3036,9 +3036,10 @@ async def use_inventory_item(
         db.delete(item)
     db.commit()
 
-    # Broadcast to chat
+    # Broadcast to chat and persist to message history
     try:
         from routes.campaign_websocket import manager
+        from backend.models import Message
         tier_die = TIER_DIE.get(item.tier, "?") if item.tier else ""
         on_whom = f" on {target.name}" if target.id != char.id else ""
         if result["effect"] == "heal":
@@ -3046,7 +3047,17 @@ async def use_inventory_item(
         elif result["effect"] == "buff":
             msg = f"⚡ {char.name} uses {item.name}{on_whom} (Tier {item.tier} — {tier_die}) — +{result['value']} for {result['rounds']} round(s)!"
         else:
-            msg = f"🎒 {char.name} uses {item.name}{on_whom}."
+            msg = f"📦 {char.name} uses {item.name}{on_whom}."
+
+        # Save to message history so it persists on refresh
+        db.add(Message(
+            campaign_id=char.campaign_id,
+            sender_id=current_user.id,
+            sender_name=char.name,
+            message_type="item_used",
+            content=msg,
+        ))
+        db.commit()
 
         await manager.broadcast(char.campaign_id, {
             "type":           "item_used",

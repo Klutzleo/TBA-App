@@ -3590,10 +3590,13 @@
     const loadMoreBtn = document.getElementById('loadMoreBtn');
     const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
 
-    // Show scroll-to-bottom button when user has scrolled up more than 200px from bottom
+    // Show scroll-to-bottom button when scrolled up; show Load More when near top
     chatMessagesEl.addEventListener('scroll', () => {
       const distFromBottom = chatMessagesEl.scrollHeight - chatMessagesEl.scrollTop - chatMessagesEl.clientHeight;
       scrollToBottomBtn.style.display = distFromBottom > 200 ? '' : 'none';
+      if (loadMoreBtn.dataset.hasMore === 'true') {
+        loadMoreBtn.style.display = chatMessagesEl.scrollTop < 80 ? 'block' : 'none';
+      }
     });
 
     let ws = null;
@@ -8485,6 +8488,7 @@
 
             // Display each message in the correct tab (suppress unread badges during history load)
             loadingHistory = true;
+            const allMsgsBefore = allMessages.length;
             for (const msg of messagesInOrder) {
               // Skip messages already displayed (prevents duplicates on reconnect)
               if (msg.id && displayedMessageIds.has(msg.id)) continue;
@@ -8927,6 +8931,10 @@
 
                 storeAndDisplayMessage(container, { type: 'abilities_restored', ...data });
               }
+              // ✅ Item used from history
+              else if (msg.message_type === 'item_used') {
+                addMessage(msg.content, 'message-card message-system', { type: 'item_used', target_tab: 'story' });
+              }
               // ✅ BAP granted/revoked from history
               else if (msg.message_type === 'bap_granted' || msg.message_type === 'bap_revoked') {
                 const d = msg.extra_data || {};
@@ -9011,21 +9019,24 @@
             // For Load More: older messages were pushed to the END of allMessages.
             // Splice them out and prepend so they appear before existing messages.
             if (append) {
-              const newCount = data.messages.length;
-              const newMsgs = allMessages.splice(allMessages.length - newCount, newCount);
-              allMessages.unshift(...newMsgs);
-              renderMessages();
+              const actualAdded = allMessages.length - allMsgsBefore;
+              if (actualAdded > 0) {
+                const newMsgs = allMessages.splice(allMsgsBefore, actualAdded);
+                allMessages.unshift(...newMsgs);
+                renderMessages();
+              }
             }
 
             // Recolor now that history is in allMessages — if knownPCs isn't ready yet,
             // loadCharacters() will call recolorAllHistory() again when it finishes.
             recolorAllHistory();
 
-            // Show "Load More" button if we got exactly messagesLimit messages (might be more)
+            // Track whether there are more messages to load
             if (data.messages.length === messagesLimit) {
-              loadMoreBtn.style.display = 'block';
+              loadMoreBtn.dataset.hasMore = 'true';
             } else {
-              loadMoreBtn.style.display = 'none'; // No more messages
+              loadMoreBtn.dataset.hasMore = 'false';
+              loadMoreBtn.style.display = 'none';
             }
 
             // Maintain scroll position when loading older messages
