@@ -2985,12 +2985,14 @@ async def use_inventory_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Use a consumable item. Player only. Optionally target another PC (heal/buff)."""
+    """Use a consumable item. Player or SW (for NPCs). Optionally target another PC (heal/buff)."""
     from uuid import UUID
     char = db.query(Character).filter(Character.id == UUID(character_id)).first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
-    if char.user_id != current_user.id:
+    is_owner = char.user_id == current_user.id
+    is_sw_npc = char.is_npc and str(char.owner_id) == str(current_user.id)
+    if not is_owner and not is_sw_npc:
         raise HTTPException(status_code=403, detail="You don't own this character")
 
     item = db.query(InventoryItem).filter(
