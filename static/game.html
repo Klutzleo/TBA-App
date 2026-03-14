@@ -4920,6 +4920,7 @@
         if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
         closeSetLevelModal();
         showPanelToast(`✅ Level set to ${newLevel}`, 'success');
+        if (_swSheetCharId) openSwSheetModal(_swSheetCharId, document.getElementById('swSheetCharName')?.textContent);
       } catch (e) {
         showPanelToast(`Level adjust failed: ${e.message}`, 'error');
       }
