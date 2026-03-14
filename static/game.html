@@ -3682,6 +3682,8 @@
         const kpc = (knownPCs || []).find(c => c.name === speakerName);
         if (kpc) kpc.chat_color = hex;
       }
+      // Re-render so DOM reflects updated colors immediately
+      recolorAllHistory();
       if (!persist) return;
       // Persist: if active speaker is an NPC/ally, save to that character's color;
       // if player speaking as own PC, save to character; otherwise save to membership (SW own voice).
