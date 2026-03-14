@@ -11893,6 +11893,7 @@
   // ─── Read-Only Party Member Sheet (Players) ───────────────────────────────
   let _playerSheetCharId = null;
   let _playerSheetChar = null;
+  let _playerSheetAbilities = [];
 
   async function openPlayerSheetModal(charId, charName) {
     _playerSheetCharId = charId;
@@ -11922,6 +11923,7 @@
       }
 
       const abilities = Array.isArray(abData) ? abData : (abData.abilities || []);
+      _playerSheetAbilities = abilities;
 
       const row = (label, val) => `
         <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
@@ -12043,6 +12045,18 @@
         <label class="form-label">Notes / Backstory</label>
         <textarea id="psEditNotes" class="form-input" rows="4" style="resize:vertical;">${escHtml(c.notes || '')}</textarea>
       </div>
+      ${_playerSheetAbilities.length ? `
+      <div style="margin-bottom:12px;">
+        <label class="form-label">Abilities</label>
+        ${_playerSheetAbilities.map((a, i) => `
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:4px;">Slot ${a.slot_number} · ${a.ability_type || '?'}</div>
+            <input id="psAbName_${i}" value="${escHtml(a.display_name || '')}" placeholder="Ability name"
+              style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.85rem;margin-bottom:4px;">
+            <input id="psAbMacro_${i}" value="${escHtml(a.macro_command || '')}" placeholder="Macro (e.g. /fireball)"
+              style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.8rem;font-family:monospace;">
+          </div>`).join('')}
+      </div>` : ''}
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button class="btn" style="flex:1;" onclick="savePlayerSheetEdit()">Save</button>
         <button class="btn btn-secondary" style="flex:1;" onclick="openPlayerSheetModal(_playerSheetCharId, '${escHtml(c.name)}')">Cancel</button>
@@ -12067,7 +12081,21 @@
         body: JSON.stringify({ name, pp, ip, sp, attack_style, notes })
       });
       if (!resp.ok) throw new Error((await resp.json()).detail || 'Save failed');
-      // Reload the view
+
+      // Save ability name/macro changes
+      for (let i = 0; i < _playerSheetAbilities.length; i++) {
+        const ab = _playerSheetAbilities[i];
+        const newName = document.getElementById(`psAbName_${i}`)?.value.trim();
+        const newMacro = document.getElementById(`psAbMacro_${i}`)?.value.trim();
+        if (newName !== ab.display_name || newMacro !== ab.macro_command) {
+          await fetch(`/api/characters/${_playerSheetCharId}/abilities/${ab.id}`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ display_name: newName, macro_command: newMacro })
+          });
+        }
+      }
+
       await openPlayerSheetModal(_playerSheetCharId, name);
     } catch (e) {
       alert(`Failed to save: ${e.message}`);
