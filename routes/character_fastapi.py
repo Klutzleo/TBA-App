@@ -1648,6 +1648,33 @@ async def patch_ability(
     }
 
 
+@character_blp_fastapi.delete("/{character_id}/abilities/{ability_id}", status_code=204)
+async def delete_ability(
+    character_id: str,
+    ability_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a single ability from a character (SW only)."""
+    from uuid import UUID
+    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.role == 'story_weaver'
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Only Story Weaver can delete abilities")
+    ability = db.query(Ability).filter(Ability.id == UUID(ability_id), Ability.character_id == char.id).first()
+    if not ability:
+        raise HTTPException(status_code=404, detail="Ability not found")
+    db.delete(ability)
+    db.commit()
+
+
 @character_blp_fastapi.post("/{character_id}/abilities", status_code=200)
 async def update_character_abilities(
     character_id: str,
@@ -2483,6 +2510,93 @@ async def level_up_character(
         logger.warning(f"Could not broadcast level up: {_be}")
 
     return result
+
+
+@character_blp_fastapi.post("/{character_id}/set-level")
+async def set_character_level(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Set a character to any level 1-10 (SW only). Recalculates all stats.
+    Body: { new_level: int, weapon_die: str, heal_dp: bool }
+    """
+    from uuid import UUID
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.role == 'story_weaver'
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Only Story Weaver can adjust character level")
+
+    new_level = int(req.get("new_level", 1))
+    if new_level < 1 or new_level > 10:
+        raise HTTPException(status_code=400, detail="Level must be between 1 and 10")
+
+    current_level = char.level or 1
+    stats = LEVEL_TABLE[new_level]
+    valid_weapons = WEAPON_OPTIONS_BY_LEVEL[new_level]
+
+    weapon_die = req.get("weapon_die", valid_weapons[0])
+    if weapon_die not in valid_weapons:
+        weapon_die = valid_weapons[0]
+
+    heal_dp = req.get("heal_dp", True)
+
+    char.level = new_level
+    char.max_dp = stats["max_dp"]
+    char.edge = stats["edge"]
+    char.bap = stats["bap"]
+    char.max_uses_per_encounter = stats["uses_per_encounter"]
+    char.defense_die = stats["defense_die"]
+    char.attack_style = weapon_die
+
+    if heal_dp:
+        char.dp = stats["max_dp"]
+    else:
+        char.dp = min(char.dp or 0, stats["max_dp"])
+
+    # Update ability uses to match new level
+    abilities = db.query(Ability).filter(Ability.character_id == char.id).all()
+    for ability in abilities:
+        ability.max_uses = stats["uses_per_encounter"]
+        ability.uses_remaining = stats["uses_per_encounter"]
+
+    db.commit()
+    db.refresh(char)
+
+    logger.info(f"Character {char.name} level set {current_level}→{new_level} by SW")
+
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(char.campaign_id, {
+            "type": "character_level_set",
+            "character_id": str(char.id),
+            "character_name": char.name,
+            "old_level": current_level,
+            "new_level": new_level,
+            "new_max_dp": char.max_dp,
+            "new_dp": char.dp,
+            "new_edge": char.edge,
+            "new_uses_per_encounter": char.max_uses_per_encounter,
+            "new_defense_die": char.defense_die,
+            "new_weapon_die": char.attack_style,
+        }))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast level set: {_be}")
+
+    return {"success": True, "new_level": new_level}
 
 
 # ============================================================================

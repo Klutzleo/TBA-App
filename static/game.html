@@ -3389,6 +3389,43 @@
     </div>
   </div>
 
+  <div id="setLevelModal" class="modal">
+    <div class="modal-content" style="max-width:440px;">
+      <div class="modal-header" style="border-bottom-color:#f59e0b;">
+        <h2 style="color:#f59e0b;">🔧 Adjust Level</h2>
+        <button class="modal-close" onclick="closeSetLevelModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="setLevelCharLabel" style="font-weight:bold;font-size:1.1rem;margin-bottom:4px;"></p>
+        <p id="setLevelCurrentLabel" style="color:var(--text-muted);margin-bottom:16px;"></p>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;font-weight:bold;">New Level</label>
+          <select id="setLevelSelect" class="form-control" onchange="updateSetLevelPreview()">
+            ${[1,2,3,4,5,6,7,8,9,10].map(l => `<option value="${l}">${l}</option>`).join('')}
+          </select>
+        </div>
+        <div id="setLevelWeaponRow" style="display:none;margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;font-weight:bold;">Weapon Die</label>
+          <select id="setLevelWeaponSelect" class="form-control"></select>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:0.88rem;">
+          <thead><tr>
+            <th style="text-align:left;padding:4px 8px;color:var(--text-muted);">Stat</th>
+            <th style="text-align:center;padding:4px 8px;color:var(--text-muted);">Current</th>
+            <th style="text-align:center;padding:4px 8px;color:var(--text-muted);">New</th>
+          </tr></thead>
+          <tbody id="setLevelStatsBody"></tbody>
+        </table>
+        <p style="color:#f59e0b;font-size:0.8rem;margin-bottom:16px;">⚠️ Abilities above the new level threshold will NOT be auto-removed — remove them manually from the character sheet.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+          <input type="checkbox" id="setLevelHealDp" checked>
+          <label for="setLevelHealDp">Set DP to new max</label>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="confirmSetLevel()">Apply Level Change</button>
+      </div>
+    </div>
+  </div>
+
     <div id="levelUpModal" class="modal">
     <div class="modal-content" style="max-width: 460px;">
       <div class="modal-header" style="border-bottom-color: var(--accent-primary);">
@@ -4641,6 +4678,7 @@
                 <button class="context-menu-item" style="color:var(--accent-success);" onclick="openHealModal('${charId}', '${charName.replace(/'/g, '\'')}')">❤️ Heal DP</button>
         <button class="context-menu-item" onclick="openSwSheetModal('${charId}', '${charName.replace(/'/g, "\\'")}')">📋 View Sheet</button>
         <button class="context-menu-item" onclick="openLevelUpModal('${charId}', '${charName.replace(/'/g, "\\'")}')">⬆️ Level Up</button>
+        <button class="context-menu-item" onclick="openSetLevelModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔧 Adjust Level</button>
         <button class="context-menu-item" onclick="openAddItemModal('${charId}')">🎁 Gift Item</button>
         ${targetUserId ? `<button class="context-menu-item" onclick="pingPlayer('${targetUserId}', '${charName.replace(/'/g, "\\'")}')">📣 Ping Player</button>` : ''}
         <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
@@ -4788,6 +4826,93 @@
         // WS broadcast will refresh party panel and post chat message
       } catch (e) {
         showPanelToast(`Level up failed: ${e.message}`, 'error');
+      }
+    }
+
+    // ===================================================================
+    // SET LEVEL MODAL
+    // ===================================================================
+    let setLevelCharId = null;
+    let setLevelCurrentData = null;
+
+    async function openSetLevelModal(charId, charName) {
+      const resp = await fetch(`/api/characters/${charId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+      if (!resp.ok) { showPanelToast('Could not load character', 'error'); return; }
+      const char = await resp.json();
+      setLevelCharId = charId;
+      setLevelCurrentData = char;
+      document.getElementById('setLevelCharLabel').textContent = charName;
+      document.getElementById('setLevelCurrentLabel').textContent = `Currently Level ${char.level || 1}`;
+      const sel = document.getElementById('setLevelSelect');
+      sel.value = char.level || 1;
+      updateSetLevelPreview();
+      document.getElementById('setLevelModal').classList.add('active');
+      closeContextMenu();
+    }
+
+    function updateSetLevelPreview() {
+      if (!setLevelCurrentData) return;
+      const char = setLevelCurrentData;
+      const newLevel = parseInt(document.getElementById('setLevelSelect').value);
+      const stats = {
+        1:  { max_dp:10, edge:0, uses:3,  defense:'1d4' },
+        2:  { max_dp:15, edge:1, uses:6,  defense:'1d4' },
+        3:  { max_dp:20, edge:1, uses:9,  defense:'1d6' },
+        4:  { max_dp:25, edge:2, uses:12, defense:'1d6' },
+        5:  { max_dp:30, edge:2, uses:15, defense:'1d8' },
+        6:  { max_dp:35, edge:3, uses:18, defense:'1d8' },
+        7:  { max_dp:40, edge:3, uses:21, defense:'1d10' },
+        8:  { max_dp:45, edge:4, uses:24, defense:'1d10' },
+        9:  { max_dp:50, edge:4, uses:27, defense:'1d12' },
+        10: { max_dp:55, edge:5, uses:30, defense:'1d12' },
+      }[newLevel];
+      const rows = [
+        ['Max DP',   char.max_dp,                 stats.max_dp],
+        ['Edge',     char.edge,                   stats.edge],
+        ['Uses/Enc', char.max_uses_per_encounter,  stats.uses],
+        ['Defense',  char.defense_die,             stats.defense],
+      ];
+      document.getElementById('setLevelStatsBody').innerHTML = rows.map(([label, before, after]) => {
+        const changed = String(before) !== String(after);
+        const color = changed ? (after > before ? 'color:var(--accent-primary);' : 'color:#ef4444;') : '';
+        const arrow = changed ? (after > before ? ' ↑' : ' ↓') : '';
+        return `<tr>
+          <td style="padding:4px 8px;color:var(--text-muted);">${label}</td>
+          <td style="padding:4px 8px;text-align:center;">${before}</td>
+          <td style="padding:4px 8px;text-align:center;font-weight:${changed?'bold':'normal'};${color}">${after}${arrow}</td>
+        </tr>`;
+      }).join('');
+      // Weapon die
+      const options = NPC_WEAPON_OPTIONS_BY_LEVEL[newLevel] || ['1d4'];
+      const weaponRow = document.getElementById('setLevelWeaponRow');
+      const weaponSel = document.getElementById('setLevelWeaponSelect');
+      weaponRow.style.display = '';
+      weaponSel.innerHTML = options.map(w => `<option value="${w}">${w}</option>`).join('');
+      if (options.includes(char.attack_style)) weaponSel.value = char.attack_style;
+    }
+
+    function closeSetLevelModal() {
+      document.getElementById('setLevelModal').classList.remove('active');
+      setLevelCharId = null;
+      setLevelCurrentData = null;
+    }
+
+    async function confirmSetLevel() {
+      if (!setLevelCharId) return;
+      const newLevel = parseInt(document.getElementById('setLevelSelect').value);
+      const weaponDie = document.getElementById('setLevelWeaponSelect').value;
+      const healDp = document.getElementById('setLevelHealDp').checked;
+      try {
+        const resp = await fetch(`/api/characters/${setLevelCharId}/set-level`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_level: newLevel, weapon_die: weaponDie, heal_dp: healDp })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        closeSetLevelModal();
+        showPanelToast(`✅ Level set to ${newLevel}`, 'success');
+      } catch (e) {
+        showPanelToast(`Level adjust failed: ${e.message}`, 'error');
       }
     }
 
@@ -9486,6 +9611,14 @@
                 loadCharacters();
               }
 
+            } else if (data.type === 'character_level_set') {
+              loadCharacters();
+              if (userRole === 'SW') {
+                showPanelToast(`🔧 ${data.character_name} set to Level ${data.new_level}`, 'success');
+              } else if (characterId && data.character_id === characterId) {
+                showToast(`🔧 Your level was adjusted to ${data.new_level} by the Story Weaver.`, 'info');
+                loadCharacterSheet();
+              }
             } else if (data.type === 'character_leveled_up') {
               // Everyone sees the level up celebration in chat
               const container = document.createElement('div');
@@ -11380,8 +11513,16 @@
             return `
               <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:8px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                  <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;">Slot ${a.slot_number} · ${a.ability_type || '?'}</span>
-                  <button class="btn" style="font-size:0.75rem;padding:2px 10px;" onclick="saveAbilityEdits(${i})">💾 Save</button>
+                  <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;">
+                    Slot ${a.slot_number} · ${a.ability_type || '?'}
+                    ${ a.effect_type ? `<span style="color:${ {damage:'#f87171',heal:'#4ade80',buff:'#a78bfa',debuff:'#fb923c',utility:'#60a5fa'}[a.effect_type]||'var(--text-muted)' };font-weight:bold;margin-left:6px;">${a.effect_type.toUpperCase()}</span>` : '' }
+                    ${ a.die ? `<span style="color:var(--text-muted);margin-left:4px;">${a.die}</span>` : '' }
+                    ${ a.is_aoe ? `<span style="color:#fbbf24;margin-left:4px;">AOE</span>` : '' }
+                  </span>
+                  <div style="display:flex;gap:4px;">
+                    <button class="btn" style="font-size:0.75rem;padding:2px 10px;" onclick="saveAbilityEdits(${i})">💾 Save</button>
+                    <button class="btn" style="font-size:0.75rem;padding:2px 8px;background:#ef4444;border-color:#ef4444;" onclick="deleteAbility(${i})" title="Delete ability">🗑️</button>
+                  </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:4px;">
                   <input id="swAb_name_${i}" value="${escHtml(a.display_name || '')}" placeholder="Ability name"
@@ -11518,6 +11659,28 @@
       }
     } catch (e) {
       showToast('Save failed: ' + e.message, 'error');
+    }
+  }
+
+  async function deleteAbility(idx) {
+    const ab = _swSheetAbilities[idx];
+    if (!ab) return;
+    if (!confirm(`Delete "${ab.display_name || 'this ability'}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/characters/${_swSheetCharId}/abilities/${ab.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok || res.status === 204) {
+        _swSheetAbilities.splice(idx, 1);
+        showToast(`Ability deleted.`, 'success');
+        openSwSheetModal(_swSheetCharId, document.getElementById('swSheetCharName').textContent);
+      } else {
+        const e = await res.json();
+        showToast(e.detail || 'Delete failed', 'error');
+      }
+    } catch (e) {
+      showToast('Delete failed: ' + e.message, 'error');
     }
   }
 
