@@ -3353,6 +3353,21 @@
     </div>
   </div>
 
+  <div id="deleteCharacterModal" class="modal">
+    <div class="modal-content" style="max-width:380px;">
+      <div class="modal-header" style="border-bottom-color:#ef4444;">
+        <h2 style="color:#ef4444;">🗑️ Delete Character</h2>
+        <button class="modal-close" onclick="closeDeleteCharacterModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-muted);margin-bottom:12px;">This cannot be undone. The character and all their data will be permanently deleted.</p>
+        <p style="margin-bottom:16px;">Type <strong id="deleteCharNameConfirm" style="color:#ef4444;"></strong> to confirm:</p>
+        <input id="deleteCharNameInput" type="text" class="form-control" placeholder="Character name..." style="margin-bottom:16px;">
+        <button id="deleteCharConfirmBtn" class="btn btn-danger" style="width:100%;background:#ef4444;border-color:#ef4444;" onclick="confirmDeleteCharacter()">Delete Forever</button>
+      </div>
+    </div>
+  </div>
+
   <div id="healModal" class="modal">
     <div class="modal-content" style="max-width:360px;">
       <div class="modal-header" style="border-bottom-color:var(--accent-success);">
@@ -4630,6 +4645,7 @@
         ${targetUserId ? `<button class="context-menu-item" onclick="pingPlayer('${targetUserId}', '${charName.replace(/'/g, "\\'")}')">📣 Ping Player</button>` : ''}
         <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="convertPCtoNPC('${charId}', '${charName.replace(/'/g, "\\'")}')">🎭 Convert to NPC</button>
+        <button class="context-menu-item danger" onclick="openDeleteCharacterModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🗑️ Delete Character</button>
         <div style="padding:4px 12px; font-size:0.7rem; color:var(--text-muted); border-top:1px solid var(--border-color); margin-top:4px; pointer-events:none;">✦ BAP TOKEN</div>
         <button class="context-menu-item" onclick="grantBapToken('${charId}', 'encounter')">  Grant — Encounter</button>
         <button class="context-menu-item" onclick="grantBapToken('${charId}', '24hrs')">  Grant — 24 Hours</button>
@@ -7191,6 +7207,43 @@
     // PC → NPC Conversion (SW only)
     // =========================================================================
 
+    let _deleteCharId = null;
+    let _deleteCharName = null;
+
+    function openDeleteCharacterModal(charId, charName) {
+      _deleteCharId = charId;
+      _deleteCharName = charName;
+      document.getElementById('deleteCharNameConfirm').textContent = charName;
+      document.getElementById('deleteCharNameInput').value = '';
+      document.getElementById('deleteCharacterModal').classList.add('active');
+      closeContextMenu();
+    }
+
+    function closeDeleteCharacterModal() {
+      document.getElementById('deleteCharacterModal').classList.remove('active');
+      _deleteCharId = null;
+      _deleteCharName = null;
+    }
+
+    async function confirmDeleteCharacter() {
+      const input = document.getElementById('deleteCharNameInput').value.trim();
+      if (input !== _deleteCharName) {
+        showPanelToast('Name does not match — character not deleted.', 'error');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/characters/${_deleteCharId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        closeDeleteCharacterModal();
+        showPanelToast(`🗑️ ${_deleteCharName} deleted.`, 'success');
+      } catch (e) {
+        showPanelToast('Delete failed: ' + e.message, 'error');
+      }
+    }
+
     async function convertPCtoNPC(charId, charName) {
       if (!confirm(`Convert "${charName}" to an NPC?\n\nAll stats and abilities are kept. The player will become a spectator and can create a new character.`)) return;
 
@@ -9371,6 +9424,14 @@
               document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
               loadCharacters();
 
+            } else if (data.type === 'character_deleted') {
+              loadCharacters();
+              if (userRole === 'SW') {
+                showPanelToast(`🗑️ ${data.character_name} deleted.`, 'success');
+              } else if (characterId && data.character_id === characterId) {
+                alert(`Your character "${data.character_name}" has been removed by the Story Weaver. You are now a spectator.`);
+                window.location.href = window.location.pathname + window.location.search.replace(/[?&]character_id=[^&]+/, '') + '&role=player';
+              }
             } else if (data.type === 'character_archived') {
               // Character died in The Calling — drop owner to spectator
               if (characterId && data.character_id === characterId) {

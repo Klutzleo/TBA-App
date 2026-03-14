@@ -623,19 +623,42 @@ async def update_character(
 
 
 @character_blp_fastapi.delete("/{character_id}", status_code=204)
-async def delete_character(character_id: str, request: Request, db: Session = Depends(get_db)):
-    """Soft delete a character (remove from DB)."""
+async def delete_character(character_id: str, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Delete a character (SW only)."""
     request_id = getattr(request.state, "request_id", "unknown")
     logger.info(f"[{request_id}] Deleting character: {character_id}")
-    
+
     character = db.query(Character).filter(Character.id == character_id).first()
     if not character:
         raise HTTPException(status_code=404, detail=f"Character {character_id} not found")
-    
+
+    # SW only
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == character.campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.role == 'story_weaver'
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can delete characters")
+
+    campaign_id = character.campaign_id
+    char_name = character.name
+    owner_id = str(character.user_id) if character.user_id else None
+
     db.delete(character)
     db.commit()
-    
-    logger.info(f"[{request_id}] Character deleted: {character_id}")
+
+    # Broadcast so the player gets dropped to spectator
+    import asyncio
+    from routes.campaign_websocket import manager
+    asyncio.create_task(manager.broadcast(campaign_id, {
+        "type": "character_deleted",
+        "character_id": character_id,
+        "character_name": char_name,
+        "owner_id": owner_id
+    }))
+
+    logger.info(f"[{request_id}] Character {char_name} deleted by SW")
 
 
 # ============================================================================
