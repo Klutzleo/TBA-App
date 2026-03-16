@@ -7617,7 +7617,7 @@
       const isChatMsg = ['chat_ic','chat_ooc','chat_whisper'].includes(data.type);
       const hasPinTarget = !!(data.text || data.actor);
       const hasEditTarget = isChatMsg && !!data.message_id;
-      const canEdit = hasEditTarget && (isSW() || (data.sender_id && characterId && String(data.sender_id) === String(characterId)));
+      const canEdit = hasEditTarget && (isSW() || (data.sender_id && currentUser && String(data.sender_id) === String(currentUser.id)));
 
       if ((isSW() && hasPinTarget) || canEdit) {
         const actionsDiv = document.createElement('div');
