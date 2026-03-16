@@ -746,6 +746,18 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             rolls_str = " + ".join(str(r) for r in def_rolls)
             breakdown = f"{def_die} = [{rolls_str}] + {stat_label}({stat_value}) + Edge({edge}) = {defense_total}"
 
+            # Persist to message history
+            def_msg = Message(
+                campaign_id=campaign_id,
+                sender_id=user_id,
+                sender_name=defender.name,
+                message_type="defense_roll",
+                content=f"🛡️ {defender.name} — {stat_label} Defense: {defense_total}",
+                extra_data={"character_id": str(defender.id), "character_name": defender.name, "stat_label": stat_label, "defense_total": defense_total, "breakdown": breakdown, "def_die": def_die}
+            )
+            db.add(def_msg)
+            db.commit()
+
             await manager.broadcast(campaign_id, {
                 "type": "defense_roll",
                 "character_id": str(defender.id),

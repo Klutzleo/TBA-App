@@ -9183,6 +9183,36 @@
               else if (msg.message_type === 'item_used') {
                 addMessage(msg.content, 'message-card message-system', { type: 'item_used', target_tab: 'story' });
               }
+              else if (msg.message_type === 'defense_roll') {
+                const d = msg.extra_data || {};
+                const container = document.createElement('div');
+                container.className = 'msg dice_roll';
+                const defBd = document.createElement('div');
+                defBd.style.cssText = 'font-family:monospace;font-size:12px;margin-left:16px;margin-top:4px;color:var(--text-secondary)';
+                defBd.style.display = isSW() ? 'block' : 'none';
+                defBd.textContent = d.breakdown || '';
+                const defTog = document.createElement('a');
+                defTog.href = '#';
+                defTog.style.fontSize = '11px';
+                defTog.textContent = isSW() ? 'Hide details' : 'Show details';
+                defTog.addEventListener('click', e => {
+                  e.preventDefault();
+                  const showing = defBd.style.display !== 'none';
+                  defBd.style.display = showing ? 'none' : 'block';
+                  defTog.textContent = showing ? 'Show details' : 'Hide details';
+                });
+                const defHeader = makeHeaderRow(fmtTs(msg.created_at), `🛡️ ${escHtml(d.character_name)} — ${d.stat_label} Defense: ${d.defense_total}`, { toggle: defTog, tab: 'STORY' });
+                container.appendChild(defHeader);
+                container.appendChild(defBd);
+                storeAndDisplayMessage(container, { type: 'defense_roll', actor: d.character_name, ...d });
+              }
+              else if (msg.message_type === 'damage_applied') {
+                const el = document.createElement('div');
+                el.className = 'message-card message-combat';
+                el.style.cssText = 'border-left:3px solid #ef4444;padding-left:12px;';
+                el.textContent = msg.content;
+                storeAndDisplayMessage(el, { type: 'damage_applied', actor: 'system', target_tab: 'story' });
+              }
               // ✅ BAP granted/revoked from history
               else if (msg.message_type === 'bap_announce') {
                 const d = msg.extra_data || {};

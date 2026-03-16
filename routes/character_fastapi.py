@@ -2196,6 +2196,17 @@ async def apply_damage(
     char.dp = max(char.dp - amount, 0)
     db.commit()
     db.refresh(char)
+    # Persist to message history
+    dmg_msg = Message(
+        campaign_id=char.campaign_id,
+        sender_id=current_user.id,
+        sender_name="Story Weaver",
+        message_type="damage_applied",
+        content=f"💥 {source} hits {char.name} for {amount} damage (DP: {old_dp} → {char.dp})",
+        extra_data={"character_id": str(char.id), "character_name": char.name, "source": source, "amount": amount, "old_dp": old_dp, "new_dp": char.dp}
+    )
+    db.add(dmg_msg)
+    db.commit()
     try:
         from routes.campaign_websocket import manager
         import asyncio
