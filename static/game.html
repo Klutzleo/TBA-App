@@ -10212,6 +10212,13 @@
               }
               showPanelToast(`✦ BAP awarded to ${data.character_name} — ${data.stat_name} Check now ${data.new_total}`, 'warning');
 
+              // Broadcast chat card so players see the BAP award
+              const bapAnnounce = document.createElement('div');
+              bapAnnounce.className = 'message-card message-system';
+              bapAnnounce.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;background:rgba(245,158,11,0.08);';
+              bapAnnounce.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(data.character_name)}</strong> awarded a BAP token! <strong>${escHtml(data.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${data.new_total}</strong> ✦`;
+              storeAndDisplayMessage(bapAnnounce, { type: 'bap_announce', actor: 'system', _tab: 'story' });
+
             } else if (data.type === 'ability_cast') {
               // Ability/spell/technique cast result
               const container = document.createElement('div');
