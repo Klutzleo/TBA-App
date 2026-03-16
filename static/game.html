@@ -1914,7 +1914,9 @@
       background: var(--accent-success, #22c55e);
       transition: width 0.3s;
     }
-    .init-entry .init-dp-fill.low { background: var(--accent-danger); }
+    .init-entry .init-dp-fill.medium { background: #eab308; }
+    .init-entry .init-dp-fill.low    { background: #f97316; }
+    .init-entry .init-dp-fill.critical { background: var(--accent-danger); }
     #initiativeTurnCounter {
       padding: 6px 8px;
       font-size: 0.75rem;
@@ -6323,7 +6325,8 @@
           const barWrap = document.createElement('div');
           barWrap.className = 'init-dp-bar';
           const fill = document.createElement('div');
-          fill.className = 'init-dp-fill' + (pct <= 25 ? ' low' : '');
+          const dpClass = pct <= 25 ? ' critical' : pct <= 50 ? ' low' : pct <= 75 ? ' medium' : '';
+          fill.className = 'init-dp-fill' + dpClass;
           fill.style.width = pct + '%';
           barWrap.appendChild(fill);
           entry.appendChild(barWrap);
