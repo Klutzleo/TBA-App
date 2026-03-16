@@ -8987,23 +8987,30 @@
 
                 if (msg.id) container.dataset.messageId = msg.id;
 
-                // BAP button for SW on history stat rolls
+                // BAP button/badge for SW on history stat rolls
                 if (isSW() && data.character_id && msg.id) {
-                  const bapBtn = document.createElement('button');
-                  bapBtn.className = 'bap-retro-btn';
-                  bapBtn.textContent = '✦ Award BAP';
-                  bapBtn.onclick = async () => {
-                    bapBtn.disabled = true;
-                    try {
-                      const r = await fetch(`/api/characters/${data.character_id}/bap-stat-roll`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message_id: msg.id })
-                      });
-                      if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
-                    } catch (e) { alert(`BAP error: ${e.message}`); bapBtn.disabled = false; }
-                  };
-                  container.appendChild(bapBtn);
+                  if (data.bap_awarded) {
+                    const bapBadge = document.createElement('div');
+                    bapBadge.className = 'bap-badge';
+                    bapBadge.textContent = `✦ BAP +${data.bap_bonus || 1} awarded — new total: ${data.total}`;
+                    container.appendChild(bapBadge);
+                  } else {
+                    const bapBtn = document.createElement('button');
+                    bapBtn.className = 'bap-retro-btn';
+                    bapBtn.textContent = '✦ Award BAP';
+                    bapBtn.onclick = async () => {
+                      bapBtn.disabled = true;
+                      try {
+                        const r = await fetch(`/api/characters/${data.character_id}/bap-stat-roll`, {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ message_id: msg.id })
+                        });
+                        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+                      } catch (e) { alert(`BAP error: ${e.message}`); bapBtn.disabled = false; }
+                    };
+                    container.appendChild(bapBtn);
+                  }
                 }
 
                 storeAndDisplayMessage(container, { type: 'stat_roll', ...data });
@@ -9173,6 +9180,14 @@
                 addMessage(msg.content, 'message-card message-system', { type: 'item_used', target_tab: 'story' });
               }
               // ✅ BAP granted/revoked from history
+              else if (msg.message_type === 'bap_announce') {
+                const d = msg.extra_data || {};
+                const el = document.createElement('div');
+                el.className = 'message-card message-system';
+                el.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;background:rgba(245,158,11,0.08);';
+                el.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(d.character_name)}</strong> awarded a BAP token! <strong>${escHtml(d.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${d.new_total}</strong> ✦`;
+                storeAndDisplayMessage(el, { type: 'bap_announce', actor: 'system' });
+              }
               else if (msg.message_type === 'bap_granted' || msg.message_type === 'bap_revoked') {
                 const d = msg.extra_data || {};
                 const isGrant = msg.message_type === 'bap_granted';

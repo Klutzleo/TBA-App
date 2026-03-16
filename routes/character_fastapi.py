@@ -2953,11 +2953,22 @@ async def bap_stat_roll(
     extra["total"] = new_total
     extra["breakdown"] = extra.get("breakdown", "") + f" + BAP({bap_bonus}) = {new_total}"
     msg.extra_data = extra
+
+    # Save persistent announcement message so players see it on refresh
+    stat_name = extra.get("stat_name", "Check")
+    announce_msg = Message(
+        campaign_id=char.campaign_id,
+        sender_id=current_user.id,
+        sender_name="Story Weaver",
+        message_type="bap_announce",
+        content=f"✦ {char.name} awarded a BAP token! {stat_name} Check rises to {new_total} ✦",
+        extra_data={"character_id": str(char.id), "character_name": char.name, "stat_name": stat_name, "new_total": new_total, "bap_bonus": bap_bonus}
+    )
+    db.add(announce_msg)
     db.commit()
 
     try:
         from routes.campaign_websocket import manager
-        stat_name = extra.get("stat_name", "Check")
         asyncio.create_task(manager.broadcast(char.campaign_id, {
             "type": "bap_stat_roll",
             "message_id": message_id,
