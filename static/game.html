@@ -3389,6 +3389,28 @@
     </div>
   </div>
 
+  <div id="applyDamageModal" class="modal">
+    <div class="modal-content" style="max-width:360px;">
+      <div class="modal-header" style="border-bottom-color:#ef4444;">
+        <h2 style="color:#ef4444;">⚔️ Apply Damage</h2>
+        <button class="modal-close" onclick="closeApplyDamageModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="applyDmgCharLabel" style="font-weight:bold;margin-bottom:4px;"></p>
+        <p id="applyDmgDpLabel" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px;"></p>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <input type="text" id="applyDmgSource" placeholder="Source (e.g. Horse kick, Falling debris)"
+            style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.9rem;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="number" id="applyDmgAmount" min="1" max="999" placeholder="Damage amount"
+              style="flex:1;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.95rem;">
+            <button class="btn" style="background:#ef4444;border-color:#ef4444;" onclick="doApplyDamage()">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="setLevelModal" class="modal">
     <div class="modal-content" style="max-width:440px;">
       <div class="modal-header" style="border-bottom-color:#f59e0b;">
@@ -4628,6 +4650,8 @@
         <button class="context-menu-item" onclick="editNpc('${character.id}')">✏️ Edit</button>
         <button class="context-menu-item" onclick="duplicateNpc('${character.id}')">📋 Duplicate</button>
         <button class="context-menu-item" onclick="toggleNpcVisibility('${character.id}', ${!isVisible})">${isVisible ? '🙈 Hide from Players' : '👁 Reveal to Players'}</button>
+        <button class="context-menu-item" style="color:var(--accent-success);" onclick="openHealModal('${character.id}', '${character.name.replace(/'/g, "\\'")}')">❤️ Heal DP</button>
+        <button class="context-menu-item" style="color:#ef4444;" onclick="openApplyDamageModal('${character.id}', '${character.name.replace(/'/g, "\\'")}')">⚔️ Apply Damage</button>
         <button class="context-menu-item" onclick="openTransferModal('${character.id}', '${character.name}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="deleteNpc('${character.id}')">🗑️ Delete</button>
       `;
@@ -4685,6 +4709,7 @@
       menu.className = 'context-menu active';
       menu.innerHTML = `
                 <button class="context-menu-item" style="color:var(--accent-success);" onclick="openHealModal('${charId}', '${charName.replace(/'/g, '\'')}')">❤️ Heal DP</button>
+        <button class="context-menu-item" style="color:#ef4444;" onclick="openApplyDamageModal('${charId}', '${charName.replace(/'/g, '\'')}')">⚔️ Apply Damage</button>
         <button class="context-menu-item" onclick="openSwSheetModal('${charId}', '${charName.replace(/'/g, "\\'")}')">📋 View Sheet</button>
         <button class="context-menu-item" onclick="openLevelUpModal('${charId}', '${charName.replace(/'/g, "\\'")}')">⬆️ Level Up</button>
         <button class="context-menu-item" onclick="openSetLevelModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔧 Adjust Level</button>
@@ -9466,6 +9491,14 @@
                 <div style="font-style:italic; color:#c4b5fd; font-size:0.85rem; margin-bottom:4px;">${data.question}</div>
                 <div style="color:var(--text-primary); font-size:0.95rem;">"${data.response}"</div>`;
               storeAndDisplayMessage(trDiv, { type: 'calling_response', actor: 'system' });
+            } else if (data.type === 'damage_applied') {
+              loadCharacters();
+              loadBubbleBar();
+              const _dcard = document.createElement('div');
+              _dcard.className = 'message-card message-system';
+              _dcard.style.cssText = 'border-left:3px solid #ef4444;padding-left:12px;';
+              _dcard.innerHTML = '⚔️ <strong>' + escHtml(data.source) + '</strong> hits <strong>' + escHtml(data.character_name) + '</strong> for <strong style="color:#ef4444;">-' + data.amount + ' DP</strong> (' + data.old_dp + ' → ' + data.new_dp + '/' + data.max_dp + ')';
+              storeAndDisplayMessage(_dcard, { type: 'damage_applied', actor: 'system', _tab: 'story' });
             } else if (data.type === 'dp_healed') {
               loadCharacters();
               loadBubbleBar();
@@ -11407,6 +11440,43 @@
     }
   }
   let _healCharId = null;
+  let _applyDmgCharId = null;
+
+  async function openApplyDamageModal(charId, charName) {
+    const menu = document.querySelector('.context-menu');
+    if (menu) menu.remove();
+    _applyDmgCharId = charId;
+    try {
+      const r = await fetch(`/api/characters/${charId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+      const char = await r.json();
+      document.getElementById('applyDmgCharLabel').textContent = charName;
+      document.getElementById('applyDmgDpLabel').textContent = `Current: ${char.dp} / ${char.max_dp} DP`;
+      document.getElementById('applyDmgAmount').value = '';
+      document.getElementById('applyDmgSource').value = '';
+      document.getElementById('applyDamageModal').classList.add('active');
+    } catch (e) { showPanelToast('Could not load character: ' + e.message, 'error'); }
+  }
+
+  function closeApplyDamageModal() {
+    document.getElementById('applyDamageModal').classList.remove('active');
+    _applyDmgCharId = null;
+  }
+
+  async function doApplyDamage() {
+    if (!_applyDmgCharId) return;
+    const amount = parseInt(document.getElementById('applyDmgAmount').value) || 0;
+    const source = document.getElementById('applyDmgSource').value.trim() || 'Environmental';
+    if (amount <= 0) { showPanelToast('Enter a damage amount', 'error'); return; }
+    try {
+      const r = await fetch(`/api/characters/${_applyDmgCharId}/apply-damage`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, source })
+      });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+      closeApplyDamageModal();
+    } catch (e) { showPanelToast('Apply damage failed: ' + e.message, 'error'); }
+  }
 
   async function openHealModal(charId, charName) {
     const menu = document.querySelector('.context-menu');

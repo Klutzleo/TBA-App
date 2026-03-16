@@ -2166,6 +2166,53 @@ async def heal_character(
         logger.warning(f"Could not broadcast dp_healed: {_be}")
     return {"character_id": str(char.id), "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp, "healed": healed}
 
+@character_blp_fastapi.post("/{character_id}/apply-damage")
+async def apply_damage(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Apply environmental/narrative damage to a character (SW only). Body: { amount: int, source: str }"""
+    from uuid import UUID
+    from backend.models import CampaignMembership
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership or membership.role != "story_weaver":
+        raise HTTPException(status_code=403, detail="Only Story Weaver can apply damage")
+    amount = int(req.get("amount", 0))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Damage amount must be positive")
+    source = (req.get("source") or "Environmental").strip()[:100]
+    old_dp = char.dp
+    char.dp = max(char.dp - amount, 0)
+    db.commit()
+    db.refresh(char)
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(char.campaign_id, {
+            "type": "damage_applied",
+            "character_id": str(char.id),
+            "character_name": char.name,
+            "source": source,
+            "amount": amount,
+            "old_dp": old_dp,
+            "new_dp": char.dp,
+            "max_dp": char.max_dp
+        }))
+    except Exception as _be:
+        logger.warning(f"Could not broadcast damage_applied: {_be}")
+    return {"character_id": str(char.id), "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp, "damage": amount}
+
 @character_blp_fastapi.post("/{character_id}/restore-uses")
 async def restore_ability_uses(
     character_id: str,
