@@ -769,6 +769,106 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             })
             return
 
+        # Parse /env [tier] @TargetName [source] — environmental attack (SW only)
+        if command_text.lower().startswith("/env"):
+            # SW only
+            sw_check = db.query(CampaignMembership).filter(
+                CampaignMembership.campaign_id == campaign_id,
+                CampaignMembership.user_id == user_id,
+                CampaignMembership.left_at.is_(None)
+            ).first()
+            if not sw_check or sw_check.role != "story_weaver":
+                await manager.broadcast(campaign_id, {"type": "system", "text": "❌ Only the Story Weaver can use /env"})
+                return
+
+            # Parse: /env <tier> @<target> <source>
+            env_match = re.match(r'/env\s+(\d+)\s+@?\[?([^\]]+)\]?\s*(.*)', command_text, re.IGNORECASE)
+            if not env_match:
+                await manager.broadcast(campaign_id, {"type": "system", "text": "❌ Usage: /env [tier 1-5] @Target [source name]"})
+                return
+
+            tier = int(env_match.group(1))
+            target_name = env_match.group(2).strip()
+            source_name = env_match.group(3).strip() or "Environmental Hazard"
+
+            tier_dice = {1: "1d4", 2: "1d6", 3: "1d8", 4: "1d10", 5: "1d12"}
+            if tier not in tier_dice:
+                await manager.broadcast(campaign_id, {"type": "system", "text": "❌ Tier must be 1-5"})
+                return
+            atk_die = tier_dice[tier]
+
+            # Look up target
+            target = db.query(Character).filter(
+                Character.campaign_id == campaign_id,
+                Character.status == "active"
+            ).all()
+            target_char = next((c for c in target if c.name.lower() == target_name.lower()), None)
+            if not target_char:
+                await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ Target '{target_name}' not found."})
+                return
+
+            # Roll attack (no attacker edge)
+            atk_rolls = roll_dice(atk_die)
+            atk_total = sum(atk_rolls)
+
+            # Target defends with PP
+            def_rolls = roll_dice(target_char.defense_die or "1d4")
+            def_total = sum(def_rolls) + (target_char.pp or 0) + (target_char.edge or 0)
+
+            margin = atk_total - def_total
+            damage = max(0, margin)
+            old_dp = target_char.dp
+            if damage > 0 and not (target_char.dp is not None and target_char.dp <= 0):
+                target_char.dp = max(0, target_char.dp - damage)
+                db.commit()
+                db.refresh(target_char)
+
+            atk_str = f"{atk_die} = [{' + '.join(str(r) for r in atk_rolls)}] = {atk_total}"
+            def_str = f"{target_char.defense_die} = [{' + '.join(str(r) for r in def_rolls)}] + PP({target_char.pp}) + Edge({target_char.edge or 0}) = {def_total}"
+
+            result_text = f"💥 {damage} dmg (DP {old_dp} → {target_char.dp})" if damage > 0 else "🛡️ Blocked!"
+
+            env_msg = Message(
+                campaign_id=campaign_id,
+                sender_id=user_id,
+                sender_name="Story Weaver",
+                message_type="combat_result",
+                content=f"🌍 {source_name} → {target_char.name}: {result_text}",
+                extra_data={
+                    "attacker": source_name,
+                    "defender": target_char.name,
+                    "defender_id": str(target_char.id),
+                    "damage": damage,
+                    "old_dp": old_dp,
+                    "new_dp": target_char.dp,
+                    "atk_breakdown": atk_str,
+                    "def_breakdown": def_str,
+                    "is_env": True,
+                    "tier": tier
+                }
+            )
+            db.add(env_msg)
+            db.commit()
+
+            await manager.broadcast(campaign_id, {
+                "type": "env_attack",
+                "source": source_name,
+                "tier": tier,
+                "atk_die": atk_die,
+                "target_name": target_char.name,
+                "target_id": str(target_char.id),
+                "atk_total": atk_total,
+                "def_total": def_total,
+                "damage": damage,
+                "old_dp": old_dp,
+                "new_dp": target_char.dp,
+                "max_dp": target_char.max_dp,
+                "atk_breakdown": atk_str,
+                "def_breakdown": def_str,
+                "result_text": result_text
+            })
+            return
+
         # Parse /attack @TargetName
         if not command_text.startswith("/attack"):
             await manager.broadcast(campaign_id, {

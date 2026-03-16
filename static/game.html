@@ -2976,6 +2976,7 @@
             <div><span style="color:var(--accent-dice);">/roll 2d6+3</span> <span style="color:var(--text-muted);">— Roll any dice expression</span></div>
             <div><span style="color:var(--accent-dice);">/attack</span> <span style="color:var(--text-muted);">— Roll your attack (weapon die + PP)</span></div>
             <div><span style="color:var(--accent-dice);">/defense pp|ip|sp</span> <span style="color:var(--text-muted);">— Manual defense roll (defense die + stat + edge)</span></div>
+            <div><span style="color:var(--accent-dice);">/env [tier] @Target [source]</span> <span style="color:var(--text-muted);">— Environmental attack (SW only) — tier 1-5, e.g. /env 2 @Beef Baseball</span></div>
             <div><span style="color:var(--accent-dice);">/defend</span> <span style="color:var(--text-muted);">— Roll your defense die</span></div>
             <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge)</span></div>
             <div><span style="color:var(--accent-dice);">/IP</span> <span style="color:var(--text-muted);">— Roll using IP instead of PP</span></div>
@@ -4549,6 +4550,7 @@
       { cmd: '/sp',          desc: 'Social stat check (1d6 + SP + Edge)',      roles: ['player','SW'] },
       { cmd: '/roll',        desc: 'Roll dice — e.g. /roll 2d6',              roles: ['player','SW'] },
       { cmd: '/attack',      desc: 'Attack a target — e.g. /attack @Target',  roles: ['player','SW'] },
+      { cmd: '/env',         desc: 'Environmental attack — /env [tier 1-5] @Target [source]', roles: ['SW'] },
       { cmd: '/defense pp',  desc: 'Manual defense roll (Physical)',           roles: ['player','SW'] },
       { cmd: '/defense ip',  desc: 'Manual defense roll (Intellect)',          roles: ['player','SW'] },
       { cmd: '/defense sp',  desc: 'Manual defense roll (Social)',             roles: ['player','SW'] },
@@ -10250,6 +10252,27 @@
               }
 
               storeAndDisplayMessage(container, data);
+            } else if (data.type === 'env_attack') {
+              const container = document.createElement('div');
+              container.className = 'message-card message-combat';
+              container.style.cssText = 'border-left:3px solid #f97316;';
+
+              const headerRow = makeHeaderRow(fmtNow(),
+                `🌍 ${escHtml(data.source)} (Tier ${data.tier}) → ${escHtml(data.target_name)}: ${data.result_text}`,
+                { tab: 'STORY' }
+              );
+              container.appendChild(headerRow);
+
+              if (isSW()) {
+                const details = document.createElement('div');
+                details.style.cssText = 'font-family:monospace;font-size:11px;margin-left:16px;margin-top:4px;color:var(--text-secondary);';
+                details.innerHTML = `⚔️ ${escHtml(data.atk_breakdown)}<br>🛡️ ${escHtml(data.def_breakdown)}`;
+                container.appendChild(details);
+              }
+
+              storeAndDisplayMessage(container, { type: 'env_attack', actor: data.source, target_id: data.target_id, new_dp: data.new_dp, max_dp: data.max_dp });
+              updateCharacterSheet(data.target_name, data.new_dp);
+
             } else if (data.type === 'defense_roll') {
               const container = document.createElement('div');
               container.className = 'msg dice_roll';
@@ -10800,6 +10823,9 @@
         }
 
         ws.send(JSON.stringify(payload));
+      } else if (textLower.startsWith('/env')) {
+        ws.send(JSON.stringify({ type: 'combat_command', raw_command: text }));
+
       } else if (textLower.startsWith('/attack') || textLower.startsWith('/defense')) {
         // Combat command - send to combat handler
         const payload = {
