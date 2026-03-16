@@ -706,6 +706,57 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         cmd = CombatCommand(**data)
         command_text = cmd.raw_command.strip()
 
+        # Parse /defense pp/ip/sp — manual standalone defense roll
+        if command_text.lower().startswith("/defense"):
+            parts = command_text.split()
+            stat_key = parts[1].lower() if len(parts) > 1 else "pp"
+            if stat_key not in ("pp", "ip", "sp"):
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": "❌ Usage: /defense pp | /defense ip | /defense sp"
+                })
+                return
+
+            # Look up the defender (current user's character or SW-specified)
+            attacker_id_override = data.get("attacker_id")
+            if attacker_id_override:
+                defender = db.query(Character).filter(Character.id == attacker_id_override).first()
+            else:
+                defender = db.query(Character).filter(
+                    Character.campaign_id == campaign_id,
+                    Character.owner_id == str(user_id),
+                    Character.is_npc == False,
+                    Character.status == "active"
+                ).first()
+
+            if not defender:
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": "❌ No active character found to roll defense."
+                })
+                return
+
+            stat_map = {"pp": ("PP", defender.pp), "ip": ("IP", defender.ip), "sp": ("SP", defender.sp)}
+            stat_label, stat_value = stat_map[stat_key]
+            edge = defender.edge or 0
+            def_die = defender.defense_die or "1d4"
+            def_rolls = roll_dice(def_die)
+            def_roll_total = sum(def_rolls)
+            defense_total = def_roll_total + stat_value + edge
+            rolls_str = " + ".join(str(r) for r in def_rolls)
+            breakdown = f"{def_die} = [{rolls_str}] + {stat_label}({stat_value}) + Edge({edge}) = {defense_total}"
+
+            await manager.broadcast(campaign_id, {
+                "type": "defense_roll",
+                "character_id": str(defender.id),
+                "character_name": defender.name,
+                "stat_label": stat_label,
+                "defense_total": defense_total,
+                "breakdown": breakdown,
+                "def_die": def_die
+            })
+            return
+
         # Parse /attack @TargetName
         if not command_text.startswith("/attack"):
             await manager.broadcast(campaign_id, {

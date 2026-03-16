@@ -2973,6 +2973,7 @@
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
             <div><span style="color:var(--accent-dice);">/roll 2d6+3</span> <span style="color:var(--text-muted);">— Roll any dice expression</span></div>
             <div><span style="color:var(--accent-dice);">/attack</span> <span style="color:var(--text-muted);">— Roll your attack (weapon die + PP)</span></div>
+            <div><span style="color:var(--accent-dice);">/defense pp|ip|sp</span> <span style="color:var(--text-muted);">— Manual defense roll (defense die + stat + edge)</span></div>
             <div><span style="color:var(--accent-dice);">/defend</span> <span style="color:var(--text-muted);">— Roll your defense die</span></div>
             <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge)</span></div>
             <div><span style="color:var(--accent-dice);">/IP</span> <span style="color:var(--text-muted);">— Roll using IP instead of PP</span></div>
@@ -4546,6 +4547,9 @@
       { cmd: '/sp',          desc: 'Social stat check (1d6 + SP + Edge)',      roles: ['player','SW'] },
       { cmd: '/roll',        desc: 'Roll dice — e.g. /roll 2d6',              roles: ['player','SW'] },
       { cmd: '/attack',      desc: 'Attack a target — e.g. /attack @Target',  roles: ['player','SW'] },
+      { cmd: '/defense pp',  desc: 'Manual defense roll (Physical)',           roles: ['player','SW'] },
+      { cmd: '/defense ip',  desc: 'Manual defense roll (Intellect)',          roles: ['player','SW'] },
+      { cmd: '/defense sp',  desc: 'Manual defense roll (Social)',             roles: ['player','SW'] },
       { cmd: '/cast',        desc: 'Cast a spell — e.g. /cast Fireball @Target', roles: ['player','SW'] },
       { cmd: '/technique',   desc: 'Use a technique',                          roles: ['player','SW'] },
       { cmd: '/initiative',  desc: 'Roll your initiative (1d6 + Edge)',        roles: ['player','SW'] },
@@ -10213,6 +10217,28 @@
               }
 
               storeAndDisplayMessage(container, data);
+            } else if (data.type === 'defense_roll') {
+              const container = document.createElement('div');
+              container.className = 'msg dice_roll';
+              const defBd = document.createElement('div');
+              defBd.style.cssText = 'font-family:monospace;font-size:12px;margin-left:16px;margin-top:4px;color:var(--text-secondary)';
+              defBd.style.display = isSW() ? 'block' : 'none';
+              defBd.textContent = data.breakdown;
+              const defTog = document.createElement('a');
+              defTog.href = '#';
+              defTog.style.fontSize = '11px';
+              defTog.textContent = isSW() ? 'Hide details' : 'Show details';
+              defTog.addEventListener('click', e => {
+                e.preventDefault();
+                const showing = defBd.style.display !== 'none';
+                defBd.style.display = showing ? 'none' : 'block';
+                defTog.textContent = showing ? 'Show details' : 'Hide details';
+              });
+              const defHeader = makeHeaderRow(fmtNow(), `🛡️ ${data.character_name} — ${data.stat_label} Defense: ${data.defense_total}`, { toggle: defTog, tab: 'STORY' });
+              container.appendChild(defHeader);
+              container.appendChild(defBd);
+              storeAndDisplayMessage(container, { type: 'defense_roll', actor: data.character_name, ...data });
+
             } else if (data.type === 'bap_stat_roll') {
               const card = document.querySelector(`[data-message-id="${data.message_id}"]`);
               if (card) {
@@ -10741,13 +10767,13 @@
         }
 
         ws.send(JSON.stringify(payload));
-      } else if (textLower.startsWith('/attack')) {
+      } else if (textLower.startsWith('/attack') || textLower.startsWith('/defense')) {
         // Combat command - send to combat handler
         const payload = {
           type: 'combat_command',
           raw_command: text
         };
-        // SW attacking as an NPC: pass the NPC's character ID so backend uses it as attacker
+        // SW attacking/defending as an NPC: pass the NPC's character ID
         if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
           payload.attacker_id = activeSpeaker.id;
         }
