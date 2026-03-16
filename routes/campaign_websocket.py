@@ -380,7 +380,7 @@ async def campaign_websocket(
                     if msg:
                         # SW can delete any message; players can only delete their own
                         is_sw = not character  # No character = SW
-                        is_own = character and str(msg.sender_id) == str(character.id)
+                        is_own = str(msg.sender_id) == str(user_id)
                         if is_sw or is_own:
                             msg.deleted_at = _dt.utcnow()
                             db.commit()
@@ -397,7 +397,7 @@ async def campaign_websocket(
                     msg = db.query(Message).filter(Message.id == _UUID(msg_id)).first()
                     if msg:
                         is_sw = not character
-                        is_own = character and str(msg.sender_id) == str(character.id)
+                        is_own = str(msg.sender_id) == str(user_id)
                         if is_sw or is_own:
                             msg.content = new_text
                             msg.is_edited = True
