@@ -7577,9 +7577,8 @@
 
       filteredMessages.forEach(msgData => {
         if (!msgData._element) return;
-        const el = msgData._element.cloneNode(true);
-        applyMessageColor(el, msgData.actor, msgData.chat_mode);
-        chatMessagesEl.appendChild(el);
+        applyMessageColor(msgData._element, msgData.actor, msgData.chat_mode);
+        chatMessagesEl.appendChild(msgData._element);
       });
 
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
