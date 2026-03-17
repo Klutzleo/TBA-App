@@ -1804,8 +1804,20 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
     edge = character.edge
     total = die_roll + stat_value + edge
 
+    # BAP token usage
+    use_bap = data.get("use_bap", False)
+    bap_bonus = 0
+    if use_bap and character.bap_token_active:
+        bap_bonus = character.bap or 0
+        total += bap_bonus
+        character.bap_token_active = False
+        character.bap_token_expires_at = None
+        character.bap_token_type = None
+        db.commit()
+
     # Build breakdown text showing the math
-    breakdown_text = f"1d6({die_roll}) + {stat_type}({stat_value}) + Edge({edge}) = {total}"
+    bap_part = f" + BAP({bap_bonus})" if bap_bonus else ""
+    breakdown_text = f"1d6({die_roll}) + {stat_type}({stat_value}) + Edge({edge}){bap_part} = {total}"
     result_text = f"{stat_name} Check: {total}"
 
     # Persist to database first so we have the message_id
@@ -1845,7 +1857,9 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
         "edge": edge,
         "total": total,
         "text": result_text,
-        "breakdown": breakdown_text
+        "breakdown": breakdown_text,
+        "bap_bonus": bap_bonus,
+        "bap_token_consumed": bap_bonus > 0
     })
     logger.info(f"[stat_check] {character.name} {stat_type} check: {total} ({breakdown_text})")
 

@@ -3690,6 +3690,7 @@
     let currentActor = currentUser.username; // Will be updated when character data loads
     // Determine role: SW has no character_id AND no role param; players without active chars pass role=player
     let userRole = characterId ? 'Player' : (urlRoleParam === 'player' ? 'Spectator' : 'SW');
+    let bapArmed = false; // Player has activated BAP token for next roll
     let messagesOffset = 0; // Track how many messages have been loaded for pagination
     const messagesLimit = 50; // How many messages to load per request
     const displayedMessageIds = new Set(); // Prevent duplicate display on reconnect
@@ -7929,6 +7930,29 @@
       } catch (e) {}
     }
 
+    function toggleBapArmed() {
+      bapArmed = !bapArmed;
+      const btn = document.getElementById('bapArmBtn');
+      if (btn) {
+        btn.textContent = bapArmed ? '✦ BAP ARMED!' : '✦ USE BAP';
+        btn.style.background = bapArmed ? '#d97706' : '';
+        btn.style.color = bapArmed ? '#fff' : '';
+        btn.style.animation = bapArmed ? 'pulse 1s infinite' : '';
+      }
+      if (bapArmed) showPanelToast('✦ BAP armed — applies to your next roll!', 'success');
+    }
+
+    function disarmBap() {
+      bapArmed = false;
+      const btn = document.getElementById('bapArmBtn');
+      if (btn) {
+        btn.textContent = '✦ USE BAP';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.animation = '';
+      }
+    }
+
     function toggleMessageSound() {
       _soundEnabled = !_soundEnabled;
       localStorage.setItem('tba_sound', _soundEnabled ? 'on' : 'off');
@@ -10851,6 +10875,7 @@
         if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
           payload.attacker_id = activeSpeaker.id;
         }
+        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
 
       } else if (textLower.startsWith('/cast') || textLower.startsWith('/technique')) {
@@ -10862,6 +10887,7 @@
         if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
           payload.attacker_id = activeSpeaker.id;
         }
+        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
 
       } else if (textLower.startsWith('/s ') || text === '/s') {
@@ -10891,6 +10917,7 @@
         if (activeSpeaker && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally') && activeSpeaker.id) {
           payload.character_id = activeSpeaker.id;
         }
+        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
 
       } else if (textLower.startsWith('/rest')) {
@@ -11159,7 +11186,9 @@
                 ? `<span title="${timesCalled}/5 Callings survived" style="font-size:0.7rem;color:${timesCalled >= 4 ? '#ff4444' : '#f87171'};opacity:0.7;cursor:default;">💀${timesCalled}</span>`
                 : '');
             const bapTokenBadge = char.bap_token_active
-              ? `<span class="bap-token-badge" title="BAP token active (${char.bap_token_type || 'sw_choice'})">✦ BAP</span>`
+              ? (isSW()
+                ? `<span class="bap-token-badge" title="BAP token active (${char.bap_token_type || 'sw_choice'})">✦ BAP</span>`
+                : `<button class="bap-token-badge" id="bapArmBtn" title="Click to arm BAP for your next roll" onclick="toggleBapArmed()" style="cursor:pointer;border:none;">✦ USE BAP</button>`)
               : '';
             const isCalledBadge = char.is_called
               ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;margin-left:4px;" title="The Called — haunted by visions and nightmares">The Called</span>`
