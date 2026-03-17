@@ -10420,14 +10420,14 @@
               container.appendChild(usesInfo);
 
               // BAP button (SW only)
-              if (isSW() && data.character_id) {
+              if (isSW() && (data.caster_char_id || data.character_id)) {
                 const bapBtn = document.createElement('button');
                 bapBtn.className = 'btn btn-sm';
                 bapBtn.style.cssText = 'margin-top:6px;font-size:0.78rem;padding:2px 10px;background:#78350f;border-color:#92400e;color:#fde68a;';
                 bapBtn.textContent = '✦ Award BAP';
                 bapBtn.onclick = async () => {
                   bapBtn.disabled = true;
-                  await grantBapToken(data.character_id, 'encounter');
+                  await grantBapToken(data.caster_char_id || data.character_id, 'encounter');
                   bapBtn.textContent = '✦ BAP Awarded!';
                   bapBtn.style.opacity = '0.5';
                 };
