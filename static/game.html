@@ -3744,8 +3744,7 @@
     }
 
     function selectChatColor(hex, persist = false) {
-      // Only update myChatColor if we're the narrator (no active NPC speaker)
-      if (!activeSpeaker || activeSpeaker.type !== 'npc') myChatColor = hex;
+      myChatColor = hex;
       if (persist) localStorage.setItem('tba_chat_color', hex);
       const btn = document.getElementById('colorPickerBtn');
       if (btn) btn.style.background = hex;
@@ -4460,15 +4459,23 @@
     }
 
     // Set active speaker — update chat color to match the new speaker
+    let _narratorColor = null;
     function setActiveSpeaker(character) {
+      const wasNarrator = !activeSpeaker || activeSpeaker.type === 'narrator';
+      const goingToNPC = character && character.type === 'npc';
+      const goingToNarrator = !character || character.type === 'narrator';
+
+      // Save narrator color before switching away
+      if (wasNarrator && goingToNPC) _narratorColor = myChatColor;
+
       activeSpeaker = character;
-      if (character && character.chat_color) {
+
+      if (goingToNarrator) {
+        // Restore narrator's own color
+        selectChatColor(_narratorColor || myChatColor || '#d4af37');
+      } else if (character && character.chat_color) {
         selectChatColor(character.chat_color);
-      } else if (!character || character.type === 'narrator') {
-        // Back to Narrator — use SW's own membership color
-        selectChatColor(myChatColor || '#d4af37');
       } else {
-        // NPC with no saved color yet — default gold
         selectChatColor('#d4af37');
       }
       renderBubbleBar();
