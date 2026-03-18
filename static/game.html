@@ -3744,7 +3744,8 @@
     }
 
     function selectChatColor(hex, persist = false) {
-      myChatColor = hex;
+      // Only update myChatColor if we're the narrator (no active NPC speaker)
+      if (!activeSpeaker || activeSpeaker.type !== 'npc') myChatColor = hex;
       if (persist) localStorage.setItem('tba_chat_color', hex);
       const btn = document.getElementById('colorPickerBtn');
       if (btn) btn.style.background = hex;
