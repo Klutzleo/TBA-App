@@ -11845,6 +11845,33 @@
             </div>
           </div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border-left:3px solid #60a5fa;">
+            <div style="font-size:0.7rem;color:#60a5fa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">⚔️ Weapon</div>
+            <input id="swEditWeaponName" placeholder="Weapon name" value="${escHtml((char.weapon && char.weapon.name) || '')}"
+              style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.82rem;margin-bottom:4px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:0.75rem;color:var(--text-muted);">+Dmg</span>
+              <input id="swEditWeaponBonus" type="number" min="0" max="20" value="${(char.weapon && char.weapon.bonus_damage) || 0}"
+                style="width:50px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 5px;color:var(--text-primary);font-size:0.82rem;text-align:center;">
+              <button class="btn" style="font-size:0.72rem;padding:2px 8px;" onclick="swSaveWeapon()">Save</button>
+            </div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border-left:3px solid #34d399;">
+            <div style="font-size:0.7rem;color:#34d399;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🛡️ Armor</div>
+            <input id="swEditArmorName" placeholder="Armor name" value="${escHtml((char.armor && char.armor.name) || '')}"
+              style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.82rem;margin-bottom:4px;">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span style="font-size:0.72rem;color:var(--text-muted);">+Def</span>
+              <input id="swEditArmorDefense" type="number" min="0" max="20" value="${(char.armor && char.armor.bonus_defense) || 0}"
+                style="width:40px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 4px;color:var(--text-primary);font-size:0.82rem;text-align:center;">
+              <span style="font-size:0.72rem;color:var(--text-muted);">+DP</span>
+              <input id="swEditArmorDP" type="number" min="0" max="20" value="${(char.armor && char.armor.bonus_dp) || 0}"
+                style="width:40px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 4px;color:var(--text-primary);font-size:0.82rem;text-align:center;">
+              <button class="btn" style="font-size:0.72rem;padding:2px 8px;" onclick="swSaveArmor()">Save</button>
+            </div>
+          </div>
+        </div>
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
         ${(char.tethers && char.tethers.length > 0 || true) ? (() => {
           const tList = (char.tethers || []).map(t => 
@@ -12091,6 +12118,37 @@
     }
   }
 
+  async function swSaveWeapon() {
+    const name = document.getElementById('swEditWeaponName')?.value.trim();
+    const bonus_damage = parseInt(document.getElementById('swEditWeaponBonus')?.value) || 0;
+    if (!name) { showToast('Weapon needs a name.', 'error'); return; }
+    try {
+      const res = await fetch(`/api/characters/${_swSheetCharId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ weapon: { name, bonus_damage } }),
+      });
+      if (res.ok) showToast('Weapon saved.', 'success');
+      else { const e = await res.json(); showToast(e.detail || 'Save failed', 'error'); }
+    } catch (e) { showToast('Save failed: ' + e.message, 'error'); }
+  }
+
+  async function swSaveArmor() {
+    const name = document.getElementById('swEditArmorName')?.value.trim();
+    const bonus_defense = parseInt(document.getElementById('swEditArmorDefense')?.value) || 0;
+    const bonus_dp = parseInt(document.getElementById('swEditArmorDP')?.value) || 0;
+    if (!name) { showToast('Armor needs a name.', 'error'); return; }
+    try {
+      const res = await fetch(`/api/characters/${_swSheetCharId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ armor: { name, bonus_defense, bonus_dp } }),
+      });
+      if (res.ok) showToast('Armor saved.', 'success');
+      else { const e = await res.json(); showToast(e.detail || 'Save failed', 'error'); }
+    } catch (e) { showToast('Save failed: ' + e.message, 'error'); }
+  }
+
   async function swDoAddItem() {
     const name = document.getElementById('swNewItemName')?.value.trim();
     const type = document.getElementById('swNewItemType')?.value;
@@ -12236,6 +12294,8 @@
           ${row('Attack Style', char.attack_style || '—')}
           ${row('Defense Die', char.defense_die || '—')}
         </div>
+        ${char.weapon ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid #60a5fa;"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">⚔️ Weapon</div><div style="font-weight:600;">${escHtml(char.weapon.name || 'Unnamed')}</div>${char.weapon.bonus_damage ? `<div style="font-size:0.75rem;color:#60a5fa;">+${char.weapon.bonus_damage} Damage</div>` : ''}</div>` : ''}
+        ${char.armor ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid #34d399;"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">🛡️ Armor</div><div style="font-weight:600;">${escHtml(char.armor.name || 'Unnamed')}</div>${char.armor.bonus_defense ? `<div style="font-size:0.75rem;color:#34d399;">+${char.armor.bonus_defense} Defense</div>` : ''}${char.armor.bonus_dp ? `<div style="font-size:0.75rem;color:#a78bfa;">+${char.armor.bonus_dp} DP</div>` : ''}</div>` : ''}
         <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
         ${abilityRows}
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
@@ -12299,6 +12359,34 @@
           <option value="5d4" ${c.attack_style==='5d4'?'selected':''}>5d4</option>
         </select>
       </div>
+      <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;margin-bottom:12px;border-left:3px solid #60a5fa;">
+        <div style="font-size:0.7rem;color:#60a5fa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">⚔️ Weapon</div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label class="form-label">Name</label>
+          <input type="text" id="psEditWeaponName" class="form-input" value="${escHtml((c.weapon && c.weapon.name) || '')}" placeholder="e.g. Iron Blade">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Bonus Damage</label>
+          <input type="number" id="psEditWeaponBonus" class="form-input" min="0" max="20" value="${(c.weapon && c.weapon.bonus_damage) || 0}">
+        </div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;margin-bottom:12px;border-left:3px solid #34d399;">
+        <div style="font-size:0.7rem;color:#34d399;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">🛡️ Armor</div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label class="form-label">Name</label>
+          <input type="text" id="psEditArmorName" class="form-input" value="${escHtml((c.armor && c.armor.name) || '')}" placeholder="e.g. Leather Vest">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Bonus Defense</label>
+            <input type="number" id="psEditArmorDefense" class="form-input" min="0" max="20" value="${(c.armor && c.armor.bonus_defense) || 0}">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Bonus DP</label>
+            <input type="number" id="psEditArmorDP" class="form-input" min="0" max="20" value="${(c.armor && c.armor.bonus_dp) || 0}">
+          </div>
+        </div>
+      </div>
       <div class="form-group">
         <label class="form-label">Notes / Backstory</label>
         <textarea id="psEditNotes" class="form-input" rows="4" style="resize:vertical;">${escHtml(c.notes || '')}</textarea>
@@ -12329,14 +12417,22 @@
     const sp = parseInt(document.getElementById('psEditSP').value) || 0;
     const attack_style = document.getElementById('psEditAttack').value;
     const notes = document.getElementById('psEditNotes').value;
+    const weaponName = document.getElementById('psEditWeaponName')?.value.trim();
+    const weaponBonus = parseInt(document.getElementById('psEditWeaponBonus')?.value) || 0;
+    const armorName = document.getElementById('psEditArmorName')?.value.trim();
+    const armorDefense = parseInt(document.getElementById('psEditArmorDefense')?.value) || 0;
+    const armorDP = parseInt(document.getElementById('psEditArmorDP')?.value) || 0;
 
     if (!name) { alert('Character name cannot be empty.'); return; }
+
+    const weapon = weaponName ? { name: weaponName, bonus_damage: weaponBonus } : null;
+    const armor = armorName ? { name: armorName, bonus_defense: armorDefense, bonus_dp: armorDP } : null;
 
     try {
       const resp = await fetch(`/api/characters/${_playerSheetCharId}`, {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, pp, ip, sp, attack_style, notes })
+        body: JSON.stringify({ name, pp, ip, sp, attack_style, notes, ...(weapon && { weapon }), ...(armor && { armor }) })
       });
       if (!resp.ok) throw new Error((await resp.json()).detail || 'Save failed');
 
