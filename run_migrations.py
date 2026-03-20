@@ -70,18 +70,27 @@ def run_migrations():
             # Column already exists - this is fine
             print(f"   ⏭️  Skipped (column already exists)")
             skip_count += 1
+            try: conn.rollback()
+            except: pass
 
         except psycopg2.errors.DuplicateTable as e:
             # Table already exists - this is fine
             print(f"   ⏭️  Skipped (table already exists)")
             skip_count += 1
+            try: conn.rollback()
+            except: pass
 
         except psycopg2.errors.UndefinedTable as e:
             # Referenced table doesn't exist - log but continue
             print(f"   ⚠️  Warning: Referenced table not found - {e}")
             error_count += 1
+            try: conn.rollback()
+            except: pass
 
         except Exception as e:
+            # Reset connection state so subsequent migrations aren't affected
+            try: conn.rollback()
+            except: pass
             # Check if it's a "already exists" error
             error_msg = str(e).lower()
             if 'already exists' in error_msg or 'duplicate' in error_msg:
