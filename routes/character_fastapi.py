@@ -1732,6 +1732,7 @@ async def update_character_abilities(
                 macro_command=ability['macro_command'],
                 power_source=ability.get('power_source', 'PP'),
                 effect_type=ability.get('effect_type', 'damage'),
+                debuff_stat=ability.get('debuff_stat', None),
                 die=ability.get('die', '1d8'),
                 is_aoe=ability.get('is_aoe', False),
                 max_uses=ability.get('max_uses', character.level * 3),
