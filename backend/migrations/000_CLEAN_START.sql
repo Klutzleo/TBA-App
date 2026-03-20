@@ -334,6 +334,7 @@ CREATE TABLE IF NOT EXISTS abilities (
     effect_type VARCHAR(50) NOT NULL,
     die VARCHAR(50) NOT NULL,
     is_aoe BOOLEAN NOT NULL DEFAULT FALSE,
+    debuff_stat VARCHAR(20) DEFAULT NULL,
     max_uses INTEGER NOT NULL DEFAULT 3,
     uses_remaining INTEGER NOT NULL DEFAULT 3,
     created_at TIMESTAMPTZ DEFAULT NOW(),
