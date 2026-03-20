@@ -954,6 +954,7 @@ def get_campaign_messages(
     campaign_id: str,
     limit: int = 100,
     offset: int = 0,
+    tab: str = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -981,9 +982,16 @@ def get_campaign_messages(
 
     # Get messages for this campaign, sorted by time (newest first), with pagination
     # Exclude soft-deleted messages
-    messages = db.query(Message)\
+    query = db.query(Message)\
         .filter(Message.campaign_id == campaign_id)\
-        .filter(Message.deleted_at == None)\
+        .filter(Message.deleted_at == None)
+
+    if tab == 'ooc':
+        query = query.filter(Message.mode == 'ooc')
+    elif tab == 'story':
+        query = query.filter(Message.mode != 'ooc')
+
+    messages = query\
         .order_by(Message.created_at.desc())\
         .offset(offset)\
         .limit(limit)\

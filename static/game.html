@@ -3681,7 +3681,7 @@
     chatMessagesEl.addEventListener('scroll', () => {
       const distFromBottom = chatMessagesEl.scrollHeight - chatMessagesEl.scrollTop - chatMessagesEl.clientHeight;
       scrollToBottomBtn.style.display = distFromBottom > 200 ? '' : 'none';
-      if (loadMoreBtn.dataset.hasMore === 'true') {
+      if (tabHasMore[activeTab]) {
         loadMoreBtn.style.display = chatMessagesEl.scrollTop < 80 ? 'block' : 'none';
       }
     });
@@ -3691,10 +3691,11 @@
     // Determine role: SW has no character_id AND no role param; players without active chars pass role=player
     let userRole = characterId ? 'Player' : (urlRoleParam === 'player' ? 'Spectator' : 'SW');
     let bapArmed = false; // Player has activated BAP token for next roll
-    let messagesOffset = 0; // Track how many messages have been loaded for pagination
+    let messagesOffset = { story: 0, ooc: 0 }; // Per-tab pagination offsets
+    let tabHasMore = { story: false, ooc: false }; // Per-tab Load More state
     const messagesLimit = 50; // How many messages to load per request
     const displayedMessageIds = new Set(); // Prevent duplicate display on reconnect
-    let historyLoaded = false; // Only load initial history once per page load (skip on reconnect)
+    let historyLoaded = { story: false, ooc: false }; // Per-tab: skip reload on reconnect
     let loadingHistory = false; // Suppress unread badge increments during history load
 
     // === Tab State ===
@@ -4023,6 +4024,13 @@
         messageInput.disabled = false;
         messageInput.placeholder = 'Type a message or command...';
         sendBtn.disabled = false;
+      }
+
+      // Update Load More button visibility for the new tab
+      if (tab === 'story' || tab === 'ooc') {
+        loadMoreBtn.style.display = tabHasMore[tab] ? 'block' : 'none';
+      } else {
+        loadMoreBtn.style.display = 'none';
       }
 
       // Re-render messages for the active tab
@@ -8737,12 +8745,12 @@
 
     // === Message History Loading ===
     // Function to load message history (initial or more)
-    async function loadMessageHistory(append = false) {
+    async function loadMessageHistory(append = false, tab = 'story') {
       // On reconnect (not explicit "Load More"), skip — already showing history
-      if (!append && historyLoaded) return;
+      if (!append && historyLoaded[tab]) return;
 
       try {
-        const historyUrl = `https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/messages?limit=${messagesLimit}&offset=${messagesOffset}`;
+        const historyUrl = `https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/messages?limit=${messagesLimit}&offset=${messagesOffset[tab]}&tab=${tab}`;
         const response = await fetch(historyUrl, {
           headers: {
             'Authorization': `Bearer ${authToken}`
@@ -9352,10 +9360,10 @@
             loadingHistory = false;
 
             // Advance offset so next "Load More" gets the next batch of older messages
-            messagesOffset += data.messages.length;
+            messagesOffset[tab] += data.messages.length;
 
             // Mark initial history as loaded so reconnects don't re-fetch
-            if (!append) historyLoaded = true;
+            if (!append) historyLoaded[tab] = true;
 
             // For Load More: older messages were pushed to the END of allMessages.
             // Splice them out and prepend so renderMessages() shows them at the top.
@@ -9371,12 +9379,10 @@
             // loadCharacters() will call recolorAllHistory() again when it finishes.
             recolorAllHistory();
 
-            // Track whether there are more messages to load
-            if (data.messages.length === messagesLimit) {
-              loadMoreBtn.dataset.hasMore = 'true';
-            } else {
-              loadMoreBtn.dataset.hasMore = 'false';
-              loadMoreBtn.style.display = 'none';
+            // Track whether there are more messages to load (per tab)
+            tabHasMore[tab] = (data.messages.length === messagesLimit);
+            if (tab === activeTab) {
+              loadMoreBtn.style.display = tabHasMore[tab] ? 'block' : 'none';
             }
 
             // Maintain scroll position when loading older messages
@@ -9386,8 +9392,9 @@
             }
           } else {
             // No messages found
-            loadMoreBtn.style.display = 'none';
-            if (!append) historyLoaded = true;
+            tabHasMore[tab] = false;
+            if (tab === activeTab) loadMoreBtn.style.display = 'none';
+            if (!append) historyLoaded[tab] = true;
           }
         }
       } catch (err) {
@@ -9450,8 +9457,9 @@
           await loadCharacters();
           renderChatToolbar();
 
-          // Now load history — activeSpeaker and knownPCs are populated, colors apply immediately
-          await loadMessageHistory();
+          // Now load history — load story and OOC tabs separately (each gets their own 50)
+          await loadMessageHistory(false, 'story');
+          await loadMessageHistory(false, 'ooc');
 
           // Hydrate initiative tracker from REST (no WS needed on refresh)
           await loadInitiativeState();
@@ -11117,7 +11125,7 @@
       loadMoreBtn.disabled = true;
       loadMoreBtn.textContent = 'Loading...';
 
-      await loadMessageHistory(true); // append = true
+      await loadMessageHistory(true, activeTab);
 
       loadMoreBtn.disabled = false;
       loadMoreBtn.textContent = 'Load Older Messages';
