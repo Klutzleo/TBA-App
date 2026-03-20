@@ -22,7 +22,7 @@ import re
 import random
 
 from backend.db import get_db
-from backend.models import Party, Character, User, CampaignMembership, Message, Ability, Encounter, InitiativeRoll, NPC, Campaign
+from backend.models import Party, Character, User, CampaignMembership, Message, Ability, Encounter, InitiativeRoll, NPC, Campaign, ActiveEffect
 from backend.auth.jwt import decode_access_token
 from backend.roll_logic import roll_dice
 from routes.schemas.campaign import (
@@ -1171,6 +1171,10 @@ def _dice_str(die_type: str, rolls: list) -> str:
     return f"{die_type}({inner})"
 
 
+BUFF_DEBUFF_TABLE = {
+    "1d6": 1, "1d8": 2, "1d10": 3, "1d12": 4, "2d6": 5, "2d8": 6
+}
+
 async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocket, user_id: UUID, db: Session):
     """
     Handle custom ability/spell/technique casting.
@@ -1536,7 +1540,23 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 })
 
                 if success:
-                    narrative_parts.append(f"{target_name} is afflicted by {ability.display_name}! (Strength: {margin})")
+                    modifier = BUFF_DEBUFF_TABLE.get(ability.die, 1)
+                    duration = modifier
+                    debuff_stat = ability.debuff_stat or ability.power_source
+                    effect = ActiveEffect(
+                        campaign_id=campaign_id,
+                        character_id=target.id,
+                        name=ability.display_name,
+                        modifier=-modifier,
+                        modifier_type=debuff_stat.lower() if debuff_stat else 'custom',
+                        duration_rounds=duration,
+                        applied_by=caster.name
+                    )
+                    db.add(effect)
+                    narrative_parts.append(f"{target_name} is afflicted by {ability.display_name}! ({debuff_stat} -{modifier} for {duration} round{'s' if duration != 1 else ''})")
+                    results[-1]["debuff_modifier"] = -modifier
+                    results[-1]["debuff_duration"] = duration
+                    results[-1]["debuff_stat"] = debuff_stat
                 else:
                     narrative_parts.append(f"{target_name} resists {ability.display_name}!")
 

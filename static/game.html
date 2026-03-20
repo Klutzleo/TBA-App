@@ -6660,7 +6660,8 @@
 
               <div class="form-group">
                 <label class="form-label">Effect Type</label>
-                <select id="editAbility_effect_${slot.slot}" class="form-input">
+                <select id="editAbility_effect_${slot.slot}" class="form-input"
+                  onchange="toggleDebuffStat(this, '${slot.slot}')">
                   <option value="damage" ${existing?.effect_type === 'damage' ? 'selected' : ''}>Damage</option>
                   <option value="healing" ${existing?.effect_type === 'healing' ? 'selected' : ''}>Healing</option>
                   <option value="buff" ${existing?.effect_type === 'buff' ? 'selected' : ''}>Buff</option>
@@ -6669,9 +6670,24 @@
                 </select>
               </div>
             </div>
+            <div id="debuffStatRow_${slot.slot}" style="display:${existing?.effect_type === 'debuff' || existing?.effect_type === 'buff' ? 'block' : 'none'}; margin-top:8px;">
+              <label class="form-label">Affects Stat (on target)</label>
+              <select id="editAbility_debuff_stat_${slot.slot}" class="form-input">
+                <option value="PP" ${existing?.debuff_stat === 'PP' ? 'selected' : ''}>PP (Physical)</option>
+                <option value="IP" ${existing?.debuff_stat === 'IP' ? 'selected' : ''}>IP (Intellect)</option>
+                <option value="SP" ${existing?.debuff_stat === 'SP' ? 'selected' : ''}>SP (Social)</option>
+                <option value="Defense" ${existing?.debuff_stat === 'Defense' ? 'selected' : ''}>Defense</option>
+                <option value="All" ${existing?.debuff_stat === 'All' ? 'selected' : ''}>All Stats</option>
+              </select>
+            </div>
           </div>
         `;
       }).join('');
+    }
+
+    function toggleDebuffStat(selectEl, slot) {
+      const row = document.getElementById(`debuffStatRow_${slot}`);
+      if (row) row.style.display = (selectEl.value === 'debuff' || selectEl.value === 'buff') ? 'block' : 'none';
     }
 
     function closeNpcEditPanel() {
@@ -6815,6 +6831,7 @@
         const macro = document.getElementById(`editAbility_macro_${slot.slot}`)?.value?.trim();
         const powerSource = document.getElementById(`editAbility_power_${slot.slot}`)?.value;
         const effectType = document.getElementById(`editAbility_effect_${slot.slot}`)?.value;
+        const debuffStat = document.getElementById(`editAbility_debuff_stat_${slot.slot}`)?.value || null;
 
         // Only save if name is provided
         if (!name) return null;
@@ -6826,6 +6843,7 @@
           macro_command: macro || `/ability${slot.slot}`,
           power_source: powerSource,
           effect_type: effectType,
+          debuff_stat: (effectType === 'debuff' || effectType === 'buff') ? debuffStat : null,
           die: slot.die,
           is_aoe: slot.type === 'aoe',
           max_uses: maxUses,
@@ -11792,6 +11810,14 @@
                 </div>
                 <input id="swAb_macro_${i}" value="${escHtml(a.macro_command || '')}" placeholder="Macro (e.g. /fireball)"
                   style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.8rem;font-family:monospace;">
+                ${(a.effect_type === 'debuff' || a.effect_type === 'buff') ? `
+                <div style="margin-top:5px;">
+                  <span style="font-size:0.75rem;color:var(--text-muted);">Affects Stat:</span>
+                  <select id="swAb_debuff_stat_${i}"
+                    style="background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:0.8rem;margin-left:4px;">
+                    ${['PP','IP','SP','Defense','All'].map(s => `<option value="${s}"${a.debuff_stat===s?' selected':''}>${s}</option>`).join('')}
+                  </select>
+                </div>` : ''}
               </div>`;
           }).join('')
         : '<p style="color:var(--text-muted);font-size:0.85rem;">No abilities.</p>';
@@ -11929,11 +11955,13 @@
     const name  = document.getElementById(`swAb_name_${idx}`)?.value.trim();
     const src   = document.getElementById(`swAb_src_${idx}`)?.value;
     const macro = document.getElementById(`swAb_macro_${idx}`)?.value.trim();
+    const debuffStatEl = document.getElementById(`swAb_debuff_stat_${idx}`);
+    const debuffStat = debuffStatEl ? debuffStatEl.value : null;
     try {
       const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/abilities/${ab.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify({ display_name: name, power_source: src, macro_command: macro }),
+        body: JSON.stringify({ display_name: name, power_source: src, macro_command: macro, debuff_stat: debuffStat }),
       });
       if (res.ok) {
         _swSheetAbilities[idx] = await res.json();

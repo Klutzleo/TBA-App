@@ -1630,6 +1630,7 @@ async def patch_ability(
     if "die"           in req: ability.die           = req["die"]
     if "effect_type"   in req: ability.effect_type   = req["effect_type"]
     if "is_aoe"        in req: ability.is_aoe        = bool(req["is_aoe"])
+    if "debuff_stat"   in req: ability.debuff_stat   = req["debuff_stat"]
 
     db.commit()
     db.refresh(ability)
@@ -1643,6 +1644,7 @@ async def patch_ability(
         "effect_type":   ability.effect_type,
         "die":           ability.die,
         "is_aoe":        ability.is_aoe,
+        "debuff_stat":   ability.debuff_stat,
         "max_uses":      ability.max_uses,
         "uses_remaining":ability.uses_remaining,
     }

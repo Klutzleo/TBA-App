@@ -600,6 +600,7 @@ class Ability(Base):
     macro_command = Column(String, nullable=False)  # Chat command (e.g., /fireball)
     power_source = Column(String, nullable=False)  # 'PP', 'IP', or 'SP'
     effect_type = Column(String, nullable=False)  # 'damage', 'heal', 'buff', 'debuff', 'utility'
+    debuff_stat = Column(String(20), nullable=True)   # Which stat on TARGET is penalized: PP, IP, SP, Defense, All
     die = Column(String, nullable=False)  # Dice expression (e.g., 2d6, 3d4)
     is_aoe = Column(Boolean, nullable=False, default=False)  # Area of effect
 
