@@ -1,0 +1,1 @@
+ALTER TABLE lore_entries ADD COLUMN IF NOT EXISTS entry_type VARCHAR(20) DEFAULT 'lore';

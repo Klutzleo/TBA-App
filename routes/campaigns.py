@@ -1028,6 +1028,7 @@ def _lore_dict(entry: LoreEntry) -> dict:
         "id": str(entry.id),
         "title": entry.title,
         "content": entry.content,
+        "entry_type": entry.entry_type or 'lore',
         "created_by": str(entry.created_by) if entry.created_by else None,
         "created_at": entry.created_at.isoformat() if entry.created_at else None,
         "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
@@ -1084,6 +1085,9 @@ async def create_lore(
 
     title = (req.get("title") or "").strip()
     content = (req.get("content") or "").strip()
+    entry_type = req.get("entry_type", "lore")
+    if entry_type not in ("lore", "scene"):
+        entry_type = "lore"
     if not title:
         raise HTTPException(status_code=422, detail="Title is required")
 
@@ -1091,6 +1095,7 @@ async def create_lore(
         campaign_id=campaign_id,
         title=title,
         content=content,
+        entry_type=entry_type,
         created_by=current_user.id,
     )
     db.add(entry)
