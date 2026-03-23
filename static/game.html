@@ -2974,12 +2974,12 @@
           <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Dice Commands — Players</div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
             <div><span style="color:var(--accent-dice);">/roll 2d6+3</span> <span style="color:var(--text-muted);">— Roll any dice expression</span></div>
-            <div><span style="color:var(--accent-dice);">/attack</span> <span style="color:var(--text-muted);">— Roll your attack (weapon die + PP)</span></div>
+            <div><span style="color:var(--accent-dice);">/attack @Target</span> <span style="color:var(--text-muted);">— Roll your attack (weapon die + PP + Edge) vs target</span></div>
+            <div><span style="color:var(--accent-dice);">/pp</span> <span style="color:var(--text-muted);">— Physical stat check (1d6 + PP + Edge)</span></div>
+            <div><span style="color:var(--accent-dice);">/ip</span> <span style="color:var(--text-muted);">— Intellect stat check (1d6 + IP + Edge)</span></div>
+            <div><span style="color:var(--accent-dice);">/sp</span> <span style="color:var(--text-muted);">— Social stat check (1d6 + SP + Edge)</span></div>
             <div><span style="color:var(--accent-dice);">/defense pp|ip|sp</span> <span style="color:var(--text-muted);">— Manual defense roll (defense die + stat + edge)</span></div>
-            <div><span style="color:var(--accent-dice);">/env [tier] @Target [source]</span> <span style="color:var(--text-muted);">— Environmental attack (SW only) — tier 1-5, e.g. /env 2 @Beef Baseball</span></div>
-            <div><span style="color:var(--accent-dice);">/defend</span> <span style="color:var(--text-muted);">— Roll your defense die</span></div>
             <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge)</span></div>
-            <div><span style="color:var(--accent-dice);">/IP</span> <span style="color:var(--text-muted);">— Roll using IP instead of PP</span></div>
           </div>
         </div>
 
@@ -2994,6 +2994,8 @@
             <div><span style="color:#a78bfa;">/initiative end</span> <span style="color:var(--text-muted);">— End encounter & restore all ability uses</span></div>
             <div><span style="color:#a78bfa;">/initiative clear</span> <span style="color:var(--text-muted);">— Clear rolls without ending encounter</span></div>
             <div><span style="color:#a78bfa;">/rest</span> <span style="color:var(--text-muted);">— Short rest — restore ability uses only</span></div>
+            <div><span style="color:#a78bfa;">/env [tier] @Target [source]</span> <span style="color:var(--text-muted);">— Environmental attack — tier 1-5, e.g. /env 2 @Beef Baseball</span></div>
+            <div><span style="color:#a78bfa;">/scene [title]</span> <span style="color:var(--text-muted);">— Post a scene transition card in chat and save to Lore</span></div>
           </div>
         </div>
 
