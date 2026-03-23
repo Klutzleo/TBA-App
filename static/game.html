@@ -4548,8 +4548,9 @@
       if (userRole !== 'SW') {
         targets.push({ name: 'Story Weaver', type: 'SW' });
       }
-      // All party PCs from the party panel (includes other players, not just self)
-      (knownPCs || []).forEach(c => targets.push({ name: c.name, type: 'PC' }));
+      // All party PCs from the party panel (excludes NPCs which are listed separately)
+      const npcNames = new Set((campaignNPCs || []).map(n => n.name));
+      (knownPCs || []).filter(c => !npcNames.has(c.name)).forEach(c => targets.push({ name: c.name, type: 'PC' }));
       if (userRole === 'SW') {
         (campaignNPCs || []).forEach(c => targets.push({ name: c.name, type: 'NPC' }));
       } else {
