@@ -2469,6 +2469,9 @@
           <button class="tab-btn" data-tab="lore" onclick="switchTab('lore')">
             📖 Lore
           </button>
+          <button class="tab-btn" data-tab="images" onclick="switchTab('images')">
+            🖼 Images
+          </button>
         </div>
 
         <!-- Pinned message banner — always visible above chat, never scrolls -->
@@ -2530,6 +2533,14 @@
                 <button class="btn" id="loreSaveBtn" onclick="saveLoreEntry()">Save Entry</button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Images Pane -->
+        <div id="imagesPane" style="display:none; flex:1; flex-direction:column; overflow:hidden; min-height:0;">
+          <div style="padding:10px 16px 0; flex-shrink:0; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;">Campaign Images &amp; Maps</div>
+          <div id="imageGallery" style="flex:1; min-height:0; overflow-y:auto; padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; align-content:start;">
+            <div style="color:var(--text-muted); text-align:center; padding:20px; font-size:0.9rem; grid-column:1/-1;">Loading images...</div>
           </div>
         </div>
 
@@ -2721,6 +2732,9 @@
             ></textarea>
             <button id="colorPickerBtn" title="Chat color" onclick="toggleColorPicker()"
               style="width:28px;height:28px;min-width:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:#d4af37;"></button>
+            <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
+            <button id="attachBtn" title="Upload image (or Ctrl+V to paste)" onclick="document.getElementById('imageFileInput').click()"
+              style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;display:none;">📎</button>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
           </div>
         </div>
@@ -3976,13 +3990,14 @@
         targetBtn.classList.add('active');
       }
 
-      // Swap between chat messages / lore / notes / inventory / loot pool panes
+      // Swap between chat messages / lore / notes / inventory / loot pool / images panes
       const chatMessages  = document.getElementById('chatMessages');
       const swNotes       = document.getElementById('swNotesPane');
       const playerNotes   = document.getElementById('playerNotesPane');
       const lorePane      = document.getElementById('lorePane');
       const inventoryPane = document.getElementById('inventoryPane');
       const lootPoolPane  = document.getElementById('lootPoolPane');
+      const imagesPane    = document.getElementById('imagesPane');
 
       // Hide everything first, then show what's needed
       if (chatMessages)   chatMessages.style.display   = 'none';
@@ -3991,6 +4006,7 @@
       if (lorePane)       lorePane.style.display       = 'none';
       if (inventoryPane)  inventoryPane.style.display  = 'none';
       if (lootPoolPane)   lootPoolPane.style.display   = 'none';
+      if (imagesPane)     imagesPane.style.display     = 'none';
 
       if (tab === 'sw_notes') {
         if (swNotes) swNotes.style.display = 'flex';
@@ -4000,6 +4016,10 @@
         return;
       } else if (tab === 'lore') {
         if (lorePane) lorePane.style.display = 'flex';
+        return;
+      } else if (tab === 'images') {
+        if (imagesPane) imagesPane.style.display = 'flex';
+        loadImages();
         return;
       } else if (tab === 'inventory') {
         if (inventoryPane) inventoryPane.style.display = 'flex';
@@ -4162,6 +4182,11 @@
         }
         // Fallback to story if we can't determine partner
         return 'story';
+      }
+
+      // Image uploads go to their respective chat mode tab
+      if (data.type === 'image_upload') {
+        return data.chat_mode === 'ooc' ? 'ooc' : 'story';
       }
 
       // Combat events, dice rolls, narration, initiative, defend, spell_cast go to Story
@@ -5963,6 +5988,109 @@
     let loreEntries = [];       // local cache
     let loreEditingId = null;   // null = new entry, string = editing existing
     let memoryEchoes = [];
+
+    // ===================================================================
+    // IMAGE GALLERY
+    // ===================================================================
+
+    async function loadImages() {
+      const gallery = document.getElementById('imageGallery');
+      if (!gallery) return;
+      gallery.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;font-size:0.9rem;grid-column:1/-1;">Loading...</div>';
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/images`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) throw new Error('Failed to load images');
+        const data = await resp.json();
+        renderImageGallery(data.images || []);
+      } catch (e) {
+        gallery.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;grid-column:1/-1;">Could not load images.</div>';
+      }
+    }
+
+    function renderImageGallery(images) {
+      const gallery = document.getElementById('imageGallery');
+      if (!gallery) return;
+      if (!images.length) {
+        gallery.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px;grid-column:1/-1;font-size:0.9rem;">No images uploaded yet.</div>';
+        return;
+      }
+      gallery.innerHTML = '';
+      images.forEach(img => {
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;overflow:hidden;cursor:pointer;transition:transform 0.15s;';
+        card.onmouseenter = () => card.style.transform = 'scale(1.03)';
+        card.onmouseleave = () => card.style.transform = '';
+        card.onclick = () => window.open(img.url, '_blank');
+        card.innerHTML = `
+          <img src="${escHtml(img.url)}" alt="${escHtml(img.filename)}" style="width:100%;aspect-ratio:1/1;object-fit:cover;display:block;" loading="lazy" onerror="this.style.display='none'">
+          <div style="padding:4px 6px;font-size:0.7rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(img.filename)}">${escHtml(img.filename)}</div>
+          <div style="padding:0 6px 4px;font-size:0.65rem;color:var(--text-muted);">${escHtml(img.sender_name)} · ${img.chat_mode === 'ooc' ? 'OOC' : 'Story'}</div>
+        `;
+        gallery.appendChild(card);
+      });
+    }
+
+    function renderImageMessage(data) {
+      const container = document.createElement('div');
+      container.className = 'message-card';
+      container.style.cssText = 'padding:10px 14px;';
+      const ts = data.timestamp ? fmtTs(data.timestamp) : '';
+      const modeLabel = data.chat_mode === 'ooc' ? 'OOC' : 'Story';
+      container.innerHTML = `
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">${ts ? ts + ' · ' : ''}<strong style="color:var(--text-secondary);">${escHtml(data.sender_name)}</strong> shared an image (${modeLabel})</div>
+        <a href="${escHtml(data.url)}" target="_blank" style="display:inline-block;max-width:320px;">
+          <img src="${escHtml(data.url)}" alt="${escHtml(data.filename || 'image')}" style="max-width:100%;max-height:300px;border-radius:6px;border:1px solid var(--border-color);cursor:zoom-in;" loading="lazy">
+        </a>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">${escHtml(data.filename || 'image')}</div>
+      `;
+      return container;
+    }
+
+    async function uploadChatImage(file) {
+      const currentTab = activeTab;
+      if (currentTab === 'lore' || currentTab === 'images' || currentTab === 'sw_notes' || currentTab === 'player_notes' || currentTab === 'inventory' || currentTab === 'loot_pool' || currentTab.startsWith('whisper-')) {
+        showPanelToast('Images can only be uploaded in Story or OOC chat.', 'error');
+        return;
+      }
+      const chatMode = currentTab === 'ooc' ? 'ooc' : 'ic';
+      const speakerName = (activeSpeaker ? activeSpeaker.name : currentActor) || 'Unknown';
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('campaign_id', campaignId);
+      formData.append('sender_name', speakerName);
+      formData.append('chat_mode', chatMode);
+
+      showPanelToast('Uploading image...', 'info');
+      try {
+        const resp = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: formData
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || 'Upload failed');
+        }
+        const result = await resp.json();
+        // Broadcast via WS so everyone sees it
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'image_upload',
+            url: result.url,
+            filename: result.filename,
+            sender_name: speakerName,
+            chat_mode: chatMode,
+            message_id: result.message_id,
+            timestamp: new Date().toISOString(),
+          }));
+        }
+      } catch (e) {
+        showPanelToast(`Upload failed: ${e.message}`, 'error');
+      }
+    }
 
     async function loadLore() {
       try {
@@ -9366,6 +9494,20 @@
                 `;
                 storeAndDisplayMessage(container, { type: 'calling_result', actor: msg.sender_name, ...d });
               }
+              // ✅ Handle image uploads from history
+              else if (msg.message_type === 'image_upload') {
+                const d = msg.extra_data || {};
+                const imgData = {
+                  type: 'image_upload',
+                  sender_name: msg.sender_name,
+                  chat_mode: msg.chat_mode,
+                  url: d.url || '',
+                  filename: d.filename || 'image',
+                  timestamp: msg.timestamp,
+                };
+                const container = renderImageMessage(imgData);
+                storeAndDisplayMessage(container, imgData);
+              }
               // ✅ Handle regular chat messages
               else {
                 const messageData = {
@@ -9475,6 +9617,8 @@
           addMessage('Connected to campaign.', 'message-card message-system');
           updateConnectionStatus(true);
           sendBtn.disabled = false;
+          const _ab = document.getElementById('attachBtn');
+          if (_ab) _ab.style.display = '';
 
           // Spectators start on OOC tab — Story is read-only for them
           if (userRole === 'Spectator') {
@@ -10834,6 +10978,11 @@
               notice.style.cssText = 'border-left-color:var(--accent-danger);color:var(--text-muted);font-style:italic;';
               notice.textContent = `✋ ${data.caster_name}'s ${data.ability_name} was cancelled.`;
               storeAndDisplayMessage(notice, { type: 'system', actor: 'system' });
+            } else if (data.type === 'image_upload') {
+              // Incoming image broadcast — render in chat and refresh gallery if open
+              const imgContainer = renderImageMessage(data);
+              storeAndDisplayMessage(imgContainer, data);
+              if (activeTab === 'images') loadImages();
             } else if (data.type === 'online_users') {
               renderOnlineUsers(data.users);
             } else if (data.type === 'effects_sync') {
@@ -10878,6 +11027,8 @@
         ws.onclose = (ev) => {
           updateConnectionStatus(false);
           sendBtn.disabled = true;
+          const _ab2 = document.getElementById('attachBtn');
+          if (_ab2) _ab2.style.display = 'none';
           ws = null;
 
           // Auto-reconnect unless auth error (4001) or membership rejected (1008)
@@ -11140,6 +11291,33 @@
         }
         e.preventDefault();
         sendBtn.click();
+      }
+    });
+
+    // File input → upload image
+    const imageFileInput = document.getElementById('imageFileInput');
+    if (imageFileInput) {
+      imageFileInput.addEventListener('change', async () => {
+        const file = imageFileInput.files[0];
+        if (file) {
+          await uploadChatImage(file);
+          imageFileInput.value = '';
+        }
+      });
+    }
+
+    // Ctrl+V paste image from clipboard
+    document.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            await uploadChatImage(file);
+          }
+          break;
+        }
       }
     });
 

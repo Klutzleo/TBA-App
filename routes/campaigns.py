@@ -1019,6 +1019,49 @@ def get_campaign_messages(
     }
 
 
+@router.get("/{campaign_id}/images")
+def get_campaign_images(
+    campaign_id: str,
+    limit: int = 200,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return all image_upload messages for a campaign (for the Images gallery tab)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+
+    images = (
+        db.query(Message)
+        .filter(
+            Message.campaign_id == campaign_id,
+            Message.message_type == "image_upload",
+            Message.deleted_at == None,
+        )
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "images": [
+            {
+                "id": str(msg.id),
+                "sender_name": msg.sender_name,
+                "chat_mode": msg.mode,
+                "timestamp": msg.created_at.isoformat() if msg.created_at else None,
+                "url": (msg.extra_data or {}).get("url", ""),
+                "filename": (msg.extra_data or {}).get("filename", "image"),
+            }
+            for msg in images
+        ]
+    }
+
+
 # ============================================================
 # Lore Endpoints
 # ============================================================

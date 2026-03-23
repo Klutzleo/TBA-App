@@ -461,6 +461,18 @@ async def campaign_websocket(
                     "effects": data.get("effects", []),
                 })
 
+            elif message_type == "image_upload":
+                # Broadcast an uploaded image to all campaign members
+                await manager.broadcast(campaign_uuid, {
+                    "type": "image_upload",
+                    "url": data.get("url", ""),
+                    "filename": data.get("filename", "image"),
+                    "sender_name": data.get("sender_name", display_name),
+                    "chat_mode": data.get("chat_mode", "ic"),
+                    "message_id": data.get("message_id", ""),
+                    "timestamp": data.get("timestamp", ""),
+                })
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
 

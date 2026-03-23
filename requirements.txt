@@ -20,6 +20,9 @@ slowapi>=0.1.9
 sendgrid>=6.10.0
 pywebpush>=2.0.0
 
+# Cloud storage
+boto3==1.35.0
+
 # Env vars & utilities
 python-dotenv==1.0.1
 requests==2.32.3
