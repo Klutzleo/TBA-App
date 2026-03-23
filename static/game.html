@@ -10823,11 +10823,8 @@
           sendBtn.disabled = true;
           ws = null;
 
-          // Auto-reconnect unless deliberate (1000), auth error (4001), or membership rejected (1008)
-          if (ev.code === 1000) {
-            addMessage('Disconnected.', 'message-card message-system');
-            return;
-          }
+          // Auto-reconnect unless auth error (4001) or membership rejected (1008)
+          // Note: code 1000 can occur on server redeploy — treat as reconnectable
           if (ev.code === 4001 || ev.code === 1008) {
             addMessage('⚠️ Access denied: ' + (ev.reason || 'You are not a member of this campaign.') + ' Redirecting...', 'message-card message-system');
             setTimeout(() => { window.location.href = '/campaigns.html'; }, 2500);
