@@ -9811,6 +9811,17 @@
                 showToast(`🔧 Your level was adjusted to ${data.new_level} by the Story Weaver.`, 'info');
                 loadCharacterSheet();
               }
+              // Post chat announcement for everyone
+              const lvlSetEl = document.createElement('div');
+              lvlSetEl.className = 'msg system';
+              lvlSetEl.style.cssText = 'border-left-color: #f59e0b; background: rgba(245,158,11,0.08);';
+              const dir = data.new_level > data.old_level ? '⬆️' : (data.new_level < data.old_level ? '⬇️' : '🔧');
+              lvlSetEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:1.2rem;">${dir}</span>
+                <div><strong>${escHtml(data.character_name)}</strong> level adjusted:
+                <span style="color:#f59e0b;font-weight:bold;"> Level ${data.old_level} → ${data.new_level}</span></div>
+              </div>`;
+              storeAndDisplayMessage(lvlSetEl, { type: 'system', actor: 'system' });
             } else if (data.type === 'character_leveled_up') {
               // Everyone sees the level up celebration in chat
               const container = document.createElement('div');
