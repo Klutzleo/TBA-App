@@ -1459,26 +1459,43 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 narrative_parts.append(f"{target_name} restores {actual_healing} DP (DP: {old_dp} → {target.dp})")
 
         elif ability.effect_type == "buff":
-            # Buff ability (self or target)
-            # If no target, buff self
+            # Buff ability (self or target) — no roll, modifier determined by die type
             if not target_names:
                 target_names = [caster.name]
 
-            # Roll for buff strength/duration
-            buff_roll = roll_dice(ability.die)  # Returns list
-            buff_roll_total = sum(buff_roll)
-            buff_value = buff_roll_total + power_stat
+            modifier = BUFF_DEBUFF_TABLE.get(ability.die, 1)
+            duration = modifier
+            buff_stat = ability.debuff_stat or ability.power_source
 
-            buff_rolls_str = " + ".join(str(r) for r in buff_roll)
-            buff_breakdown = f"{ability.die} = [{buff_rolls_str}] + {ability.power_source}({power_stat}) = {buff_value}"
             for target_name in target_names:
+                target = db.query(Character).filter(
+                    Character.name == target_name,
+                    Character.campaign_id == str(campaign_id)
+                ).first()
+
+                if not target:
+                    results.append({"target": target_name, "success": False, "message": "Target not found"})
+                    continue
+
+                effect = ActiveEffect(
+                    campaign_id=campaign_id,
+                    character_id=target.id,
+                    name=ability.display_name,
+                    modifier=modifier,
+                    modifier_type=buff_stat.lower() if buff_stat else 'custom',
+                    duration_rounds=duration,
+                    applied_by=caster.name
+                )
+                db.add(effect)
+
                 results.append({
                     "target": target_name,
                     "success": True,
-                    "buff_value": buff_value,
-                    "roll_breakdown": buff_breakdown
+                    "buff_modifier": modifier,
+                    "buff_duration": duration,
+                    "buff_stat": buff_stat
                 })
-                narrative_parts.append(f"{target_name} receives {ability.display_name}! (Power: {buff_value})")
+                narrative_parts.append(f"{target_name} gains {ability.display_name}! ({buff_stat} +{modifier} for {duration} round{'s' if duration != 1 else ''})")
 
         elif ability.effect_type == "debuff":
             # Debuff ability (contested roll required)
@@ -1580,7 +1597,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             results=results,
             narrative=narrative,
             uses_remaining=ability.uses_remaining,
-            max_uses=ability.max_uses
+            max_uses=ability.max_uses,
+            caster_char_id=str(caster.id)
         )
         await manager.broadcast(campaign_id, broadcast.model_dump(mode='json'))
 
@@ -1626,6 +1644,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             message_type="ability_cast",
             extra_data={
                 "caster": caster.name,
+                "caster_char_id": str(caster.id),
                 "ability_name": ability.display_name,
                 "ability_die": ability.die,
                 "power_source": ability.power_source,

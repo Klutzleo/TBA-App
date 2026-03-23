@@ -9107,10 +9107,13 @@
                     lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
                     lines.push(`  💚 Roll: ${r.roll_breakdown}`);
                   } else if (et === 'buff') {
-                    lines.push(`→ ${r.target}  Power ${r.buff_value}`);
-                    lines.push(`  ✨ Roll: ${r.roll_breakdown}`);
+                    lines.push(`→ ${r.target}  ${r.buff_stat || ''} +${r.buff_modifier} for ${r.buff_duration} round${r.buff_duration !== 1 ? 's' : ''}`);
                   } else if (et === 'debuff') {
-                    lines.push(`vs ${r.target}  →  ${r.success ? `💥 Hits (margin ${r.margin})` : '💨 Resisted'}`);
+                    if (r.success) {
+                      lines.push(`vs ${r.target}  →  💥 ${r.debuff_stat || ''} -${Math.abs(r.debuff_modifier || 0)} for ${r.debuff_duration} round${r.debuff_duration !== 1 ? 's' : ''}`);
+                    } else {
+                      lines.push(`vs ${r.target}  →  💨 Resisted`);
+                    }
                     lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
                     lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
                   }
@@ -9143,6 +9146,20 @@
                 usesInfo.style.cssText = 'font-size:12px;color:var(--text-muted)';
                 usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
                 container.appendChild(usesInfo);
+
+                if (isSW() && data.caster_char_id) {
+                  const bapBtn = document.createElement('button');
+                  bapBtn.className = 'btn btn-sm';
+                  bapBtn.style.cssText = 'margin-top:6px;font-size:0.78rem;padding:2px 10px;background:#78350f;border-color:#92400e;color:#fde68a;';
+                  bapBtn.textContent = '✦ Award BAP';
+                  bapBtn.onclick = async () => {
+                    bapBtn.disabled = true;
+                    await grantBapToken(data.caster_char_id, 'encounter');
+                    bapBtn.textContent = '✦ BAP Awarded!';
+                    bapBtn.style.opacity = '0.5';
+                  };
+                  container.appendChild(bapBtn);
+                }
 
                 storeAndDisplayMessage(container, { type: 'ability_cast', ...data });
               }
@@ -10418,11 +10435,13 @@
                   lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
                   lines.push(`  💚 Roll: ${r.roll_breakdown}`);
                 } else if (effect_type === 'buff') {
-                  lines.push(`→ ${r.target}  Power ${r.buff_value}`);
-                  lines.push(`  ✨ Roll: ${r.roll_breakdown}`);
+                  lines.push(`→ ${r.target}  ${r.buff_stat || ''} +${r.buff_modifier} for ${r.buff_duration} round${r.buff_duration !== 1 ? 's' : ''}`);
                 } else if (effect_type === 'debuff') {
-                  const outcome = r.success ? `💥 Hits (margin ${r.margin})` : `💨 Resisted`;
-                  lines.push(`vs ${r.target}  →  ${outcome}`);
+                  if (r.success) {
+                    lines.push(`vs ${r.target}  →  💥 ${r.debuff_stat || ''} -${Math.abs(r.debuff_modifier || 0)} for ${r.debuff_duration} round${r.debuff_duration !== 1 ? 's' : ''}`);
+                  } else {
+                    lines.push(`vs ${r.target}  →  💨 Resisted`);
+                  }
                   lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
                   lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
                 }

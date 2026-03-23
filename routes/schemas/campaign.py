@@ -117,6 +117,7 @@ class AbilityCastBroadcast(BaseModel):
     narrative: str  # Descriptive outcome text
     uses_remaining: int  # Remaining charges for this ability
     max_uses: int
+    caster_char_id: Optional[str] = None  # Caster character UUID (for BAP award)
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
