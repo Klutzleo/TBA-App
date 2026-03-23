@@ -121,6 +121,7 @@ class CharacterResponse(BaseModel):
     active_tether_modifier: int = 0
     chat_color: str = '#d4af37'
     sort_order: int = 0
+    portrait_url: Optional[str] = None
     abilities: list["AbilityResponse"] = []
     created_at: datetime
     updated_at: datetime

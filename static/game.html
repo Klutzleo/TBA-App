@@ -4323,7 +4323,8 @@
             name: npc.name,
             type: 'npc',
             chat_color: npc.chat_color || null,
-            visible_to_players: npc.visible_to_players || false
+            visible_to_players: npc.visible_to_players || false,
+            portrait_url: npc.portrait_url || null
           });
           bubbleBar.appendChild(npcBubble);
         });
@@ -4398,7 +4399,8 @@
             const bubble = createBubble({
               id: char.id,
               name: char.name,
-              type: char.is_ally ? 'ally' : 'pc'
+              type: char.is_ally ? 'ally' : 'pc',
+              portrait_url: char.portrait_url || null
             });
             bubbleBar.appendChild(bubble);
           });
@@ -4421,16 +4423,24 @@
         bubble.classList.add('active');
       }
 
-      // Avatar emoji based on type
-      let avatar = '👤';
-      if (character.type === 'narrator') avatar = '📖';
-      else if (character.type === 'npc') avatar = '🎭';
-      else if (character.type === 'ally') avatar = '🤝';
-
       const hiddenBadge = (character.type === 'npc' && userRole === 'SW' && !character.visible_to_players)
         ? `<span style="font-size:0.55rem;opacity:0.5;display:block;line-height:1;">🙈</span>` : '';
+
+      let avatarInner;
+      if (character.portrait_url) {
+        avatarInner = `<img src="${escHtml(character.portrait_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`;
+      } else if (character.type === 'narrator') {
+        avatarInner = '📖';
+      } else if (character.type === 'npc') {
+        avatarInner = '🎭';
+      } else if (character.type === 'ally') {
+        avatarInner = '🤝';
+      } else {
+        avatarInner = '👤';
+      }
+
       bubble.innerHTML = `
-        <div class="bubble-avatar">${avatar}</div>
+        <div class="bubble-avatar" style="${character.portrait_url ? 'overflow:hidden;border-radius:50%;' : ''}">${avatarInner}</div>
         <div class="bubble-name">${character.name}${hiddenBadge}</div>
       `;
 
@@ -6038,14 +6048,60 @@
       container.style.cssText = 'padding:10px 14px;';
       const ts = data.timestamp ? fmtTs(data.timestamp) : '';
       const modeLabel = data.chat_mode === 'ooc' ? 'OOC' : 'Story';
+      const portrait = getPortraitUrl(data.sender_name);
+      const avatarHtml = portrait
+        ? `<img src="${escHtml(portrait)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'">`
+        : `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:var(--text-muted);flex-shrink:0;">${(data.sender_name || '?')[0].toUpperCase()}</div>`;
       container.innerHTML = `
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">${ts ? ts + ' · ' : ''}<strong style="color:var(--text-secondary);">${escHtml(data.sender_name)}</strong> shared an image (${modeLabel})</div>
-        <a href="${escHtml(data.url)}" target="_blank" style="display:inline-block;max-width:320px;">
-          <img src="${escHtml(data.url)}" alt="${escHtml(data.filename || 'image')}" style="max-width:100%;max-height:300px;border-radius:6px;border:1px solid var(--border-color);cursor:zoom-in;" loading="lazy">
-        </a>
-        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">${escHtml(data.filename || 'image')}</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          ${avatarHtml}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">${ts ? ts + ' · ' : ''}<strong style="color:var(--text-secondary);">${escHtml(data.sender_name)}</strong> shared an image (${modeLabel})</div>
+            <a href="${escHtml(data.url)}" target="_blank" style="display:inline-block;max-width:300px;">
+              <img src="${escHtml(data.url)}" alt="${escHtml(data.filename || 'image')}" style="max-width:100%;max-height:280px;border-radius:6px;border:1px solid var(--border-color);cursor:zoom-in;" loading="lazy">
+            </a>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">${escHtml(data.filename || 'image')}</div>
+          </div>
+        </div>
       `;
       return container;
+    }
+
+    async function uploadPortrait(charId, inputEl) {
+      const file = inputEl.files[0];
+      if (!file) return;
+      inputEl.value = '';
+      showPanelToast('Uploading portrait...', 'info');
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const uploadResp = await fetch('/api/upload/portrait', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: formData
+        });
+        if (!uploadResp.ok) throw new Error((await uploadResp.json().catch(() => ({}))).detail || 'Upload failed');
+        const { url } = await uploadResp.json();
+
+        // Save URL to character
+        const saveResp = await fetch(`/api/characters/${charId}/portrait?portrait_url=${encodeURIComponent(url)}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!saveResp.ok) throw new Error('Failed to save portrait');
+
+        showPanelToast('Portrait updated!', 'success');
+        // Reload whichever sheet is open
+        const swModal = document.getElementById('swSheetModal');
+        const playerModal = document.getElementById('playerSheetModal');
+        if (swModal && swModal.classList.contains('active')) {
+          openSwSheetModal(_swSheetCharId, document.getElementById('swSheetCharName').textContent);
+        } else if (playerModal && playerModal.classList.contains('active')) {
+          openPlayerSheetModal(_playerSheetCharId, document.getElementById('playerSheetCharName').textContent);
+        }
+      } catch (e) {
+        showPanelToast(`Portrait upload failed: ${e.message}`, 'error');
+      }
     }
 
     async function uploadChatImage(file) {
@@ -8335,6 +8391,33 @@
       return row;
     }
 
+    // Lookup portrait URL for an actor name from known characters/NPCs
+    function getPortraitUrl(actorName) {
+      const pc = (knownPCs || []).find(c => c.name === actorName);
+      if (pc && pc.portrait_url) return pc.portrait_url;
+      const npc = (campaignNPCs || []).find(n => n.name === actorName);
+      if (npc && npc.portrait_url) return npc.portrait_url;
+      return null;
+    }
+
+    // Build a small avatar element (circle with portrait or colored initial)
+    function buildAvatarEl(actorName, chatColor) {
+      const el = document.createElement('div');
+      const size = '28px';
+      el.style.cssText = `width:${size};height:${size};border-radius:50%;flex-shrink:0;overflow:hidden;background:${chatColor || 'var(--bg-secondary)'};border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;`;
+      const portrait = getPortraitUrl(actorName);
+      if (portrait) {
+        const img = document.createElement('img');
+        img.src = portrait;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        img.onerror = () => { img.style.display = 'none'; el.textContent = (actorName || '?')[0].toUpperCase(); };
+        el.appendChild(img);
+      } else {
+        el.textContent = (actorName || '?')[0].toUpperCase();
+      }
+      return el;
+    }
+
     // Display typed message (IC, OOC, Whisper)
     // targets can be a string (single target) or array (multiple targets)
     function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false, storedTimestamp = null, fromHistory = false, chatColor = null, messageId = null, senderId = null, isEdited = false) {
@@ -8360,6 +8443,15 @@
       };
 
       if (messageId) container.dataset.messageId = messageId;
+
+      // Avatar + content wrapper
+      const outerRow = document.createElement('div');
+      outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+      const avatar = buildAvatarEl(actor, chatColor);
+      outerRow.appendChild(avatar);
+      const contentCol = document.createElement('div');
+      contentCol.style.cssText = 'flex:1;min-width:0;';
+      outerRow.appendChild(contentCol);
 
       // Compact header row: [time] · Mode · Actor           TAB
       const headerRow = document.createElement('div');
@@ -8415,7 +8507,7 @@
       tabIndicator.textContent = getMessageTab(data).toUpperCase();
       headerRow.appendChild(tabIndicator);
 
-      container.appendChild(headerRow);
+      contentCol.appendChild(headerRow);
 
       // Apply chat color to the bubble (border + tinted bg + mode label) for IC and OOC.
       // Whisper stays purple — it's a system-level secret, not a character voice.
@@ -8440,7 +8532,8 @@
         editedTag.textContent = '(edited)';
         textDiv.appendChild(editedTag);
       }
-      container.appendChild(textDiv);
+      contentCol.appendChild(textDiv);
+      container.appendChild(outerRow);
 
       // Store and display via tab system
       storeAndDisplayMessage(container, data, fromHistory);
@@ -11427,18 +11520,18 @@
         // Build knownPCs list for dropdowns (award, give, etc.)
         knownPCs = members
           .filter(m => m.character && !m.character.is_npc)
-          .map(m => ({ id: m.character.id, name: m.character.name, chat_color: m.character.chat_color || null }));
+          .map(m => ({ id: m.character.id, name: m.character.name, chat_color: m.character.chat_color || null, portrait_url: m.character.portrait_url || null }));
 
         // Add Narrator (SW voice) to knownPCs so history messages from SW get colored for all viewers
         const swMember = members.find(m => m.role === 'story_weaver');
         if (swMember && swMember.membership_chat_color) {
-          knownPCs.push({ id: null, name: 'Narrator', chat_color: swMember.membership_chat_color });
+          knownPCs.push({ id: null, name: 'Narrator', chat_color: swMember.membership_chat_color, portrait_url: null });
         }
 
         // Add NPCs to knownPCs so their chat history messages get colored correctly
         (campaignNPCs || []).forEach(npc => {
           if (npc.chat_color) {
-            knownPCs.push({ id: npc.id, name: npc.name, chat_color: npc.chat_color });
+            knownPCs.push({ id: npc.id, name: npc.name, chat_color: npc.chat_color, portrait_url: npc.portrait_url || null });
           }
         });
 
@@ -11493,8 +11586,9 @@
               : '';
 
             characterCard.innerHTML = `
-              <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+              <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                ${char.portrait_url ? `<img src="${escHtml(char.portrait_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${char.chat_color || 'var(--border-color)'};" onerror="this.style.display='none'">` : ''}
+                <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex:1;min-width:0;">
                   <strong>${char.name}</strong>
                   ${bapTokenBadge}${isCalledBadge}${tetherBadge}
                 </div>
@@ -12107,6 +12201,15 @@
         : '<p style="color:var(--text-muted);font-size:0.85rem;" id="swEmptyInv">Empty inventory.</p>';
 
       document.getElementById('swSheetBody').innerHTML = `
+        <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:16px;">
+          <div style="flex-shrink:0;text-align:center;">
+            <div style="width:90px;height:90px;border-radius:8px;overflow:hidden;background:var(--bg-secondary);border:2px solid var(--border-color);margin-bottom:6px;cursor:pointer;position:relative;" onclick="document.getElementById('swPortraitInput').click()" title="Click to change portrait">
+              ${char.portrait_url ? `<img src="${escHtml(char.portrait_url)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">👤</div>`}
+              <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.5);font-size:0.6rem;color:#fff;padding:2px 0;text-align:center;">Change</div>
+            </div>
+            <input type="file" id="swPortraitInput" accept="image/*" style="display:none;" onchange="uploadPortrait('${char.id}', this)">
+          </div>
+          <div style="flex:1;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
           <div>
             <h4 style="color:var(--accent-primary);margin-bottom:8px;">Core Stats</h4>
@@ -12203,6 +12306,8 @@
         </div>
         <button class="btn-secondary btn" style="width:100%;margin-top:8px;font-size:0.8rem;padding:5px;"
           onclick="document.getElementById('swAddItemForm').style.display=document.getElementById('swAddItemForm').style.display==='none'?'block':'none'">+ Add Item</button>
+          </div>
+        </div>
       `;
     } catch (e) {
       document.getElementById('swSheetBody').innerHTML = `<p style="color:var(--accent-danger);">Error: ${e.message}</p>`;
@@ -12560,7 +12665,17 @@
       const dpPct  = Math.min(100, Math.max(0, (char.dp / char.max_dp) * 100));
       const dpColor = dpPct > 50 ? 'var(--accent-success)' : dpPct > 20 ? '#f59e0b' : 'var(--accent-danger)';
 
+      const isOwnChar = (charId === characterId);
       document.getElementById('playerSheetBody').innerHTML = `
+        ${(char.portrait_url || isOwnChar) ? `<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:16px;">
+          <div style="flex-shrink:0;text-align:center;">
+            <div style="width:80px;height:80px;border-radius:8px;overflow:hidden;background:var(--bg-secondary);border:2px solid var(--border-color);${isOwnChar ? 'cursor:pointer;position:relative;' : ''}" ${isOwnChar ? `onclick="document.getElementById('playerPortraitInput').click()" title="Click to change portrait"` : ''}>
+              ${char.portrait_url ? `<img src="${escHtml(char.portrait_url)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">👤</div>`}
+              ${isOwnChar ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.5);font-size:0.6rem;color:#fff;padding:2px 0;text-align:center;">Change</div>` : ''}
+            </div>
+            ${isOwnChar ? `<input type="file" id="playerPortraitInput" accept="image/*" style="display:none;" onchange="uploadPortrait('${charId}', this)">` : ''}
+          </div>
+          <div style="flex:1;">` : ''}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
           ${statBadge('Physical', char.pp, '#60a5fa')}
           ${statBadge('Intellect', char.ip, '#a78bfa')}
@@ -12595,6 +12710,7 @@
           ${char.tethers.map(t => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;">${escHtml(t.description)}</span>${t.is_active ? `<span style="font-size:0.7rem;color:${t.modifier >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${t.modifier >= 0 ? '+' : ''}${t.modifier}</span>` : ''}</div>`).join('')}
         </div>` : ''}
         ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}
+        ${(char.portrait_url || isOwnChar) ? '</div></div>' : ''}
       `;
     } catch (e) {
       document.getElementById('playerSheetBody').innerHTML = `<p style="color:var(--accent-danger);">Error: ${e.message}</p>`;

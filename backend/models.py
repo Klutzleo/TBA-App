@@ -237,6 +237,9 @@ class Character(Base):
     tethers = Column(JSON, nullable=True, default=list)  # Array of {id, description, is_active, modifier}
     active_tether_modifier = Column(Integer, nullable=False, default=0)  # Sum of active tether modifiers
 
+    # Portrait
+    portrait_url = Column(String, nullable=True)  # R2 public URL for character portrait
+
     # BAP Token system
     bap_token_active = Column(Boolean, nullable=False, default=False)
     bap_token_expires_at = Column(DateTime(timezone=True), nullable=True)
