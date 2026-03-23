@@ -666,7 +666,7 @@ class LoreEntry(Base):
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(200), nullable=False)
     content = Column(Text, nullable=False, default='')
-    entry_type = Column(String(20), nullable=False, default='lore')  # 'lore' or 'scene'
+    entry_type = Column(String(20), nullable=True, default='lore')  # 'lore' or 'scene'
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
