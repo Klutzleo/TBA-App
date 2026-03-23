@@ -608,7 +608,11 @@ async def update_character(
         # Handle name
         if updates.name is not None:
             character.name = updates.name
-        
+
+        # Handle portrait
+        if updates.portrait_url is not None:
+            character.portrait_url = updates.portrait_url
+
         db.commit()
         db.refresh(character)
         
@@ -3583,25 +3587,3 @@ async def delete_tether(
     return {"tethers": char.tethers, "active_tether_modifier": char.active_tether_modifier}
 
 
-@character_blp_fastapi.patch("/{character_id}/portrait")
-async def update_portrait(
-    character_id: str,
-    portrait_url: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Set or update a character's portrait URL. Allowed by owner or SW."""
-    from uuid import UUID
-    char = db.query(Character).filter(Character.id == UUID(character_id)).first()
-    if not char:
-        raise HTTPException(status_code=404, detail="Character not found")
-
-    campaign = db.query(Campaign).filter(Campaign.id == char.campaign_id).first()
-    is_sw = campaign and str(campaign.story_weaver_id) == str(current_user.id)
-    is_owner = char.user_id and str(char.user_id) == str(current_user.id)
-    if not is_sw and not is_owner:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    char.portrait_url = portrait_url
-    db.commit()
-    return {"portrait_url": char.portrait_url}

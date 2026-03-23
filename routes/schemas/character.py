@@ -89,6 +89,7 @@ class CharacterUpdate(BaseModel):
     attack_style: Optional[str] = Field(None, description="Change attack style")
     weapon: Optional[WeaponSchema] = None
     armor: Optional[ArmorSchema] = None
+    portrait_url: Optional[str] = None
 
 
 class CharacterResponse(BaseModel):

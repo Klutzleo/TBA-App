@@ -6083,10 +6083,11 @@
         if (!uploadResp.ok) throw new Error((await uploadResp.json().catch(() => ({}))).detail || 'Upload failed');
         const { url } = await uploadResp.json();
 
-        // Save URL to character
-        const saveResp = await fetch(`/api/characters/${charId}/portrait?portrait_url=${encodeURIComponent(url)}`, {
+        // Save URL to character via existing PATCH endpoint
+        const saveResp = await fetch(`/api/characters/${charId}`, {
           method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${authToken}` }
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ portrait_url: url })
         });
         if (!saveResp.ok) throw new Error('Failed to save portrait');
 
