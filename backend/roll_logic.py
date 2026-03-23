@@ -137,12 +137,49 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
     name_d = defender.get("name", "Defender")
 
     if outcome == "miss":
-        return f"{name_d} deflects the blow from {name_a} with ease."
+        if margin == 0:
+            lines = [
+                f"{name_d} absorbs the full force of {name_a}'s attack.",
+                f"{name_a} connects but {name_d}'s defenses hold.",
+                f"The blow lands but {name_d} doesn't even flinch.",
+                f"{name_d} takes the hit and shakes it off.",
+            ]
+        elif margin >= -3:
+            lines = [
+                f"{name_d} barely sidesteps {name_a}'s attack.",
+                f"{name_a}'s strike grazes {name_d} but does nothing.",
+                f"{name_d} deflects the blow at the last moment.",
+                f"Close — but {name_d} slips just out of reach.",
+            ]
+        else:
+            lines = [
+                f"{name_a} swings wide — {name_d} was never in danger.",
+                f"{name_d} reads the attack and moves before it lands.",
+                f"{name_a}'s attack finds nothing but air.",
+                f"{name_d} steps aside like {name_a} wasn't even trying.",
+            ]
+        return random.choice(lines)
+
     if critical:
-        return f"{name_a} lands a devastating strike—{name_d} staggers!"
+        lines = [
+            f"{name_a} lands a devastating strike — {name_d} staggers!",
+            f"A perfectly placed hit — {name_d} reels from the impact!",
+            f"{name_a} finds the opening and makes {name_d} pay for it.",
+        ]
+        return random.choice(lines)
     if margin >= 5:
-        return f"{name_a} overwhelms {name_d} with brutal precision."
-    return f"{name_a} strikes true, bypassing {name_d}'s defenses."
+        lines = [
+            f"{name_a} overwhelms {name_d} with brutal precision.",
+            f"{name_a} tears through {name_d}'s defenses.",
+            f"No room to dodge — {name_d} takes the full hit.",
+        ]
+        return random.choice(lines)
+    lines = [
+        f"{name_a} strikes true, bypassing {name_d}'s defenses.",
+        f"{name_a} finds a gap in {name_d}'s guard.",
+        f"{name_d} couldn't get out of the way in time.",
+    ]
+    return random.choice(lines)
 
 # Simulates 1v1 Combat
 # roll_logic.py
@@ -264,12 +301,49 @@ def generate_combat_narrative(attacker, defender, outcome, margin, critical):
     name_d = defender.get("name", "Defender")
 
     if outcome == "miss":
-        return f"{name_d} deflects the blow from {name_a} with ease."
+        if margin == 0:
+            lines = [
+                f"{name_d} absorbs the full force of {name_a}'s attack.",
+                f"{name_a} connects but {name_d}'s defenses hold.",
+                f"The blow lands but {name_d} doesn't even flinch.",
+                f"{name_d} takes the hit and shakes it off.",
+            ]
+        elif margin >= -3:
+            lines = [
+                f"{name_d} barely sidesteps {name_a}'s attack.",
+                f"{name_a}'s strike grazes {name_d} but does nothing.",
+                f"{name_d} deflects the blow at the last moment.",
+                f"Close — but {name_d} slips just out of reach.",
+            ]
+        else:
+            lines = [
+                f"{name_a} swings wide — {name_d} was never in danger.",
+                f"{name_d} reads the attack and moves before it lands.",
+                f"{name_a}'s attack finds nothing but air.",
+                f"{name_d} steps aside like {name_a} wasn't even trying.",
+            ]
+        return random.choice(lines)
+
     if critical:
-        return f"{name_a} lands a devastating strike—{name_d} staggers!"
+        lines = [
+            f"{name_a} lands a devastating strike — {name_d} staggers!",
+            f"A perfectly placed hit — {name_d} reels from the impact!",
+            f"{name_a} finds the opening and makes {name_d} pay for it.",
+        ]
+        return random.choice(lines)
     if margin >= 5:
-        return f"{name_a} overwhelms {name_d} with brutal precision."
-    return f"{name_a} strikes true, bypassing {name_d}'s defenses."
+        lines = [
+            f"{name_a} overwhelms {name_d} with brutal precision.",
+            f"{name_a} tears through {name_d}'s defenses.",
+            f"No room to dodge — {name_d} takes the full hit.",
+        ]
+        return random.choice(lines)
+    lines = [
+        f"{name_a} strikes true, bypassing {name_d}'s defenses.",
+        f"{name_a} finds a gap in {name_d}'s guard.",
+        f"{name_d} couldn't get out of the way in time.",
+    ]
+    return random.choice(lines)
 
 # Simulates encounter-based combat with effects, echoes, and lore
 def simulate_encounter_combat(attacker, defender, weapon_die, defense_die, bap):
