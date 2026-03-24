@@ -8690,9 +8690,11 @@
       const marginStr = roll.margin >= 0 ? `+${roll.margin}` : `${roll.margin}`;
       if (roll.base_roll !== undefined) {
         const bapPart = roll.bap_bonus ? ` + BAP(${roll.bap_bonus})` : '';
-        const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0})${bapPart} = ${roll.attacker_roll}`;
+        const atkFx = roll.attacker_effect_bonus ? ` + Fx(${roll.attacker_effect_bonus > 0 ? '+' : ''}${roll.attacker_effect_bonus})` : '';
+        const defFx = roll.defender_effect_bonus ? ` + Fx(${roll.defender_effect_bonus > 0 ? '+' : ''}${roll.defender_effect_bonus})` : '';
+        const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0})${atkFx}${bapPart} = ${roll.attacker_roll}`;
         const rawDef = roll.raw_defense_roll ?? roll.defense_roll;
-        const defStr = `die(${rawDef}) + Stat(${roll.def_stat_bonus ?? 0}) + Edge(${roll.def_edge_bonus ?? 0}) + Arm(${roll.armor_bonus ?? 0}) = ${roll.defense_roll}`;
+        const defStr = `die(${rawDef}) + Stat(${roll.def_stat_bonus ?? 0}) + Edge(${roll.def_edge_bonus ?? 0}) + Arm(${roll.armor_bonus ?? 0})${defFx} = ${roll.defense_roll}`;
         return `[${idx+1}] ATK: ${atkStr}   |   DEF: ${defStr}   →  ${marginStr} = ${dmg}`;
       }
       return `[${idx+1}] ${roll.attacker_roll} vs ${roll.defense_roll} → margin ${roll.margin} = ${dmg}`;

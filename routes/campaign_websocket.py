@@ -1033,6 +1033,28 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         ).all()
         armor_bonus += sum(i.bonus or 0 for i in def_inv)
 
+        # Active buff/debuff effects — tracked separately for breakdown display
+        from backend.models import ActiveEffect as _ActiveEffect
+        attacker_effect_bonus = sum(
+            fx.modifier for fx in db.query(_ActiveEffect).filter(
+                _ActiveEffect.character_id == attacker.id
+            ).all() if fx.modifier_type in ('pp', 'ip', 'sp', 'attack')
+        )
+        defender_effect_bonus = sum(
+            fx.modifier for fx in db.query(_ActiveEffect).filter(
+                _ActiveEffect.character_id == defender.id
+            ).all() if fx.modifier_type in ('pp', 'ip', 'sp', 'defense')
+        )
+
+        # BAP: consume token if armed
+        use_bap = data.get("use_bap", False)
+        bap_bonus = 0
+        if use_bap and attacker.bap_token_active:
+            bap_bonus = attacker.bap or 0
+            attacker.bap_token_active = False
+            attacker.bap_token_expires_at = None
+            db.commit()
+
         # Resolve multi-die attack
         result = resolve_multi_die_attack(
             attacker={"name": attacker.name},
@@ -1042,7 +1064,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             defense_die_str=defender.defense_die,
             defender_stat_value=defender_stat_value,
             edge=attacker.edge,
-            bap_triggered=False,
+            bap_triggered=bap_bonus > 0,
+            bap_bonus=bap_bonus,
+            attacker_effect_bonus=attacker_effect_bonus,
+            defender_effect_bonus=defender_effect_bonus,
             weapon_bonus=weapon_bonus,
             armor_bonus=armor_bonus,
             defender_edge=defender.edge,

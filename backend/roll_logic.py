@@ -733,6 +733,9 @@ def resolve_multi_die_attack(
     defender_stat_value,
     edge,
     bap_triggered=False,
+    bap_bonus=0,
+    attacker_effect_bonus=0,
+    defender_effect_bonus=0,
     weapon_bonus=0,
     armor_bonus=0,
     defender_edge=0,
@@ -805,10 +808,10 @@ def resolve_multi_die_attack(
         else:
             raw_defense_roll = roll_die(defense_die_str)
 
-        defense_total = raw_defense_roll + defender_stat_value + defender_edge + armor_bonus
+        defense_total = raw_defense_roll + defender_stat_value + defender_edge + armor_bonus + defender_effect_bonus
 
-        # Attack total = die + stat + edge + weapon bonus
-        effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus
+        # Attack total = die + stat + edge + weapon bonus + BAP + active effects
+        effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus + bap_bonus + attacker_effect_bonus
 
         # Margin = attack total - defense total
         margin = effective_roll - defense_total
@@ -827,11 +830,14 @@ def resolve_multi_die_attack(
             "stat_bonus": attacker_stat_value,
             "edge_bonus": edge,
             "weapon_bonus": weapon_bonus,
+            "bap_bonus": bap_bonus,
+            "attacker_effect_bonus": attacker_effect_bonus,
             "defense_roll": defense_total,
             "raw_defense_roll": raw_defense_roll,
             "def_stat_bonus": defender_stat_value,
             "def_edge_bonus": defender_edge,
             "armor_bonus": armor_bonus,
+            "defender_effect_bonus": defender_effect_bonus,
             "margin": margin,
             "damage": damage
         })
