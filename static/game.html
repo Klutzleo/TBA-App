@@ -11155,6 +11155,9 @@
               // Incoming image broadcast — render in chat and refresh gallery if open
               const imgContainer = renderImageMessage(data);
               storeAndDisplayMessage(imgContainer, data);
+              // Re-render to insert at correct sorted position (not just bottom)
+              const imgTab = data.chat_mode === 'ooc' ? 'ooc' : 'story';
+              if (activeTab === imgTab) renderMessages();
               if (activeTab === 'images') loadImages();
             } else if (data.type === 'online_users') {
               renderOnlineUsers(data.users);
