@@ -8512,7 +8512,8 @@
         is_ooc_command: isOocCommand,
         whisper_targets: targets ? (Array.isArray(targets) ? targets : [targets]) : null,
         message_id: messageId,
-        sender_id: senderId
+        sender_id: senderId,
+        timestamp: storedTimestamp || new Date().toISOString()
       };
 
       if (messageId) container.dataset.messageId = messageId;
