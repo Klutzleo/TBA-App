@@ -10,7 +10,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
 from backend.auth.jwt import get_current_user
 from backend.models import User, Message
-from backend.database import get_db
+from backend.db import get_db
 
 router = APIRouter(prefix="/api/upload", tags=["Upload"])
 
