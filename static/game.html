@@ -6177,7 +6177,7 @@
       if (sb && msgInput) sb.disabled = !msgInput.value.trim();
     }
 
-    async function uploadChatImage(file) {
+    async function uploadChatImage(file, sendTimestamp) {
       const currentTab = activeTab;
       if (currentTab === 'lore' || currentTab === 'images' || currentTab === 'sw_notes' || currentTab === 'player_notes' || currentTab === 'inventory' || currentTab === 'loot_pool' || currentTab.startsWith('whisper-')) {
         showPanelToast('Images can only be uploaded in Story or OOC chat.', 'error');
@@ -6214,7 +6214,7 @@
             sender_name: speakerName,
             chat_mode: chatMode,
             message_id: result.message_id,
-            timestamp: new Date().toISOString(),
+            timestamp: sendTimestamp || new Date().toISOString(),
           }));
         }
       } catch (e) {
@@ -7917,7 +7917,13 @@
       const chatMessagesEl = document.getElementById('chatMessages');
       chatMessagesEl.innerHTML = '';
 
-      const filteredMessages = allMessages.filter(msg => msg._tab === activeTab);
+      const filteredMessages = allMessages
+        .filter(msg => msg._tab === activeTab)
+        .sort((a, b) => {
+          const ta = a.timestamp || a.created_at || '';
+          const tb = b.timestamp || b.created_at || '';
+          return ta < tb ? -1 : ta > tb ? 1 : 0;
+        });
 
       filteredMessages.forEach(msgData => {
         if (!msgData._element) return;
@@ -11233,8 +11239,9 @@
       // If there's a staged image, upload it first
       if (_stagedImageFile) {
         const file = _stagedImageFile;
+        const sendTimestamp = new Date().toISOString();
         clearStagedImage();
-        await uploadChatImage(file);
+        await uploadChatImage(file, sendTimestamp);
         // If no text, stop here
         if (!msgInput.value.trim()) return;
       }

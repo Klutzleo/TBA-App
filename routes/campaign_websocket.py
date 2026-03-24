@@ -2942,19 +2942,38 @@ async def advance_turn(
             return
 
         # Advance index (wrapping)
-        new_index = (encounter.current_turn_index + 1) % len(rolls)
+        old_index = encounter.current_turn_index
+        new_index = (old_index + 1) % len(rolls)
         encounter.current_turn_index = new_index
 
-        # Decrement active effect durations — remove expired ones
+        # Decrement active effects only for the character whose turn just ended
         from backend.models import ActiveEffect
+        ending_roll = rolls[old_index]
+        ending_character_id = ending_roll.character_id  # None for NPCs (uses npc_id instead)
+
+        # For NPCs, initiative rolls store npc_id (legacy npcs table) but ActiveEffects store
+        # character_id (characters table with is_npc=True). Resolve by name match.
+        if ending_character_id is None and ending_roll.npc_id is not None:
+            npc_char = db.query(Character).filter(
+                Character.name == ending_roll.name,
+                Character.campaign_id == str(campaign_uuid),
+                Character.is_npc == True,
+            ).first()
+            if npc_char:
+                ending_character_id = npc_char.id
+
         effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_uuid).all()
         expired_ids = []
         for effect in effects:
-            if effect.duration_rounds is not None:
-                effect.duration_rounds -= 1
-                if effect.duration_rounds <= 0:
-                    expired_ids.append(str(effect.id))
-                    db.delete(effect)
+            if effect.duration_rounds is None:
+                continue
+            # Only tick down effects on the character whose turn just ended
+            if ending_character_id is None or str(effect.character_id) != str(ending_character_id):
+                continue
+            effect.duration_rounds -= 1
+            if effect.duration_rounds <= 0:
+                expired_ids.append(str(effect.id))
+                db.delete(effect)
 
         db.commit()
 
