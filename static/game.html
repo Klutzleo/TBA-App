@@ -9671,7 +9671,8 @@
                   chat_mode: msg.chat_mode,
                   url: d.url || '',
                   filename: d.filename || 'image',
-                  timestamp: msg.timestamp,
+                  message_id: msg.id,
+                  timestamp: msg.created_at || msg.timestamp,
                 };
                 const container = renderImageMessage(imgData);
                 storeAndDisplayMessage(container, imgData);
