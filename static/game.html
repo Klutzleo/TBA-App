@@ -8295,13 +8295,6 @@
         div.appendChild(content);
       }
 
-      // Add tab indicator for debugging (can be removed later)
-      const tabIndicator = document.createElement('span');
-      tabIndicator.className = 'message-tab-indicator';
-      const msgTab = getMessageTab(data);
-      tabIndicator.textContent = msgTab.toUpperCase();
-      div.appendChild(tabIndicator);
-
       // Store and display via tab system
       storeAndDisplayMessage(div, data);
     }

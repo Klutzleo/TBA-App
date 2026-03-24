@@ -382,6 +382,20 @@ async def campaign_websocket(
                         is_sw = not character  # No character = SW
                         is_own = str(msg.sender_id) == str(user_id)
                         if is_sw or is_own:
+                            # If it's an image upload, delete from R2 too
+                            if msg.message_type == "image_upload":
+                                try:
+                                    from routes.upload import get_r2_client
+                                    import os as _os
+                                    r2_key = (msg.extra_data or {}).get("key")
+                                    if r2_key:
+                                        r2 = get_r2_client()
+                                        r2.delete_object(
+                                            Bucket=_os.environ.get("R2_BUCKET_NAME", "tba-assets"),
+                                            Key=r2_key
+                                        )
+                                except Exception as _e:
+                                    logger.warning(f"R2 delete failed for {msg_id}: {_e}")
                             msg.deleted_at = _dt.utcnow()
                             db.commit()
                             await manager.broadcast(campaign_uuid, {
