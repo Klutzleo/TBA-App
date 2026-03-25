@@ -240,6 +240,10 @@ class Character(Base):
     # Portrait
     portrait_url = Column(String, nullable=True)  # R2 public URL for character portrait
 
+    # Summon system
+    is_summon = Column(Boolean, nullable=False, default=False)  # True for summoned creatures (temporary NPCs)
+    summoner_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)  # Caster who summoned this
+
     # BAP Token system
     bap_token_active = Column(Boolean, nullable=False, default=False)
     bap_token_expires_at = Column(DateTime(timezone=True), nullable=True)
@@ -606,6 +610,7 @@ class Ability(Base):
     debuff_stat = Column(String(20), nullable=True)   # Which stat on TARGET is penalized: PP, IP, SP, Defense, All
     die = Column(String, nullable=False)  # Dice expression (e.g., 2d6, 3d4)
     is_aoe = Column(Boolean, nullable=False, default=False)  # Area of effect
+    is_summon = Column(Boolean, nullable=False, default=False)  # Summon ability — creates a temporary NPC
 
     # Usage tracking (3 uses per encounter per character level)
     max_uses = Column(Integer, nullable=False, default=3)  # Total charges per encounter

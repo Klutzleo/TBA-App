@@ -6779,7 +6779,39 @@
         const nameSpan = document.createElement('span');
         nameSpan.className = 'init-name' + (isNpc ? ' is-npc' : '');
         nameSpan.textContent = roll.name + (roll.is_silent ? ' 👁' : '');
+        if (roll.is_summon) nameSpan.textContent += ` ✨`;
         entry.appendChild(nameSpan);
+
+        // Summon: durability dots + summoner label + dismiss button
+        if (roll.is_summon) {
+          const ownerLabel = document.createElement('span');
+          ownerLabel.style.cssText = 'font-size:0.68rem;color:#d4af37;opacity:0.8;margin-left:4px;flex-shrink:0;';
+          ownerLabel.textContent = `(${roll.summoner_name || '?'})`;
+          entry.appendChild(ownerLabel);
+
+          const dots = document.createElement('span');
+          dots.style.cssText = 'font-size:0.9rem;letter-spacing:2px;margin-left:4px;flex-shrink:0;';
+          const filled = roll.dp ?? 0;
+          const total  = roll.max_dp ?? filled;
+          dots.textContent = '●'.repeat(Math.max(0, filled)) + '○'.repeat(Math.max(0, total - filled));
+          dots.style.color = filled > 0 ? '#d4af37' : '#6b7280';
+          entry.appendChild(dots);
+
+          if (isSW() && roll.summon_id) {
+            const dismissBtn = document.createElement('button');
+            dismissBtn.className = 'btn-icon';
+            dismissBtn.title = 'Dismiss summon';
+            dismissBtn.textContent = '✕';
+            dismissBtn.style.cssText = 'font-size:0.75rem;opacity:0.5;padding:0 3px;flex-shrink:0;color:#ef4444;';
+            dismissBtn.onmouseenter = () => dismissBtn.style.opacity = '1';
+            dismissBtn.onmouseleave = () => dismissBtn.style.opacity = '0.5';
+            dismissBtn.onclick = (e) => {
+              e.stopPropagation();
+              ws.send(JSON.stringify({ type: 'dismiss_summon', summon_id: roll.summon_id }));
+            };
+            entry.appendChild(dismissBtn);
+          }
+        }
 
         // DP bar (PCs only — NPCs don't expose DP in rolls yet)
         if (!isNpc && roll.max_dp && roll.max_dp > 0) {
@@ -11210,6 +11242,61 @@
                   showPanelToast(`⏱ ${data.expired_effect_ids.length} effect(s) expired`, 'info');
                 }
               }
+
+            } else if (data.type === 'summon_created') {
+              // Insert summon directly after caster in initiative order (shared slot)
+              const casterIdx = currentInitiativeOrder.findIndex(r => r.character_id === data.caster_id);
+              const insertAt = casterIdx !== -1 ? casterIdx + 1 : currentInitiativeOrder.length;
+              currentInitiativeOrder.splice(insertAt, 0, {
+                name: data.summon_name,
+                roll: currentInitiativeOrder[casterIdx]?.roll ?? 0,
+                is_npc: true,
+                is_summon: true,
+                summon_id: data.summon_id,
+                character_id: data.summon_id,
+                summoner_name: data.caster_name,
+                dp: data.durability,
+                max_dp: data.durability,
+              });
+              if (userRole === 'SW') renderInitiativeTracker();
+              const el = document.createElement('div');
+              el.className = 'message-card message-combat';
+              el.style.cssText = 'border-left:3px solid #d4af37;padding:8px 12px;';
+              el.innerHTML = `<span style="color:#d4af37;font-weight:600;">${escHtml(data.message)}</span>`;
+              addMessage(el, '', data, true);
+              showPanelToast(`✨ ${data.summon_name} summoned!`, 'info');
+
+            } else if (data.type === 'summon_hit') {
+              // Update durability in local initiative order
+              const entry = currentInitiativeOrder.find(r => r.summon_id === data.summon_id);
+              if (entry) { entry.dp = data.durability_remaining; }
+              if (userRole === 'SW') renderInitiativeTracker();
+              showPanelToast(`⚡ ${data.summon_name} hit! Durability: ${data.durability_remaining}`, 'warning');
+
+            } else if (data.type === 'summon_dismissed') {
+              // Remove from local initiative order
+              const idx = currentInitiativeOrder.findIndex(r => r.summon_id === data.summon_id);
+              if (idx !== -1) currentInitiativeOrder.splice(idx, 1);
+              if (userRole === 'SW') renderInitiativeTracker();
+              const el = document.createElement('div');
+              el.className = 'message-card message-combat';
+              el.style.cssText = 'border-left:3px solid #6b7280;padding:8px 12px;';
+              el.innerHTML = `<span style="color:#9ca3af;">${escHtml(data.message)}</span>`;
+              addMessage(el, '', data, true);
+              showPanelToast(`💨 ${data.summon_name} dismissed`, 'info');
+
+            } else if (data.type === 'summon_dp_drain') {
+              // Update local character DP if it's the current player's character
+              if (data.character_id === characterId) {
+                const dpEl = document.getElementById('playerDP');
+                if (dpEl) dpEl.textContent = data.new_dp;
+              }
+              showPanelToast(`🔗 ${data.summon_name} drains 1 DP from ${data.character_name}`, 'warning');
+              const el = document.createElement('div');
+              el.className = 'message-card message-combat';
+              el.style.cssText = 'border-left:3px solid #7c3aed;padding:8px 12px;';
+              el.innerHTML = `<span style="color:#a78bfa;">${escHtml(data.message)}</span>`;
+              addMessage(el, '', data, true);
 
             } else if (data.type === 'abilities_restored') {
               // Party rest - abilities restored

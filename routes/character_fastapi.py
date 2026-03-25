@@ -283,7 +283,8 @@ async def create_character_full(
                 power_source=ability_data.power_source,
                 effect_type=ability_data.effect_type,
                 die=ability_data.die,
-                is_aoe=ability_data.is_aoe
+                is_aoe=ability_data.is_aoe,
+                is_summon=ability_data.is_summon
             )
 
             db.add(ability)
@@ -841,9 +842,11 @@ async def list_npcs(
         raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
     # SW sees all NPCs; players only see ones marked visible_to_players
+    # Summons are excluded — they live only in the initiative tracker, not the bubble bar
     query = db.query(Character).filter(
         Character.campaign_id == campaign_uuid,
-        Character.is_npc == True
+        Character.is_npc == True,
+        Character.is_summon == False
     )
     if membership.role != 'story_weaver':
         query = query.filter(Character.visible_to_players == True)
@@ -1739,6 +1742,7 @@ async def update_character_abilities(
                 debuff_stat=ability.get('debuff_stat', None),
                 die=ability.get('die', '1d8'),
                 is_aoe=ability.get('is_aoe', False),
+                is_summon=ability.get('is_summon', False),
                 max_uses=ability.get('max_uses', character.level * 3),
                 uses_remaining=ability.get('uses_remaining', ability.get('max_uses', character.level * 3))
             )

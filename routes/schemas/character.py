@@ -183,6 +183,7 @@ class AbilityCreate(BaseModel):
     effect_type: str = Field(..., description="Effect: damage, heal, buff, debuff, utility")
     die: str = Field(..., description="Dice expression (e.g., 2d6)")
     is_aoe: bool = Field(default=False, description="Area of effect ability")
+    is_summon: bool = Field(default=False, description="Summon ability — creates a temporary NPC when cast")
 
     @field_validator('macro_command')
     @classmethod
@@ -234,6 +235,7 @@ class AbilityResponse(BaseModel):
     effect_type: str
     die: str
     is_aoe: bool
+    is_summon: bool = False
     created_at: datetime
     updated_at: datetime
 

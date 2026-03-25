@@ -755,10 +755,39 @@
                 // Validate all available ability slots
                 const level = parseInt(document.getElementById('level').value) || 1;
                 const availableSlots = getAvailableSlots(level);
+                const slot1Type = document.getElementById('slot1_type')?.value || 'technique';
                 const macros = new Set();
 
                 for (const slot of availableSlots) {
                     const slotNum = slot.slot;
+
+                    // Slot 1 special cases
+                    if (slotNum === 1 && slot1Type === 'ally') {
+                        continue; // Ally slot needs no ability fields
+                    }
+                    if (slotNum === 1 && slot1Type === 'summon') {
+                        const summonName = document.getElementById('summon_name').value.trim();
+                        const summonMacro = document.getElementById('summon_macro').value.trim();
+                        if (!summonName) {
+                            showError('Please enter a name for your summon');
+                            return false;
+                        }
+                        if (!summonMacro || !summonMacro.startsWith('/')) {
+                            showError('Summon command must start with /');
+                            return false;
+                        }
+                        if (summonMacro.includes(' ')) {
+                            showError('Summon command cannot contain spaces');
+                            return false;
+                        }
+                        if (macros.has(summonMacro.toLowerCase())) {
+                            showError(`Duplicate macro command: ${summonMacro}. Each ability needs a unique command.`);
+                            return false;
+                        }
+                        macros.add(summonMacro.toLowerCase());
+                        continue;
+                    }
+
                     const abilityName = document.getElementById(`ability_name_${slotNum}`).value.trim();
                     const macro = document.getElementById(`macro_command_${slotNum}`).value.trim();
 
@@ -1118,9 +1147,19 @@
                             </div>
 
                             <div class="form-group">
+                                <label for="summon_effect_type">Summon Action Type *</label>
+                                <select id="summon_effect_type">
+                                    <option value="damage">Damage — attacks enemies</option>
+                                    <option value="heal">Healing — restores DP to allies</option>
+                                    <option value="debuff">Debuff — weakens enemies</option>
+                                </select>
+                                <p class="helper">What your summon does when you command it each round</p>
+                            </div>
+
+                            <div class="form-group">
                                 <label for="summon_macro">Summon Command *</label>
                                 <input type="text" id="summon_macro" placeholder="/summon" maxlength="50" oninput="formatMacroField(this)">
-                                <p class="helper">Macro to cast summon spell</p>
+                                <p class="helper">Cast this macro to summon. Cast again to command it.</p>
                             </div>
                         </div>
 
@@ -1410,13 +1449,13 @@
                             is_ally_slot: true
                         };
                     } else if (slot1Type === 'summon') {
-                        // Save summon details
+                        // Save summon details — effect_type chosen by player
                         return {
                             slot_number: 1,
                             display_name: document.getElementById('summon_name').value.trim(),
                             macro_command: document.getElementById('summon_macro').value.trim(),
                             power_source: 'IP', // Summons use Intellect
-                            effect_type: 'utility',
+                            effect_type: document.getElementById('summon_effect_type').value || 'damage',
                             die: getSpellDie(1, level),
                             is_aoe: false,
                             is_summon: true,
