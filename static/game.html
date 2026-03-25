@@ -9347,7 +9347,7 @@
                 tabIndicator.textContent = 'STORY';
                 container.appendChild(tabIndicator);
 
-                storeAndDisplayMessage(container, { type: 'combat_result', ...data });
+                storeAndDisplayMessage(container, { type: 'combat_result', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle stat rolls from database
               else if (msg.message_type === 'stat_roll') {
@@ -9409,7 +9409,7 @@
                   }
                 }
 
-                storeAndDisplayMessage(container, { type: 'stat_roll', ...data });
+                storeAndDisplayMessage(container, { type: 'stat_roll', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle ability casts from database
               else if (msg.message_type === 'ability_cast') {
@@ -9489,7 +9489,7 @@
                   container.appendChild(bapBtn);
                 }
 
-                storeAndDisplayMessage(container, { type: 'ability_cast', ...data });
+                storeAndDisplayMessage(container, { type: 'ability_cast', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle initiative rolls from database
               else if (msg.message_type === 'initiative_roll') {
@@ -9505,7 +9505,7 @@
                   : `🎲 ${data.actor} rolled initiative: ${data.roll}${initHistBreakdown}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
 
                 container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), initHistTitle, { tab: 'STORY' }));
-                storeAndDisplayMessage(container, { type: 'initiative_roll', ...data });
+                storeAndDisplayMessage(container, { type: 'initiative_roll', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle encounter start from database
               else if (msg.message_type === 'encounter_start') {
@@ -9526,7 +9526,7 @@
                 header.textContent = msg.content || '⚔️ Combat has begun!';
                 container.appendChild(header);
 
-                storeAndDisplayMessage(container, { type: 'encounter_start', ...data });
+                storeAndDisplayMessage(container, { type: 'encounter_start', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle encounter end from database
               else if (msg.message_type === 'encounter_end') {
@@ -9547,7 +9547,7 @@
                 header.textContent = `🏁 ${msg.content}`;
                 container.appendChild(header);
 
-                storeAndDisplayMessage(container, { type: 'encounter_end', ...data });
+                storeAndDisplayMessage(container, { type: 'encounter_end', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle initiative clear from database
               else if (msg.message_type === 'initiative_clear') {
@@ -9565,7 +9565,7 @@
                 header.textContent = `🔄 ${msg.content}`;
                 container.appendChild(header);
 
-                storeAndDisplayMessage(container, { type: 'initiative_clear', ...data });
+                storeAndDisplayMessage(container, { type: 'initiative_clear', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle abilities restored from database
               else if (msg.message_type === 'abilities_restored') {
@@ -9586,7 +9586,7 @@
                 header.textContent = `${msg.content}`;
                 container.appendChild(header);
 
-                storeAndDisplayMessage(container, { type: 'abilities_restored', ...data });
+                storeAndDisplayMessage(container, { type: 'abilities_restored', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Item used from history
               else if (msg.message_type === 'item_used') {
@@ -9613,14 +9613,14 @@
                 const defHeader = makeHeaderRow(fmtTs(msg.created_at), `🛡️ ${escHtml(d.character_name)} — ${d.stat_label} Defense: ${d.defense_total}`, { toggle: defTog, tab: 'STORY' });
                 container.appendChild(defHeader);
                 container.appendChild(defBd);
-                storeAndDisplayMessage(container, { type: 'defense_roll', actor: d.character_name, ...d });
+                storeAndDisplayMessage(container, { type: 'defense_roll', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name, ...d });
               }
               else if (msg.message_type === 'damage_applied') {
                 const el = document.createElement('div');
                 el.className = 'message-card message-combat';
                 el.style.cssText = 'border-left:3px solid #ef4444;padding-left:12px;';
                 el.textContent = msg.content;
-                storeAndDisplayMessage(el, { type: 'damage_applied', actor: 'system', target_tab: 'story' });
+                storeAndDisplayMessage(el, { type: 'damage_applied', timestamp: msg.timestamp, message_id: msg.id, actor: 'system', target_tab: 'story' });
               }
               // ✅ BAP granted/revoked from history
               else if (msg.message_type === 'bap_announce') {
@@ -9629,7 +9629,7 @@
                 el.className = 'message-card message-system';
                 el.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;background:rgba(245,158,11,0.08);';
                 el.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(d.character_name)}</strong> awarded a BAP token! <strong>${escHtml(d.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${d.new_total}</strong> ✦`;
-                storeAndDisplayMessage(el, { type: 'bap_announce', actor: 'system' });
+                storeAndDisplayMessage(el, { type: 'bap_announce', timestamp: msg.timestamp, message_id: msg.id, actor: 'system' });
               }
               else if (msg.message_type === 'bap_granted' || msg.message_type === 'bap_revoked') {
                 const d = msg.extra_data || {};
@@ -9641,7 +9641,7 @@
                 el.innerHTML = isGrant
                   ? `✦ <strong>${escHtml(d.character_name)}</strong> received a <strong style="color:#f59e0b;">BAP token</strong>${d.token_type ? ` — ${typeLabels[d.token_type] || d.token_type}` : ''}`
                   : `✦ <strong>${escHtml(d.character_name)}</strong>'s BAP token was <span style="color:#6b7280;">revoked</span>`;
-                storeAndDisplayMessage(el, { type: msg.message_type, actor: 'system' });
+                storeAndDisplayMessage(el, { type: msg.message_type, timestamp: msg.timestamp, message_id: msg.id, actor: 'system' });
               }
               // ✅ Handle The Calling trigger from database
               else if (msg.message_type === 'calling_triggered') {
@@ -9654,7 +9654,7 @@
                   <div style="font-weight:bold;font-size:1.05rem;color:#e9d5ff;margin-bottom:4px;">${d.defender || msg.sender_name} has entered The Calling!</div>
                   <div style="color:#c4b5fd;font-size:0.85rem;">DP: ${d.defender_new_dp} · The veil grows thin.</div>
                 `;
-                storeAndDisplayMessage(container, { type: 'calling_triggered', actor: msg.sender_name, ...d });
+                storeAndDisplayMessage(container, { type: 'calling_triggered', timestamp: msg.timestamp, message_id: msg.id, actor: msg.sender_name, ...d });
               }
               // ✅ Handle The Calling resolution from database
               else if (msg.message_type === 'calling_result') {
@@ -9676,7 +9676,7 @@
                   </div>
                   <div>${outcomeLabels[d.outcome] || d.narrative || ''}</div>
                 `;
-                storeAndDisplayMessage(container, { type: 'calling_result', actor: msg.sender_name, ...d });
+                storeAndDisplayMessage(container, { type: 'calling_result', timestamp: msg.timestamp, message_id: msg.id, actor: msg.sender_name, ...d });
               }
               // ✅ Handle image uploads from history
               else if (msg.message_type === 'image_upload') {
