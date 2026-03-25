@@ -798,6 +798,7 @@ async def get_campaign_members(
                 "bap_token_type": character.bap_token_type,
                 "battle_scars": character.battle_scars or [],
                 "chat_color": character.chat_color or '#d4af37',
+                "portrait_url": character.portrait_url,
                 "uses_remaining": total_uses_remaining,
                 "max_uses": max_uses,
                 "ability_count": len(abilities),
