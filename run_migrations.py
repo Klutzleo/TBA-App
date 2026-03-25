@@ -45,6 +45,13 @@ def run_migrations():
         print(f"❌ Failed to connect to database: {e}")
         sys.exit(1)
 
+    # Serialize concurrent migration runs (e.g. two Railway dynos starting at once)
+    # pg_advisory_lock blocks until the lock is free; released automatically when the
+    # connection closes, so a crashed process can never leave it permanently locked.
+    print("🔒 Acquiring migration advisory lock...")
+    cursor.execute("SELECT pg_advisory_lock(20260317)")
+    print("✅ Lock acquired")
+
     # Run each migration
     success_count = 0
     skip_count = 0
