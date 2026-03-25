@@ -139,102 +139,9 @@ CREATE TABLE IF NOT EXISTS characters (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
--- Add new columns if they don't exist (for existing tables from previous deploys)
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_npc BOOLEAN NOT NULL DEFAULT FALSE;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_ally BOOLEAN NOT NULL DEFAULT FALSE;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS parent_character_id UUID REFERENCES characters(id) ON DELETE CASCADE;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS battle_scars JSON DEFAULT '[]';
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS has_faced_calling_this_encounter BOOLEAN NOT NULL DEFAULT FALSE;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS chat_color VARCHAR(7) NOT NULL DEFAULT '#d4af37';
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE campaign_memberships ADD COLUMN IF NOT EXISTS chat_color VARCHAR(7) NOT NULL DEFAULT '#d4af37';
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS tethers JSON DEFAULT '[]';
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS active_tether_modifier INTEGER NOT NULL DEFAULT 0;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE characters ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS pin_text TEXT;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS pin_actor VARCHAR(200);
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scene_note TEXT;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN NOT NULL DEFAULT FALSE;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_notified_at TIMESTAMPTZ;
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
+-- All columns below are already defined in their CREATE TABLE IF NOT EXISTS blocks above.
+-- Removed redundant ALTER TABLE ADD COLUMN blocks to prevent lock contention during
+-- rolling deploys (old dyno running vs new dyno migrating = deadlock).
 
 CREATE TABLE IF NOT EXISTS memory_echoes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -447,20 +354,9 @@ CREATE TABLE IF NOT EXISTS encounters (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
--- Add column to existing DBs (idempotent)
-ALTER TABLE encounters ADD COLUMN IF NOT EXISTS current_turn_index INTEGER NOT NULL DEFAULT 0;
-
--- Ensure campaign columns exist for DBs created before these were added
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS join_code VARCHAR(6) UNIQUE;
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS min_players INTEGER NOT NULL DEFAULT 2;
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_players INTEGER NOT NULL DEFAULT 6;
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_spectators INTEGER NULL;
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS timezone VARCHAR NOT NULL DEFAULT 'America/New_York';
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS character_creation_mode VARCHAR NOT NULL DEFAULT 'open' CHECK (character_creation_mode IN ('open', 'approval_required', 'sw_only'));
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_characters_per_player INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS posting_frequency posting_frequency_enum NOT NULL DEFAULT 'medium';
-ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status campaign_status_enum NOT NULL DEFAULT 'active';
+-- encounters.current_turn_index and all campaign columns are already defined in their
+-- CREATE TABLE IF NOT EXISTS blocks above. Removed ALTER TABLE statements to prevent
+-- lock contention during rolling deploys.
 CREATE INDEX IF NOT EXISTS idx_encounters_campaign ON encounters(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_encounters_active ON encounters(campaign_id, is_active);
 
