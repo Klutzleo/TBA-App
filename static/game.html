@@ -7965,7 +7965,11 @@
       data._element = element;
 
       // Tag element with message_id for edit/delete lookups
-      if (data.message_id) element.dataset.messageId = data.message_id;
+      // Also register in displayedMessageIds so history loader skips it (prevents duplicates)
+      if (data.message_id) {
+        element.dataset.messageId = data.message_id;
+        displayedMessageIds.add(String(data.message_id));
+      }
 
       // Build action button bar (pin, edit, delete) — hover-revealed
       const isChatMsg = ['chat_ic','chat_ooc','chat_whisper'].includes(data.type);
