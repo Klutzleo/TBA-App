@@ -6105,42 +6105,210 @@
       return container;
     }
 
-    async function uploadPortrait(charId, inputEl) {
+    // ── Portrait crop modal ──────────────────────────────────────────────────
+    function uploadPortrait(charId, inputEl) {
       const file = inputEl.files[0];
       if (!file) return;
       inputEl.value = '';
-      showPanelToast('Uploading portrait...', 'info');
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const uploadResp = await fetch('/api/upload/portrait', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${authToken}` },
-          body: formData
-        });
-        if (!uploadResp.ok) throw new Error((await uploadResp.json().catch(() => ({}))).detail || 'Upload failed');
-        const { url } = await uploadResp.json();
+      openCropModal(file, async (blob) => {
+        showPanelToast('Uploading portrait...', 'info');
+        try {
+          const formData = new FormData();
+          formData.append('file', blob, 'portrait.jpg');
+          const uploadResp = await fetch('/api/upload/portrait', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+            body: formData
+          });
+          if (!uploadResp.ok) throw new Error((await uploadResp.json().catch(() => ({}))).detail || 'Upload failed');
+          const { url } = await uploadResp.json();
 
-        // Save URL to character via existing PATCH endpoint
-        const saveResp = await fetch(`/api/characters/${charId}`, {
-          method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ portrait_url: url })
-        });
-        if (!saveResp.ok) throw new Error('Failed to save portrait');
+          const saveResp = await fetch(`/api/characters/${charId}`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ portrait_url: url })
+          });
+          if (!saveResp.ok) throw new Error('Failed to save portrait');
 
-        showPanelToast('Portrait updated!', 'success');
-        // Reload whichever sheet is open
-        const swModal = document.getElementById('swSheetModal');
-        const playerModal = document.getElementById('playerSheetModal');
-        if (swModal && swModal.classList.contains('active')) {
-          openSwSheetModal(_swSheetCharId, document.getElementById('swSheetCharName').textContent);
-        } else if (playerModal && playerModal.classList.contains('active')) {
-          openPlayerSheetModal(_playerSheetCharId, document.getElementById('playerSheetCharName').textContent);
+          // Update in-memory arrays so chat bubbles refresh without a page reload
+          const pcEntry = (knownPCs || []).find(c => String(c.id) === String(charId));
+          if (pcEntry) pcEntry.portrait_url = url;
+          const npcEntry = (campaignNPCs || []).find(n => String(n.id) === String(charId));
+          if (npcEntry) npcEntry.portrait_url = url;
+          // Re-render chat so updated avatars appear immediately
+          renderMessages();
+
+          showPanelToast('Portrait updated!', 'success');
+          // Reload whichever sheet is open
+          const swModal = document.getElementById('swSheetModal');
+          const playerModal = document.getElementById('playerSheetModal');
+          if (swModal && swModal.classList.contains('active')) {
+            openSwSheetModal(_swSheetCharId, document.getElementById('swSheetCharName')?.textContent);
+          } else if (playerModal && playerModal.classList.contains('active')) {
+            openPlayerSheetModal(_playerSheetCharId, document.getElementById('playerSheetCharName')?.textContent);
+          }
+        } catch (e) {
+          showPanelToast(`Portrait upload failed: ${e.message}`, 'error');
         }
-      } catch (e) {
-        showPanelToast(`Portrait upload failed: ${e.message}`, 'error');
-      }
+      });
+    }
+
+    function openCropModal(file, onConfirm) {
+      // Remove any existing crop modal
+      document.getElementById('_cropModal')?.remove();
+
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const VIEWPORT = 280; // px — circular preview size
+        const OUTPUT   = 256; // px — final canvas output
+
+        // State
+        let scale  = Math.max(VIEWPORT / img.width, VIEWPORT / img.height);
+        let ox = (img.width  * scale - VIEWPORT) / 2;
+        let oy = (img.height * scale - VIEWPORT) / 2;
+        let dragging = false, dragX = 0, dragY = 0;
+
+        // Modal backdrop
+        const overlay = document.createElement('div');
+        overlay.id = '_cropModal';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;';
+
+        // Card
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--bg-secondary,#1e1e2e);border-radius:12px;padding:24px;display:flex;flex-direction:column;align-items:center;gap:16px;box-shadow:0 20px 60px rgba(0,0,0,0.6);max-width:340px;width:90%;';
+
+        const title = document.createElement('div');
+        title.style.cssText = 'font-size:1rem;font-weight:600;color:var(--text-primary,#fff);';
+        title.textContent = 'Crop Portrait';
+        card.appendChild(title);
+
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:0.75rem;color:var(--text-muted,#888);text-align:center;';
+        hint.textContent = 'Drag to reposition · Scroll to zoom';
+        card.appendChild(hint);
+
+        // Viewport canvas
+        const canvas = document.createElement('canvas');
+        canvas.width  = VIEWPORT;
+        canvas.height = VIEWPORT;
+        canvas.style.cssText = `width:${VIEWPORT}px;height:${VIEWPORT}px;border-radius:50%;cursor:grab;border:3px solid var(--border-color,#333);`;
+        card.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+
+        function draw() {
+          ctx.clearRect(0, 0, VIEWPORT, VIEWPORT);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(VIEWPORT/2, VIEWPORT/2, VIEWPORT/2, 0, Math.PI*2);
+          ctx.clip();
+          ctx.drawImage(img, -ox, -oy, img.width * scale, img.height * scale);
+          ctx.restore();
+        }
+        draw();
+
+        // Drag
+        canvas.addEventListener('mousedown', e => {
+          dragging = true; dragX = e.clientX; dragY = e.clientY;
+          canvas.style.cursor = 'grabbing';
+        });
+        window.addEventListener('mousemove', e => {
+          if (!dragging) return;
+          ox -= e.clientX - dragX; oy -= e.clientY - dragY;
+          dragX = e.clientX; dragY = e.clientY;
+          // Clamp so image always fills circle
+          ox = Math.max(0, Math.min(ox, img.width  * scale - VIEWPORT));
+          oy = Math.max(0, Math.min(oy, img.height * scale - VIEWPORT));
+          draw();
+        });
+        window.addEventListener('mouseup', () => { dragging = false; canvas.style.cursor = 'grab'; });
+
+        // Touch drag
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); const t=e.touches[0]; dragging=true; dragX=t.clientX; dragY=t.clientY; }, {passive:false});
+        canvas.addEventListener('touchmove', e => {
+          e.preventDefault(); if (!dragging) return;
+          const t=e.touches[0];
+          ox -= t.clientX-dragX; oy -= t.clientY-dragY;
+          dragX=t.clientX; dragY=t.clientY;
+          ox=Math.max(0,Math.min(ox,img.width*scale-VIEWPORT));
+          oy=Math.max(0,Math.min(oy,img.height*scale-VIEWPORT));
+          draw();
+        }, {passive:false});
+        canvas.addEventListener('touchend', () => { dragging=false; });
+
+        // Zoom slider
+        const sliderWrap = document.createElement('div');
+        sliderWrap.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;';
+        const zoomLbl = document.createElement('span');
+        zoomLbl.style.cssText = 'font-size:0.75rem;color:var(--text-muted,#888);white-space:nowrap;';
+        zoomLbl.textContent = 'Zoom';
+        const slider = document.createElement('input');
+        slider.type = 'range'; slider.min = '100'; slider.max = '400'; slider.value = '100';
+        slider.style.cssText = 'flex:1;accent-color:var(--accent-primary,#6d28d9);';
+        slider.addEventListener('input', () => {
+          const newScale = (img.width >= img.height
+            ? Math.max(VIEWPORT / img.width,  VIEWPORT / img.height)
+            : Math.max(VIEWPORT / img.width,  VIEWPORT / img.height))
+            * (slider.value / 100);
+          const minScale = Math.max(VIEWPORT / img.width, VIEWPORT / img.height);
+          scale = Math.max(minScale, minScale * (slider.value / 100));
+          ox = Math.max(0, Math.min(ox, img.width  * scale - VIEWPORT));
+          oy = Math.max(0, Math.min(oy, img.height * scale - VIEWPORT));
+          draw();
+        });
+        sliderWrap.appendChild(zoomLbl);
+        sliderWrap.appendChild(slider);
+        card.appendChild(sliderWrap);
+
+        // Scroll to zoom
+        canvas.addEventListener('wheel', e => {
+          e.preventDefault();
+          const minScale = Math.max(VIEWPORT / img.width, VIEWPORT / img.height);
+          scale = Math.max(minScale, scale * (e.deltaY < 0 ? 1.08 : 0.93));
+          ox = Math.max(0, Math.min(ox, img.width  * scale - VIEWPORT));
+          oy = Math.max(0, Math.min(oy, img.height * scale - VIEWPORT));
+          draw();
+        }, { passive: false });
+
+        // Buttons
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:12px;width:100%;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color,#333);background:transparent;color:var(--text-primary,#fff);cursor:pointer;font-size:0.9rem;';
+        cancelBtn.onclick = () => { URL.revokeObjectURL(objectUrl); overlay.remove(); };
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Use This';
+        confirmBtn.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:none;background:var(--accent-primary,#6d28d9);color:#fff;cursor:pointer;font-size:0.9rem;font-weight:600;';
+        confirmBtn.onclick = () => {
+          // Draw cropped region to output canvas
+          const out = document.createElement('canvas');
+          out.width = OUTPUT; out.height = OUTPUT;
+          const octx = out.getContext('2d');
+          octx.save();
+          octx.beginPath();
+          octx.arc(OUTPUT/2, OUTPUT/2, OUTPUT/2, 0, Math.PI*2);
+          octx.clip();
+          const scaleRatio = OUTPUT / VIEWPORT;
+          octx.drawImage(img, -ox * scaleRatio, -oy * scaleRatio, img.width * scale * scaleRatio, img.height * scale * scaleRatio);
+          octx.restore();
+          out.toBlob(blob => {
+            URL.revokeObjectURL(objectUrl);
+            overlay.remove();
+            onConfirm(blob);
+          }, 'image/jpeg', 0.92);
+        };
+
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(confirmBtn);
+        card.appendChild(btnRow);
+
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+      };
+      img.src = objectUrl;
     }
 
     let _stagedImageFile = null;
@@ -12311,7 +12479,7 @@
       document.getElementById('swSheetBody').innerHTML = `
         <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:16px;">
           <div style="flex-shrink:0;text-align:center;">
-            <div style="width:90px;height:90px;border-radius:8px;overflow:hidden;background:var(--bg-secondary);border:2px solid var(--border-color);margin-bottom:6px;cursor:pointer;position:relative;" onclick="document.getElementById('swPortraitInput').click()" title="Click to change portrait">
+            <div style="width:90px;height:90px;border-radius:50%;overflow:hidden;background:var(--bg-secondary);border:2px solid var(--border-color);margin-bottom:6px;cursor:pointer;position:relative;" onclick="document.getElementById('swPortraitInput').click()" title="Click to change portrait">
               ${char.portrait_url ? `<img src="${escHtml(char.portrait_url)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">👤</div>`}
               <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.5);font-size:0.6rem;color:#fff;padding:2px 0;text-align:center;">Change</div>
             </div>
@@ -12777,7 +12945,7 @@
       document.getElementById('playerSheetBody').innerHTML = `
         ${(char.portrait_url || isOwnChar) ? `<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:16px;">
           <div style="flex-shrink:0;text-align:center;">
-            <div style="width:80px;height:80px;border-radius:8px;overflow:hidden;background:var(--bg-secondary);border:2px solid var(--border-color);${isOwnChar ? 'cursor:pointer;position:relative;' : ''}" ${isOwnChar ? `onclick="document.getElementById('playerPortraitInput').click()" title="Click to change portrait"` : ''}>
+            <div style="width:80px;height:80px;border-radius:50%;overflow:hidden;background:var(--bg-secondary);border:2px solid var(--border-color);${isOwnChar ? 'cursor:pointer;position:relative;' : ''}" ${isOwnChar ? `onclick="document.getElementById('playerPortraitInput').click()" title="Click to change portrait"` : ''}>
               ${char.portrait_url ? `<img src="${escHtml(char.portrait_url)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">👤</div>`}
               ${isOwnChar ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.5);font-size:0.6rem;color:#fff;padding:2px 0;text-align:center;">Change</div>` : ''}
             </div>
