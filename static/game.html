@@ -8297,7 +8297,7 @@
       }
     }
 
-    function addMessage(content, className = 'message-card', data = {}) {
+    function addMessage(content, className = 'message-card', data = {}, transient = false) {
       const div = document.createElement('div');
       div.className = className;
       if (typeof content === 'string') {
@@ -8306,8 +8306,14 @@
         div.appendChild(content);
       }
 
-      // Store and display via tab system
-      storeAndDisplayMessage(div, data);
+      if (transient) {
+        // Transient messages (connection status, loading indicators) go directly to DOM
+        // without being stored in allMessages — they won't interfere with sort order
+        chatMessagesEl.appendChild(div);
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      } else {
+        storeAndDisplayMessage(div, data);
+      }
     }
 
     // Display user's command (local echo)
@@ -9079,7 +9085,7 @@
           const data = await response.json();
           if (data.messages && data.messages.length > 0) {
             if (!append) {
-              addMessage(`📜 Loading ${data.messages.length} message(s) from history...`, 'message-card message-system');
+              addMessage(`📜 Loading ${data.messages.length} message(s) from history...`, 'message-card message-system', {}, true);
             }
 
             // Get scroll position before adding messages
@@ -9779,7 +9785,7 @@
         : characterId
           ? `Connecting to campaign...`
           : userRole === 'SW' ? `Connecting as Story Weaver...` : `Connecting to campaign as spectator...`;
-      addMessage(statusMsg, 'message-card message-system');
+      addMessage(statusMsg, 'message-card message-system', {}, true);
 
       try {
         ws = new WebSocket(wsUrl);
@@ -9789,7 +9795,7 @@
           const spinner = document.getElementById('loadingSpinner');
           if (spinner) spinner.style.display = 'none';
 
-          addMessage('Connected to campaign.', 'message-card message-system');
+          addMessage('Connected to campaign.', 'message-card message-system', {}, true);
           updateConnectionStatus(true);
           sendBtn.disabled = false;
           const _ab = document.getElementById('attachBtn');
@@ -9860,7 +9866,7 @@
               if (data.character_name && data.character_name !== 'Unknown') {
                 currentActor = data.character_name;
                 const roleText = data.role === 'SW' ? ' (Story Weaver)' : '';
-                addMessage(`Welcome, ${data.character_name}${roleText}!`, 'message-card message-system');
+                addMessage(`Welcome, ${data.character_name}${roleText}!`, 'message-card message-system', {}, true);
 
                 // First-time hint -- shown once per campaign per device
                 const hintKey = `tba_hint_${campaignId}`;
@@ -11215,7 +11221,7 @@
           // Auto-reconnect unless auth error (4001) or membership rejected (1008)
           // Note: code 1000 can occur on server redeploy — treat as reconnectable
           if (ev.code === 4001 || ev.code === 1008) {
-            addMessage('⚠️ Access denied: ' + (ev.reason || 'You are not a member of this campaign.') + ' Redirecting...', 'message-card message-system');
+            addMessage('⚠️ Access denied: ' + (ev.reason || 'You are not a member of this campaign.') + ' Redirecting...', 'message-card message-system', {}, true);
             setTimeout(() => { window.location.href = '/campaigns.html'; }, 2500);
             return;
           }
@@ -11225,11 +11231,11 @@
           const tryReconnect = () => {
             attempt++;
             if (attempt > maxAttempts) {
-              addMessage(`⚠️ Could not reconnect after ${maxAttempts} attempts. Please refresh the page.`, 'message-card message-system');
+              addMessage(`⚠️ Could not reconnect after ${maxAttempts} attempts. Please refresh the page.`, 'message-card message-system', {}, true);
               return;
             }
             const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // 1s, 2s, 4s, 8s, 16s, 30s cap
-            addMessage(`⚠️ Disconnected. Reconnecting in ${Math.round(delay / 1000)}s... (attempt ${attempt}/${maxAttempts})`, 'message-card message-system');
+            addMessage(`⚠️ Disconnected. Reconnecting in ${Math.round(delay / 1000)}s... (attempt ${attempt}/${maxAttempts})`, 'message-card message-system', {}, true);
             setTimeout(async () => {
               try {
                 await connectToCampaign(true);
