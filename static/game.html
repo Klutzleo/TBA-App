@@ -2647,6 +2647,11 @@
               </div>
               <!-- Tier preview -->
               <div id="invTierPreview" style="display:none;font-size:0.78rem;color:var(--text-muted);background:var(--bg-primary);padding:6px 10px;border-radius:var(--radius-sm);"></div>
+              <!-- Announce in chat — only visible when SW is gifting to a player -->
+              <div id="invAnnounceRow" style="display:none;align-items:center;gap:8px;">
+                <input type="checkbox" id="invAnnounceChat" style="width:16px;height:16px;accent-color:var(--accent-primary);cursor:pointer;">
+                <label for="invAnnounceChat" style="font-size:0.85rem;color:var(--text-muted);cursor:pointer;">Announce gift in chat</label>
+              </div>
               <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
                 <button class="btn-secondary btn" onclick="closeAddItemModal()">Cancel</button>
                 <button class="btn" id="invSaveItemBtn" onclick="saveItem()">Add to Inventory</button>
@@ -5428,6 +5433,11 @@
       document.getElementById('invItemDesc').value = '';
       document.getElementById('invSaveItemBtn').dataset.targetChar = targetCharId || '';
       document.getElementById('invSaveItemBtn').dataset.lootPool = '';
+      // Show "Announce in chat" only when SW is gifting to someone else
+      const announceRow = document.getElementById('invAnnounceRow');
+      const announceCheck = document.getElementById('invAnnounceChat');
+      announceRow.style.display = targetCharId ? 'flex' : 'none';
+      announceCheck.checked = !!targetCharId; // default on when gifting
       onItemTypeChange();
       document.getElementById('addItemModal').classList.add('active');
       document.getElementById('invItemName').focus();
@@ -5469,11 +5479,13 @@
       const targetChar = btn.dataset.targetChar || characterId;
       const type = document.getElementById('invItemType').value;
 
+      const isGift = !!(btn.dataset.targetChar && btn.dataset.targetChar !== characterId);
       const payload = {
         name,
         item_type: type,
         quantity:  parseInt(document.getElementById('invItemQty').value || '1', 10),
         description: document.getElementById('invItemDesc').value || null,
+        announce_in_chat: isGift && document.getElementById('invAnnounceChat').checked,
       };
       if (type === 'consumable') {
         payload.tier        = parseInt(document.getElementById('invItemTier').value || '1', 10);
@@ -10039,8 +10051,10 @@
             // Handle welcome message - update Actor field with character name
             if (data.type === 'welcome') {
               // Update user role from server — but never override Spectator (role=player in URL
-              // without character_id). The URL is the source of truth for spectators.
-              if (data.role && urlRoleParam !== 'player') {
+              // without character_id). Also never demote a player to SW when they have a
+              // character_id in the URL (server may miss the character if it was recently
+              // converted or the query is lagging).
+              if (data.role && urlRoleParam !== 'player' && !(characterId && data.role === 'SW')) {
                 userRole = data.role;
               }
 
@@ -10569,9 +10583,18 @@
               await loadCharacters();
 
             } else if (data.type === 'item_added') {
-              // SW gifted an item — notify the recipient, refresh their inventory
+              // Public chat announcement (SW opted in)
+              if (data.announce_in_chat) {
+                const el = document.createElement('div');
+                el.className = 'message-card message-system';
+                const desc = data.item.description ? ` — <em style="color:var(--text-muted);font-size:0.85rem;">${escHtml(data.item.description)}</em>` : '';
+                const qty = (data.item.quantity && data.item.quantity > 1) ? ` ×${data.item.quantity}` : '';
+                el.innerHTML = `🎁 The Story Weaver gifted <strong>${escHtml(data.given_to)}</strong>: <strong>${escHtml(data.item.name)}${qty}</strong>${desc}`;
+                addMessage(el, '', data, true);
+              }
+              // Notify + refresh the recipient
               if (data.given_by_sw && data.character_id === characterId) {
-                showPanelToast(`🎁 ${data.given_to ? 'SW' : 'Someone'} gave you: ${data.item.name}!`, 'success');
+                showPanelToast(`🎁 You received: ${data.item.name}!`, 'success');
                 loadInventory();
               } else if (userRole === 'Player' && data.character_id === characterId) {
                 loadInventory();
@@ -12552,6 +12575,7 @@
                 <button title="Transfer to another character" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="startItemTransfer(${i})">🔀</button>
                 <button id="swRemoveBtn_${i}" title="Silently remove — player not notified" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="promptRemoveItem(${i})">🗑️</button>
               </div>
+              ${item.description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;padding:0 2px;font-style:italic;">${escHtml(item.description)}</div>` : ''}
               <div id="swItemTransferPanel_${i}" style="display:none;gap:6px;align-items:center;margin-top:6px;">
                 <select id="swTransferTarget_${i}"
                   style="flex:1;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 6px;color:var(--text-primary);font-size:0.8rem;">

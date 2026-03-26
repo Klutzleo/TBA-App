@@ -3157,11 +3157,12 @@ async def add_inventory_item(
         from routes.campaign_websocket import manager
         import asyncio
         asyncio.create_task(manager.broadcast(str(char.campaign_id), {
-            "type":         "item_added",
-            "character_id": str(char.id),
-            "item":         _item_dict(item),
-            "given_by_sw":  sw,
-            "given_to":     char.name,
+            "type":             "item_added",
+            "character_id":     str(char.id),
+            "item":             _item_dict(item),
+            "given_by_sw":      sw,
+            "given_to":         char.name,
+            "announce_in_chat": bool(req.get("announce_in_chat")) and sw,
         }))
     except Exception:
         pass

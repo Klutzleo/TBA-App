@@ -233,9 +233,12 @@ async def campaign_websocket(
 
         # Look up character name for this campaign (if they have one)
         # Story Weavers don't have characters, so they use username
+        # Filter to non-NPC, non-archived so a converted PC doesn't make a player look like the SW
         character = db.query(Character).filter(
             Character.user_id == user.id,
-            Character.campaign_id == campaign_id
+            Character.campaign_id == campaign_id,
+            Character.is_npc == False,
+            Character.status != 'archived'
         ).first()
 
         display_name = character.name if character else user.username
@@ -543,11 +546,29 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
     Saves all messages to the database for history.
     """
     text = data.get("text", "")
-    actor = data.get("actor", display_name)
     chat_mode = data.get("chat_mode", "ic")
     whisper_targets = data.get("whisper_targets", [])
     message_type = "chat"
     broadcast_type = "chat_ic"
+
+    # Determine if user is the Story Weaver
+    _is_sw = False
+    if db:
+        _campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        _is_sw = _campaign_obj and str(_campaign_obj.story_weaver_id) == str(user_id)
+
+    # For non-SW users, always use the server-side display_name as the actor
+    # so a player who joins without character_id in the URL can't appear as "Narrator"
+    if _is_sw:
+        actor = data.get("actor", display_name)
+    else:
+        actor = display_name
+
+    # For OOC messages, format as "username - CharName" (same as handle_chat)
+    if chat_mode == "ooc" and not _is_sw:
+        _username = manager.get_username(campaign_id, user_id)
+        if _username and _username != display_name:
+            actor = f'{_username} - "{display_name}"'
 
     # Determine message type and broadcast type
     if text.startswith("/"):
