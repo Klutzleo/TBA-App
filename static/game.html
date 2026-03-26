@@ -9682,6 +9682,37 @@
                 container.appendChild(narrative);
                 if (castHistBd) container.appendChild(castHistBd);
 
+                // DP bars per target (damage or heal results)
+                if (Array.isArray(data.results)) {
+                  data.results.forEach(r => {
+                    if (r.old_dp === undefined || r.new_dp === undefined) return;
+                    if (data.effect_type === 'damage' && !(r.damage > 0)) return;
+                    const _hpBar = document.createElement('div');
+                    _hpBar.style.cssText = 'margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;';
+                    const _dpLbl = document.createElement('div');
+                    _dpLbl.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px;';
+                    _dpLbl.textContent = `${r.target} Damage Points`;
+                    _hpBar.appendChild(_dpLbl);
+                    const _maxDP = Math.max(r.old_dp, r.new_dp, 10);
+                    const _oldPct = (r.old_dp / _maxDP) * 100;
+                    const _newPct = (r.new_dp / _maxDP) * 100;
+                    const _outer = document.createElement('div');
+                    _outer.style.cssText = 'width:100%;height:20px;background:#333;border-radius:4px;overflow:hidden;position:relative;';
+                    const _barOld = document.createElement('div');
+                    _barOld.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_oldPct}%;background:#666;`;
+                    const _barNew = document.createElement('div');
+                    _barNew.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_newPct}%;background:${_newPct > 50 ? '#10b981' : (_newPct > 20 ? '#f59e0b' : '#ef4444')};`;
+                    const _dpTxt = document.createElement('div');
+                    _dpTxt.style.cssText = 'position:absolute;width:100%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);';
+                    _dpTxt.textContent = `${r.old_dp} → ${r.new_dp} DP`;
+                    _outer.appendChild(_barOld);
+                    _outer.appendChild(_barNew);
+                    _outer.appendChild(_dpTxt);
+                    _hpBar.appendChild(_outer);
+                    container.appendChild(_hpBar);
+                  });
+                }
+
                 const usesInfo = document.createElement('div');
                 usesInfo.style.cssText = 'font-size:12px;color:var(--text-muted)';
                 usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
@@ -11078,6 +11109,37 @@
                 castHeaderRow.appendChild(tabIndicator);
                 container.appendChild(castHeaderRow);
                 container.appendChild(narrative);
+              }
+
+              // DP bars per target (damage or heal results)
+              if (Array.isArray(data.results)) {
+                data.results.forEach(r => {
+                  if (r.old_dp === undefined || r.new_dp === undefined) return;
+                  if (data.effect_type === 'damage' && !(r.damage > 0)) return;
+                  const hpBarContainer = document.createElement('div');
+                  hpBarContainer.style.cssText = 'margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;';
+                  const dpLabel = document.createElement('div');
+                  dpLabel.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px;';
+                  dpLabel.textContent = `${r.target} Damage Points`;
+                  hpBarContainer.appendChild(dpLabel);
+                  const _maxDP = Math.max(r.old_dp, r.new_dp, 10);
+                  const _oldPct = (r.old_dp / _maxDP) * 100;
+                  const _newPct = (r.new_dp / _maxDP) * 100;
+                  const dpBarOuter = document.createElement('div');
+                  dpBarOuter.style.cssText = 'width:100%;height:20px;background:#333;border-radius:4px;overflow:hidden;position:relative;';
+                  const dpBarOld = document.createElement('div');
+                  dpBarOld.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_oldPct}%;background:#666;`;
+                  const dpBarNew = document.createElement('div');
+                  dpBarNew.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_newPct}%;background:${_newPct > 50 ? '#10b981' : (_newPct > 20 ? '#f59e0b' : '#ef4444')};`;
+                  const dpText = document.createElement('div');
+                  dpText.style.cssText = 'position:absolute;width:100%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);';
+                  dpText.textContent = `${r.old_dp} → ${r.new_dp} DP`;
+                  dpBarOuter.appendChild(dpBarOld);
+                  dpBarOuter.appendChild(dpBarNew);
+                  dpBarOuter.appendChild(dpText);
+                  hpBarContainer.appendChild(dpBarOuter);
+                  container.appendChild(hpBarContainer);
+                });
               }
 
               // Uses remaining
