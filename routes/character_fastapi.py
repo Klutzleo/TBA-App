@@ -2872,7 +2872,8 @@ async def bap_retroactive(
 
     # Apply additional damage to defender
     defender_id = extra.get("defender_id")
-    new_defender_dp = extra.get("defender_new_dp")
+    old_defender_dp = extra.get("defender_new_dp")  # DP before BAP damage
+    new_defender_dp = old_defender_dp
     if defender_id and damage_delta > 0:
         try:
             def_uuid = UUID(defender_id)
@@ -2909,7 +2910,8 @@ async def bap_retroactive(
         import asyncio
         asyncio.create_task(broadcast_bap_retroactive(
             char.campaign_id, str(char.id), char.name, message_id, bap_bonus,
-            new_individual_rolls, new_total_damage, damage_delta, new_defender_dp, new_narrative
+            new_individual_rolls, new_total_damage, damage_delta, new_defender_dp, new_narrative,
+            old_defender_dp
         ))
     except Exception as _be:
         logger.warning(f"Could not broadcast bap_retroactive: {_be}")

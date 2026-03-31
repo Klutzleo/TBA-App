@@ -9437,6 +9437,7 @@
                 // DP Bar Visualization
                 const oldDP = data.defender_new_dp + data.damage;
                 const hpBarContainer = document.createElement('div');
+                hpBarContainer.dataset.hpBar = '1';
                 hpBarContainer.style.marginBottom = '8px';
                 hpBarContainer.style.padding = '8px';
                 hpBarContainer.style.background = 'rgba(0,0,0,0.3)';
@@ -10560,6 +10561,24 @@
                     : '💫 0 damage dealt';
                 }
 
+                // Update DP bar if damage was actually applied
+                if (data.damage_delta > 0 && data.defender_old_dp !== undefined && data.defender_new_dp !== undefined) {
+                  const hpBarContainer = card.querySelector('[data-hp-bar]');
+                  if (hpBarContainer) {
+                    const _maxDP = Math.max(data.defender_old_dp, data.defender_new_dp, 10);
+                    const _oldPct = (data.defender_old_dp / _maxDP) * 100;
+                    const _newPct = (data.defender_new_dp / _maxDP) * 100;
+                    const _barColor = _newPct > 50 ? '#10b981' : (_newPct > 20 ? '#f59e0b' : '#ef4444');
+                    const dpBarOuter = hpBarContainer.querySelector('div:nth-child(2)');
+                    if (dpBarOuter) {
+                      const [barOld, barNew, dpText] = dpBarOuter.children;
+                      if (barOld) barOld.style.width = `${_oldPct}%`;
+                      if (barNew) { barNew.style.width = `${_newPct}%`; barNew.style.background = _barColor; }
+                      if (dpText) dpText.textContent = `${data.defender_old_dp} → ${data.defender_new_dp} DP`;
+                    }
+                  }
+                }
+
                 // Rebuild roll lines with BAP shown in formula
                 const rollsContainer = card.querySelector('[data-rolls-container]');
                 if (rollsContainer && Array.isArray(data.individual_rolls) && data.individual_rolls.length > 0) {
@@ -10770,6 +10789,7 @@
               // DP Bar Visualization
               const oldDP = data.defender_new_dp + data.damage;
               const hpBarContainer = document.createElement('div');
+              hpBarContainer.dataset.hpBar = '1';
               hpBarContainer.style.marginBottom = '8px';
               hpBarContainer.style.padding = '8px';
               hpBarContainer.style.background = 'rgba(0,0,0,0.3)';
