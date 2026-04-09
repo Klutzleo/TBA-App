@@ -425,6 +425,7 @@
 </head>
 <body>
     <div id="installBanner" class="install-banner" style="display:none;"></div>
+    <div id="notifBanner" class="install-banner" style="display:none;align-items:center;gap:8px;"></div>
     <div class="header">
         <img src="/icons/icon-192.png" alt="TBA" style="width:56px;height:56px;border-radius:12px;margin-bottom:6px;">
         <h1>Campaign Management</h1>
@@ -766,6 +767,11 @@
                 ...options,
                 headers: { ...headers, ...options.headers }
             });
+
+            if (response.status === 401) {
+                logout();
+                return null;
+            }
 
             if (!response.ok) {
                 const error = await response.json();
@@ -1313,9 +1319,99 @@
     </script>
 
   <script>
+    // ── Push notification helpers ──────────────────────────────────────────────
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(base64);
+      return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+    }
+
+    async function registerPushSubscription(sub) {
+      const token = getAuthToken();
+      if (!token || !sub) return;
+      const key  = sub.getKey('p256dh');
+      const auth = sub.getKey('auth');
+      await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          p256dh:   btoa(String.fromCharCode(...new Uint8Array(key))),
+          auth:     btoa(String.fromCharCode(...new Uint8Array(auth))),
+        }),
+      }).catch(e => console.warn('Push register failed:', e));
+    }
+
+    async function setupPush(registration) {
+      try {
+        const resp = await fetch('/api/notifications/vapid-public-key');
+        if (!resp.ok) return; // push not configured server-side
+        const { publicKey } = await resp.json();
+
+        // If already subscribed just sync it with the backend
+        const existing = await registration.pushManager.getSubscription();
+        if (existing) { await registerPushSubscription(existing); return; }
+
+        // Only auto-prompt if permission already granted; otherwise show button
+        if (Notification.permission === 'granted') {
+          const sub = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+          });
+          await registerPushSubscription(sub);
+        } else if (Notification.permission === 'default') {
+          showNotifBanner(registration, publicKey);
+        }
+        // 'denied' — nothing we can do
+      } catch (e) {
+        console.warn('Push setup failed:', e);
+      }
+    }
+
+    function showNotifBanner(registration, publicKey) {
+      const banner = document.getElementById('notifBanner');
+      if (!banner) return;
+      // If the install banner is already visible, it already prompts users to install for push
+      const installBanner = document.getElementById('installBanner');
+      if (installBanner && installBanner.style.display !== 'none') return;
+      banner.innerHTML = `
+        <span>🔔 Enable notifications to get alerts when players submit characters or message you.</span>
+        <button id="notifEnableBtn" style="margin-left:12px;padding:6px 14px;background:#6c63ff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Enable</button>
+        <button onclick="this.closest('#notifBanner').style.display='none';localStorage.setItem('notifBannerDismissed','1');" style="margin-left:8px;padding:6px 10px;background:transparent;color:#aaa;border:none;cursor:pointer;font-size:1.1rem;">✕</button>
+      `;
+      banner.style.display = 'flex';
+      document.getElementById('notifEnableBtn').addEventListener('click', async () => {
+        banner.style.display = 'none';
+        try {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') return;
+          const sub = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+          });
+          await registerPushSubscription(sub);
+        } catch (e) {
+          // Brave with Google services disabled, or other blocker
+          const isBrave = navigator.brave && await navigator.brave.isBrave().catch(() => false);
+          const msg = isBrave
+            ? 'Brave is blocking push notifications. Go to brave://settings/privacy and enable "Use Google services for push messaging", then reload.'
+            : 'Could not enable notifications. Please check your browser settings.';
+          alert(msg);
+        }
+      });
+    }
+
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('SW:', e));
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('/sw.js');
+          if (!localStorage.getItem('notifBannerDismissed') && 'PushManager' in window) {
+            await setupPush(reg);
+          }
+        } catch (e) {
+          console.warn('SW:', e);
+        }
       });
     }
   </script>
