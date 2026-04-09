@@ -12519,6 +12519,7 @@
   async function doHeal(toFull) {
     if (!_healCharId) return;
     const body = toFull ? { to_full: true } : { amount: parseInt(document.getElementById('healAmountInput').value) || 0 };
+    const charName = document.getElementById('healCharLabel').textContent;
     try {
       const r = await fetch(`/api/characters/${_healCharId}/heal`, {
         method: 'POST',
@@ -12526,7 +12527,12 @@
         body: JSON.stringify(body)
       });
       if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+      const result = await r.json();
       closeHealModal();
+      const healed = result.new_dp - result.old_dp;
+      showPanelToast(`❤️ ${charName} healed +${healed} DP (${result.new_dp}/${result.max_dp})`, 'success');
+      loadCharacters();
+      loadBubbleBar();
     } catch (e) { showPanelToast('Heal failed: ' + e.message, 'error'); }
   }
 
