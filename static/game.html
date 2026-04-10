@@ -12391,11 +12391,15 @@
     }
 
     const permission = await Notification.requestPermission();
+    if (permission === 'denied') {
+      showPanelToast('Notifications are blocked in your browser. Go to your browser settings and allow notifications for this site, then try again.', 'error');
+      return false;
+    }
     if (permission !== 'granted') return false;
 
     const vapidKey = await _getVapidKey();
     if (!vapidKey) {
-      console.warn('VAPID key not available — push disabled');
+      showPanelToast('Push notifications are not configured on this server.', 'error');
       return false;
     }
 
@@ -12407,11 +12411,12 @@
       });
       _pushSubscription = sub;
       await _registerPushSubscription(sub);
-      console.log('✅ Push notifications enabled');
       _updateNotifBell(true);
+      showPanelToast('🔔 Notifications enabled!', 'success');
       return true;
     } catch (err) {
       console.warn('Push subscribe error:', err);
+      showPanelToast('Could not enable notifications. Try reloading the page and trying again.', 'error');
       return false;
     }
   }
