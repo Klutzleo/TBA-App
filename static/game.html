@@ -2749,9 +2749,31 @@
             <button id="attachBtn" title="Upload image (or Ctrl+V to paste)" onclick="document.getElementById('imageFileInput').click()"
               style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;display:none;">📎</button>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
+            <button title="Expand editor" onclick="openExpandedEditor()"
+              style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;">⛶</button>
           </div>
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- Expanded Message Editor Modal -->
+  <div id="expandedEditorModal" class="modal">
+    <div class="modal-content" style="max-width:680px;width:95vw;">
+      <div class="modal-header">
+        <h2>✏️ Compose Message</h2>
+        <button class="modal-close" onclick="closeExpandedEditor()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;">
+        <div id="expandedToolbar" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        <textarea id="expandedInput"
+          style="width:100%;min-height:260px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:10px 12px;font-size:0.95rem;font-family:inherit;resize:vertical;box-sizing:border-box;line-height:1.6;"
+          placeholder="Type your message here..."></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" style="background:var(--bg-secondary);" onclick="closeExpandedEditor()">Cancel</button>
+          <button class="btn btn-primary" onclick="sendFromExpandedEditor()">Send</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4601,9 +4623,12 @@
       updateMentionDropdown();
     }
 
+    // Track which textarea last triggered the mention dropdown
+    let _activeMentionInput = null;
+
     // Insert a resolved @mention name at the current @ position
     function insertMention(name) {
-      const ta = document.getElementById('messageInput');
+      const ta = _activeMentionInput || document.getElementById('messageInput');
       const val = ta.value;
       const cursor = ta.selectionStart;
       // Find the @ that triggered this mention
@@ -4663,8 +4688,9 @@
       { cmd: '/help',        desc: 'Show all available commands',              roles: ['player','SW'] },
     ];
 
-    function updateMentionDropdown() {
-      const ta = document.getElementById('messageInput');
+    function updateMentionDropdown(ta = null) {
+      ta = ta || document.getElementById('messageInput');
+      _activeMentionInput = ta;
       const dd = document.getElementById('mentionDropdown');
       if (!dd) return;
       const val = ta.value;
@@ -12592,6 +12618,67 @@
       showPanelToast(`❤️ ${charName} healed +${healed} DP (${result.new_dp}/${result.max_dp})`, 'success');
       // WS broadcast will handle loadCharacters + loadBubbleBar for everyone
     } catch (e) { showPanelToast('Heal failed: ' + e.message, 'error'); }
+  }
+
+  function openExpandedEditor() {
+    const modal = document.getElementById('expandedEditorModal');
+    const input = document.getElementById('expandedInput');
+    // Copy current input text into editor
+    input.value = document.getElementById('messageInput').value;
+    // Render formatting buttons in expanded toolbar
+    const tb = document.getElementById('expandedToolbar');
+    tb.innerHTML = `
+      <button class="fmt-btn" title="Bold (**text**)" onclick="wrapExpandedText('**','**','bold text')"><strong>B</strong></button>
+      <button class="fmt-btn" title="Italic (*text*)" onclick="wrapExpandedText('*','*','italic text')"><em style="font-family:Georgia,serif;">I</em></button>
+      <button class="fmt-btn" title="Commands — type / to see all" onclick="document.getElementById('expandedInput').value+='/';document.getElementById('expandedInput').focus();updateMentionDropdown(document.getElementById('expandedInput'));" style="font-size:0.8rem;">/</button>
+    `;
+    // Wire up mention dropdown to expanded textarea
+    input.addEventListener('input', () => updateMentionDropdown(input));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { hideMentionDropdown(); return; }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const dd = document.getElementById('mentionDropdown');
+        if (dd && dd.style.display !== 'none') {
+          const first = dd.querySelector('.mention-item');
+          if (first) {
+            e.preventDefault();
+            if (first.dataset.cmd) {
+              input.value = first.dataset.cmd + ' ';
+              updateMentionDropdown(input);
+            } else {
+              insertMention(first.dataset.name);
+            }
+          }
+        }
+      }
+    });
+    modal.classList.add('active');
+    setTimeout(() => input.focus(), 100);
+  }
+
+  function closeExpandedEditor() {
+    document.getElementById('expandedEditorModal').classList.remove('active');
+  }
+
+  function wrapExpandedText(before, after, placeholder) {
+    const ta = document.getElementById('expandedInput');
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const selected = ta.value.slice(start, end) || placeholder;
+    ta.value = ta.value.slice(0, start) + before + selected + after + ta.value.slice(end);
+    ta.focus();
+    ta.selectionStart = start + before.length;
+    ta.selectionEnd = start + before.length + selected.length;
+  }
+
+  function sendFromExpandedEditor() {
+    const text = document.getElementById('expandedInput').value.trim();
+    if (!text) return;
+    // Copy into main input and fire send
+    const msgInput = document.getElementById('messageInput');
+    msgInput.value = text;
+    msgInput.dispatchEvent(new Event('input')); // update send button state
+    closeExpandedEditor();
+    document.getElementById('sendBtn').click();
   }
 
     async function leaveCampaignFromGame() {
