@@ -4727,7 +4727,7 @@
       toolbar.style.display = 'flex';
       toolbar.innerHTML = `
         <button class="fmt-btn" title="Bold (**text**)" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
-        <button class="fmt-btn" title="Italic (*text*)" onclick="wrapInputText('*','*','italic text')"><em>I</em></button>
+        <button class="fmt-btn" title="Italic (*text*)" onclick="wrapInputText('*','*','italic text')"><em style="font-family:Georgia,serif;font-size:1rem;">I</em></button>
         <button class="fmt-btn" title="Commands — type / to see all" onclick="msgInput.value='/';msgInput.focus();updateMentionDropdown();" style="font-size:0.8rem;">/</button>
         <button class="fmt-btn" title="Help — open quick reference" onclick="document.getElementById('quickRefModal').classList.add('active');" style="font-size:0.8rem;">?</button>
         ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
