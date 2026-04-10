@@ -12590,8 +12590,7 @@
       closeHealModal();
       const healed = result.new_dp - result.old_dp;
       showPanelToast(`❤️ ${charName} healed +${healed} DP (${result.new_dp}/${result.max_dp})`, 'success');
-      loadCharacters();
-      loadBubbleBar();
+      // WS broadcast will handle loadCharacters + loadBubbleBar for everyone
     } catch (e) { showPanelToast('Heal failed: ' + e.message, 'error'); }
   }
 
