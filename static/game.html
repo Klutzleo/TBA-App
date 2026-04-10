@@ -2743,14 +2743,14 @@
               rows="1"
               placeholder="Type a message or command..."
             ></textarea>
+            <button title="Expand editor" onclick="openExpandedEditor()"
+              style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;">⛶</button>
             <button id="colorPickerBtn" title="Chat color" onclick="toggleColorPicker()"
               style="width:28px;height:28px;min-width:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:#d4af37;"></button>
             <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
             <button id="attachBtn" title="Upload image (or Ctrl+V to paste)" onclick="document.getElementById('imageFileInput').click()"
               style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;display:none;">📎</button>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
-            <button title="Expand editor" onclick="openExpandedEditor()"
-              style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;">⛶</button>
           </div>
         </div>
       </main>
