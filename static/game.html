@@ -12447,6 +12447,16 @@
   }
 
   async function toggleNotifications() {
+    // iOS Chrome (and all non-Safari iOS browsers) don't support Web Push
+    const isIOS = /ipad|iphone|ipod/i.test(navigator.userAgent);
+    const isChrome = /CriOS/i.test(navigator.userAgent);
+    if (isIOS && !('PushManager' in window)) {
+      showPanelToast(isChrome
+        ? '🍎 Chrome on iPhone doesn\'t support notifications. Open this page in Safari and use "Add to Home Screen" to enable them.'
+        : '🍎 To get notifications on iPhone, open this page in Safari and use "Add to Home Screen" to install the app.',
+        'info');
+      return;
+    }
     if (_pushSubscription) {
       await disablePushNotifications();
     } else if (Notification.permission === 'granted') {
