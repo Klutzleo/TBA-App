@@ -2977,6 +2977,30 @@
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:20px;font-size:0.875rem;">
 
+        <!-- Chat Formatting -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Chat Formatting</div>
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;display:grid;gap:6px;">
+            <div style="display:flex;align-items:center;gap:10px;"><code style="background:var(--bg-darker);padding:2px 6px;border-radius:4px;font-size:0.85rem;">**bold**</code> <span style="color:var(--text-muted);">→</span> <strong>bold</strong></div>
+            <div style="display:flex;align-items:center;gap:10px;"><code style="background:var(--bg-darker);padding:2px 6px;border-radius:4px;font-size:0.85rem;">*italic*</code> <span style="color:var(--text-muted);">→</span> <em>italic</em></div>
+            <div style="display:flex;align-items:center;gap:10px;"><code style="background:var(--bg-darker);padding:2px 6px;border-radius:4px;font-size:0.85rem;">_italic_</code> <span style="color:var(--text-muted);">→</span> <em>italic</em></div>
+            <div style="display:flex;align-items:center;gap:10px;"><code style="background:var(--bg-darker);padding:2px 6px;border-radius:4px;font-size:0.85rem;">@Name</code> <span style="color:var(--text-muted);">→ mention a player (push notification)</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><code style="background:var(--bg-darker);padding:2px 6px;border-radius:4px;font-size:0.85rem;">@narrator / @sw / @gm</code> <span style="color:var(--text-muted);">→ ping the Story Weaver</span></div>
+            <div style="color:var(--text-muted);font-size:0.82rem;padding-top:2px;">🎲 ⚔️ ✨ Emojis work anywhere in chat</div>
+          </div>
+        </div>
+
+        <!-- Chat Commands -->
+        <div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Chat Commands — Players</div>
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
+            <div><span style="color:var(--accent-dice);">/ooc &lt;message&gt;</span> <span style="color:var(--text-muted);">— Out-of-character chat (goes to OOC tab)</span></div>
+            <div><span style="color:var(--accent-dice);">/whisper @Player &lt;message&gt;</span> <span style="color:var(--text-muted);">— Private message</span></div>
+            <div><span style="color:var(--accent-dice);">/w @Player &lt;message&gt;</span> <span style="color:var(--text-muted);">— Whisper shorthand</span></div>
+            <div><span style="color:var(--accent-dice);">/who</span> <span style="color:var(--text-muted);">— List party members and their stats</span></div>
+          </div>
+        </div>
+
         <!-- Roles -->
         <div>
           <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Roles</div>
@@ -3005,8 +3029,11 @@
             <div><span style="color:var(--accent-dice);">/pp</span> <span style="color:var(--text-muted);">— Physical stat check (1d6 + PP + Edge)</span></div>
             <div><span style="color:var(--accent-dice);">/ip</span> <span style="color:var(--text-muted);">— Intellect stat check (1d6 + IP + Edge)</span></div>
             <div><span style="color:var(--accent-dice);">/sp</span> <span style="color:var(--text-muted);">— Social stat check (1d6 + SP + Edge)</span></div>
-            <div><span style="color:var(--accent-dice);">/defense pp|ip|sp</span> <span style="color:var(--text-muted);">— Manual defense roll (defense die + stat + edge)</span></div>
+            <div><span style="color:var(--accent-dice);">/defense pp|ip|sp</span> <span style="color:var(--text-muted);">— Manual defense roll (defense die + stat + Edge)</span></div>
             <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge)</span></div>
+            <div><span style="color:var(--accent-dice);">/initiative show</span> <span style="color:var(--text-muted);">— Display current initiative order</span></div>
+            <div><span style="color:var(--accent-dice);">/<em>ability</em></span> <span style="color:var(--text-muted);">— Use an ability macro (e.g. /fireball)</span></div>
+            <div><span style="color:var(--accent-dice);">/<em>ability</em> @Target</span> <span style="color:var(--text-muted);">— Use ability on a specific target</span></div>
           </div>
         </div>
 
@@ -3014,6 +3041,7 @@
         <div>
           <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Commands — Story Weaver</div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
+            <div><span style="color:#a78bfa;">/s XdY</span> <span style="color:var(--text-muted);">— Secret roll — result visible to SW only</span></div>
             <div><span style="color:#a78bfa;">/initiative start</span> <span style="color:var(--text-muted);">— Start encounter without rolling</span></div>
             <div><span style="color:#a78bfa;">/initiative @Name</span> <span style="color:var(--text-muted);">— Roll initiative for a PC or NPC</span></div>
             <div><span style="color:#a78bfa;">/initiative silent @Name</span> <span style="color:var(--text-muted);">— Hidden roll, only SW sees result</span></div>
@@ -3021,8 +3049,8 @@
             <div><span style="color:#a78bfa;">/initiative end</span> <span style="color:var(--text-muted);">— End encounter & restore all ability uses</span></div>
             <div><span style="color:#a78bfa;">/initiative clear</span> <span style="color:var(--text-muted);">— Clear rolls without ending encounter</span></div>
             <div><span style="color:#a78bfa;">/rest</span> <span style="color:var(--text-muted);">— Short rest — restore ability uses only</span></div>
-            <div><span style="color:#a78bfa;">/env [tier] @Target [source]</span> <span style="color:var(--text-muted);">— Environmental attack — tier 1-5, e.g. /env 2 @Beef Baseball</span></div>
-            <div><span style="color:#a78bfa;">/scene [title]</span> <span style="color:var(--text-muted);">— Post a scene transition card in chat and save to Lore</span></div>
+            <div><span style="color:#a78bfa;">/env [tier] @Target [source]</span> <span style="color:var(--text-muted);">— Environmental attack (tier 1–5)</span></div>
+            <div><span style="color:#a78bfa;">/scene [title]</span> <span style="color:var(--text-muted);">— Post a scene transition card and save to Lore</span></div>
           </div>
         </div>
 
@@ -4698,9 +4726,10 @@
 
       toolbar.style.display = 'flex';
       toolbar.innerHTML = `
-        <button class="fmt-btn" title="Bold" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
+        <button class="fmt-btn" title="Bold (**text**)" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
+        <button class="fmt-btn" title="Italic (*text*)" onclick="wrapInputText('*','*','italic text')"><em>I</em></button>
         <button class="fmt-btn" title="Commands — type / to see all" onclick="msgInput.value='/';msgInput.focus();updateMentionDropdown();" style="font-size:0.8rem;">/</button>
-        <button class="fmt-btn" title="Help — show all commands" onclick="msgInput.value='/help';sendBtn.click();" style="font-size:0.8rem;">?</button>
+        <button class="fmt-btn" title="Help — open quick reference" onclick="document.getElementById('quickRefModal').classList.add('active');" style="font-size:0.8rem;">?</button>
         ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
         ${abilities.map(a => `
           <button class="fmt-btn macro-btn" data-macro="${escHtml(a.macro_command)}" title="${escHtml(a.display_name)}">${escHtml(a.macro_command)}</button>
@@ -5575,11 +5604,20 @@
     function dismissPlayerWelcome() {
       localStorage.setItem(`tba_seen_player_welcome_${campaignId}`, '1');
       document.getElementById('playerWelcomeModal').classList.remove('active');
+      _maybePromptNotifications();
     }
 
     function dismissSWWelcome() {
       localStorage.setItem(`tba_seen_sw_welcome_${campaignId}`, '1');
       document.getElementById('swWelcomeModal').classList.remove('active');
+      _maybePromptNotifications();
+    }
+
+    function _maybePromptNotifications() {
+      if (!_pushSubscription && Notification.permission !== 'denied' && !localStorage.getItem('tba_notif_prompted')) {
+        localStorage.setItem('tba_notif_prompted', '1');
+        document.getElementById('notifExplainerModal').classList.add('active');
+      }
     }
 
     // =========================================================================
@@ -10244,12 +10282,15 @@
               loadCharacters();
               loadBubbleBar();
               const _healed = data.new_dp - data.old_dp;
+              if (userRole !== 'SW') {
+                const _isMe = data.character_id === characterId;
+                showPanelToast(`❤️ ${_isMe ? 'You were' : data.character_name + ' was'} healed +${_healed} DP (${data.new_dp}/${data.max_dp})`, 'success');
+              }
               const _hcard = document.createElement('div');
               _hcard.className = 'message-card message-system';
               _hcard.style.cssText = 'border-left:3px solid var(--accent-success);padding-left:12px;';
               _hcard.innerHTML = '❤️ <strong>' + escHtml(data.character_name) + '</strong> healed <strong style="color:var(--accent-success);">+' + _healed + ' DP</strong> (' + data.old_dp + ' → ' + data.new_dp + '/' + data.max_dp + ')';
-              document.getElementById('chatMessages').appendChild(_hcard);
-              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              storeAndDisplayMessage(_hcard, { type: 'dp_healed', actor: 'system' });
             } else if (data.type === 'calling_triggered') {
               // Dramatic story broadcast visible to everyone — deep purple threshold aesthetic
               const dramaDiv = document.createElement('div');
@@ -11760,13 +11801,10 @@
         }
         ws.send(JSON.stringify(payload));
 
-      } else if (textLower.startsWith('/help')) {
-        // Help command - send to help handler
-        const payload = {
-          type: 'help_command'
-        };
-        ws.send(JSON.stringify(payload));
-
+      } else if (textLower.startsWith('/help') || text === '/?') {
+        document.getElementById('quickRefModal').classList.add('active');
+        msgInput.value = '';
+        return;
       } else if (text.startsWith('/')) {
         // Check if it's a known system command
         const knownCommands = ['/who', '/status'];

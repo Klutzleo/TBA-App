@@ -1981,37 +1981,37 @@ async def handle_macro(party_id: str, actor: str, text: str, context: Optional[s
         }
 
     if cmd == "/help":
-        help_text = """📜 **Available Commands:**
+        help_text = """📜 **Available Commands** — also see 📖 Quick Reference in the toolbar
+
+**Chat Formatting:**
+• `**text**` - **Bold**
+• `*text*` or `_text_` - *Italic*
+• `@Name` - Mention a player (push notification)
+• `@narrator` / `@sw` / `@gm` - Ping the Story Weaver
 
 **Chat:**
-• `/say <message>` - In-character speech (green)
-• `/ooc <message>` - Out-of-character chat (gray, goes to OOC tab)
-• `/whisper @player <message>` - Private message (purple)
+• `/ooc <message>` - Out-of-character chat (goes to OOC tab)
+• `/whisper @player <message>` - Private message
 • `/w @player <message>` - Whisper shorthand
 
 **Dice & Stat Checks:**
 • `/roll XdY+Z` - Roll dice (e.g., /roll 2d6+3)
-• `/pp`, `/ip`, `/sp` - Roll stat checks (1d6 + stat + Edge)
+• `/pp`, `/ip`, `/sp` - Stat checks (1d6 + stat + Edge)
 • `/who` - List party members with stats
 
 **Abilities & Macros:**
-• `/<custom>` - Cast abilities/spells/techniques (e.g., /heal, /fireball)
-• `/<custom> @target` - Cast on specific target(s)
-• Uses: 3 per encounter per character level
+• `/<custom>` - Use an ability (e.g., /fireball)
+• `/<custom> @target` - Use ability on a target
+• Uses: 3× level per encounter
 
 **Initiative & Encounters:**
-• `/initiative` - Roll your own initiative (1d20)
-• `/initiative show` - Display full initiative order
-• `/initiative @target` (SW) - Roll initiative for PC/NPC
-• `/initiative silent @target` (SW) - Hidden roll (only SW sees result)
-• `/initiative end` (SW) - End encounter & restore all ability uses
-• `/initiative clear` (SW) - Clear initiative without ending encounter
-• `/rest` (SW) - Restore all ability uses (short rest)
-
-**Combat (Legacy):**
-• `/combat-help` - Full combat guide
-• `/attack @target` - Attack someone
-• `/defend` - Roll defense manually
+• `/initiative` - Roll your initiative (1d6 + PP + Edge)
+• `/initiative show` - Display initiative order
+• `/initiative @target` (SW) - Roll for PC/NPC
+• `/initiative silent @target` (SW) - Hidden roll
+• `/initiative end` (SW) - End encounter & restore uses
+• `/initiative clear` (SW) - Clear rolls only
+• `/rest` (SW) - Restore ability uses (short rest)
 
 **Legend:** (SW) = Story Weaver only"""
 

@@ -685,7 +685,7 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
                 mention_names.append(m.group(1) if m.group(1) else m.group(2))
             for mention_name in set(mention_names):
                 # Check if mentioning the Story Weaver by their special name
-                if mention_name.replace('_', ' ').lower() == 'story weaver':
+                if mention_name.replace('_', ' ').lower() in ('story weaver', 'narrator', 'sw', 'gm'):
                     try:
                         sw_membership = db.query(CampaignMembership).filter(
                             CampaignMembership.campaign_id == campaign_id,
