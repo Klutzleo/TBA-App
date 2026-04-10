@@ -3724,6 +3724,12 @@
       window.location.href = '/campaigns.html';
     }
 
+    // Mark campaign as visited so unread count clears on campaigns screen
+    fetch(`/api/campaigns/${campaignId}/visit`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    }).catch(() => {});
+
     // === DOM Element References ===
     const sendBtn = document.getElementById('sendBtn');
     const chatMessagesEl = document.getElementById('chatMessages');
