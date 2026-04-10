@@ -723,9 +723,9 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
         except Exception as _e:
             logger.warning(f"Mention push detection failed: {_e}")
 
-    # Push notification to all campaign members (online + offline) for Story (IC) messages.
+    # Push notification to all campaign members (online + offline) for IC and OOC messages.
     # Cooldown: max one push per campaign per 10 minutes to avoid spam.
-    if db and msg.mode.upper() == 'IC':
+    if db and msg.mode.upper() in ('IC', 'OOC'):
         try:
             from backend.notifications import send_push_to_campaign
             from datetime import timedelta
@@ -736,18 +736,19 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
                 last = campaign_obj.last_notified_at
                 if last is None or (now - last) >= cooldown:
                     preview = msg.message[:80] + ('…' if len(msg.message) > 80 else '')
+                    icon = '💬' if msg.mode.upper() == 'OOC' else '📜'
                     send_push_to_campaign(
                         db,
                         campaign_id=str(campaign_id),
                         exclude_user_id=str(user_id),
-                        title=f"📜 {sender}",
+                        title=f"{icon} {sender}",
                         body=preview,
                         url=f"/game.html?campaign_id={campaign_id}",
                     )
                     campaign_obj.last_notified_at = now
                     db.commit()
         except Exception as _pe:
-            logger.warning(f"Story push notification failed: {_pe}")
+            logger.warning(f"Chat push notification failed: {_pe}")
 
 
 async def handle_whisper(campaign_id: UUID, data: dict, user_id: UUID):
