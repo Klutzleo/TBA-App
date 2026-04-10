@@ -12625,12 +12625,21 @@
     const input = document.getElementById('expandedInput');
     // Copy current input text into editor
     input.value = document.getElementById('messageInput').value;
-    // Render formatting buttons in expanded toolbar
+    // Render the same toolbar as the main chat, but targeting expandedInput
     const tb = document.getElementById('expandedToolbar');
+    let abilities = [];
+    if (activeSpeaker && activeSpeaker.id) {
+      const charData = [...(playerCharacters || []), ...(campaignNPCs || [])]
+        .find(c => c.id === activeSpeaker.id);
+      if (charData && charData.abilities) abilities = charData.abilities.filter(a => a.macro_command);
+    }
     tb.innerHTML = `
       <button class="fmt-btn" title="Bold (**text**)" onclick="wrapExpandedText('**','**','bold text')"><strong>B</strong></button>
       <button class="fmt-btn" title="Italic (*text*)" onclick="wrapExpandedText('*','*','italic text')"><em style="font-family:Georgia,serif;">I</em></button>
       <button class="fmt-btn" title="Commands — type / to see all" onclick="document.getElementById('expandedInput').value+='/';document.getElementById('expandedInput').focus();updateMentionDropdown(document.getElementById('expandedInput'));" style="font-size:0.8rem;">/</button>
+      <button class="fmt-btn" title="Help — open quick reference" onclick="document.getElementById('quickRefModal').classList.add('active');" style="font-size:0.8rem;">?</button>
+      ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
+      ${abilities.map(a => `<button class="fmt-btn macro-btn" title="${escHtml(a.display_name)}" onclick="wrapExpandedText('${escHtml(a.macro_command)} ','','')">${escHtml(a.macro_command)}</button>`).join('')}
     `;
     // Wire up mention dropdown to expanded textarea
     input.addEventListener('input', () => updateMentionDropdown(input));
