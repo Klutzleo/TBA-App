@@ -2336,6 +2336,16 @@
       font-size: 1.1rem; padding: 0 4px; cursor: pointer;
     }
   </style>
+  <script>
+    // Set --vh to the true visible viewport height so Android nav buttons
+    // don't cut off the bottom of the screen.
+    function setVH() {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    }
+    setVH();
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', () => setTimeout(setVH, 150));
+  </script>
 </head>
 <body>
   <div id="installBanner" class="install-banner" style="display:none;"></div>
@@ -2744,7 +2754,8 @@
               placeholder="Type a message or command..."
             ></textarea>
             <button title="Expand editor" onclick="openExpandedEditor()"
-              style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;">⛶</button>
+              style="background:var(--bg-input,#1e2130);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;padding:2px 9px;font-size:0.82rem;cursor:pointer;line-height:1.6;flex-shrink:0;align-self:center;transition:background 0.15s;"
+              onmouseover="this.style.background='var(--bg-hover,#252937)'" onmouseout="this.style.background='var(--bg-input,#1e2130)'">⛶</button>
             <button id="colorPickerBtn" title="Chat color" onclick="toggleColorPicker()"
               style="width:28px;height:28px;min-width:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:#d4af37;"></button>
             <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
