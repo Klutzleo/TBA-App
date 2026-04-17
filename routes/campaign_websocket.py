@@ -225,8 +225,37 @@ async def campaign_websocket(
         ).first()
 
         if not membership:
-            await websocket.close(code=1008, reason="You are not a member of this campaign")
-            return
+            # Self-heal: if the user has an active character in this campaign, restore their membership.
+            # This handles cases where left_at got set erroneously (migration, re-join bug, etc.)
+            active_char = db.query(Character).filter(
+                Character.user_id == user.id,
+                Character.campaign_id == campaign_id,
+                Character.is_npc == False,
+                Character.status == 'active'
+            ).first()
+
+            if active_char:
+                # Update existing stale membership or create a new one
+                stale = db.query(CampaignMembership).filter(
+                    CampaignMembership.campaign_id == campaign_id,
+                    CampaignMembership.user_id == user.id
+                ).first()
+                if stale:
+                    stale.left_at = None
+                    membership = stale
+                else:
+                    membership = CampaignMembership(
+                        campaign_id=campaign_id,
+                        user_id=user.id,
+                        role="player"
+                    )
+                    db.add(membership)
+                db.commit()
+                logger.warning(f"Auto-restored membership for {user.username} in campaign {campaign_id} (had active character but no active membership)")
+            else:
+                logger.warning(f"WS rejected: user {user.username} ({user.id}) has no active membership or character in campaign {campaign_id}")
+                await websocket.close(code=1008, reason="You are not a member of this campaign")
+                return
 
         # Authentication successful - extract user info
         user_uuid = user.id
