@@ -1342,6 +1342,8 @@
       min-width: 100px;
     }
 
+    .toolbar-mobile-only { display: none; }
+
     /* === Chat Formatting Toolbar === */
     #chatToolbar {
       display: flex;
@@ -1989,6 +1991,10 @@
       .chat-input-container textarea {
         font-size: 16px;
       }
+
+      /* Move expand/color/attach to toolbar on mobile, hide from input row */
+      .input-row-only { display: none !important; }
+      .toolbar-mobile-only { display: inline-flex !important; }
     }
 
     /* === Bubble Bar (Character/NPC Switching) === */
@@ -2753,13 +2759,13 @@
               rows="1"
               placeholder="Type a message or command..."
             ></textarea>
-            <button title="Expand editor" onclick="openExpandedEditor()"
+            <button class="input-row-only" title="Expand editor" onclick="openExpandedEditor()"
               style="background:var(--bg-input,#1e2130);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;padding:2px 9px;font-size:0.82rem;cursor:pointer;line-height:1.6;flex-shrink:0;align-self:center;transition:background 0.15s;min-width:auto;width:auto;"
               onmouseover="this.style.background='var(--bg-hover,#252937)'" onmouseout="this.style.background='var(--bg-input,#1e2130)'">⛶</button>
-            <button id="colorPickerBtn" title="Chat color" onclick="toggleColorPicker()"
+            <button id="colorPickerBtn" class="input-row-only" title="Chat color" onclick="toggleColorPicker()"
               style="width:28px;height:28px;min-width:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:#d4af37;"></button>
             <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
-            <button id="attachBtn" title="Upload image (or Ctrl+V to paste)" onclick="document.getElementById('imageFileInput').click()"
+            <button id="attachBtn" class="input-row-only" title="Upload image (or Ctrl+V to paste)" onclick="document.getElementById('imageFileInput').click()"
               style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;display:none;">📎</button>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
           </div>
@@ -3845,6 +3851,8 @@
       if (persist) localStorage.setItem('tba_chat_color', hex);
       const btn = document.getElementById('colorPickerBtn');
       if (btn) btn.style.background = hex;
+      const btnMobile = document.getElementById('colorPickerBtnMobile');
+      if (btnMobile) btnMobile.style.background = hex;
       const pop = document.getElementById('colorPickerPopover');
       if (pop) {
         pop.querySelectorAll('.color-swatch').forEach(s => {
@@ -4768,6 +4776,11 @@
       }
 
       toolbar.style.display = 'flex';
+
+      // Get current color picker button color for the mobile swatch
+      const colorBtn = document.getElementById('colorPickerBtn');
+      const currentColor = colorBtn ? colorBtn.style.background : '#d4af37';
+
       toolbar.innerHTML = `
         <button class="fmt-btn" title="Bold (**text**)" onclick="wrapInputText('**','**','bold text')"><strong>B</strong></button>
         <button class="fmt-btn" title="Italic (*text*)" onclick="wrapInputText('*','*','italic text')"><em style="font-family:Georgia,serif;">I</em></button>
@@ -4777,6 +4790,11 @@
         ${abilities.map(a => `
           <button class="fmt-btn macro-btn" data-macro="${escHtml(a.macro_command)}" title="${escHtml(a.display_name)}">${escHtml(a.macro_command)}</button>
         `).join('')}
+        <div class="toolbar-sep toolbar-mobile-only"></div>
+        <button class="fmt-btn toolbar-mobile-only" title="Expand editor" onclick="openExpandedEditor()">⛶</button>
+        <button class="toolbar-mobile-only" id="colorPickerBtnMobile" title="Chat color" onclick="toggleColorPicker()"
+          style="width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;padding:0;align-self:center;background:${currentColor};flex-shrink:0;"></button>
+        <button class="fmt-btn toolbar-mobile-only" id="attachBtnMobile" title="Upload image" onclick="document.getElementById('imageFileInput').click()">📎</button>
       `;
     }
 
