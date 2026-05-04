@@ -10532,8 +10532,7 @@
                     ${slotLine}
                   </div>
                 </div>`;
-              document.getElementById('chatMessages').appendChild(container);
-              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              storeAndDisplayMessage(container, { type: 'system', actor: 'system' });
               // Refresh party panel so new stats show
               loadBubbleBar();
               loadCharacters();
@@ -10575,8 +10574,7 @@
                   }).join('');
                 }
                 card.innerHTML = html;
-                document.getElementById('chatMessages').appendChild(card);
-                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+                storeAndDisplayMessage(card, { type: 'system', actor: 'system' });
               }
 
             } else if (data.type === 'called_check_result') {
