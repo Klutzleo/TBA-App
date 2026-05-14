@@ -2068,8 +2068,8 @@ async def handle_narration(campaign_id: UUID, data: dict, user_id: UUID = None, 
         attachment=narration.attachment
     ).model_dump(mode='json'))
 
+    logger.info(f"Narration push: db={db is not None}, user_id={user_id is not None}")
     if db and user_id:
-        logger.info(f"Narration push: checking for campaign {campaign_id}, sender {str(user_id)[:8]}...")
         try:
             from backend.notifications import send_push_to_campaign
             from datetime import timedelta
