@@ -143,9 +143,11 @@ def send_push_to_campaign(
         .all()
     )
 
+    logger.info(f"send_push_to_campaign: {len(user_ids)} subscriber(s) found, excluding {str(exclude_user_id)[:8] if exclude_user_id else 'none'}")
     total = 0
     for (uid,) in user_ids:
         if str(uid) == str(exclude_user_id):
             continue
         total += send_push(db, str(uid), title, body, url, campaign_id=campaign_id)
+    logger.info(f"send_push_to_campaign: total delivered={total}")
     return total

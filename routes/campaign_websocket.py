@@ -2069,15 +2069,20 @@ async def handle_narration(campaign_id: UUID, data: dict, user_id: UUID = None, 
     ).model_dump(mode='json'))
 
     if db and user_id:
+        logger.info(f"Narration push: checking for campaign {campaign_id}, sender {str(user_id)[:8]}...")
         try:
             from backend.notifications import send_push_to_campaign
             from datetime import timedelta
             campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-            if campaign_obj:
+            if not campaign_obj:
+                logger.warning(f"Narration push: campaign {campaign_id} not found in DB")
+            else:
                 cooldown = timedelta(minutes=10)
                 now = datetime.utcnow()
                 last = campaign_obj.last_notified_at
-                if last is None or (now - last) >= cooldown:
+                if last is not None and (now - last) < cooldown:
+                    logger.info(f"Narration push: skipped (cooldown, last={last})")
+                else:
                     sender = manager.get_display_name(campaign_id, user_id) or "Story Weaver"
                     preview = narration.text[:80] + ('…' if len(narration.text) > 80 else '')
                     sent = send_push_to_campaign(
@@ -2088,6 +2093,7 @@ async def handle_narration(campaign_id: UUID, data: dict, user_id: UUID = None, 
                         body=preview,
                         url=f"/game.html?campaign_id={campaign_id}",
                     )
+                    logger.info(f"Narration push: sent={sent}")
                     if sent:
                         campaign_obj.last_notified_at = now
                         db.commit()
