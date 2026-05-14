@@ -660,6 +660,44 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
     # Broadcast to all connected clients
     await manager.broadcast(campaign_id, broadcast_data)
 
+    # Push notification for IC and OOC messages (narrator included)
+    if db and chat_mode in ('ic', 'ooc') and not whisper_targets:
+        logger.info(f"Legacy push: mode={chat_mode}, actor={actor}, user={str(user_id)[:8]}...")
+        try:
+            from backend.notifications import send_push_to_campaign
+            from datetime import timedelta
+            _push_campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            if _push_campaign:
+                _cooldown = timedelta(minutes=10)
+                _now = datetime.utcnow()
+                _last = _push_campaign.last_notified_at
+                if _last is None or (_now - _last) >= _cooldown:
+                    _preview = text[:80] + ('…' if len(text) > 80 else '')
+                    if actor == 'Narrator':
+                        _icon = '📖'
+                    elif chat_mode == 'ooc':
+                        _icon = '💬'
+                    else:
+                        _icon = '📜'
+                    _sent = send_push_to_campaign(
+                        db,
+                        campaign_id=str(campaign_id),
+                        exclude_user_id=str(user_id),
+                        title=f"{_icon} {actor}",
+                        body=_preview,
+                        url=f"/game.html?campaign_id={campaign_id}",
+                    )
+                    logger.info(f"Legacy push: sent={_sent}")
+                    if _sent:
+                        _push_campaign.last_notified_at = _now
+                        db.commit()
+                else:
+                    logger.info(f"Legacy push: skipped (cooldown, last={_last})")
+            else:
+                logger.warning(f"Legacy push: campaign {campaign_id} not found")
+        except Exception as _pe:
+            logger.warning(f"Legacy push notification failed: {_pe}")
+
 
 async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session = None):
     """Handle regular chat message (IC or OOC)."""
