@@ -671,6 +671,8 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
                 _cooldown = timedelta(minutes=10)
                 _now = datetime.utcnow()
                 _last = _push_campaign.last_notified_at
+                if _last is not None:
+                    _last = _last.replace(tzinfo=None)
                 if _last is None or (_now - _last) >= _cooldown:
                     _preview = text[:80] + ('…' if len(text) > 80 else '')
                     if actor == 'Narrator':
