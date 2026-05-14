@@ -113,6 +113,9 @@ def send_push(
     except Exception:
         db.rollback()
 
+    if delivered:
+        logger.info(f"Push delivered: {delivered} notification(s) to user {str(user_id)[:8]}...")
+
     return delivered
 
 

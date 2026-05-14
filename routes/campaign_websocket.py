@@ -343,7 +343,7 @@ async def campaign_websocket(
                 await handle_ability_cast(campaign_uuid, data, websocket, user_uuid, db)
 
             elif message_type == "narration":
-                await handle_narration(campaign_uuid, data)
+                await handle_narration(campaign_uuid, data, user_uuid, db)
 
             elif message_type == "dice_roll":
                 await handle_dice_roll(campaign_uuid, data, user_uuid, db)
@@ -2058,15 +2058,41 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         })
 
 
-async def handle_narration(campaign_id: UUID, data: dict):
+async def handle_narration(campaign_id: UUID, data: dict, user_id: UUID = None, db: Session = None):
     """Handle GM narration."""
     narration = GMNarration(**data)
-    
+
     # Broadcast to everyone
     await manager.broadcast(campaign_id, NarrationBroadcast(
         text=narration.text,
         attachment=narration.attachment
     ).model_dump(mode='json'))
+
+    if db and user_id:
+        try:
+            from backend.notifications import send_push_to_campaign
+            from datetime import timedelta
+            campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            if campaign_obj:
+                cooldown = timedelta(minutes=10)
+                now = datetime.utcnow()
+                last = campaign_obj.last_notified_at
+                if last is None or (now - last) >= cooldown:
+                    sender = manager.get_display_name(campaign_id, user_id) or "Story Weaver"
+                    preview = narration.text[:80] + ('…' if len(narration.text) > 80 else '')
+                    sent = send_push_to_campaign(
+                        db,
+                        campaign_id=str(campaign_id),
+                        exclude_user_id=str(user_id),
+                        title=f"📖 {sender}",
+                        body=preview,
+                        url=f"/game.html?campaign_id={campaign_id}",
+                    )
+                    if sent:
+                        campaign_obj.last_notified_at = now
+                        db.commit()
+        except Exception as _pe:
+            logger.warning(f"Narration push notification failed: {_pe}")
 
 
 async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Session):
@@ -3575,6 +3601,28 @@ async def handle_initiative_command(
         # /initiative start
         if subcommand == "start":
             await start_encounter(campaign_uuid, user_uuid, db, websocket)
+            try:
+                from backend.notifications import send_push_to_campaign
+                from datetime import timedelta
+                campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+                if campaign_obj:
+                    cooldown = timedelta(minutes=10)
+                    now = datetime.utcnow()
+                    last = campaign_obj.last_notified_at
+                    if last is None or (now - last) >= cooldown:
+                        sender = manager.get_display_name(campaign_uuid, user_uuid) or "Story Weaver"
+                        send_push_to_campaign(
+                            db,
+                            campaign_id=str(campaign_uuid),
+                            exclude_user_id=str(user_uuid),
+                            title=f"⚔️ {sender}",
+                            body="Combat has begun — it's time to roll initiative!",
+                            url=f"/game.html?campaign_id={campaign_uuid}",
+                        )
+                        campaign_obj.last_notified_at = now
+                        db.commit()
+            except Exception as _pe:
+                logger.warning(f"Initiative push notification failed: {_pe}")
             return
 
         # /initiative end
