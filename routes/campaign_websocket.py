@@ -2359,6 +2359,35 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
     })
     logger.info(f"[stat_check] {character.name} {stat_type} check: {total} ({breakdown_text})")
 
+    if db:
+        try:
+            from backend.notifications import send_push_to_campaign
+            from datetime import timedelta
+            _push_campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            if _push_campaign:
+                _cooldown = timedelta(minutes=10)
+                _now = datetime.utcnow()
+                _last = _push_campaign.last_notified_at
+                if _last is not None:
+                    _last = _last.replace(tzinfo=None)
+                if _last is None or (_now - _last) >= _cooldown:
+                    _sent = send_push_to_campaign(
+                        db,
+                        campaign_id=str(campaign_id),
+                        exclude_user_id=str(user_id),
+                        title=f"🎲 {character.name}",
+                        body=f"{stat_name} Check: {total} ({breakdown_text})",
+                        url=f"/game.html?campaign_id={campaign_id}",
+                    )
+                    logger.info(f"Stat check push: sent={_sent}")
+                    if _sent:
+                        _push_campaign.last_notified_at = _now
+                        db.commit()
+                else:
+                    logger.info(f"Stat check push: skipped (cooldown, last={_last})")
+        except Exception as _pe:
+            logger.warning(f"Stat check push notification failed: {_pe}")
+
 
 # ============================================================================
 # BROADCAST HELPER (Called from combat_fastapi.py)
