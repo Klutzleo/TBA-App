@@ -1244,7 +1244,9 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             outcome=result["outcome"],
             message_id=str(combat_message.id),
             attacker_id=str(attacker.id),
-            defender_id=str(defender.id)
+            defender_id=str(defender.id),
+            attacker_bap=attacker.bap or 1,
+            attacker_tethers=[t for t in (attacker.tethers or []) if t.get("modifier", 0) != 0],
         )
         await manager.broadcast(campaign_id, combat_broadcast.model_dump(mode='json'))
 
@@ -2355,7 +2357,9 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
         "text": result_text,
         "breakdown": breakdown_text,
         "bap_bonus": bap_bonus,
-        "bap_token_consumed": bap_bonus > 0
+        "bap_token_consumed": bap_bonus > 0,
+        "bap": character.bap or 1,
+        "tethers": [t for t in (character.tethers or []) if t.get("modifier", 0) != 0],
     })
     logger.info(f"[stat_check] {character.name} {stat_type} check: {total} ({breakdown_text})")
 

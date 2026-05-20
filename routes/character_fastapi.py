@@ -3013,6 +3013,200 @@ async def bap_stat_roll(
 
 
 # ============================================================
+# Combined Boost (BAP + Tethers) — retroactive roll boost
+# ============================================================
+
+@character_blp_fastapi.post("/{character_id}/apply-boosts")
+async def apply_boosts(
+    character_id: str,
+    request: Request,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SW applies any combination of BAP and tether boosts to a completed roll.
+    Works for both stat rolls and combat rolls.
+    Body: { message_id, use_bap: bool, tether_ids: [str], roll_type: 'stat'|'combat' }
+    """
+    from uuid import UUID
+    from sqlalchemy.orm.attributes import flag_modified
+    from backend.models import CampaignMembership
+    import asyncio
+
+    char_uuid = UUID(character_id)
+    char = db.query(Character).filter(Character.id == char_uuid).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == char.campaign_id,
+        CampaignMembership.user_id == current_user.id
+    ).first()
+    if not membership or membership.role != 'story_weaver':
+        raise HTTPException(status_code=403, detail="SW only")
+
+    message_id = req.get("message_id")
+    use_bap = req.get("use_bap", False)
+    tether_ids = req.get("tether_ids", [])
+    roll_type = req.get("roll_type", "stat")  # 'stat' or 'combat'
+
+    if not message_id:
+        raise HTTPException(status_code=400, detail="message_id required")
+    if not use_bap and not tether_ids:
+        raise HTTPException(status_code=400, detail="Select at least one boost")
+
+    msg = db.query(Message).filter(Message.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    extra = dict(msg.extra_data or {})
+    if extra.get("boost_applied"):
+        raise HTTPException(status_code=400, detail="Boost already applied to this roll")
+
+    # Build list of boosts being applied
+    boosts = []
+    total_bonus = 0
+
+    if use_bap:
+        bap_bonus = char.bap or 1
+        total_bonus += bap_bonus
+        boosts.append({"type": "bap", "bonus": bap_bonus})
+
+    tethers = char.tethers or []
+    for tether_id in tether_ids:
+        tether = next((t for t in tethers if t.get("id") == tether_id), None)
+        if tether:
+            modifier = tether.get("modifier", 0)
+            total_bonus += modifier
+            boosts.append({
+                "type": "tether",
+                "id": tether_id,
+                "description": tether.get("description", ""),
+                "modifier": modifier,
+            })
+
+    if total_bonus == 0:
+        raise HTTPException(status_code=400, detail="Selected boosts total 0 — nothing to apply")
+
+    # Apply boost based on roll type
+    if roll_type == "stat":
+        old_total = extra.get("total", 0)
+        new_total = old_total + total_bonus
+
+        boost_parts = []
+        for b in boosts:
+            if b["type"] == "bap":
+                boost_parts.append(f"BAP(+{b['bonus']})")
+            else:
+                boost_parts.append(f"🔗({b['description'][:20]} +{b['modifier']})")
+
+        extra["total"] = new_total
+        extra["breakdown"] = extra.get("breakdown", "") + " + " + " + ".join(boost_parts) + f" = {new_total}"
+        extra["boost_applied"] = True
+        extra["boosts"] = boosts
+        msg.extra_data = extra
+        flag_modified(msg, "extra_data")
+        db.commit()
+
+        stat_name = extra.get("stat_name", "Check")
+        try:
+            from routes.campaign_websocket import manager
+            asyncio.create_task(manager.broadcast(char.campaign_id, {
+                "type": "boosts_applied",
+                "message_id": message_id,
+                "character_id": str(char.id),
+                "character_name": char.name,
+                "roll_type": "stat",
+                "stat_name": stat_name,
+                "old_total": old_total,
+                "new_total": new_total,
+                "total_bonus": total_bonus,
+                "boosts": boosts,
+            }))
+        except Exception as _e:
+            logger.warning(f"boosts_applied broadcast failed: {_e}")
+
+        return {
+            "message_id": message_id,
+            "boost_applied": True,
+            "old_total": old_total,
+            "new_total": new_total,
+            "boosts": boosts,
+        }
+
+    else:  # combat
+        individual_rolls = extra.get("individual_rolls", [])
+        old_total_damage = extra.get("damage", 0)
+
+        new_individual_rolls = []
+        new_total_damage = 0
+        for roll in individual_rolls:
+            new_roll = dict(roll)
+            new_attacker_roll = (roll.get("attacker_roll") or 0) + total_bonus
+            new_roll["attacker_roll"] = new_attacker_roll
+            new_roll["boost_bonus"] = total_bonus
+            defense_roll = roll.get("defense_roll", 0)
+            new_margin = new_attacker_roll - defense_roll
+            new_damage = max(0, new_margin)
+            new_roll["margin"] = new_margin
+            new_roll["damage"] = new_damage
+            new_total_damage += new_damage
+            new_individual_rolls.append(new_roll)
+
+        damage_delta = new_total_damage - old_total_damage
+
+        defender_id = extra.get("defender_id")
+        old_defender_dp = extra.get("defender_new_dp")
+        new_defender_dp = old_defender_dp
+        if defender_id and damage_delta > 0:
+            try:
+                def_uuid = UUID(defender_id)
+                defender_char = db.query(Character).filter(Character.id == def_uuid).first()
+                if defender_char:
+                    defender_char.dp = max(defender_char.dp - damage_delta, -10)
+                    new_defender_dp = defender_char.dp
+            except Exception:
+                pass
+
+        extra["boost_applied"] = True
+        extra["boosts"] = boosts
+        extra["damage"] = new_total_damage
+        extra["defender_new_dp"] = new_defender_dp
+        extra["individual_rolls"] = new_individual_rolls
+        msg.extra_data = extra
+        flag_modified(msg, "extra_data")
+        db.commit()
+
+        try:
+            from routes.campaign_websocket import manager
+            asyncio.create_task(manager.broadcast(char.campaign_id, {
+                "type": "boosts_applied",
+                "message_id": message_id,
+                "character_id": str(char.id),
+                "character_name": char.name,
+                "roll_type": "combat",
+                "old_total": old_total_damage,
+                "new_total": new_total_damage,
+                "total_bonus": total_bonus,
+                "damage_delta": damage_delta,
+                "new_defender_dp": new_defender_dp,
+                "boosts": boosts,
+            }))
+        except Exception as _e:
+            logger.warning(f"boosts_applied broadcast failed: {_e}")
+
+        return {
+            "message_id": message_id,
+            "boost_applied": True,
+            "old_total": old_total_damage,
+            "new_total": new_total_damage,
+            "damage_delta": damage_delta,
+            "boosts": boosts,
+        }
+
+
+# ============================================================
 # Player Notepad
 # ============================================================
 

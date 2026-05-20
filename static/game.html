@@ -1706,6 +1706,71 @@
       50%       { box-shadow: 0 0 9px rgba(245, 158, 11, 0.7); }
     }
 
+    /* === Boost Modal === */
+    #boostModal { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; }
+    #boostModal.open { display:flex; }
+    #boostModal .boost-modal-box {
+      background:var(--bg-primary); border:1px solid rgba(245,158,11,0.4);
+      border-radius:12px; padding:24px; max-width:360px; width:90%;
+      box-shadow:0 0 32px rgba(245,158,11,0.2);
+    }
+    #boostModal h3 { margin:0 0 4px; color:#f59e0b; font-size:1rem; }
+    #boostModal .boost-roll-label { color:var(--text-muted); font-size:0.85rem; margin-bottom:16px; }
+    #boostModal .boost-option {
+      display:flex; align-items:center; gap:10px;
+      padding:8px 10px; border-radius:8px; margin-bottom:6px;
+      background:var(--bg-secondary); cursor:pointer;
+      border:1px solid transparent; transition:border-color 0.15s;
+    }
+    #boostModal .boost-option:hover { border-color:rgba(245,158,11,0.3); }
+    #boostModal .boost-option input[type=checkbox] { accent-color:#f59e0b; width:16px; height:16px; cursor:pointer; }
+    #boostModal .boost-option label { cursor:pointer; flex:1; font-size:0.9rem; color:var(--text-primary); }
+    #boostModal .boost-modifier { font-weight:600; color:#f59e0b; font-size:0.9rem; }
+    #boostModal .boost-tether-mod { font-weight:600; color:#a78bfa; font-size:0.9rem; }
+    #boostModal .boost-preview {
+      margin:14px 0 16px; text-align:center; font-size:1.1rem; font-weight:600;
+      color:var(--text-primary); background:var(--bg-secondary); border-radius:8px; padding:8px;
+    }
+    #boostModal .boost-preview span { color:#f59e0b; }
+    #boostModal .boost-actions { display:flex; gap:8px; }
+    #boostModal .boost-apply-btn {
+      flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer;
+      background:linear-gradient(135deg,#f59e0b,#d97706); color:#000; font-weight:700;
+      font-size:0.95rem; letter-spacing:0.03em; transition:opacity 0.15s;
+    }
+    #boostModal .boost-apply-btn:hover { opacity:0.88; }
+    #boostModal .boost-apply-btn:disabled { opacity:0.4; cursor:default; }
+    #boostModal .boost-cancel-btn {
+      padding:10px 16px; border:1px solid var(--border-color); border-radius:8px;
+      cursor:pointer; background:transparent; color:var(--text-muted); font-size:0.9rem;
+    }
+    /* Fanfare card */
+    .boost-fanfare {
+      border:2px solid #f59e0b; border-radius:10px;
+      background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(167,139,250,0.08));
+      padding:14px 16px; margin:4px 0;
+      box-shadow:0 0 20px rgba(245,158,11,0.25);
+      animation: fanfare-in 0.4s ease-out;
+    }
+    @keyframes fanfare-in {
+      from { opacity:0; transform:scale(0.95) translateY(6px); }
+      to   { opacity:1; transform:scale(1) translateY(0); }
+    }
+    .boost-fanfare-title {
+      font-size:1.05rem; font-weight:700; color:#f59e0b; margin-bottom:6px;
+    }
+    .boost-fanfare-total {
+      font-size:1.3rem; font-weight:700; letter-spacing:0.02em; margin-bottom:8px;
+    }
+    .boost-fanfare-total .old { color:var(--text-muted); text-decoration:line-through; margin-right:6px; font-size:1rem; }
+    .boost-fanfare-total .new { color:#fbbf24; }
+    .boost-fanfare-breakdown { display:flex; flex-wrap:wrap; gap:6px; }
+    .boost-fanfare-pill {
+      padding:2px 8px; border-radius:12px; font-size:0.8rem; font-weight:600;
+    }
+    .boost-fanfare-pill.bap { background:rgba(245,158,11,0.2); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); }
+    .boost-fanfare-pill.tether { background:rgba(167,139,250,0.2); color:#a78bfa; border:1px solid rgba(167,139,250,0.4); }
+
     /* === Inventory Tab === */
     #inventoryPane { display:none; flex:1; flex-direction:column; overflow:hidden; }
     .inv-currency-bar {
@@ -5166,6 +5231,101 @@
         showPanelToast(`Error: ${e.message}`, 'error');
       }
     }
+
+    // ===================================================================
+    // BOOST MODAL (BAP + Tethers combined retroactive boost)
+    // ===================================================================
+
+    let _boostState = null; // { charId, messageId, rollType, baseTotal, bap, tethers, rollLabel }
+
+    function openBoostModal(charId, messageId, rollType, baseTotal, bap, tethers, rollLabel) {
+      _boostState = { charId, messageId, rollType, baseTotal, bap, tethers: tethers || [], rollLabel };
+
+      document.getElementById('boostModalLabel').textContent = rollLabel;
+
+      const optionsEl = document.getElementById('boostModalOptions');
+      optionsEl.innerHTML = '';
+
+      // BAP checkbox
+      const bapRow = document.createElement('div');
+      bapRow.className = 'boost-option';
+      bapRow.innerHTML = `
+        <input type="checkbox" id="boostChkBap" onchange="updateBoostPreview()">
+        <label for="boostChkBap">✦ BAP</label>
+        <span class="boost-modifier">+${bap}</span>`;
+      optionsEl.appendChild(bapRow);
+
+      // Tether checkboxes
+      (tethers || []).forEach((t, i) => {
+        const row = document.createElement('div');
+        row.className = 'boost-option';
+        row.innerHTML = `
+          <input type="checkbox" id="boostChkTether_${i}" data-tether-id="${t.id}" data-modifier="${t.modifier}" onchange="updateBoostPreview()">
+          <label for="boostChkTether_${i}">🔗 ${escHtml(t.description)}</label>
+          <span class="boost-tether-mod">${t.modifier > 0 ? '+' : ''}${t.modifier}</span>`;
+        optionsEl.appendChild(row);
+      });
+
+      updateBoostPreview();
+      document.getElementById('boostModal').classList.add('open');
+    }
+
+    function closeBoostModal() {
+      document.getElementById('boostModal').classList.remove('open');
+      _boostState = null;
+    }
+
+    function updateBoostPreview() {
+      if (!_boostState) return;
+      let bonus = 0;
+      if (document.getElementById('boostChkBap')?.checked) bonus += _boostState.bap;
+      document.querySelectorAll('#boostModalOptions input[data-tether-id]').forEach(chk => {
+        if (chk.checked) bonus += parseInt(chk.dataset.modifier || 0);
+      });
+      const newTotal = _boostState.baseTotal + bonus;
+      document.getElementById('boostPreviewOld').textContent = _boostState.baseTotal;
+      document.getElementById('boostPreviewNew').textContent = newTotal;
+      document.getElementById('boostApplyBtn').disabled = bonus === 0;
+    }
+
+    async function applyBoosts() {
+      if (!_boostState) return;
+      const useBap = document.getElementById('boostChkBap')?.checked || false;
+      const tetherIds = [];
+      document.querySelectorAll('#boostModalOptions input[data-tether-id]:checked').forEach(chk => {
+        tetherIds.push(chk.dataset.tetherId);
+      });
+      if (!useBap && tetherIds.length === 0) return;
+
+      const btn = document.getElementById('boostApplyBtn');
+      btn.disabled = true;
+      btn.textContent = '⚡ Applying…';
+
+      try {
+        const resp = await fetch(`/api/characters/${_boostState.charId}/apply-boosts`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message_id: _boostState.messageId,
+            use_bap: useBap,
+            tether_ids: tetherIds,
+            roll_type: _boostState.rollType,
+          })
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
+        closeBoostModal();
+        // WS boosts_applied broadcast handles all clients' UI updates
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '⚡ APPLY BOOST';
+        showPanelToast(`Boost error: ${e.message}`, 'error');
+      }
+    }
+
+    // Close boost modal on backdrop click
+    document.getElementById('boostModal').addEventListener('click', function(e) {
+      if (e.target === this) closeBoostModal();
+    });
 
     // ===================================================================
     // THE CALLED — SW TOOLS
@@ -9636,21 +9796,25 @@
                   container.appendChild(detailsDiv);
                 }
 
-                // BAP: store IDs for retroactive award, show badge or button
+                // Boost button/badge for SW on history combat rolls
                 container.dataset.messageId = msg.id || '';
                 container.dataset.attackerId = data.attacker_id || '';
-                if (data.bap_awarded) {
-                  const bapBadge = document.createElement('div');
-                  bapBadge.className = 'bap-badge';
-                  bapBadge.textContent = `✦ BAP +${data.bap_bonus || 1} awarded`;
-                  container.appendChild(bapBadge);
-                } else if (isSW() && data.attacker_id) {
-                  const bapBtn = document.createElement('button');
-                  bapBtn.className = 'bap-retro-btn';
-                  bapBtn.title = 'Award retroactive BAP to this attacker';
-                  bapBtn.textContent = '✦ Award BAP';
-                  bapBtn.onclick = () => awardRetroactiveBap(data.attacker_id, msg.id, bapBtn, container);
-                  container.appendChild(bapBtn);
+                if (data.boost_applied || data.bap_awarded) {
+                  const boosts = data.boosts || (data.bap_awarded ? [{ type: 'bap', bonus: data.bap_bonus || 1 }] : []);
+                  const badge = document.createElement('div');
+                  badge.className = 'bap-badge';
+                  badge.textContent = '⚡ Boosted: ' + boosts.map(b => b.type === 'bap' ? `BAP +${b.bonus}` : `🔗 ${b.description} +${b.modifier}`).join(' | ');
+                  container.appendChild(badge);
+                } else if (isSW() && data.attacker_id && msg.id) {
+                  const boostBtn = document.createElement('button');
+                  boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                  boostBtn.textContent = '⚡ Boost';
+                  boostBtn.onclick = () => openBoostModal(
+                    data.attacker_id, msg.id, 'combat', data.damage,
+                    data.attacker_bap || 1, data.attacker_tethers || [],
+                    `${data.attacker} attacks ${data.defender} — ${data.damage} dmg`
+                  );
+                  container.appendChild(boostBtn);
                 }
 
                 // Add tab indicator
@@ -9695,29 +9859,24 @@
 
                 if (msg.id) container.dataset.messageId = msg.id;
 
-                // BAP button/badge for SW on history stat rolls
+                // Boost button/badge for SW on history stat rolls
                 if (isSW() && data.character_id && msg.id) {
-                  if (data.bap_awarded) {
-                    const bapBadge = document.createElement('div');
-                    bapBadge.className = 'bap-badge';
-                    bapBadge.textContent = `✦ BAP +${data.bap_bonus || 1} awarded — new total: ${data.total}`;
-                    container.appendChild(bapBadge);
+                  if (data.boost_applied || data.bap_awarded) {
+                    const boosts = data.boosts || (data.bap_awarded ? [{ type: 'bap', bonus: data.bap_bonus || 1 }] : []);
+                    const badge = document.createElement('div');
+                    badge.className = 'bap-badge';
+                    badge.textContent = '⚡ Boosted: ' + boosts.map(b => b.type === 'bap' ? `BAP +${b.bonus}` : `🔗 ${b.description} +${b.modifier}`).join(' | ');
+                    container.appendChild(badge);
                   } else {
-                    const bapBtn = document.createElement('button');
-                    bapBtn.className = 'bap-retro-btn';
-                    bapBtn.textContent = '✦ Award BAP';
-                    bapBtn.onclick = async () => {
-                      bapBtn.disabled = true;
-                      try {
-                        const r = await fetch(`/api/characters/${data.character_id}/bap-stat-roll`, {
-                          method: 'POST',
-                          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ message_id: msg.id })
-                        });
-                        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
-                      } catch (e) { alert(`BAP error: ${e.message}`); bapBtn.disabled = false; }
-                    };
-                    container.appendChild(bapBtn);
+                    const boostBtn = document.createElement('button');
+                    boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                    boostBtn.textContent = '⚡ Boost';
+                    boostBtn.onclick = () => openBoostModal(
+                      data.character_id, msg.id, 'stat', data.total,
+                      data.bap || 1, data.tethers || [],
+                      `${msg.sender_name} — ${data.stat_name || data.stat} Check: ${data.total}`
+                    );
+                    container.appendChild(boostBtn);
                   }
                 }
 
@@ -10993,16 +11152,19 @@
                 container.appendChild(detailsDiv);
               }
 
-              // BAP: store IDs for retroactive award, add SW button
+              // Boost button for SW (BAP + tethers)
               container.dataset.messageId = data.message_id || '';
               container.dataset.attackerId = data.attacker_id || '';
-              if (isSW() && data.attacker_id && data.message_id) {
-                const bapBtn = document.createElement('button');
-                bapBtn.className = 'bap-retro-btn';
-                bapBtn.title = 'Award retroactive BAP to this attacker';
-                bapBtn.textContent = '✦ Award BAP';
-                bapBtn.onclick = () => awardRetroactiveBap(data.attacker_id, data.message_id, bapBtn, container);
-                container.appendChild(bapBtn);
+              if (isSW() && data.attacker_id && data.message_id && !data.boost_applied) {
+                const boostBtn = document.createElement('button');
+                boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                boostBtn.textContent = '⚡ Boost';
+                boostBtn.onclick = () => openBoostModal(
+                  data.attacker_id, data.message_id, 'combat', data.damage,
+                  data.attacker_bap || 1, data.attacker_tethers || [],
+                  `${data.attacker} attacks ${data.defender} — ${data.damage} dmg`
+                );
+                container.appendChild(boostBtn);
               }
 
               // Add tab indicator
@@ -11049,23 +11211,17 @@
               // Always tag with message_id so bap_stat_roll can find this card on all clients
               if (data.message_id) container.dataset.messageId = data.message_id;
 
-              // BAP button for SW
-              if (isSW() && data.character_id && data.message_id) {
-                const bapBtn = document.createElement('button');
-                bapBtn.className = 'bap-retro-btn';
-                bapBtn.textContent = '✦ Award BAP';
-                bapBtn.onclick = async () => {
-                  bapBtn.disabled = true;
-                  try {
-                    const r = await fetch(`/api/characters/${data.character_id}/bap-stat-roll`, {
-                      method: 'POST',
-                      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ message_id: data.message_id })
-                    });
-                    if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
-                  } catch (e) { alert(`BAP error: ${e.message}`); bapBtn.disabled = false; }
-                };
-                container.appendChild(bapBtn);
+              // Boost button for SW (BAP + tethers)
+              if (isSW() && data.character_id && data.message_id && !data.boost_applied) {
+                const boostBtn = document.createElement('button');
+                boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                boostBtn.textContent = '⚡ Boost';
+                boostBtn.onclick = () => openBoostModal(
+                  data.character_id, data.message_id, 'stat', data.total,
+                  data.bap || 1, data.tethers || [],
+                  `${data.actor} — ${data.stat_name || data.stat} Check: ${data.total}`
+                );
+                container.appendChild(boostBtn);
               }
 
               storeAndDisplayMessage(container, data);
@@ -11132,6 +11288,48 @@
               bapAnnounce.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;background:rgba(245,158,11,0.08);';
               bapAnnounce.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(data.character_name)}</strong> awarded a BAP token! <strong>${escHtml(data.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${data.new_total}</strong> ✦`;
               storeAndDisplayMessage(bapAnnounce, { type: 'bap_announce', actor: 'system', _tab: 'story' });
+
+            } else if (data.type === 'boosts_applied') {
+              // Update the roll card in DOM
+              const card = document.querySelector(`[data-message-id="${data.message_id}"]`);
+              if (card) {
+                card.querySelectorAll('.bap-retro-btn, .boost-retro-btn').forEach(el => el.remove());
+                // Update stat roll header total
+                const totalSpan = card.querySelector(`[data-stat-total="${data.message_id}"]`);
+                if (totalSpan && data.roll_type === 'stat') {
+                  totalSpan.textContent = `📊 ${data.character_name} — ${data.stat_name} Check: ${data.new_total}`;
+                }
+                // Update combat damage summary
+                if (data.roll_type === 'combat') {
+                  const dmgInfo = card.querySelector('[data-damage-info]');
+                  if (dmgInfo && data.new_total !== undefined) {
+                    dmgInfo.textContent = data.new_total > 0 ? `💥 ${data.new_total} damage dealt` : '💫 0 damage dealt';
+                  }
+                }
+              }
+
+              // Build fanfare card
+              const fanfare = document.createElement('div');
+              fanfare.className = 'boost-fanfare';
+
+              const boostPills = (data.boosts || []).map(b => {
+                if (b.type === 'bap') return `<span class="boost-fanfare-pill bap">✦ BAP +${b.bonus}</span>`;
+                return `<span class="boost-fanfare-pill tether">🔗 ${escHtml(b.description)} ${b.modifier > 0 ? '+' : ''}${b.modifier}</span>`;
+              }).join('');
+
+              const rollLabel = data.roll_type === 'stat'
+                ? `${escHtml(data.stat_name || '')} Check`
+                : 'Attack';
+
+              fanfare.innerHTML = `
+                <div class="boost-fanfare-title">⚡ BOOSTED — ${escHtml(data.character_name)}</div>
+                <div class="boost-fanfare-total">
+                  <span class="old">${data.old_total}</span>
+                  <span class="new">${data.new_total}</span>
+                  <span style="color:var(--text-muted);font-size:0.85rem;font-weight:400;margin-left:6px;">${rollLabel}</span>
+                </div>
+                <div class="boost-fanfare-breakdown">${boostPills}</div>`;
+              storeAndDisplayMessage(fanfare, { type: 'boost_fanfare', actor: 'system', _tab: 'story' });
 
             } else if (data.type === 'ability_cast') {
               // Ability/spell/technique cast result
@@ -13540,5 +13738,22 @@
   <div style="text-align:center;padding:10px;font-size:0.72rem;color:rgba(255,255,255,0.2);">
     TBA — Tools for the Bad Ass &nbsp;·&nbsp; <a href="https://ko-fi.com/gameoctane" target="_blank" style="color:rgba(255,255,255,0.3);">☕ Ko-fi</a> &nbsp;·&nbsp; <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" style="color:rgba(255,255,255,0.3);">Rules</a>
   </div>
+
+  <!-- Boost Modal (BAP + Tethers) -->
+  <div id="boostModal">
+    <div class="boost-modal-box">
+      <h3>⚡ Boost This Roll</h3>
+      <div id="boostModalLabel" class="boost-roll-label"></div>
+      <div id="boostModalOptions"></div>
+      <div class="boost-preview">
+        <span id="boostPreviewOld"></span> → <span id="boostPreviewNew"></span>
+      </div>
+      <div class="boost-actions">
+        <button class="boost-cancel-btn" onclick="closeBoostModal()">Cancel</button>
+        <button class="boost-apply-btn" id="boostApplyBtn" onclick="applyBoosts()">⚡ APPLY BOOST</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

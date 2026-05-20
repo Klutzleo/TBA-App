@@ -102,6 +102,8 @@ class CombatResultBroadcast(BaseModel):
     message_id: Optional[str] = None   # DB message ID (for retroactive BAP)
     attacker_id: Optional[str] = None  # Attacker character UUID
     defender_id: Optional[str] = None  # Defender character/NPC UUID
+    attacker_bap: Optional[int] = None
+    attacker_tethers: Optional[List[Dict[str, Any]]] = None
 
 
 class AbilityCastBroadcast(BaseModel):
