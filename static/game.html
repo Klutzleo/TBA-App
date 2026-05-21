@@ -5322,10 +5322,6 @@
       }
     }
 
-    // Close boost modal on backdrop click
-    document.getElementById('boostModal').addEventListener('click', function(e) {
-      if (e.target === this) closeBoostModal();
-    });
 
     // ===================================================================
     // THE CALLED — SW TOOLS
@@ -13740,7 +13736,7 @@
   </div>
 
   <!-- Boost Modal (BAP + Tethers) -->
-  <div id="boostModal">
+  <div id="boostModal" onclick="if(event.target===this)closeBoostModal()">
     <div class="boost-modal-box">
       <h3>⚡ Boost This Roll</h3>
       <div id="boostModalLabel" class="boost-roll-label"></div>
