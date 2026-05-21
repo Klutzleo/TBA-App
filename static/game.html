@@ -12112,7 +12112,7 @@
             ws.send(JSON.stringify(narrativePayload));
           }
           // Fire the roll command
-          fireInlineRoll(inlineRoll.command, inlineRoll.dice);
+          fireInlineRoll(inlineRoll.command);
           msgInput.value = '';
           msgInput.style.height = 'auto';
           return;
@@ -12147,35 +12147,49 @@
       msgInput.style.height = 'auto'; // Reset textarea height
     });
 
-    // Detect an inline roll command (/pp, /ip, /sp, /roll XdY) anywhere in the text.
-    // Returns { narrativeText, command, dice } or null if none found.
+    // Detect an inline command anywhere in the text (not at the very start).
+    // Matches /pp /ip /sp /roll /attack /defense /cast /technique /s and bare XdY.
+    // Returns { narrativeText, command } or null.
     function detectInlineRoll(text) {
-      const match = text.match(/(\/(?:roll\s+\d+d\d+|\d+d\d+|pp|ip|sp))\s*$/i);
+      const match = text.match(/\s(\/(?:attack|defense|defend|cast|technique|roll|pp|ip|sp|s)(?:\s+\S.*?)?)\s*$/i);
       if (!match) return null;
       return {
         narrativeText: text.slice(0, match.index).trim(),
-        command: match[1].trim().toLowerCase(),
-        dice: match[1].replace(/^\/roll\s*/i, '').trim(),
+        command: match[1].trim(),
       };
     }
 
-    // Fire a roll command extracted from inline text. Skips stat checks for SW without a character.
-    function fireInlineRoll(command, dice) {
+    // Fire a command extracted from inline text.
+    function fireInlineRoll(command) {
+      const cmdLower = command.toLowerCase();
       const actor = (activeSpeaker ? activeSpeaker.name : currentActor.trim()) || 'User';
-      if (/^\/?(pp|ip|sp)$/i.test(command)) {
-        // SW with no NPC speaker → ignore stat check
+
+      if (/^\/?(pp|ip|sp)$/i.test(cmdLower)) {
+        // Stat check — SW without NPC context: ignore
         if (userRole === 'SW' && (!activeSpeaker || !activeSpeaker.id)) return;
-        const stat = command.replace('/', '').toUpperCase();
+        const stat = cmdLower.replace('/', '').toUpperCase();
         const payload = { type: 'stat_check', stat };
         if (activeSpeaker && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally') && activeSpeaker.id) {
           payload.character_id = activeSpeaker.id;
         }
         if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
-      } else {
-        // /roll XdY or bare XdY
-        const notation = dice || command.replace(/^\/roll\s*/i, '') || '1d6';
+
+      } else if (/^\/roll/i.test(cmdLower)) {
+        const notation = command.replace(/^\/roll\s*/i, '').trim() || '1d6';
         ws.send(JSON.stringify({ type: 'dice_roll', dice: notation, roller: actor, reason: '' }));
+
+      } else if (/^\/s\b/i.test(cmdLower)) {
+        const notation = command.replace(/^\/s\s*/i, '').trim() || '1d20';
+        ws.send(JSON.stringify({ type: 'secret_roll', dice: notation }));
+
+      } else if (/^\/(attack|defense|defend|cast|technique)/i.test(cmdLower)) {
+        const payload = { type: 'combat_command', raw_command: command };
+        if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
+          payload.attacker_id = activeSpeaker.id;
+        }
+        if (bapArmed) { payload.use_bap = true; disarmBap(); }
+        ws.send(JSON.stringify(payload));
       }
     }
 
