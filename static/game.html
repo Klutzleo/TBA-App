@@ -12543,7 +12543,8 @@
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
-                  ${!isSW() ? `<button class="btn-icon" title="Character options" onclick="showPlayerContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', '${(member.username || '').replace(/'/g, "\\'")}')">⚙</button>` : ''}
+                  ${!isSW() ? `<button class="btn-icon" title="View character sheet" style="font-size:0.9rem;opacity:0.6;" onclick="openPlayerSheetModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">📋</button>` : ''}
+                  ${!isSW() && member.username ? `<a href="/profile.html?u=${encodeURIComponent(member.username)}" target="_blank" title="View profile" class="btn-icon" style="font-size:0.9rem;opacity:0.6;text-decoration:none;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">👤</a>` : ''}
                   ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}')">⚙</button>` : ''}
                   ${isSW() ? `<button class="btn-icon" title="Add buff/debuff" style="font-size:0.85rem;opacity:0.55;" onclick="openAddEffectModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">✨</button>` : ''}
                 </div>
