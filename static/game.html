@@ -5890,10 +5890,11 @@
             ${gloryTile('💢', fmt(d.biggest_hit),    'Biggest Hit')}
           </div>
 
-          <div style="border-top:1px solid var(--border-color);padding-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          <div style="border-top:1px solid var(--border-color);padding-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
             ${tile('🧙', d.active_players,   'Active Players')}
             ${tile('👁️', d.spectators,        'Spectators')}
             ${tile('🐉', d.active_characters, 'Characters')}
+            ${d.created_at ? tile('📅', Math.floor((Date.now() - new Date(d.created_at)) / 86400000) + ' days', 'Campaign Age') : ''}
           </div>`;
       } catch (e) {
         body.innerHTML = `<p style="color:#f87171;text-align:center;padding:16px">Could not load stats.</p>`;

@@ -234,7 +234,7 @@
 </div>
 
 <script>
-  const authToken = localStorage.getItem('authToken');
+  const authToken = getAuthToken();
   const params = new URLSearchParams(location.search);
   const targetUsername = params.get('u');  // null = own profile
 
@@ -250,7 +250,7 @@
 
   // ── Load profile ──
   async function loadProfile() {
-    if (!authToken) { location.href = '/'; return; }
+    if (!authToken) { location.href = '/auth.html'; return; }
     try {
       const url = targetUsername
         ? `/api/profile/${encodeURIComponent(targetUsername)}`

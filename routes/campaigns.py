@@ -1819,6 +1819,7 @@ async def get_campaign_stats(
         "active_players":     active_player_count,
         "spectators":         spectator_count,
         "active_characters":  len(active_pcs),
+        "created_at":         campaign.created_at.isoformat() if campaign.created_at else None,
     }
 
 
