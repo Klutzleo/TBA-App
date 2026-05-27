@@ -239,6 +239,7 @@
 <!-- Stats Tab -->
 <div id="tab-stats" class="tab-pane active">
   <div class="loading" id="statsLoading">Loading stats…</div>
+  <div id="swContent" style="display:none;"></div>
   <div id="statsContent" style="display:none;"></div>
 </div>
 
@@ -343,7 +344,7 @@
   // ── Render SW section ──
   function renderSWSection() {
     const camps = profileData.sw_campaigns || [];
-    const container = document.getElementById('statsContent');
+    const container = document.getElementById('swContent');
     if (!camps.length) return;
 
     const statusLabel = s => s === 'on_break' ? 'On Break' : s.charAt(0).toUpperCase() + s.slice(1);
@@ -361,15 +362,13 @@
         </div>
       </div>`).join('');
 
-    const el = document.createElement('div');
-    el.className = 'sw-section';
-    el.innerHTML = `
-      <div class="sw-section-title">🎭 Story Weaver</div>
-      <div class="sw-camp-grid">${cards}</div>`;
-
+    container.innerHTML = `
+      <div class="sw-section">
+        <div class="sw-section-title">🎭 Story Weaver</div>
+        <div class="sw-camp-grid">${cards}</div>
+      </div>`;
     container.style.display = 'block';
     document.getElementById('statsLoading').style.display = 'none';
-    container.prepend(el);
   }
 
   // ── Render stats ──
