@@ -484,8 +484,12 @@
         .whats-new-modal.open { display: flex; }
         .whats-new-box {
             background: #252937; border: 1px solid #3a3f54; border-radius: 16px;
-            width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
+            width: 100%; max-width: 520px; max-height: 88vh;
             box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+        }
+        .whats-new-scroll {
+            overflow-y: auto; flex: 1;
         }
         .whats-new-top {
             display: flex; align-items: center; justify-content: space-between;
@@ -555,6 +559,7 @@
           <button class="whats-new-close" onclick="closeWhatsNew()">&times;</button>
         </div>
 
+        <div class="whats-new-scroll">
         <div class="whats-new-section-label">🎉 What's New</div>
 
         <div class="whats-new-entry">
@@ -620,6 +625,7 @@
             <span class="soon-badge">Soon</span>
           </div>
           <div class="whats-new-entry-desc">Link your Discord account to sync your TBA profile and earn the TBA Player role in the community server.</div>
+        </div>
         </div>
 
         <div class="whats-new-footer">

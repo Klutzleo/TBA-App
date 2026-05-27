@@ -4956,6 +4956,32 @@
     }
 
     // PC Character Context Menu (SW only — shown when clicking ⚙ on a player's card)
+    function showPlayerContextMenu(event, charId, charName, username) {
+      event.stopPropagation();
+      const existing = document.querySelector('.context-menu');
+      if (existing) existing.remove();
+
+      const menu = document.createElement('div');
+      menu.className = 'context-menu active';
+      menu.innerHTML = `
+        <button class="context-menu-item" onclick="openPlayerSheetModal('${charId}', '${charName.replace(/'/g, "\\'")}')">📋 View Character Sheet</button>
+        ${username ? `<button class="context-menu-item" onclick="window.open('/profile.html?u=${encodeURIComponent(username)}','_blank')">👤 View Profile</button>` : ''}
+      `;
+      document.body.appendChild(menu);
+
+      const mouseX = event.clientX || event.pageX;
+      const mouseY = event.clientY || event.pageY;
+      const menuRect = menu.getBoundingClientRect();
+      let left = Math.max(0, Math.min(mouseX, window.innerWidth - menuRect.width));
+      let top = Math.max(0, Math.min(mouseY, window.innerHeight - menuRect.height));
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+
+      setTimeout(() => {
+        document.addEventListener('click', () => menu.remove(), { once: true });
+      }, 100);
+    }
+
     function showPCContextMenu(event, charId, charName, isCalled = false, targetUserId = null) {
       event.stopPropagation();
       const existing = document.querySelector('.context-menu');
@@ -4979,11 +5005,6 @@
         <button class="context-menu-item" onclick="openPCTransferModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🔀 Transfer to Player</button>
         <button class="context-menu-item danger" onclick="convertPCtoNPC('${charId}', '${charName.replace(/'/g, "\\'")}')">🎭 Convert to NPC</button>
         <button class="context-menu-item danger" onclick="openDeleteCharacterModal('${charId}', '${charName.replace(/'/g, "\\'")}')">🗑️ Delete Character</button>
-        <div style="padding:4px 12px; font-size:0.7rem; color:var(--text-muted); border-top:1px solid var(--border-color); margin-top:4px; pointer-events:none;">✦ BAP TOKEN</div>
-        <button class="context-menu-item" onclick="grantBapToken('${charId}', 'encounter')">  Grant — Encounter</button>
-        <button class="context-menu-item" onclick="grantBapToken('${charId}', '24hrs')">  Grant — 24 Hours</button>
-        <button class="context-menu-item" onclick="grantBapToken('${charId}', 'sw_choice')">  Grant — SW Choice</button>
-        <button class="context-menu-item" style="color:#f87171;" onclick="revokeBapToken('${charId}')">  Revoke Token</button>
         ${calledSection}
       `;
       document.body.appendChild(menu);
@@ -12518,12 +12539,11 @@
                 ${char.portrait_url ? `<img src="${escHtml(char.portrait_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${char.chat_color || 'var(--border-color)'};" onerror="this.style.display='none'">` : ''}
                 <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex:1;min-width:0;">
                   <strong>${char.name}</strong>
-                  ${member.username ? `<a href="/profile.html?u=${encodeURIComponent(member.username)}" target="_blank" title="View ${member.username}'s profile" style="font-size:0.75rem;opacity:0.5;text-decoration:none;line-height:1;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">👤</a>` : ''}
                   ${bapTokenBadge}${isCalledBadge}${tetherBadge}
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
-                  ${!isSW() ? `<button class="btn-icon" title="View character sheet" style="font-size:0.9rem;opacity:0.6;" onclick="openPlayerSheetModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">📋</button>` : ''}
+                  ${!isSW() ? `<button class="btn-icon" title="Character options" onclick="showPlayerContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', '${(member.username || '').replace(/'/g, "\\'")}')">⚙</button>` : ''}
                   ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}')">⚙</button>` : ''}
                   ${isSW() ? `<button class="btn-icon" title="Add buff/debuff" style="font-size:0.85rem;opacity:0.55;" onclick="openAddEffectModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">✨</button>` : ''}
                 </div>
