@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.db import get_db
-from backend.models import User, UserStats, CharacterStats, UserProfile, Character, SiteStats
+from backend.models import User, UserStats, CharacterStats, UserProfile, Character, SiteStats, Campaign, CampaignMembership
 from routes.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,33 @@ def _character_summary(char: Character, stats: CharacterStats | None) -> dict:
     }
 
 
+def _sw_campaigns(db: Session, user_id) -> list:
+    campaigns = db.query(Campaign).filter(
+        Campaign.created_by_user_id == user_id,
+    ).order_by(Campaign.created_at.desc()).all()
+
+    result = []
+    for c in campaigns:
+        player_count = db.query(CampaignMembership).filter(
+            CampaignMembership.campaign_id == c.id,
+            CampaignMembership.role == 'player',
+            CampaignMembership.left_at == None,
+        ).count()
+        npc_count = db.query(Character).filter(
+            Character.campaign_id == str(c.id),
+            Character.is_npc == True,
+        ).count()
+        result.append({
+            "id": str(c.id),
+            "name": c.name,
+            "status": c.status,
+            "player_count": player_count,
+            "npc_count": npc_count,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+    return result
+
+
 # ----------------------------------------------------------------
 # GET /api/profile/me — own full profile (always visible)
 # ----------------------------------------------------------------
@@ -84,6 +111,7 @@ async def get_my_profile(
         "first_played_at": stats.first_played_at.isoformat() if stats and stats.first_played_at else None,
         "last_played_at": stats.last_played_at.isoformat() if stats and stats.last_played_at else None,
         "characters": char_data,
+        "sw_campaigns": _sw_campaigns(db, current_user.id),
     }
 
 
@@ -133,6 +161,7 @@ async def get_public_profile(
         "first_played_at": stats.first_played_at.isoformat() if stats and stats.first_played_at else None,
         "last_played_at": stats.last_played_at.isoformat() if stats and stats.last_played_at else None,
         "characters": char_data,
+        "sw_campaigns": _sw_campaigns(db, user.id),
     }
 
 

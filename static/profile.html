@@ -174,6 +174,42 @@
     .empty-state { text-align: center; padding: 40px; color: #6b7280; }
     .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
 
+    /* ── SW Section ── */
+    .sw-section {
+      margin-bottom: 28px;
+    }
+    .sw-section-title {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #6b7280; font-weight: 600; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sw-section-title::after {
+      content: ''; flex: 1; height: 1px; background: #3a3f54;
+    }
+    .sw-camp-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;
+    }
+    .sw-camp-card {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 10px; padding: 14px 16px;
+    }
+    .sw-camp-name {
+      font-weight: 700; color: #d4af37; font-size: 0.95rem; margin-bottom: 8px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sw-camp-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sw-pill {
+      background: #1e2130; border-radius: 6px; padding: 4px 10px;
+      font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 4px;
+    }
+    .sw-pill strong { color: #e4e6eb; }
+    .sw-status-badge {
+      font-size: 0.62rem; font-weight: 700; border-radius: 4px; padding: 1px 7px;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-left: auto;
+    }
+    .sw-status-badge.active   { background: rgba(52,211,153,0.15); color: #34d399; }
+    .sw-status-badge.on_break { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+    .sw-status-badge.archived { background: rgba(107,114,128,0.15); color: #6b7280; }
+
     @media (max-width: 600px) {
       .profile-header { flex-direction: column; align-items: center; text-align: center; }
       .stat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -259,6 +295,7 @@
       if (!resp.ok) throw new Error('Not found');
       profileData = await resp.json();
       renderHeader();
+      renderSWSection();
       renderStats();
       renderCharacters();
       if (targetUsername) {
@@ -301,6 +338,38 @@
         </div>
         ${editBtn}
       </div>`;
+  }
+
+  // ── Render SW section ──
+  function renderSWSection() {
+    const camps = profileData.sw_campaigns || [];
+    const container = document.getElementById('statsContent');
+    if (!camps.length) return;
+
+    const statusLabel = s => s === 'on_break' ? 'On Break' : s.charAt(0).toUpperCase() + s.slice(1);
+
+    const cards = camps.map(c => `
+      <div class="sw-camp-card">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+          <div class="sw-camp-name" style="flex:1">${escHtml(c.name)}</div>
+          <span class="sw-status-badge ${c.status}">${statusLabel(c.status)}</span>
+        </div>
+        <div class="sw-camp-pills">
+          <div class="sw-pill">🧙 <strong>${c.player_count}</strong> Players</div>
+          <div class="sw-pill">🐉 <strong>${c.npc_count}</strong> NPCs</div>
+          ${c.created_at ? `<div class="sw-pill">📅 <strong>${Math.floor((Date.now() - new Date(c.created_at)) / 86400000)}d</strong> old</div>` : ''}
+        </div>
+      </div>`).join('');
+
+    const el = document.createElement('div');
+    el.className = 'sw-section';
+    el.innerHTML = `
+      <div class="sw-section-title">🎭 Story Weaver</div>
+      <div class="sw-camp-grid">${cards}</div>`;
+
+    container.style.display = 'block';
+    document.getElementById('statsLoading').style.display = 'none';
+    container.prepend(el);
   }
 
   // ── Render stats ──
