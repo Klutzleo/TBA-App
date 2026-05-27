@@ -310,6 +310,22 @@
     document.getElementById('statsContent').style.display = 'block';
 
     const fmt = n => (n || 0).toLocaleString();
+    const totalActivity = (s.total_rolls || 0) + (s.total_messages_sent || 0) + (s.total_attacks || 0);
+
+    if (totalActivity === 0) {
+      const isOwn = !targetUsername || profileData.is_own;
+      document.getElementById('statsContent').innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🎲</div>
+          <div style="font-size:1rem;color:#e4e6eb;margin-bottom:8px;">No stats yet</div>
+          <div style="font-size:0.85rem;color:#6b7280;max-width:340px;margin:0 auto;">
+            ${isOwn
+              ? 'Stats start tracking as soon as you play. Jump into a campaign and start rolling!'
+              : 'This player hasn\'t logged any activity yet.'}
+          </div>
+        </div>`;
+      return;
+    }
 
     const cards = [
       { icon: '🎲', val: fmt(s.total_rolls), label: 'Total Dice Rolled', cls: '' },
