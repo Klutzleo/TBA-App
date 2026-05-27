@@ -9,7 +9,7 @@ Phase 2d schema with:
 - Messages with party routing
 - NPCs and combat turns
 """
-from sqlalchemy import Column, String, DateTime, JSON, Integer, ForeignKey, Boolean, Text, Enum
+from sqlalchemy import Column, String, DateTime, JSON, Integer, BigInteger, ForeignKey, Boolean, Text, Enum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -894,3 +894,19 @@ class UserProfile(Base):
     discord_username = Column(String(64), nullable=True)
     avatar_url       = Column(Text, nullable=True)
     updated_at       = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CampaignStats(Base):
+    __tablename__ = "campaign_stats"
+    __table_args__ = {'extend_existing': True}
+
+    campaign_id        = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    total_rolls        = Column(BigInteger, nullable=False, default=0)
+    total_ones         = Column(BigInteger, nullable=False, default=0)
+    total_attacks      = Column(BigInteger, nullable=False, default=0)
+    total_damage_dealt = Column(BigInteger, nullable=False, default=0)
+    biggest_hit        = Column(Integer,    nullable=False, default=0)
+    total_callings     = Column(BigInteger, nullable=False, default=0)
+    total_messages     = Column(BigInteger, nullable=False, default=0)
+    total_battles      = Column(BigInteger, nullable=False, default=0)
+    updated_at         = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

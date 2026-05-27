@@ -101,11 +101,17 @@ function displayUserInfo(containerId = 'user-info') {
     
     container.innerHTML = `
         <span>Logged in as: <strong>${user.username}</strong></span>
+        <a href="/profile.html"
+            style="margin-left: 10px; padding: 8px 16px; background: transparent; color: #d4af37; border: 1px solid #3a3f54; border-radius: 8px; font-weight: 600; cursor: pointer; text-decoration: none; font-size: 0.9rem; transition: all 0.3s ease;"
+            onmouseover="this.style.borderColor='#d4af37'; this.style.background='rgba(212,175,55,0.1)'"
+            onmouseout="this.style.borderColor='#3a3f54'; this.style.background='transparent'">
+            👤 Profile
+        </a>
         <button
             onclick="logout()"
             onmouseover="this.style.background='#9d7c2f'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.4)'"
             onmouseout="this.style.background='#d4af37'; this.style.transform='translateY(0)'; this.style.boxShadow='none'"
-            style="margin-left: 10px; padding: 8px 16px; background: #d4af37; color: #13151f; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
+            style="margin-left: 8px; padding: 8px 16px; background: #d4af37; color: #13151f; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
             Logout
         </button>
     `;

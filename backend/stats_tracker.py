@@ -1,6 +1,6 @@
 """
 backend/stats_tracker.py
-Helpers for incrementing user_stats, character_stats, and site_stats.
+Helpers for incrementing user_stats, character_stats, campaign_stats, and site_stats.
 
 All functions are fire-and-forget — call them after the main action completes.
 They upsert rows so first-time players get a row automatically.
@@ -62,6 +62,27 @@ def _upsert_character_stats(db: Session, character_id: str, user_id: str, **incr
         logger.warning(f"CharacterStats upsert failed: {e}")
 
 
+def _upsert_campaign_stats(db: Session, campaign_id: str, **increments):
+    from backend.models import CampaignStats
+    try:
+        row = db.query(CampaignStats).filter(CampaignStats.campaign_id == campaign_id).first()
+        if not row:
+            row = CampaignStats(campaign_id=campaign_id)
+            db.add(row)
+            db.flush()
+        for col, val in increments.items():
+            if col == 'biggest_hit':
+                current = getattr(row, col, 0) or 0
+                if val > current:
+                    setattr(row, col, val)
+            else:
+                current = getattr(row, col, 0) or 0
+                setattr(row, col, current + val)
+        row.updated_at = _now()
+    except Exception as e:
+        logger.warning(f"CampaignStats upsert failed: {e}")
+
+
 def _upsert_site_stats(db: Session, **increments):
     from backend.models import SiteStats
     try:
@@ -90,19 +111,22 @@ def _check_rolls(rolls: list[int], die_size: int) -> dict:
 # ============================================================
 
 def track_dice_roll(db: Session, user_id: str, character_id: str | None,
-                    rolls: list[int], die_size: int):
+                    rolls: list[int], die_size: int, campaign_id: str | None = None):
     """Track a free /roll XdY."""
     extras = _check_rolls(rolls, die_size)
     kwargs = {"total_rolls": len(rolls), **extras}
     _upsert_user_stats(db, user_id, **kwargs)
     if character_id:
         _upsert_character_stats(db, character_id, user_id, **kwargs)
+    if campaign_id:
+        _upsert_campaign_stats(db, campaign_id, total_rolls=len(rolls),
+                               total_ones=extras["total_ones"])
     _upsert_site_stats(db, total_rolls=len(rolls), total_ones=extras["total_ones"],
                        total_max_rolls=extras["total_max_rolls"])
 
 
 def track_stat_check(db: Session, user_id: str, character_id: str | None,
-                     stat: str, die_roll: int):
+                     stat: str, die_roll: int, campaign_id: str | None = None):
     """Track /pp, /ip, /sp."""
     stat = stat.upper()
     stat_key = f"total_{stat.lower()}_checks"
@@ -111,22 +135,29 @@ def track_stat_check(db: Session, user_id: str, character_id: str | None,
     _upsert_user_stats(db, user_id, **kwargs)
     if character_id:
         _upsert_character_stats(db, character_id, user_id, **kwargs)
+    if campaign_id:
+        _upsert_campaign_stats(db, campaign_id, total_rolls=1,
+                               total_ones=extras["total_ones"])
     _upsert_site_stats(db, total_rolls=1, total_ones=extras["total_ones"],
                        total_max_rolls=extras["total_max_rolls"])
 
 
-def track_initiative(db: Session, user_id: str, character_id: str | None, die_roll: int):
+def track_initiative(db: Session, user_id: str, character_id: str | None,
+                     die_roll: int, campaign_id: str | None = None):
     """Track an initiative roll."""
     extras = _check_rolls([die_roll], 6)
     kwargs = {"total_rolls": 1, "total_initiatives": 1, **extras}
     _upsert_user_stats(db, user_id, **kwargs)
     if character_id:
         _upsert_character_stats(db, character_id, user_id, **kwargs)
+    if campaign_id:
+        _upsert_campaign_stats(db, campaign_id, total_rolls=1)
     _upsert_site_stats(db, total_rolls=1)
 
 
 def track_attack(db: Session, user_id: str, character_id: str | None,
-                 damage_dealt: int, individual_rolls: list[dict]):
+                 damage_dealt: int, individual_rolls: list[dict],
+                 campaign_id: str | None = None):
     """Track an attack roll."""
     all_rolls = []
     for r in individual_rolls:
@@ -143,6 +174,11 @@ def track_attack(db: Session, user_id: str, character_id: str | None,
     _upsert_user_stats(db, user_id, **kwargs)
     if character_id:
         _upsert_character_stats(db, character_id, user_id, **kwargs)
+    if campaign_id:
+        _upsert_campaign_stats(db, campaign_id, total_rolls=len(all_rolls),
+                               total_attacks=1, total_damage_dealt=damage_dealt,
+                               biggest_hit=damage_dealt,
+                               total_ones=extras.get("total_ones", 0))
     _upsert_site_stats(db, total_rolls=len(all_rolls), total_attacks=1,
                        total_damage_dealt=damage_dealt,
                        total_ones=extras.get("total_ones", 0),
@@ -164,11 +200,14 @@ def track_ability_cast(db: Session, user_id: str, character_id: str | None):
         _upsert_character_stats(db, character_id, user_id, total_abilities_cast=1)
 
 
-def track_calling(db: Session, user_id: str, character_id: str | None):
+def track_calling(db: Session, user_id: str, character_id: str | None,
+                  campaign_id: str | None = None):
     """Track a Calling (DP reached 0)."""
     _upsert_user_stats(db, user_id, total_callings=1)
     if character_id:
         _upsert_character_stats(db, character_id, user_id, total_callings=1)
+    if campaign_id:
+        _upsert_campaign_stats(db, campaign_id, total_callings=1)
     _upsert_site_stats(db, total_callings=1)
 
 
@@ -178,10 +217,13 @@ def track_battle_scar(db: Session, user_id: str, character_id: str | None):
         _upsert_character_stats(db, character_id, user_id, total_battle_scars=1)
 
 
-def track_message(db: Session, user_id: str, character_id: str | None):
+def track_message(db: Session, user_id: str, character_id: str | None,
+                  campaign_id: str | None = None):
     _upsert_user_stats(db, user_id, total_messages_sent=1)
     if character_id:
         _upsert_character_stats(db, character_id, user_id, total_messages_sent=1)
+    if campaign_id:
+        _upsert_campaign_stats(db, campaign_id, total_messages=1)
     _upsert_site_stats(db, total_messages=1)
 
 
@@ -197,12 +239,15 @@ def track_boost(db: Session, user_id: str, character_id: str | None,
         _upsert_character_stats(db, character_id, user_id, **kwargs)
 
 
-def track_battle_end(db: Session, participant_ids: list[tuple[str, str | None]]):
+def track_battle_end(db: Session, participant_ids: list[tuple[str, str | None]],
+                     campaign_id: str | None = None):
     """Mark battle survived for all participants. participant_ids = [(user_id, character_id)]"""
     for user_id, character_id in participant_ids:
         _upsert_user_stats(db, user_id, battles_survived=1)
         if character_id:
             _upsert_character_stats(db, character_id, user_id, battles_survived=1)
+    if campaign_id:
+        _upsert_campaign_stats(db, campaign_id, total_battles=1)
     _upsert_site_stats(db, total_battles=1)
 
 

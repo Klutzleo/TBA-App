@@ -2436,6 +2436,8 @@
         <span class="subtitle" id="campaignSubtitle">Tabletop Adventure Platform</span>
       </div>
       <div class="connection-status">
+        <a href="/profile.html" title="My Profile"
+          style="font-size:1.1rem;padding:2px 6px;margin-right:4px;opacity:0.7;text-decoration:none;">👤</a>
         <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener"
           title="Free rulebook on itch.io"
           style="font-size:0.75rem; color:#a78bfa; text-decoration:none; margin-right:8px; opacity:0.8;">📖 Rules</a>
@@ -2447,6 +2449,8 @@
         <button id="soundToggleBtn" title="Toggle message sounds"
           onclick="toggleMessageSound()"
           style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;margin-left:2px;">🔇</button>
+        <button title="Campaign Stats" onclick="openCampaignStats()"
+          style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;margin-left:2px;opacity:0.6;">📊</button>
         <button title="Quick Reference" onclick="document.getElementById('quickRefModal').classList.add('active')"
           style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;margin-left:2px;opacity:0.6;">📖</button>
         <a href="https://ko-fi.com/gameoctane" target="_blank" title="Support TBA on Ko-fi"
@@ -3068,6 +3072,21 @@
         </div>
         <div style="font-size:0.75rem;color:var(--text-muted);opacity:0.6;">You can always open the 📖 Quick Reference from the top bar.</div>
         <div style="font-size:0.75rem;color:var(--text-muted);opacity:0.5;">☕ Enjoying TBA? <a href="https://ko-fi.com/gameoctane" target="_blank" style="color:var(--accent-primary);">Support on Ko-fi</a> — keeps the servers on and the dice rolling.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaign Stats Modal -->
+  <div id="campaignStatsModal" class="modal" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="modal-content" style="max-width:580px;max-height:88vh;overflow-y:auto;">
+      <div class="modal-header">
+        <h2>📊 Campaign Stats</h2>
+        <button class="modal-close" onclick="document.getElementById('campaignStatsModal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body" style="font-size:0.875rem;">
+        <div id="campaignStatsBody">
+          <p style="color:var(--text-muted);text-align:center;padding:24px;">Loading…</p>
+        </div>
       </div>
     </div>
   </div>
@@ -5820,6 +5839,65 @@
 
     function closeCampaignSettings() {
       document.getElementById('campaignSettingsModal').classList.remove('active');
+    }
+
+    async function openCampaignStats() {
+      const modal = document.getElementById('campaignStatsModal');
+      const body  = document.getElementById('campaignStatsBody');
+      modal.classList.add('active');
+      body.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">Loading…</p>';
+
+      try {
+        const res = await fetch(`/api/campaigns/${campaignId}/stats`, {
+          headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const d = await res.json();
+
+        const fmt = n => {
+          n = n || 0;
+          if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+          if (n >= 1000)    return (n / 1000).toFixed(1) + 'K';
+          return String(n);
+        };
+
+        const tile = (icon, val, label, cls='') =>
+          `<div style="background:var(--bg-darker);border:1px solid var(--border-color);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;${cls}">
+            <span style="font-size:1.4rem;line-height:1">${icon}</span>
+            <div>
+              <div style="font-size:1.2rem;font-weight:700;color:var(--accent-primary);line-height:1.1">${val}</div>
+              <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px">${label}</div>
+            </div>
+          </div>`;
+
+        const shameTile = (icon, val, label) =>
+          tile(icon, `<span style="color:#f87171">${val}</span>`, label);
+
+        const gloryTile = (icon, val, label) =>
+          tile(icon, `<span style="color:#34d399">${val}</span>`, label);
+
+        body.innerHTML = `
+          <p style="text-align:center;color:var(--text-muted);font-size:0.8rem;margin-bottom:16px;font-style:italic">${d.campaign_name}</p>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">
+            ${tile('🎲', fmt(d.total_rolls),        'Fates Tempted')}
+            ${gloryTile('💥', fmt(d.total_damage_dealt), 'Damage Unleashed')}
+            ${tile('⚔️', fmt(d.total_attacks),      'Attacks Made')}
+            ${tile('⚡', fmt(d.total_battles),       'Wars Waged')}
+            ${tile('🌟', fmt(d.total_callings),      'Callings Awakened')}
+            ${tile('💬', fmt(d.total_messages),      'Tales Told')}
+            ${shameTile('💀', fmt(d.total_ones),     'Critical Failures')}
+            ${gloryTile('💢', fmt(d.biggest_hit),    'Biggest Hit')}
+          </div>
+
+          <div style="border-top:1px solid var(--border-color);padding-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            ${tile('🧙', d.active_players,   'Active Players')}
+            ${tile('👁️', d.spectators,        'Spectators')}
+            ${tile('🐉', d.active_characters, 'Characters')}
+          </div>`;
+      } catch (e) {
+        body.innerHTML = `<p style="color:#f87171;text-align:center;padding:16px">Could not load stats.</p>`;
+      }
     }
 
     function showWelcomeAgain() {

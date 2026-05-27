@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TBA — Player Profile</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <script src="/js/auth-helper.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #1a1d29; min-height: 100vh; color: #e4e6eb; padding: 20px;
+    }
+
+    /* ── Nav ── */
+    .top-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 900px; margin: 0 auto 28px; padding: 0 4px;
+    }
+    .nav-back {
+      color: #d4af37; text-decoration: none; font-size: 0.9rem;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .nav-back:hover { text-decoration: underline; }
+
+    /* ── Profile header ── */
+    .profile-header {
+      max-width: 900px; margin: 0 auto 28px;
+      background: #252937; border: 1px solid #3a3f54; border-radius: 14px;
+      padding: 28px; display: flex; gap: 24px; align-items: flex-start;
+    }
+    .profile-avatar {
+      width: 96px; height: 96px; border-radius: 50%;
+      object-fit: cover; border: 3px solid #d4af37;
+      background: #1e2130; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem; color: #d4af37;
+    }
+    .profile-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+    .profile-info { flex: 1; }
+    .profile-username { font-size: 1.6rem; font-weight: 700; color: #d4af37; margin-bottom: 4px; }
+    .profile-bio { color: #9ca3af; font-size: 0.9rem; margin-bottom: 12px; line-height: 1.5; }
+    .profile-bio-empty { color: #4b5563; font-style: italic; font-size: 0.85rem; margin-bottom: 12px; }
+    .profile-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.8rem; color: #6b7280; }
+    .profile-meta span { display: flex; align-items: center; gap: 4px; }
+    .profile-edit-btn {
+      padding: 7px 16px; background: transparent; border: 1px solid #3a3f54;
+      border-radius: 8px; color: #9ca3af; font-size: 0.85rem; cursor: pointer;
+      transition: all 0.15s; margin-top: 10px;
+    }
+    .profile-edit-btn:hover { border-color: #d4af37; color: #d4af37; }
+    .private-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(107,114,128,0.2); border: 1px solid rgba(107,114,128,0.3);
+      border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; color: #9ca3af;
+    }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      max-width: 900px; margin: 0 auto 20px;
+      display: flex; gap: 8px; border-bottom: 1px solid #3a3f54; padding-bottom: 0;
+    }
+    .tab-btn {
+      padding: 9px 18px; background: transparent; border: none;
+      border-bottom: 2px solid transparent; color: #6b7280;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .tab-btn:hover { color: #e4e6eb; }
+    .tab-btn.active { color: #d4af37; border-bottom-color: #d4af37; }
+    .tab-pane { display: none; max-width: 900px; margin: 0 auto; }
+    .tab-pane.active { display: block; }
+
+    /* ── Stat grid ── */
+    .stat-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px; margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 10px;
+      padding: 16px 14px; text-align: center;
+    }
+    .stat-card .stat-icon { font-size: 1.5rem; margin-bottom: 6px; }
+    .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; color: #d4af37; }
+    .stat-card .stat-label { font-size: 0.72rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .stat-card.shame .stat-value { color: #f87171; }
+    .stat-card.glory .stat-value { color: #a78bfa; }
+    .stat-card.boost .stat-value { color: #f59e0b; }
+
+    /* ── Character cards ── */
+    .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .char-card {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 12px;
+      padding: 16px; cursor: pointer; transition: all 0.15s;
+    }
+    .char-card:hover { border-color: #d4af37; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(212,175,55,0.1); }
+    .char-card-header { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .char-portrait {
+      width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
+      background: #1e2130; border: 2px solid #3a3f54;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; flex-shrink: 0; overflow: hidden;
+    }
+    .char-portrait img { width: 100%; height: 100%; object-fit: cover; }
+    .char-name { font-weight: 700; color: #e4e6eb; margin-bottom: 2px; }
+    .char-level { font-size: 0.78rem; color: #6b7280; }
+    .char-stats-mini {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 0.78rem;
+    }
+    .char-stat-pill {
+      background: #1e2130; border-radius: 6px; padding: 5px 6px; text-align: center;
+    }
+    .char-stat-pill .val { font-weight: 700; color: #e4e6eb; }
+    .char-stat-pill .lbl { color: #6b7280; font-size: 0.68rem; }
+
+    /* ── Character drill-down panel ── */
+    .char-detail {
+      display: none; background: #252937; border: 1px solid #3a3f54;
+      border-radius: 14px; padding: 24px; margin-top: 14px;
+    }
+    .char-detail.open { display: block; }
+    .char-detail-header {
+      display: flex; gap: 16px; align-items: center; margin-bottom: 20px;
+    }
+    .char-detail-portrait {
+      width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+      background: #1e2130; border: 2px solid #d4af37; flex-shrink: 0; overflow: hidden;
+      display: flex; align-items: center; justify-content: center; font-size: 2rem;
+    }
+    .char-detail-portrait img { width: 100%; height: 100%; object-fit: cover; }
+    .char-detail-name { font-size: 1.2rem; font-weight: 700; color: #d4af37; }
+    .char-detail-close {
+      margin-left: auto; background: transparent; border: none;
+      color: #6b7280; font-size: 1.2rem; cursor: pointer;
+    }
+    .char-detail-close:hover { color: #e4e6eb; }
+
+    /* ── Edit modal ── */
+    #editModal {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
+    }
+    #editModal.open { display: flex; }
+    .edit-modal-box {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 14px;
+      padding: 28px; max-width: 420px; width: 90%;
+    }
+    .edit-modal-box h3 { color: #d4af37; margin-bottom: 16px; }
+    .edit-modal-box label { font-size: 0.82rem; color: #9ca3af; display: block; margin-bottom: 4px; }
+    .edit-modal-box textarea, .edit-modal-box input[type=checkbox] { width: 100%; }
+    .edit-modal-box textarea {
+      background: #1e2130; border: 1px solid #3a3f54; border-radius: 8px;
+      color: #e4e6eb; padding: 10px; font-size: 0.9rem; resize: vertical;
+      font-family: inherit; margin-bottom: 14px;
+    }
+    .edit-modal-box .toggle-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+      font-size: 0.9rem; color: #e4e6eb;
+    }
+    .edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-save {
+      padding: 9px 20px; background: #d4af37; border: none; border-radius: 8px;
+      color: #13151f; font-weight: 700; cursor: pointer;
+    }
+    .btn-cancel {
+      padding: 9px 20px; background: transparent; border: 1px solid #3a3f54;
+      border-radius: 8px; color: #9ca3af; cursor: pointer;
+    }
+
+    /* ── Loading / empty ── */
+    .loading { text-align: center; padding: 60px; color: #6b7280; font-size: 1rem; }
+    .empty-state { text-align: center; padding: 40px; color: #6b7280; }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+    @media (max-width: 600px) {
+      .profile-header { flex-direction: column; align-items: center; text-align: center; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .char-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-nav">
+  <a href="/campaigns.html" class="nav-back">← Back to Campaigns</a>
+  <span id="viewingLabel" style="font-size:0.8rem;color:#6b7280;"></span>
+</div>
+
+<!-- Profile Header -->
+<div class="profile-header" id="profileHeader">
+  <div class="loading" style="width:100%">Loading profile…</div>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('stats')">📊 Stats</button>
+  <button class="tab-btn" onclick="switchTab('characters')">⚔️ Characters</button>
+  <button class="tab-btn" onclick="switchTab('achievements')" id="achievementsTabBtn">🏆 Achievements <span style="font-size:0.7rem;color:#6b7280;">(soon)</span></button>
+</div>
+
+<!-- Stats Tab -->
+<div id="tab-stats" class="tab-pane active">
+  <div class="loading" id="statsLoading">Loading stats…</div>
+  <div id="statsContent" style="display:none;"></div>
+</div>
+
+<!-- Characters Tab -->
+<div id="tab-characters" class="tab-pane">
+  <div id="charsContent"><div class="loading">Loading characters…</div></div>
+</div>
+
+<!-- Achievements Tab -->
+<div id="tab-achievements" class="tab-pane">
+  <div class="empty-state"><div class="icon">🏆</div><div>Achievements coming soon!</div></div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div id="editModal" onclick="if(event.target===this)closeEdit()">
+  <div class="edit-modal-box">
+    <h3>✏️ Edit Profile</h3>
+    <label>Bio (max 300 chars)</label>
+    <textarea id="editBio" rows="4" maxlength="300" placeholder="Tell your story…"></textarea>
+    <div class="toggle-row">
+      <input type="checkbox" id="editPublic" style="width:auto;accent-color:#d4af37;">
+      <label for="editPublic" style="margin:0;">Public profile (others can view your stats)</label>
+    </div>
+    <div class="edit-actions">
+      <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
+      <button class="btn-save" onclick="saveProfile()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const authToken = localStorage.getItem('authToken');
+  const params = new URLSearchParams(location.search);
+  const targetUsername = params.get('u');  // null = own profile
+
+  let profileData = null;
+
+  // ── Tab switching ──
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    event.target.closest('.tab-btn').classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+  }
+
+  // ── Load profile ──
+  async function loadProfile() {
+    if (!authToken) { location.href = '/'; return; }
+    try {
+      const url = targetUsername
+        ? `/api/profile/${encodeURIComponent(targetUsername)}`
+        : '/api/profile/me';
+      const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+      if (!resp.ok) throw new Error('Not found');
+      profileData = await resp.json();
+      renderHeader();
+      renderStats();
+      renderCharacters();
+      if (targetUsername) {
+        document.getElementById('viewingLabel').textContent = `Viewing ${profileData.username}'s profile`;
+        document.title = `${profileData.username} — TBA Profile`;
+      } else {
+        document.title = 'My Profile — TBA';
+      }
+    } catch (e) {
+      document.getElementById('profileHeader').innerHTML = `<div class="loading">Profile not found.</div>`;
+    }
+  }
+
+  // ── Render header ──
+  function renderHeader() {
+    const d = profileData;
+    const isOwn = !targetUsername || d.is_own;
+    const profile = d.profile || {};
+    const avatarHtml = profile.avatar_url
+      ? `<img src="${profile.avatar_url}" alt="avatar">`
+      : (d.username ? d.username[0].toUpperCase() : '?');
+    const joinDate = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { year:'numeric', month:'short' }) : '';
+    const lastSeen = d.last_played_at ? `Last played ${new Date(d.last_played_at).toLocaleDateString()}` : '';
+    const bio = profile.bio
+      ? `<div class="profile-bio">${escHtml(profile.bio)}</div>`
+      : (isOwn ? `<div class="profile-bio-empty">No bio yet — click Edit to add one.</div>` : '');
+    const privacyBadge = !profile.is_public ? `<span class="private-badge">🔒 Private</span>` : '';
+    const editBtn = isOwn
+      ? `<button class="profile-edit-btn" onclick="openEdit()">✏️ Edit Profile</button>`
+      : '';
+
+    document.getElementById('profileHeader').innerHTML = `
+      <div class="profile-avatar">${avatarHtml}</div>
+      <div class="profile-info">
+        <div class="profile-username">${escHtml(d.username)} ${privacyBadge}</div>
+        ${bio}
+        <div class="profile-meta">
+          ${joinDate ? `<span>📅 Joined ${joinDate}</span>` : ''}
+          ${lastSeen ? `<span>🎲 ${lastSeen}</span>` : ''}
+        </div>
+        ${editBtn}
+      </div>`;
+  }
+
+  // ── Render stats ──
+  function renderStats() {
+    const s = profileData.stats || {};
+    document.getElementById('statsLoading').style.display = 'none';
+    document.getElementById('statsContent').style.display = 'block';
+
+    const fmt = n => (n || 0).toLocaleString();
+
+    const cards = [
+      { icon: '🎲', val: fmt(s.total_rolls), label: 'Total Dice Rolled', cls: '' },
+      { icon: '💀', val: fmt(s.total_ones), label: '1s Rolled (Hall of Shame)', cls: 'shame' },
+      { icon: '✨', val: fmt(s.total_max_rolls), label: 'Max Rolls (Natural Max)', cls: 'glory' },
+      { icon: '⚔️', val: fmt(s.total_attacks), label: 'Attacks Made', cls: '' },
+      { icon: '💥', val: fmt(s.total_damage_dealt), label: 'Total Damage Dealt', cls: '' },
+      { icon: '🛡️', val: fmt(s.total_damage_taken), label: 'Total Damage Taken', cls: '' },
+      { icon: '🔥', val: fmt(s.biggest_hit_dealt), label: 'Biggest Hit Dealt', cls: 'glory' },
+      { icon: '😬', val: fmt(s.biggest_hit_taken), label: 'Biggest Hit Taken', cls: 'shame' },
+      { icon: '📊', val: fmt(s.total_stat_checks), label: 'Stat Checks', cls: '' },
+      { icon: '💪', val: fmt(s.total_pp_checks), label: 'PP Checks', cls: '' },
+      { icon: '🧠', val: fmt(s.total_ip_checks), label: 'IP Checks', cls: '' },
+      { icon: '🗣️', val: fmt(s.total_sp_checks), label: 'SP Checks', cls: '' },
+      { icon: '⚡', val: fmt(s.total_initiatives), label: 'Initiatives Rolled', cls: '' },
+      { icon: '✦', val: fmt(s.total_bap_used), label: 'BAP Used', cls: 'boost' },
+      { icon: '🔗', val: fmt(s.total_tethers_invoked), label: 'Tethers Invoked', cls: 'boost' },
+      { icon: '✨', val: fmt(s.total_abilities_cast), label: 'Abilities Cast', cls: '' },
+      { icon: '💬', val: fmt(s.total_messages_sent), label: 'Messages Sent', cls: '' },
+      { icon: '⚔️', val: fmt(s.battles_survived), label: 'Battles Survived', cls: '' },
+      { icon: '💀', val: fmt(s.total_callings), label: 'Times Called', cls: 'shame' },
+      { icon: '🩹', val: fmt(s.total_battle_scars), label: 'Battle Scars', cls: '' },
+    ];
+
+    document.getElementById('statsContent').innerHTML = `
+      <div class="stat-grid">
+        ${cards.map(c => `
+          <div class="stat-card ${c.cls}">
+            <div class="stat-icon">${c.icon}</div>
+            <div class="stat-value">${c.val}</div>
+            <div class="stat-label">${c.label}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  // ── Render characters ──
+  function renderCharacters() {
+    const chars = profileData.characters || [];
+    const el = document.getElementById('charsContent');
+    if (!chars.length) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">⚔️</div><div>No characters yet.</div></div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div class="char-grid">
+        ${chars.map((c, i) => `
+          <div class="char-card" onclick="toggleCharDetail(${i})">
+            <div class="char-card-header">
+              <div class="char-portrait">
+                ${c.portrait_url ? `<img src="${c.portrait_url}" alt="${escHtml(c.name)}">` : '⚔️'}
+              </div>
+              <div>
+                <div class="char-name">${escHtml(c.name)}</div>
+                <div class="char-level">Level ${c.level || 1}</div>
+              </div>
+            </div>
+            <div class="char-stats-mini">
+              <div class="char-stat-pill"><div class="val">${c.pp || 0}</div><div class="lbl">PP</div></div>
+              <div class="char-stat-pill"><div class="val">${c.ip || 0}</div><div class="lbl">IP</div></div>
+              <div class="char-stat-pill"><div class="val">${c.sp || 0}</div><div class="lbl">SP</div></div>
+              <div class="char-stat-pill"><div class="val">${c.dp || 0}</div><div class="lbl">DP</div></div>
+              <div class="char-stat-pill"><div class="val">${c.edge || 0}</div><div class="lbl">Edge</div></div>
+              <div class="char-stat-pill"><div class="val">${c.bap || 0}</div><div class="lbl">BAP</div></div>
+            </div>
+          </div>
+          <div class="char-detail" id="charDetail_${i}">
+            ${renderCharDetail(c)}
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function renderCharDetail(c) {
+    const s = c.stats || {};
+    const fmt = n => (n || 0).toLocaleString();
+    return `
+      <div class="char-detail-header">
+        <div class="char-detail-portrait">
+          ${c.portrait_url ? `<img src="${c.portrait_url}" alt="${escHtml(c.name)}">` : '⚔️'}
+        </div>
+        <div>
+          <div class="char-detail-name">${escHtml(c.name)}</div>
+          <div style="color:#6b7280;font-size:0.82rem;">Level ${c.level || 1}${c.last_played_at ? ' · Last played ' + new Date(c.last_played_at).toLocaleDateString() : ''}</div>
+        </div>
+        <button class="char-detail-close" onclick="event.stopPropagation();toggleCharDetail(null)">&times;</button>
+      </div>
+      <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr));">
+        <div class="stat-card"><div class="stat-icon">🎲</div><div class="stat-value">${fmt(s.total_rolls)}</div><div class="stat-label">Rolls</div></div>
+        <div class="stat-card shame"><div class="stat-icon">💀</div><div class="stat-value">${fmt(s.total_ones)}</div><div class="stat-label">1s Rolled</div></div>
+        <div class="stat-card glory"><div class="stat-icon">✨</div><div class="stat-value">${fmt(s.total_max_rolls)}</div><div class="stat-label">Max Rolls</div></div>
+        <div class="stat-card"><div class="stat-icon">⚔️</div><div class="stat-value">${fmt(s.total_attacks)}</div><div class="stat-label">Attacks</div></div>
+        <div class="stat-card"><div class="stat-icon">💥</div><div class="stat-value">${fmt(s.total_damage_dealt)}</div><div class="stat-label">Dmg Dealt</div></div>
+        <div class="stat-card glory"><div class="stat-icon">🔥</div><div class="stat-value">${fmt(s.biggest_hit_dealt)}</div><div class="stat-label">Biggest Hit</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value">${fmt(s.total_stat_checks)}</div><div class="stat-label">Stat Checks</div></div>
+        <div class="stat-card"><div class="stat-icon">✨</div><div class="stat-value">${fmt(s.total_abilities_cast)}</div><div class="stat-label">Abilities</div></div>
+        <div class="stat-card shame"><div class="stat-icon">💀</div><div class="stat-value">${fmt(s.total_callings)}</div><div class="stat-label">Times Called</div></div>
+        <div class="stat-card boost"><div class="stat-icon">✦</div><div class="stat-value">${fmt(s.total_bap_used)}</div><div class="stat-label">BAP Used</div></div>
+        <div class="stat-card boost"><div class="stat-icon">🔗</div><div class="stat-value">${fmt(s.total_tethers_invoked)}</div><div class="stat-label">Tethers</div></div>
+        <div class="stat-card"><div class="stat-icon">💬</div><div class="stat-value">${fmt(s.total_messages_sent)}</div><div class="stat-label">Messages</div></div>
+      </div>`;
+  }
+
+  let openDetailIdx = null;
+  function toggleCharDetail(i) {
+    if (openDetailIdx !== null) {
+      document.getElementById(`charDetail_${openDetailIdx}`).classList.remove('open');
+    }
+    if (i !== null && i !== openDetailIdx) {
+      document.getElementById(`charDetail_${i}`).classList.add('open');
+      openDetailIdx = i;
+    } else {
+      openDetailIdx = null;
+    }
+  }
+
+  // ── Edit profile modal ──
+  function openEdit() {
+    const p = profileData.profile || {};
+    document.getElementById('editBio').value = p.bio || '';
+    document.getElementById('editPublic').checked = p.is_public !== false;
+    document.getElementById('editModal').classList.add('open');
+  }
+  function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
+
+  async function saveProfile() {
+    const bio = document.getElementById('editBio').value.trim();
+    const is_public = document.getElementById('editPublic').checked;
+    try {
+      const resp = await fetch('/api/profile/me', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bio, is_public }),
+      });
+      if (!resp.ok) throw new Error('Save failed');
+      const data = await resp.json();
+      profileData.profile = data.profile;
+      renderHeader();
+      closeEdit();
+    } catch (e) {
+      alert('Could not save profile: ' + e.message);
+    }
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadProfile();
+</script>
+</body>
+</html>

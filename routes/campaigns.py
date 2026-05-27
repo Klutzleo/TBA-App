@@ -1761,3 +1761,64 @@ async def record_visit(
     db.commit()
 
 
+@router.get("/{campaign_id}/stats")
+async def get_campaign_stats(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return aggregate stats + live counts for a campaign. Accessible to all members."""
+    from backend.models import CampaignStats
+
+    # Verify membership (or SW)
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at == None,
+    ).first()
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    is_sw = str(campaign.created_by) == str(current_user.id)
+    if not membership and not is_sw:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+
+    # Aggregate stats row
+    stats = db.query(CampaignStats).filter(CampaignStats.campaign_id == campaign_id).first()
+
+    # Live counts
+    all_members = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.left_at == None,
+    ).all()
+    total_members = len(all_members)
+
+    active_pcs = db.query(Character).filter(
+        Character.campaign_id == str(campaign_id),
+        Character.is_npc == False,
+        Character.status == 'active',
+    ).all()
+    pc_owner_ids = {str(c.user_id) for c in active_pcs if c.user_id}
+
+    player_members = [m for m in all_members if m.role == 'player']
+    spectator_count = sum(1 for m in player_members if str(m.user_id) not in pc_owner_ids)
+    active_player_count = len(pc_owner_ids)
+
+    return {
+        "campaign_id": str(campaign_id),
+        "campaign_name": campaign.name,
+        "total_rolls":        stats.total_rolls        if stats else 0,
+        "total_ones":         stats.total_ones         if stats else 0,
+        "total_attacks":      stats.total_attacks      if stats else 0,
+        "total_damage_dealt": stats.total_damage_dealt if stats else 0,
+        "biggest_hit":        stats.biggest_hit        if stats else 0,
+        "total_callings":     stats.total_callings     if stats else 0,
+        "total_messages":     stats.total_messages     if stats else 0,
+        "total_battles":      stats.total_battles      if stats else 0,
+        "total_members":      total_members,
+        "active_players":     active_player_count,
+        "spectators":         spectator_count,
+        "active_characters":  len(active_pcs),
+    }
+
+

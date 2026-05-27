@@ -421,6 +421,59 @@
             background: none; border: none; color: #94a3b8;
             font-size: 1.1rem; padding: 0 4px; cursor: pointer;
         }
+        /* ── Boast Bar ── */
+        .boast-wrapper {
+            max-width: 1200px;
+            margin: 0 auto 32px;
+        }
+        .boast-heading {
+            text-align: center;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #4b5563;
+            margin-bottom: 12px;
+        }
+        .boast-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .boast-stat {
+            background: #252937;
+            border: 1px solid #3a3f54;
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 120px;
+            flex: 1;
+            max-width: 180px;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .boast-stat:hover {
+            border-color: #d4af37;
+            transform: translateY(-2px);
+        }
+        .boast-stat-icon { font-size: 1.5rem; line-height: 1; }
+        .boast-stat-body { display: flex; flex-direction: column; }
+        .boast-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #d4af37;
+            line-height: 1.1;
+        }
+        .boast-stat-label {
+            font-size: 0.65rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 2px;
+        }
+        .boast-stat.shame .boast-stat-value { color: #f87171; }
+        .boast-stat.glory .boast-stat-value { color: #34d399; }
     </style>
 </head>
 <body>
@@ -430,6 +483,62 @@
         <img src="/icons/icon-192.png" alt="TBA" style="width:56px;height:56px;border-radius:12px;margin-bottom:6px;">
         <h1>Campaign Management</h1>
         <div id="user-info" class="user-info"></div>
+    </div>
+
+    <!-- Boast Bar -->
+    <div id="boast-wrapper" class="boast-wrapper" style="display:none;">
+        <div class="boast-heading">⚔️ &nbsp;The TBA Universe — By the Numbers&nbsp; ⚔️</div>
+        <div id="boast-bar" class="boast-bar">
+            <div class="boast-stat">
+                <span class="boast-stat-icon">🎲</span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-rolls">—</span>
+                    <span class="boast-stat-label">Fates Tempted</span>
+                </div>
+            </div>
+            <div class="boast-stat glory">
+                <span class="boast-stat-icon">💥</span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-damage">—</span>
+                    <span class="boast-stat-label">Damage Unleashed</span>
+                </div>
+            </div>
+            <div class="boast-stat">
+                <span class="boast-stat-icon">⚔️</span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-battles">—</span>
+                    <span class="boast-stat-label">Wars Waged</span>
+                </div>
+            </div>
+            <div class="boast-stat">
+                <span class="boast-stat-icon">🌟</span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-callings">—</span>
+                    <span class="boast-stat-label">Callings Awakened</span>
+                </div>
+            </div>
+            <div class="boast-stat">
+                <span class="boast-stat-icon">💬</span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-messages">—</span>
+                    <span class="boast-stat-label">Tales Told</span>
+                </div>
+            </div>
+            <div class="boast-stat shame">
+                <span class="boast-stat-icon">💀</span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-ones">—</span>
+                    <span class="boast-stat-label">Critical Failures</span>
+                </div>
+            </div>
+            <div class="boast-stat">
+                <span class="boast-stat-icon">🧙</span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-players">—</span>
+                    <span class="boast-stat-label">Adventurers</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="tabs">
@@ -707,6 +816,7 @@
             // Load initial data
             loadMyCampaigns();
             loadPublicCampaigns();
+            loadSiteStats();
         });
 
         // Tab switching
@@ -780,6 +890,34 @@
 
             if (response.status === 204 || response.headers.get('content-length') === '0') return null;
             return await response.json();
+        }
+
+        // Load global site boast bar stats
+        async function loadSiteStats() {
+            try {
+                const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
+                const res = await fetch('/api/profile/site/stats', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                if (!res.ok) return;
+                const d = await res.json();
+                const fmt = n => {
+                    n = n || 0;
+                    if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+                    if (n >= 1000)    return (n/1000).toFixed(1) + 'K';
+                    return String(n);
+                };
+                document.getElementById('boast-rolls').textContent    = fmt(d.total_rolls);
+                document.getElementById('boast-damage').textContent   = fmt(d.total_damage_dealt);
+                document.getElementById('boast-battles').textContent  = fmt(d.total_battles);
+                document.getElementById('boast-callings').textContent = fmt(d.total_callings);
+                document.getElementById('boast-messages').textContent = fmt(d.total_messages);
+                document.getElementById('boast-ones').textContent     = fmt(d.total_ones);
+                document.getElementById('boast-players').textContent  = fmt(d.total_players);
+                document.getElementById('boast-wrapper').style.display = 'block';
+            } catch (e) {
+                // boast bar is decorative — fail silently
+            }
         }
 
         // Load my campaigns
