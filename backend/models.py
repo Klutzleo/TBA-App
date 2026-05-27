@@ -771,3 +771,126 @@ class CampaignLastVisited(Base):
     user_id     = Column(UUID(as_uuid=True), ForeignKey("users.id",     ondelete="CASCADE"), primary_key=True)
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
     visited_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+_stat_cols = dict(
+    total_rolls=Column(Integer, nullable=False, default=0),
+    total_ones=Column(Integer, nullable=False, default=0),
+    total_max_rolls=Column(Integer, nullable=False, default=0),
+    total_stat_checks=Column(Integer, nullable=False, default=0),
+    total_pp_checks=Column(Integer, nullable=False, default=0),
+    total_ip_checks=Column(Integer, nullable=False, default=0),
+    total_sp_checks=Column(Integer, nullable=False, default=0),
+    total_initiatives=Column(Integer, nullable=False, default=0),
+    total_attacks=Column(Integer, nullable=False, default=0),
+    total_damage_dealt=Column(Integer, nullable=False, default=0),
+    total_damage_taken=Column(Integer, nullable=False, default=0),
+    total_abilities_cast=Column(Integer, nullable=False, default=0),
+    biggest_hit_dealt=Column(Integer, nullable=False, default=0),
+    biggest_hit_taken=Column(Integer, nullable=False, default=0),
+    battles_survived=Column(Integer, nullable=False, default=0),
+    total_callings=Column(Integer, nullable=False, default=0),
+    total_battle_scars=Column(Integer, nullable=False, default=0),
+    total_bap_used=Column(Integer, nullable=False, default=0),
+    total_tethers_invoked=Column(Integer, nullable=False, default=0),
+    total_boosts_applied=Column(Integer, nullable=False, default=0),
+    total_messages_sent=Column(Integer, nullable=False, default=0),
+    updated_at=Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow),
+)
+
+
+class UserStats(Base):
+    __tablename__ = "user_stats"
+    __table_args__ = {'extend_existing': True}
+
+    user_id            = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    campaigns_joined   = Column(Integer, nullable=False, default=0)
+    first_played_at    = Column(DateTime(timezone=True), nullable=True)
+    last_played_at     = Column(DateTime(timezone=True), nullable=True)
+    total_play_minutes = Column(Integer, nullable=False, default=0)
+
+    total_rolls         = Column(Integer, nullable=False, default=0)
+    total_ones          = Column(Integer, nullable=False, default=0)
+    total_max_rolls     = Column(Integer, nullable=False, default=0)
+    total_stat_checks   = Column(Integer, nullable=False, default=0)
+    total_pp_checks     = Column(Integer, nullable=False, default=0)
+    total_ip_checks     = Column(Integer, nullable=False, default=0)
+    total_sp_checks     = Column(Integer, nullable=False, default=0)
+    total_initiatives   = Column(Integer, nullable=False, default=0)
+    total_attacks       = Column(Integer, nullable=False, default=0)
+    total_damage_dealt  = Column(Integer, nullable=False, default=0)
+    total_damage_taken  = Column(Integer, nullable=False, default=0)
+    total_abilities_cast= Column(Integer, nullable=False, default=0)
+    biggest_hit_dealt   = Column(Integer, nullable=False, default=0)
+    biggest_hit_taken   = Column(Integer, nullable=False, default=0)
+    battles_survived    = Column(Integer, nullable=False, default=0)
+    total_callings      = Column(Integer, nullable=False, default=0)
+    total_battle_scars  = Column(Integer, nullable=False, default=0)
+    total_bap_used      = Column(Integer, nullable=False, default=0)
+    total_tethers_invoked = Column(Integer, nullable=False, default=0)
+    total_boosts_applied= Column(Integer, nullable=False, default=0)
+    total_messages_sent = Column(Integer, nullable=False, default=0)
+    updated_at          = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CharacterStats(Base):
+    __tablename__ = "character_stats"
+    __table_args__ = {'extend_existing': True}
+
+    character_id       = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True)
+    user_id            = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    first_played_at    = Column(DateTime(timezone=True), nullable=True)
+    last_played_at     = Column(DateTime(timezone=True), nullable=True)
+
+    total_rolls         = Column(Integer, nullable=False, default=0)
+    total_ones          = Column(Integer, nullable=False, default=0)
+    total_max_rolls     = Column(Integer, nullable=False, default=0)
+    total_stat_checks   = Column(Integer, nullable=False, default=0)
+    total_pp_checks     = Column(Integer, nullable=False, default=0)
+    total_ip_checks     = Column(Integer, nullable=False, default=0)
+    total_sp_checks     = Column(Integer, nullable=False, default=0)
+    total_initiatives   = Column(Integer, nullable=False, default=0)
+    total_attacks       = Column(Integer, nullable=False, default=0)
+    total_damage_dealt  = Column(Integer, nullable=False, default=0)
+    total_damage_taken  = Column(Integer, nullable=False, default=0)
+    total_abilities_cast= Column(Integer, nullable=False, default=0)
+    biggest_hit_dealt   = Column(Integer, nullable=False, default=0)
+    biggest_hit_taken   = Column(Integer, nullable=False, default=0)
+    battles_survived    = Column(Integer, nullable=False, default=0)
+    total_callings      = Column(Integer, nullable=False, default=0)
+    total_battle_scars  = Column(Integer, nullable=False, default=0)
+    total_bap_used      = Column(Integer, nullable=False, default=0)
+    total_tethers_invoked = Column(Integer, nullable=False, default=0)
+    total_boosts_applied= Column(Integer, nullable=False, default=0)
+    total_messages_sent = Column(Integer, nullable=False, default=0)
+    updated_at          = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SiteStats(Base):
+    __tablename__ = "site_stats"
+    __table_args__ = {'extend_existing': True}
+
+    id                 = Column(Integer, primary_key=True, default=1)
+    total_rolls        = Column(Integer, nullable=False, default=0)
+    total_ones         = Column(Integer, nullable=False, default=0)
+    total_max_rolls    = Column(Integer, nullable=False, default=0)
+    total_attacks      = Column(Integer, nullable=False, default=0)
+    total_damage_dealt = Column(Integer, nullable=False, default=0)
+    total_callings     = Column(Integer, nullable=False, default=0)
+    total_messages     = Column(Integer, nullable=False, default=0)
+    total_battles      = Column(Integer, nullable=False, default=0)
+    total_players      = Column(Integer, nullable=False, default=0)
+    updated_at         = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+    __table_args__ = {'extend_existing': True}
+
+    user_id          = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    bio              = Column(Text, nullable=True)
+    is_public        = Column(Boolean, nullable=False, default=True)
+    discord_id       = Column(String(32), nullable=True)
+    discord_username = Column(String(64), nullable=True)
+    avatar_url       = Column(Text, nullable=True)
+    updated_at       = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

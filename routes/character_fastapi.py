@@ -3109,6 +3109,15 @@ async def apply_boosts(
         flag_modified(msg, "extra_data")
         db.commit()
 
+        try:
+            from backend.stats_tracker import track_boost, commit_stats
+            _used_bap = use_bap and any(b["type"] == "bap" for b in boosts)
+            _tether_n = sum(1 for b in boosts if b["type"] == "tether")
+            track_boost(db, str(current_user.id), str(char.id), _used_bap, _tether_n)
+            commit_stats(db)
+        except Exception as _se:
+            logger.warning(f"Stats track_boost failed: {_se}")
+
         stat_name = extra.get("stat_name", "Check")
         try:
             from routes.campaign_websocket import manager

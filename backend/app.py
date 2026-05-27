@@ -267,6 +267,13 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register upload_router: {e}")
 
+try:
+    from routes.profile import profile_router
+    application.include_router(profile_router, tags=["Profile"])
+    logger.info("✅ Registered profile_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register profile_router: {e}")
+
 
 # Custom OpenAPI schema
 def custom_openapi():

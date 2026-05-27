@@ -1,0 +1,215 @@
+"""
+backend/stats_tracker.py
+Helpers for incrementing user_stats, character_stats, and site_stats.
+
+All functions are fire-and-forget — call them after the main action completes.
+They upsert rows so first-time players get a row automatically.
+"""
+
+import logging
+from datetime import datetime
+from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+logger = logging.getLogger(__name__)
+
+
+def _now():
+    return datetime.utcnow()
+
+
+def _upsert_user_stats(db: Session, user_id: str, **increments):
+    from backend.models import UserStats
+    try:
+        row = db.query(UserStats).filter(UserStats.user_id == user_id).first()
+        if not row:
+            row = UserStats(user_id=user_id, first_played_at=_now())
+            db.add(row)
+            db.flush()
+        for col, val in increments.items():
+            if col.startswith('biggest_'):
+                current = getattr(row, col, 0) or 0
+                if val > current:
+                    setattr(row, col, val)
+            else:
+                current = getattr(row, col, 0) or 0
+                setattr(row, col, current + val)
+        row.last_played_at = _now()
+        row.updated_at = _now()
+    except Exception as e:
+        logger.warning(f"UserStats upsert failed: {e}")
+
+
+def _upsert_character_stats(db: Session, character_id: str, user_id: str, **increments):
+    from backend.models import CharacterStats
+    try:
+        row = db.query(CharacterStats).filter(CharacterStats.character_id == character_id).first()
+        if not row:
+            row = CharacterStats(character_id=character_id, user_id=user_id, first_played_at=_now())
+            db.add(row)
+            db.flush()
+        for col, val in increments.items():
+            if col.startswith('biggest_'):
+                current = getattr(row, col, 0) or 0
+                if val > current:
+                    setattr(row, col, val)
+            else:
+                current = getattr(row, col, 0) or 0
+                setattr(row, col, current + val)
+        row.last_played_at = _now()
+        row.updated_at = _now()
+    except Exception as e:
+        logger.warning(f"CharacterStats upsert failed: {e}")
+
+
+def _upsert_site_stats(db: Session, **increments):
+    from backend.models import SiteStats
+    try:
+        row = db.query(SiteStats).filter(SiteStats.id == 1).first()
+        if not row:
+            row = SiteStats(id=1)
+            db.add(row)
+            db.flush()
+        for col, val in increments.items():
+            current = getattr(row, col, 0) or 0
+            setattr(row, col, current + val)
+        row.updated_at = _now()
+    except Exception as e:
+        logger.warning(f"SiteStats upsert failed: {e}")
+
+
+def _check_rolls(rolls: list[int], die_size: int) -> dict:
+    """Return counts of 1s and max rolls from a list of individual die results."""
+    ones = sum(1 for r in rolls if r == 1)
+    maxes = sum(1 for r in rolls if r == die_size)
+    return {"total_ones": ones, "total_max_rolls": maxes}
+
+
+# ============================================================
+# Public API
+# ============================================================
+
+def track_dice_roll(db: Session, user_id: str, character_id: str | None,
+                    rolls: list[int], die_size: int):
+    """Track a free /roll XdY."""
+    extras = _check_rolls(rolls, die_size)
+    kwargs = {"total_rolls": len(rolls), **extras}
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+    _upsert_site_stats(db, total_rolls=len(rolls), total_ones=extras["total_ones"],
+                       total_max_rolls=extras["total_max_rolls"])
+
+
+def track_stat_check(db: Session, user_id: str, character_id: str | None,
+                     stat: str, die_roll: int):
+    """Track /pp, /ip, /sp."""
+    stat = stat.upper()
+    stat_key = f"total_{stat.lower()}_checks"
+    extras = _check_rolls([die_roll], 6)
+    kwargs = {"total_rolls": 1, "total_stat_checks": 1, stat_key: 1, **extras}
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+    _upsert_site_stats(db, total_rolls=1, total_ones=extras["total_ones"],
+                       total_max_rolls=extras["total_max_rolls"])
+
+
+def track_initiative(db: Session, user_id: str, character_id: str | None, die_roll: int):
+    """Track an initiative roll."""
+    extras = _check_rolls([die_roll], 6)
+    kwargs = {"total_rolls": 1, "total_initiatives": 1, **extras}
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+    _upsert_site_stats(db, total_rolls=1)
+
+
+def track_attack(db: Session, user_id: str, character_id: str | None,
+                 damage_dealt: int, individual_rolls: list[dict]):
+    """Track an attack roll."""
+    all_rolls = []
+    for r in individual_rolls:
+        if r.get("attacker_roll"):
+            all_rolls.append(r["attacker_roll"])
+    extras = _check_rolls(all_rolls, 12) if all_rolls else {}
+    kwargs = {
+        "total_rolls": len(all_rolls),
+        "total_attacks": 1,
+        "total_damage_dealt": damage_dealt,
+        "biggest_hit_dealt": damage_dealt,
+        **extras,
+    }
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+    _upsert_site_stats(db, total_rolls=len(all_rolls), total_attacks=1,
+                       total_damage_dealt=damage_dealt,
+                       total_ones=extras.get("total_ones", 0),
+                       total_max_rolls=extras.get("total_max_rolls", 0))
+
+
+def track_damage_taken(db: Session, user_id: str, character_id: str | None, damage: int):
+    """Track damage taken by a character."""
+    kwargs = {"total_damage_taken": damage, "biggest_hit_taken": damage}
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+
+
+def track_ability_cast(db: Session, user_id: str, character_id: str | None):
+    """Track an ability/spell/technique cast."""
+    _upsert_user_stats(db, user_id, total_abilities_cast=1)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, total_abilities_cast=1)
+
+
+def track_calling(db: Session, user_id: str, character_id: str | None):
+    """Track a Calling (DP reached 0)."""
+    _upsert_user_stats(db, user_id, total_callings=1)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, total_callings=1)
+    _upsert_site_stats(db, total_callings=1)
+
+
+def track_battle_scar(db: Session, user_id: str, character_id: str | None):
+    _upsert_user_stats(db, user_id, total_battle_scars=1)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, total_battle_scars=1)
+
+
+def track_message(db: Session, user_id: str, character_id: str | None):
+    _upsert_user_stats(db, user_id, total_messages_sent=1)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, total_messages_sent=1)
+    _upsert_site_stats(db, total_messages=1)
+
+
+def track_boost(db: Session, user_id: str, character_id: str | None,
+                used_bap: bool, tether_count: int):
+    kwargs = {
+        "total_boosts_applied": 1,
+        "total_bap_used": 1 if used_bap else 0,
+        "total_tethers_invoked": tether_count,
+    }
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+
+
+def track_battle_end(db: Session, participant_ids: list[tuple[str, str | None]]):
+    """Mark battle survived for all participants. participant_ids = [(user_id, character_id)]"""
+    for user_id, character_id in participant_ids:
+        _upsert_user_stats(db, user_id, battles_survived=1)
+        if character_id:
+            _upsert_character_stats(db, character_id, user_id, battles_survived=1)
+    _upsert_site_stats(db, total_battles=1)
+
+
+def commit_stats(db: Session):
+    """Call after all track_* calls in a handler to flush to DB."""
+    try:
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Stats commit failed: {e}")
+        db.rollback()

@@ -700,6 +700,16 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
         except Exception as _pe:
             logger.warning(f"Legacy push notification failed: {_pe}")
 
+    # Track IC/OOC messages
+    if chat_mode in ('ic', 'ooc') and not whisper_targets and not text.startswith('/'):
+        try:
+            from backend.stats_tracker import track_message, commit_stats
+            _char = db.query(Character).filter(Character.user_id == str(user_id)).first() if db else None
+            track_message(db, str(user_id), str(_char.id) if _char else None)
+            commit_stats(db)
+        except Exception as _se:
+            logger.warning(f"Stats track_message failed: {_se}")
+
 
 async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session = None):
     """Handle regular chat message (IC or OOC)."""
@@ -1250,6 +1260,17 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         )
         await manager.broadcast(campaign_id, combat_broadcast.model_dump(mode='json'))
 
+        # Track combat stats
+        try:
+            from backend.stats_tracker import track_attack, track_damage_taken, commit_stats
+            _atk_user = str(attacker.user_id) if attacker.user_id else str(user_id)
+            track_attack(db, _atk_user, str(attacker.id), result["total_damage"], result["individual_rolls"])
+            if not defender.is_npc and defender.user_id:
+                track_damage_taken(db, str(defender.user_id), str(defender.id), result["total_damage"])
+            commit_stats(db)
+        except Exception as _se:
+            logger.warning(f"Stats track_attack failed: {_se}")
+
         # =====================================================================
         # Check for knockout / The Calling
         # =====================================================================
@@ -1274,6 +1295,13 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 else:
                     # The Calling triggered!
                     defender.in_calling = True
+                    try:
+                        from backend.stats_tracker import track_calling, commit_stats
+                        if defender.user_id:
+                            track_calling(db, str(defender.user_id), str(defender.id))
+                            commit_stats(db)
+                    except Exception as _se:
+                        logger.warning(f"Stats track_calling failed: {_se}")
                     calling_msg = Message(
                         campaign_id=campaign_id,
                         party_id=None,
@@ -2202,7 +2230,20 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
     )
     db.add(message_record)
     db.commit()
-    
+
+    # Track stats
+    if db:
+        try:
+            import re as _re2
+            _die_match = _re2.match(r'^\d+d(\d+)', dice_part, _re2.IGNORECASE)
+            _die_size = int(_die_match.group(1)) if _die_match else 6
+            from backend.stats_tracker import track_dice_roll, commit_stats
+            _char = db.query(Character).filter(Character.user_id == str(user_id)).first()
+            track_dice_roll(db, str(user_id), str(_char.id) if _char else None, breakdown, _die_size)
+            commit_stats(db)
+        except Exception as _se:
+            logger.warning(f"Stats track_dice_roll failed: {_se}")
+
     # Broadcast to all clients
     await manager.broadcast(campaign_id, broadcast_data.model_dump(mode='json'))
 
@@ -2391,6 +2432,13 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
                     logger.info(f"Stat check push: skipped (cooldown, last={_last})")
         except Exception as _pe:
             logger.warning(f"Stat check push notification failed: {_pe}")
+
+    try:
+        from backend.stats_tracker import track_stat_check, commit_stats
+        track_stat_check(db, str(user_id), str(character.id), stat_type, die_roll)
+        commit_stats(db)
+    except Exception as _se:
+        logger.warning(f"Stats track_stat_check failed: {_se}")
 
 
 # ============================================================================
