@@ -38,8 +38,18 @@
       background: #1e2130; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
       font-size: 2.5rem; color: #d4af37;
+      position: relative;
     }
     .profile-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+    .avatar-edit-overlay {
+      position: absolute; inset: 0; border-radius: 50%;
+      background: rgba(0,0,0,0.55); display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s; cursor: pointer;
+      font-size: 0.7rem; color: #fff; gap: 2px;
+    }
+    .profile-avatar:hover .avatar-edit-overlay { opacity: 1; }
+    .avatar-edit-overlay span { font-size: 1.3rem; line-height: 1; }
     .profile-info { flex: 1; }
     .profile-username { font-size: 1.6rem; font-weight: 700; color: #d4af37; margin-bottom: 4px; }
     .profile-bio { color: #9ca3af; font-size: 0.9rem; margin-bottom: 12px; line-height: 1.5; }
@@ -254,9 +264,19 @@
 </div>
 
 <!-- Edit Profile Modal -->
+<input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;" onchange="uploadAvatar(this)">
+
 <div id="editModal" onclick="if(event.target===this)closeEdit()">
   <div class="edit-modal-box">
     <h3>✏️ Edit Profile</h3>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <div id="editAvatarPreview" style="width:56px;height:56px;border-radius:50%;border:2px solid #d4af37;background:#1e2130;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#d4af37;overflow:hidden;flex-shrink:0;"></div>
+      <div>
+        <div style="font-size:0.82rem;color:#9ca3af;margin-bottom:4px;">Profile Photo</div>
+        <button class="btn-cancel" style="font-size:0.78rem;padding:4px 10px;" onclick="document.getElementById('avatarFileInput').click()">📷 Change Photo</button>
+        <div id="avatarUploadStatus" style="font-size:0.75rem;color:#6b7280;margin-top:4px;"></div>
+      </div>
+    </div>
     <label>Bio (max 300 chars)</label>
     <textarea id="editBio" rows="4" maxlength="300" placeholder="Tell your story…"></textarea>
     <div class="toggle-row">
@@ -328,8 +348,11 @@
       ? `<button class="profile-edit-btn" onclick="openEdit()">✏️ Edit Profile</button>`
       : '';
 
+    const avatarOverlay = isOwn
+      ? `<div class="avatar-edit-overlay" onclick="document.getElementById('avatarFileInput').click()"><span>📷</span>Change</div>`
+      : '';
     document.getElementById('profileHeader').innerHTML = `
-      <div class="profile-avatar">${avatarHtml}</div>
+      <div class="profile-avatar">${avatarHtml}${avatarOverlay}</div>
       <div class="profile-info">
         <div class="profile-username">${escHtml(d.username)} ${privacyBadge}</div>
         ${bio}
@@ -513,9 +536,49 @@
     const p = profileData.profile || {};
     document.getElementById('editBio').value = p.bio || '';
     document.getElementById('editPublic').checked = p.is_public !== false;
+    const preview = document.getElementById('editAvatarPreview');
+    preview.innerHTML = p.avatar_url
+      ? `<img src="${p.avatar_url}" style="width:100%;height:100%;object-fit:cover;">`
+      : (profileData.username ? profileData.username[0].toUpperCase() : '?');
+    document.getElementById('avatarUploadStatus').textContent = '';
     document.getElementById('editModal').classList.add('open');
   }
   function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
+
+  async function uploadAvatar(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('avatarUploadStatus');
+    statusEl.textContent = 'Uploading…';
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const uploadResp = await fetch('/api/upload/portrait', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: form,
+      });
+      if (!uploadResp.ok) throw new Error('Upload failed');
+      const { url } = await uploadResp.json();
+
+      const patchResp = await fetch('/api/profile/me', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar_url: url }),
+      });
+      if (!patchResp.ok) throw new Error('Save failed');
+      const data = await patchResp.json();
+      profileData.profile = data.profile;
+
+      const preview = document.getElementById('editAvatarPreview');
+      if (preview) preview.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
+      statusEl.textContent = '✓ Saved';
+      renderHeader();
+    } catch (e) {
+      statusEl.textContent = '✗ ' + e.message;
+    }
+    input.value = '';
+  }
 
   async function saveProfile() {
     const bio = document.getElementById('editBio').value.trim();

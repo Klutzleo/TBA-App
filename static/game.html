@@ -12518,6 +12518,7 @@
                 ${char.portrait_url ? `<img src="${escHtml(char.portrait_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${char.chat_color || 'var(--border-color)'};" onerror="this.style.display='none'">` : ''}
                 <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex:1;min-width:0;">
                   <strong>${char.name}</strong>
+                  ${member.username ? `<a href="/profile.html?u=${encodeURIComponent(member.username)}" target="_blank" title="View ${member.username}'s profile" style="font-size:0.75rem;opacity:0.5;text-decoration:none;line-height:1;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">👤</a>` : ''}
                   ${bapTokenBadge}${isCalledBadge}${tetherBadge}
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
