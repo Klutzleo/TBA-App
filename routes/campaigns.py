@@ -1779,7 +1779,7 @@ async def get_campaign_stats(
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    is_sw = str(campaign.created_by) == str(current_user.id)
+    is_sw = str(campaign.created_by_user_id) == str(current_user.id)
     if not membership and not is_sw:
         raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
