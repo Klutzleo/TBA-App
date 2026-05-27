@@ -474,6 +474,65 @@
         }
         .boast-stat.shame .boast-stat-value { color: #f87171; }
         .boast-stat.glory .boast-stat-value { color: #34d399; }
+
+        /* ── What's New Modal ── */
+        .whats-new-modal {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.75); align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .whats-new-modal.open { display: flex; }
+        .whats-new-box {
+            background: #252937; border: 1px solid #3a3f54; border-radius: 16px;
+            width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .whats-new-top {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 22px 24px 0; margin-bottom: 4px;
+        }
+        .whats-new-title { font-size: 1.3rem; font-weight: 700; color: #d4af37; }
+        .whats-new-close {
+            background: none; border: none; color: #6b7280; font-size: 1.4rem;
+            cursor: pointer; line-height: 1; padding: 2px 6px;
+        }
+        .whats-new-close:hover { color: #e4e6eb; }
+        .whats-new-section-label {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: #6b7280; padding: 16px 24px 8px; font-weight: 600;
+        }
+        .whats-new-entry {
+            margin: 0 16px 10px; background: #1e2130; border: 1px solid #3a3f54;
+            border-radius: 10px; padding: 14px 16px;
+        }
+        .whats-new-entry-header {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+        }
+        .whats-new-entry-icon { font-size: 1.3rem; line-height: 1; }
+        .whats-new-entry-title { font-weight: 700; color: #e4e6eb; font-size: 0.95rem; }
+        .new-badge {
+            font-size: 0.62rem; font-weight: 700; background: #d4af37; color: #13151f;
+            border-radius: 4px; padding: 1px 6px; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .soon-badge {
+            font-size: 0.62rem; font-weight: 700; background: #3730a3; color: #a5b4fc;
+            border-radius: 4px; padding: 1px 6px; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .whats-new-entry-desc { font-size: 0.84rem; color: #9ca3af; line-height: 1.5; }
+        .whats-new-footer {
+            padding: 16px 24px 22px; border-top: 1px solid #3a3f54; margin-top: 8px;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+        }
+        .whats-new-bug {
+            font-size: 0.82rem; color: #6b7280; text-decoration: none;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .whats-new-bug:hover { color: #a78bfa; }
+        .whats-new-gotit {
+            padding: 9px 22px; background: #d4af37; color: #13151f; border: none;
+            border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.9rem;
+        }
+        .whats-new-gotit:hover { background: #b8962e; }
     </style>
 </head>
 <body>
@@ -483,6 +542,84 @@
         <img src="/icons/icon-192.png" alt="TBA" style="width:56px;height:56px;border-radius:12px;margin-bottom:6px;">
         <h1>Campaign Management</h1>
         <div id="user-info" class="user-info"></div>
+        <button onclick="openWhatsNew()" title="What's New"
+            style="margin-top:8px;background:none;border:none;cursor:pointer;font-size:1.4rem;opacity:0.7;"
+            id="whatsNewBtn">📣</button>
+    </div>
+
+    <!-- What's New Modal -->
+    <div id="whatsNewModal" class="whats-new-modal" onclick="if(event.target===this)closeWhatsNew()">
+      <div class="whats-new-box">
+        <div class="whats-new-top">
+          <span class="whats-new-title">📣 TBA Updates</span>
+          <button class="whats-new-close" onclick="closeWhatsNew()">&times;</button>
+        </div>
+
+        <div class="whats-new-section-label">🎉 What's New</div>
+
+        <div class="whats-new-entry">
+          <div class="whats-new-entry-header">
+            <span class="whats-new-entry-icon">📊</span>
+            <span class="whats-new-entry-title">Player Stats &amp; Profiles</span>
+            <span class="new-badge">New</span>
+          </div>
+          <div class="whats-new-entry-desc">Every roll, attack, battle, and calling is now tracked. Check your personal profile from the 👤 button — see lifetime stats and drill down by character. Campaign stats are available in-game via the 📊 button.</div>
+        </div>
+
+        <div class="whats-new-entry">
+          <div class="whats-new-entry-header">
+            <span class="whats-new-entry-icon">⚡</span>
+            <span class="whats-new-entry-title">Tether Boosts</span>
+            <span class="new-badge">New</span>
+          </div>
+          <div class="whats-new-entry-desc">Tethers now work like BAP — after any roll, hit the ⚡ Boost button to apply BAP and tethers together in one epic fanfare card. Set tethers on your character sheet just like BAP.</div>
+        </div>
+
+        <div class="whats-new-entry">
+          <div class="whats-new-entry-header">
+            <span class="whats-new-entry-icon">🗣️</span>
+            <span class="whats-new-entry-title">Inline Rolls Mid-Narrative</span>
+            <span class="new-badge">New</span>
+          </div>
+          <div class="whats-new-entry-desc">Drop a roll command at the end of any message: <em>"I leap across the chasm... /pp"</em> — your narration posts first, then the roll card follows. Works with /pp, /ip, /sp, /roll, /attack, /defense, /cast, /technique, and /s.</div>
+        </div>
+
+        <div class="whats-new-section-label">🔜 What's Next</div>
+
+        <div class="whats-new-entry">
+          <div class="whats-new-entry-header">
+            <span class="whats-new-entry-icon">🏆</span>
+            <span class="whats-new-entry-title">Achievements</span>
+            <span class="soon-badge">Soon</span>
+          </div>
+          <div class="whats-new-entry-desc">Earn badges for milestones — first battle survived, 100 dice rolled, The Calling triggered, and more. Stats are already being tracked so achievements will unlock retroactively.</div>
+        </div>
+
+        <div class="whats-new-entry">
+          <div class="whats-new-entry-header">
+            <span class="whats-new-entry-icon">🤝</span>
+            <span class="whats-new-entry-title">Social &amp; Friends</span>
+            <span class="soon-badge">Soon</span>
+          </div>
+          <div class="whats-new-entry-desc">Follow other players, see their public profiles, and get notified when your friends start a campaign.</div>
+        </div>
+
+        <div class="whats-new-entry">
+          <div class="whats-new-entry-header">
+            <span class="whats-new-entry-icon">🎮</span>
+            <span class="whats-new-entry-title">Discord Integration</span>
+            <span class="soon-badge">Soon</span>
+          </div>
+          <div class="whats-new-entry-desc">Link your Discord account to sync your TBA profile and earn the TBA Player role in the community server.</div>
+        </div>
+
+        <div class="whats-new-footer">
+          <a href="https://discord.gg/DpHNMRqatD" target="_blank" rel="noopener" class="whats-new-bug">
+            🐛 Found a bug? Tell us on Discord
+          </a>
+          <button class="whats-new-gotit" onclick="closeWhatsNew()">Got it!</button>
+        </div>
+      </div>
     </div>
 
     <!-- Boast Bar -->
@@ -779,6 +916,24 @@
         // Auth check - redirect to login if not authenticated
         requireAuth();
         displayUserInfo();
+
+        // ── What's New ──
+        const WHATS_NEW_VERSION = '2026-05-27';
+        const SEEN_KEY = 'tba_whats_new_seen';
+
+        function openWhatsNew() {
+            document.getElementById('whatsNewModal').classList.add('open');
+            localStorage.setItem(SEEN_KEY, WHATS_NEW_VERSION);
+            document.getElementById('whatsNewBtn').style.opacity = '0.7';
+        }
+        function closeWhatsNew() {
+            document.getElementById('whatsNewModal').classList.remove('open');
+        }
+
+        // Auto-show once if unseen
+        if (localStorage.getItem(SEEN_KEY) !== WHATS_NEW_VERSION) {
+            window.addEventListener('DOMContentLoaded', () => setTimeout(openWhatsNew, 600));
+        }
 
         let currentTab = 'my-campaigns';
         let currentUser = null;
