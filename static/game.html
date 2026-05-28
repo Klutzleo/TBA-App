@@ -12217,9 +12217,9 @@
         }
 
         // Detect inline roll commands (/pp, /ip, /sp, /roll XdY) embedded mid-text
-        // Skip if the narrative part starts with @mention — that's a directive to another character, not the sender rolling
-        const inlineRoll = detectInlineRoll(text);
-        if (inlineRoll && !whisperTargets && !/^@\w/.test(inlineRoll.narrativeText)) {
+        // SW is the narrator/director — never fire inline rolls on their behalf
+        const inlineRoll = !isSW() ? detectInlineRoll(text) : null;
+        if (inlineRoll && !whisperTargets) {
           // Send the narrative part first
           if (inlineRoll.narrativeText) {
             displayTypedMessage(chatMode, actor, inlineRoll.narrativeText, null, false, null, false, myChatColor);
