@@ -8227,12 +8227,20 @@
       const input = document.getElementById('swNewTether');
       const desc = input ? input.value.trim() : '';
       if (!desc) return;
+      const rawMod = prompt('Set modifier (-5 to +5). Positive = buff, negative = debuff:', '0');
+      if (rawMod === null) return;
+      const modifier = Math.max(-5, Math.min(5, parseInt(rawMod, 10) || 0));
       try {
-        await fetch(`/api/characters/${charId}/tethers`, {
+        const res = await fetch(`/api/characters/${charId}/tethers`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ description: desc })
+          body: JSON.stringify({ description: desc, modifier })
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert('Failed to add tether: ' + (err.detail || res.statusText));
+          return;
+        }
         openSwSheetModal(charId, document.getElementById('swSheetCharName').textContent);
       } catch (e) { alert('Failed to add tether: ' + e.message); }
     }

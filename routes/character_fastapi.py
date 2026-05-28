@@ -3689,11 +3689,17 @@ async def add_tether(
     if len(existing) >= 3:
         raise HTTPException(status_code=400, detail="Maximum 3 tethers per character")
 
+    raw_modifier = body.get("modifier", 0)
+    try:
+        modifier = max(-5, min(5, int(raw_modifier)))
+    except (TypeError, ValueError):
+        modifier = 0
+
     new_tether = {
         "id": str(uuid4()),
         "description": description,
         "is_active": False,
-        "modifier": 0,
+        "modifier": modifier,
     }
     char.tethers = existing + [new_tether]
     db.commit()
