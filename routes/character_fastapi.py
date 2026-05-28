@@ -7,7 +7,7 @@ Includes full character creation with abilities and party membership.
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from backend.db import get_db
-from backend.models import Character, Party, PartyMembership, Ability, User, Message, InventoryItem, CampaignMembership
+from backend.models import Character, Party, PartyMembership, Ability, User, Message, InventoryItem, CampaignMembership, Campaign
 from backend.auth.jwt import get_current_user
 from backend.character_utils import (
     calculate_level_stats,
