@@ -3695,14 +3695,21 @@ async def add_tether(
     except (TypeError, ValueError):
         modifier = 0
 
+    from sqlalchemy.orm.attributes import flag_modified
     new_tether = {
         "id": str(uuid4()),
         "description": description,
         "is_active": False,
         "modifier": modifier,
     }
-    char.tethers = existing + [new_tether]
-    db.commit()
+    char.tethers = list(existing) + [new_tether]
+    flag_modified(char, "tethers")
+    try:
+        db.commit()
+        db.refresh(char)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save tether: {e}")
     return {"tethers": char.tethers}
 
 
