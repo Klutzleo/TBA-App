@@ -12217,8 +12217,9 @@
         }
 
         // Detect inline roll commands (/pp, /ip, /sp, /roll XdY) embedded mid-text
-        // SW is the narrator/director — never fire inline rolls on their behalf
-        const inlineRoll = !isSW() ? detectInlineRoll(text) : null;
+        // Skip when speaking as Narrator — the SW is directing, not rolling. NPC speakers still roll normally.
+        const speakingAsNarrator = !activeSpeaker || activeSpeaker.type === 'narrator';
+        const inlineRoll = !speakingAsNarrator ? detectInlineRoll(text) : null;
         if (inlineRoll && !whisperTargets) {
           // Send the narrative part first
           if (inlineRoll.narrativeText) {
