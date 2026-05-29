@@ -1233,7 +1233,9 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 "defender_new_dp": defender.dp,
                 "narrative": result["narrative"],
                 "individual_rolls": result["individual_rolls"],
-                "outcome": result["outcome"]
+                "outcome": result["outcome"],
+                "attacker_bap": attacker.bap or 1,
+                "attacker_tethers": [t for t in (attacker.tethers or []) if t.get("modifier", 0) != 0],
             }
         )
         db.add(combat_message)
@@ -2375,7 +2377,9 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
             "stat_value": stat_value,
             "edge": edge,
             "total": total,
-            "breakdown": breakdown_text
+            "breakdown": breakdown_text,
+            "bap": character.bap or 1,
+            "tethers": [t for t in (character.tethers or []) if t.get("modifier", 0) != 0],
         }
     )
     db.add(message_record)
