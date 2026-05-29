@@ -901,25 +901,40 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             breakdown = f"{def_die} = [{rolls_str}] + {stat_label}({stat_value}) + Edge({edge}) = {defense_total}"
 
             # Persist to message history
+            _def_tethers = [t for t in (defender.tethers or []) if t.get("modifier", 0) != 0]
             def_msg = Message(
                 campaign_id=campaign_id,
                 sender_id=user_id,
                 sender_name=defender.name,
                 message_type="defense_roll",
                 content=f"🛡️ {defender.name} — {stat_label} Defense: {defense_total}",
-                extra_data={"character_id": str(defender.id), "character_name": defender.name, "stat_label": stat_label, "defense_total": defense_total, "breakdown": breakdown, "def_die": def_die}
+                extra_data={
+                    "character_id": str(defender.id),
+                    "character_name": defender.name,
+                    "stat_label": stat_label,
+                    "defense_total": defense_total,
+                    "total": defense_total,
+                    "breakdown": breakdown,
+                    "def_die": def_die,
+                    "bap": defender.bap or 1,
+                    "tethers": _def_tethers,
+                }
             )
             db.add(def_msg)
             db.commit()
+            db.refresh(def_msg)
 
             await manager.broadcast(campaign_id, {
                 "type": "defense_roll",
+                "message_id": str(def_msg.id),
                 "character_id": str(defender.id),
                 "character_name": defender.name,
                 "stat_label": stat_label,
                 "defense_total": defense_total,
                 "breakdown": breakdown,
-                "def_die": def_die
+                "def_die": def_die,
+                "bap": defender.bap or 1,
+                "tethers": _def_tethers,
             })
             return
 
@@ -2215,6 +2230,23 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
         reason=reason
     )
     
+    # Look up character for boost association (explicit character_id > campaign PC lookup)
+    _roll_char = None
+    _explicit_char_id = data.get("character_id")
+    if _explicit_char_id:
+        try:
+            from uuid import UUID as _CUUID
+            _roll_char = db.query(Character).filter(Character.id == _CUUID(_explicit_char_id)).first()
+        except Exception:
+            pass
+    if not _roll_char:
+        _roll_char = db.query(Character).filter(
+            Character.user_id == user_id,
+            Character.campaign_id == campaign_id,
+            Character.is_npc == False,
+        ).first()
+    _roll_tethers = [t for t in (_roll_char.tethers or []) if t.get("modifier", 0) != 0] if _roll_char else []
+
     # ✅ PERSIST TO DATABASE with extra_data
     message_record = Message(
         campaign_id=str(campaign_id),
@@ -2224,14 +2256,18 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
         content=f"{result_text} ({dice_notation})",  # Include dice notation in content
         message_type="dice_roll_result",
         extra_data={
-            "breakdown": breakdown,  # [3, 5, 2]
-            "dice_notation": dice_notation,  # "3d6"
-            "total": total,  # 10
-            "reason": reason  # Optional reason for the roll
+            "breakdown": breakdown,
+            "dice_notation": dice_notation,
+            "total": total,
+            "reason": reason,
+            "character_id": str(_roll_char.id) if _roll_char else None,
+            "bap": _roll_char.bap or 1 if _roll_char else 1,
+            "tethers": _roll_tethers,
         }
     )
     db.add(message_record)
     db.commit()
+    db.refresh(message_record)
 
     # Track stats
     if db:
@@ -2240,14 +2276,18 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
             _die_match = _re2.match(r'^\d+d(\d+)', dice_part, _re2.IGNORECASE)
             _die_size = int(_die_match.group(1)) if _die_match else 6
             from backend.stats_tracker import track_dice_roll, commit_stats
-            _char = db.query(Character).filter(Character.user_id == str(user_id)).first()
-            track_dice_roll(db, str(user_id), str(_char.id) if _char else None, breakdown, _die_size, campaign_id=str(campaign_id))
+            track_dice_roll(db, str(user_id), str(_roll_char.id) if _roll_char else None, breakdown, _die_size, campaign_id=str(campaign_id))
             commit_stats(db)
         except Exception as _se:
             logger.warning(f"Stats track_dice_roll failed: {_se}")
 
-    # Broadcast to all clients
-    await manager.broadcast(campaign_id, broadcast_data.model_dump(mode='json'))
+    # Broadcast to all clients (inject message_id and character boost fields)
+    _bdata = broadcast_data.model_dump(mode='json')
+    _bdata["message_id"] = str(message_record.id)
+    _bdata["character_id"] = str(_roll_char.id) if _roll_char else None
+    _bdata["bap"] = _roll_char.bap or 1 if _roll_char else 1
+    _bdata["tethers"] = _roll_tethers
+    await manager.broadcast(campaign_id, _bdata)
 
 
 async def handle_secret_roll(campaign_id: UUID, data: dict, user_id: UUID, websocket: WebSocket, db: Session):

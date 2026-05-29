@@ -3090,7 +3090,7 @@ async def apply_boosts(
         raise HTTPException(status_code=400, detail="Selected boosts total 0 — nothing to apply")
 
     # Apply boost based on roll type
-    if roll_type == "stat":
+    if roll_type in ("stat", "defense", "roll"):
         old_total = extra.get("total", 0)
         new_total = old_total + total_bonus
 
@@ -3102,7 +3102,9 @@ async def apply_boosts(
                 boost_parts.append(f"🔗({b['description'][:20]} +{b['modifier']})")
 
         extra["total"] = new_total
-        extra["breakdown"] = extra.get("breakdown", "") + " + " + " + ".join(boost_parts) + f" = {new_total}"
+        if roll_type == "defense":
+            extra["defense_total"] = new_total  # keep alias in sync
+        extra["breakdown"] = str(extra.get("breakdown", "")) + " + " + " + ".join(boost_parts) + f" = {new_total}"
         extra["boost_applied"] = True
         extra["boosts"] = boosts
         msg.extra_data = extra
@@ -3118,7 +3120,10 @@ async def apply_boosts(
         except Exception as _se:
             logger.warning(f"Stats track_boost failed: {_se}")
 
-        stat_name = extra.get("stat_name", "Check")
+        stat_name = (extra.get("stat_name")
+                     or extra.get("stat_label")
+                     or extra.get("dice_notation")
+                     or "Roll")
         try:
             from routes.campaign_websocket import manager
             asyncio.create_task(manager.broadcast(char.campaign_id, {
@@ -3126,7 +3131,7 @@ async def apply_boosts(
                 "message_id": message_id,
                 "character_id": str(char.id),
                 "character_name": char.name,
-                "roll_type": "stat",
+                "roll_type": roll_type,
                 "stat_name": stat_name,
                 "old_total": old_total,
                 "new_total": new_total,

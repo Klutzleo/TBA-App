@@ -9761,6 +9761,19 @@
                 tabIndicator.textContent = 'STORY';
                 container.appendChild(tabIndicator);
 
+                if (msg.id) container.dataset.messageId = msg.id;
+                const diceEx = msg.extra_data || {};
+                if (isSW() && diceEx.character_id && msg.id && !diceEx.boost_applied) {
+                  const boostBtn = document.createElement('button');
+                  boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                  boostBtn.textContent = '⚡ Boost';
+                  boostBtn.onclick = () => openBoostModal(
+                    diceEx.character_id, msg.id, 'roll', diceEx.total,
+                    diceEx.bap || 1, diceEx.tethers || [],
+                    `${msg.sender_name} — ${diceEx.dice_notation || 'Roll'}: ${diceEx.total}`
+                  );
+                  container.appendChild(boostBtn);
+                }
                 storeAndDisplayMessage(container, { type: 'dice_roll_result', actor: msg.sender_name, ...msg });
               }
               // ✅ Handle combat results from database
@@ -10233,8 +10246,22 @@
                   defTog.textContent = showing ? 'Show details' : 'Hide details';
                 });
                 const defHeader = makeHeaderRow(fmtTs(msg.created_at), `🛡️ ${escHtml(d.character_name)} — ${d.stat_label} Defense: ${d.defense_total}`, { toggle: defTog, tab: 'STORY' });
+                const defTotalSpanH = defHeader.querySelector('span[style*="font-weight"]');
+                if (defTotalSpanH && msg.id) defTotalSpanH.dataset.defenseTotal = msg.id;
                 container.appendChild(defHeader);
                 container.appendChild(defBd);
+                if (msg.id) container.dataset.messageId = msg.id;
+                if (isSW() && d.character_id && msg.id && !d.boost_applied) {
+                  const boostBtn = document.createElement('button');
+                  boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                  boostBtn.textContent = '⚡ Boost';
+                  boostBtn.onclick = () => openBoostModal(
+                    d.character_id, msg.id, 'defense', d.defense_total,
+                    d.bap || 1, d.tethers || [],
+                    `${d.character_name} — ${d.stat_label} Defense: ${d.defense_total}`
+                  );
+                  container.appendChild(boostBtn);
+                }
                 storeAndDisplayMessage(container, { type: 'defense_roll', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name, ...d });
               }
               else if (msg.message_type === 'damage_applied') {
@@ -11119,9 +11146,23 @@
                 });
               }
 
-              container.appendChild(makeHeaderRow(fmtNow(), `🎲 ${data.actor}${diceExpr}: ${data.text}`, { toggle: diceTog, tab: 'STORY' }));
+              const diceHeaderRow = makeHeaderRow(fmtNow(), `🎲 ${data.actor}${diceExpr}: ${data.text}`, { toggle: diceTog, tab: 'STORY' });
+              const diceTotalSpan = diceHeaderRow.querySelector('span[style*="font-weight"]');
+              if (diceTotalSpan && data.message_id) diceTotalSpan.dataset.diceTotal = data.message_id;
+              container.appendChild(diceHeaderRow);
               if (diceBd) container.appendChild(diceBd);
-
+              if (data.message_id) container.dataset.messageId = data.message_id;
+              if (isSW() && data.character_id && data.message_id && !data.boost_applied) {
+                const boostBtn = document.createElement('button');
+                boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                boostBtn.textContent = '⚡ Boost';
+                boostBtn.onclick = () => openBoostModal(
+                  data.character_id, data.message_id, 'roll', data.result,
+                  data.bap || 1, data.tethers || [],
+                  `${data.actor} — ${data.dice || 'Roll'}: ${data.result}`
+                );
+                container.appendChild(boostBtn);
+              }
               storeAndDisplayMessage(container, data);
             } else if (data.type === 'combat_result') {
               // Combat result display
@@ -11384,8 +11425,22 @@
                 defTog.textContent = showing ? 'Show details' : 'Hide details';
               });
               const defHeader = makeHeaderRow(fmtNow(), `🛡️ ${data.character_name} — ${data.stat_label} Defense: ${data.defense_total}`, { toggle: defTog, tab: 'STORY' });
+              const defTotalSpan = defHeader.querySelector('span[style*="font-weight"]');
+              if (defTotalSpan && data.message_id) defTotalSpan.dataset.defenseTotal = data.message_id;
               container.appendChild(defHeader);
               container.appendChild(defBd);
+              if (data.message_id) container.dataset.messageId = data.message_id;
+              if (isSW() && data.character_id && data.message_id && !data.boost_applied) {
+                const boostBtn = document.createElement('button');
+                boostBtn.className = 'bap-retro-btn boost-retro-btn';
+                boostBtn.textContent = '⚡ Boost';
+                boostBtn.onclick = () => openBoostModal(
+                  data.character_id, data.message_id, 'defense', data.defense_total,
+                  data.bap || 1, data.tethers || [],
+                  `${data.character_name} — ${data.stat_label} Defense: ${data.defense_total}`
+                );
+                container.appendChild(boostBtn);
+              }
               storeAndDisplayMessage(container, { type: 'defense_roll', actor: data.character_name, ...data });
 
             } else if (data.type === 'bap_stat_roll') {
@@ -11414,12 +11469,22 @@
               const card = document.querySelector(`[data-message-id="${data.message_id}"]`);
               if (card) {
                 card.querySelectorAll('.bap-retro-btn, .boost-retro-btn').forEach(el => el.remove());
-                // Update stat roll header total
+                // Stat roll header total
                 const totalSpan = card.querySelector(`[data-stat-total="${data.message_id}"]`);
                 if (totalSpan && data.roll_type === 'stat') {
                   totalSpan.textContent = `📊 ${data.character_name} — ${data.stat_name} Check: ${data.new_total}`;
                 }
-                // Update combat damage summary
+                // Defense roll total
+                const defSpan = card.querySelector(`[data-defense-total="${data.message_id}"]`);
+                if (defSpan && data.roll_type === 'defense') {
+                  defSpan.textContent = `🛡️ ${data.character_name} — ${data.stat_name} Defense: ${data.new_total}`;
+                }
+                // Generic dice roll total
+                const diceSpan = card.querySelector(`[data-dice-total="${data.message_id}"]`);
+                if (diceSpan && data.roll_type === 'roll') {
+                  diceSpan.textContent = `🎲 ${data.character_name} — ${data.stat_name}: ${data.new_total}`;
+                }
+                // Combat damage summary
                 if (data.roll_type === 'combat') {
                   const dmgInfo = card.querySelector('[data-damage-info]');
                   if (dmgInfo && data.new_total !== undefined) {
@@ -12303,7 +12368,9 @@
 
       } else if (/^\/roll/i.test(cmdLower)) {
         const notation = command.replace(/^\/roll\s*/i, '').trim() || '1d6';
-        ws.send(JSON.stringify({ type: 'dice_roll', dice: notation, roller: actor, reason: '' }));
+        const rollPayload = { type: 'dice_roll', dice: notation, roller: actor, reason: '' };
+        if (activeSpeaker && activeSpeaker.id) rollPayload.character_id = activeSpeaker.id;
+        ws.send(JSON.stringify(rollPayload));
 
       } else if (/^\/s\b/i.test(cmdLower)) {
         const notation = command.replace(/^\/s\s*/i, '').trim() || '1d20';
