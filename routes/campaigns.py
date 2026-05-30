@@ -988,9 +988,9 @@ def get_campaign_messages(
         .filter(Message.deleted_at == None)
 
     if tab == 'ooc':
-        query = query.filter(Message.mode == 'ooc')
+        query = query.filter(func.lower(Message.mode) == 'ooc')
     elif tab == 'story':
-        query = query.filter((Message.mode != 'ooc') | (Message.mode == None))
+        query = query.filter((func.lower(Message.mode) != 'ooc') | (Message.mode == None))
 
     messages = query\
         .order_by(Message.created_at.desc())\
