@@ -195,11 +195,19 @@ async def update_my_profile(
 # ----------------------------------------------------------------
 @profile_router.get("/site/stats")
 async def get_site_stats(db: Session = Depends(get_db)):
+    from sqlalchemy import func as _func
     row = db.query(SiteStats).filter(SiteStats.id == 1).first()
+
+    # Always count players live — total_players was never tracked incrementally
+    total_players = db.query(_func.count(_func.distinct(CampaignMembership.user_id))).filter(
+        CampaignMembership.role == 'player',
+        CampaignMembership.left_at == None,
+    ).scalar() or 0
+
     if not row:
         return {"total_rolls": 0, "total_ones": 0, "total_attacks": 0,
                 "total_callings": 0, "total_messages": 0, "total_battles": 0,
-                "total_players": 0, "total_damage_dealt": 0}
+                "total_players": total_players, "total_damage_dealt": 0}
     return {
         "total_rolls": row.total_rolls,
         "total_ones": row.total_ones,
@@ -207,6 +215,6 @@ async def get_site_stats(db: Session = Depends(get_db)):
         "total_callings": row.total_callings,
         "total_messages": row.total_messages,
         "total_battles": row.total_battles,
-        "total_players": row.total_players,
+        "total_players": total_players,
         "total_damage_dealt": row.total_damage_dealt,
     }
