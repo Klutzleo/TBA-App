@@ -211,6 +211,31 @@ def track_calling(db: Session, user_id: str, character_id: str | None,
     _upsert_site_stats(db, total_callings=1)
 
 
+def track_calling_outcome(db: Session, user_id: str, character_id: str | None,
+                          outcome: str):
+    """Track the result of a Calling roll: 'clean', 'scarred', or 'dead'."""
+    kwargs = {}
+    if outcome == "clean":
+        kwargs = {"callings_survived": 1, "callings_clean": 1}
+    elif outcome == "scarred":
+        kwargs = {"callings_survived": 1, "callings_scarred": 1}
+    elif outcome == "dead":
+        kwargs = {"callings_died": 1}
+    if not kwargs:
+        return
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+
+
+def track_level_up(db: Session, user_id: str, character_id: str | None, new_level: int):
+    """Track a character level up."""
+    kwargs = {"total_level_ups": 1, "highest_level_reached": new_level}
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+
+
 def track_battle_scar(db: Session, user_id: str, character_id: str | None):
     _upsert_user_stats(db, user_id, total_battle_scars=1)
     if character_id:

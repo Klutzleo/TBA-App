@@ -1,0 +1,17 @@
+-- Migration 013: Add Calling outcome and level-up tracking columns
+
+ALTER TABLE user_stats
+    ADD COLUMN IF NOT EXISTS callings_survived    INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS callings_clean       INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS callings_scarred     INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS callings_died        INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS total_level_ups      INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS highest_level_reached INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE character_stats
+    ADD COLUMN IF NOT EXISTS callings_survived    INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS callings_clean       INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS callings_scarred     INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS callings_died        INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS total_level_ups      INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS highest_level_reached INTEGER NOT NULL DEFAULT 0;

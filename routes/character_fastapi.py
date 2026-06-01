@@ -2073,6 +2073,13 @@ async def resolve_the_calling(
     db.refresh(char)
     logger.info(f"[{request_id}] The Calling resolved for '{char.name}': {outcome} (margin {margin})")
 
+    try:
+        from backend.stats_tracker import track_calling_outcome, commit_stats
+        track_calling_outcome(db, str(char.user_id), str(char.id), outcome)
+        commit_stats(db)
+    except Exception as _se:
+        logger.warning(f"Stats track_calling_outcome failed: {_se}")
+
     # Build result payload
     narrative_map = {
         "clean": f"{char.name} fights back The Calling — unmarked, unbroken.",
@@ -2546,6 +2553,13 @@ async def level_up_character(
     new_slot_unlocked = new_level in NEW_SLOT_AT_LEVEL
 
     logger.info(f"[{request_id}] {char.name} leveled up {current_level}→{new_level} (heal={heal_dp}, weapon={weapon_die})")
+
+    try:
+        from backend.stats_tracker import track_level_up, commit_stats
+        track_level_up(db, str(char.user_id), str(char.id), new_level)
+        commit_stats(db)
+    except Exception as _se:
+        logger.warning(f"Stats track_level_up failed: {_se}")
 
     result = {
         "character_id": str(char.id),
