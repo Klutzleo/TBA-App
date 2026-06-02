@@ -2852,27 +2852,54 @@
 
   <!-- Stat Check Modal (SW only) -->
   <div id="statCheckModal" class="modal" onclick="if(event.target===this)closeStatCheckModal()">
-    <div class="modal-content" style="max-width:420px;width:95vw;">
+    <div class="modal-content" style="max-width:440px;width:95vw;">
       <div class="modal-header">
         <h2>🎯 Stat Check</h2>
         <button class="modal-close" onclick="closeStatCheckModal()">&times;</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
-        <div>
-          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Player</label>
+
+        <!-- Mode tabs -->
+        <div style="display:flex;gap:4px;background:var(--bg-tertiary,#13151f);border-radius:8px;padding:3px;">
+          <button class="sc-mode-btn active" data-mode="character" onclick="selectStatCheckMode('character')"
+            style="flex:1;padding:6px 4px;border-radius:6px;border:none;background:rgba(212,175,55,0.18);color:#d4af37;font-size:0.75rem;font-weight:700;cursor:pointer;">Character</button>
+          <button class="sc-mode-btn" data-mode="vs" onclick="selectStatCheckMode('vs')"
+            style="flex:1;padding:6px 4px;border-radius:6px;border:none;background:transparent;color:var(--text-muted);font-size:0.75rem;font-weight:700;cursor:pointer;">Character VS NPC</button>
+          <button class="sc-mode-btn" data-mode="npc" onclick="selectStatCheckMode('npc')"
+            style="flex:1;padding:6px 4px;border-radius:6px;border:none;background:transparent;color:var(--text-muted);font-size:0.75rem;font-weight:700;cursor:pointer;">NPC</button>
+        </div>
+
+        <!-- Character dropdown (Character + VS modes) -->
+        <div id="scCharacterRow">
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Character</label>
           <select id="statCheckCharacter" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
-            <option value="">— Select player —</option>
+            <option value="">— Select character —</option>
           </select>
         </div>
+
+        <!-- VS divider (VS mode only) -->
+        <div id="scVsDivider" style="display:none;text-align:center;font-weight:700;color:var(--text-muted);font-size:0.85rem;letter-spacing:0.1em;">VS</div>
+
+        <!-- NPC dropdown (VS + NPC modes) -->
+        <div id="scNpcRow" style="display:none;">
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">NPC</label>
+          <select id="statCheckNpc" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
+            <option value="">— Select NPC —</option>
+          </select>
+        </div>
+
+        <!-- Stat -->
         <div>
           <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Stat</label>
           <div style="display:flex;gap:8px;">
-            <button class="stat-check-stat-btn active" data-stat="PP" onclick="selectStatCheckStat('PP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:rgba(212,175,55,0.15);color:#d4af37;font-weight:700;cursor:pointer;">PP</button>
+            <button class="stat-check-stat-btn active" data-stat="PP" onclick="selectStatCheckStat('PP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(212,175,55,0.5);background:rgba(212,175,55,0.15);color:#d4af37;font-weight:700;cursor:pointer;">PP</button>
             <button class="stat-check-stat-btn" data-stat="IP" onclick="selectStatCheckStat('IP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-weight:700;cursor:pointer;">IP</button>
             <button class="stat-check-stat-btn" data-stat="SP" onclick="selectStatCheckStat('SP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-weight:700;cursor:pointer;">SP</button>
           </div>
         </div>
-        <div>
+
+        <!-- Difficulty (Character + NPC modes only — hidden in VS) -->
+        <div id="scDifficultyRow">
           <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Difficulty</label>
           <select id="statCheckDifficulty" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
             <option value="1d4|Trivial">Trivial — 1d4</option>
@@ -2884,15 +2911,26 @@
             <option value="2d8|Nearly Impossible">Nearly Impossible — 2d8</option>
           </select>
         </div>
+
+        <!-- Flavor text -->
         <div>
           <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Flavor Text <span style="opacity:0.5;">(optional)</span></label>
           <input id="statCheckFlavor" type="text" maxlength="300" placeholder="The lock looks complicated…"
             style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
+
+        <!-- BAP grant (Character + VS modes) -->
+        <div id="scBapRow" style="display:flex;align-items:center;gap:8px;">
           <input type="checkbox" id="statCheckBAP" style="accent-color:#d4af37;width:16px;height:16px;">
           <label for="statCheckBAP" style="font-size:0.85rem;color:var(--text-secondary);cursor:pointer;">Grant BAP for this check</label>
         </div>
+
+        <!-- Hidden roll (NPC mode only) -->
+        <div id="scHiddenRow" style="display:none;align-items:center;gap:8px;">
+          <input type="checkbox" id="statCheckHidden" style="accent-color:#6b7280;width:16px;height:16px;">
+          <label for="statCheckHidden" style="font-size:0.85rem;color:var(--text-secondary);cursor:pointer;">Hidden roll (only you see the result)</label>
+        </div>
+
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
           <button class="btn" style="background:var(--bg-secondary);" onclick="closeStatCheckModal()">Cancel</button>
           <button class="btn btn-primary" onclick="sendStatCheckRequest()">Send Check</button>
@@ -12922,32 +12960,59 @@
     // ═══════════════════════════════════════════════════════════
 
     let _statCheckSelectedStat = 'PP';
-    let _pendingStatCheckRequestId = null;
+    let _statCheckMode = 'character';
 
     function openStatCheckModal() {
-      // Populate player dropdown from current members
-      const sel = document.getElementById('statCheckCharacter');
-      sel.innerHTML = '<option value="">— Select player —</option>';
-      const cards = document.querySelectorAll('.character-card:not(.story-weaver-card)');
-      cards.forEach(card => {
+      // Populate character dropdown from party cards
+      const charSel = document.getElementById('statCheckCharacter');
+      charSel.innerHTML = '<option value="">— Select character —</option>';
+      document.querySelectorAll('.character-card:not(.story-weaver-card)').forEach(card => {
         const charId = card.querySelector('[data-effect-char-id]')?.dataset.effectCharId;
         const charName = card.querySelector('strong')?.textContent?.trim();
         if (charId && charName) {
           const opt = document.createElement('option');
           opt.value = charId;
           opt.textContent = charName;
-          sel.appendChild(opt);
+          charSel.appendChild(opt);
         }
       });
+
+      // Populate NPC dropdown from initiative tracker / known NPCs
+      const npcSel = document.getElementById('statCheckNpc');
+      npcSel.innerHTML = '<option value="">— Select NPC —</option>';
+      (campaignNPCs || []).filter(n => n.visible_to_players !== false).forEach(npc => {
+        const opt = document.createElement('option');
+        opt.value = npc.id;
+        opt.textContent = npc.name;
+        npcSel.appendChild(opt);
+      });
+
+      selectStatCheckMode('character');
       selectStatCheckStat('PP');
       document.getElementById('statCheckDifficulty').value = '1d8|Moderate';
       document.getElementById('statCheckFlavor').value = '';
       document.getElementById('statCheckBAP').checked = false;
+      document.getElementById('statCheckHidden').checked = false;
       document.getElementById('statCheckModal').classList.add('active');
     }
 
     function closeStatCheckModal() {
       document.getElementById('statCheckModal').classList.remove('active');
+    }
+
+    function selectStatCheckMode(mode) {
+      _statCheckMode = mode;
+      document.querySelectorAll('.sc-mode-btn').forEach(btn => {
+        const active = btn.dataset.mode === mode;
+        btn.style.background = active ? 'rgba(212,175,55,0.18)' : 'transparent';
+        btn.style.color = active ? '#d4af37' : 'var(--text-muted)';
+      });
+      document.getElementById('scCharacterRow').style.display = mode === 'npc' ? 'none' : '';
+      document.getElementById('scVsDivider').style.display = mode === 'vs' ? '' : 'none';
+      document.getElementById('scNpcRow').style.display = mode === 'npc' || mode === 'vs' ? '' : 'none';
+      document.getElementById('scDifficultyRow').style.display = mode === 'vs' ? 'none' : '';
+      document.getElementById('scBapRow').style.display = mode === 'npc' ? 'none' : 'flex';
+      document.getElementById('scHiddenRow').style.display = mode === 'npc' ? 'flex' : 'none';
     }
 
     function selectStatCheckStat(stat) {
@@ -12961,21 +13026,31 @@
     }
 
     function sendStatCheckRequest() {
+      const mode = _statCheckMode;
       const characterId = document.getElementById('statCheckCharacter').value;
-      if (!characterId) { alert('Select a player first.'); return; }
-      const diffVal = document.getElementById('statCheckDifficulty').value;
-      const [diffDie, diffLabel] = diffVal.split('|');
+      const npcId = document.getElementById('statCheckNpc').value;
       const flavor = document.getElementById('statCheckFlavor').value.trim();
       const bapGranted = document.getElementById('statCheckBAP').checked;
+      const hidden = document.getElementById('statCheckHidden').checked;
+
+      if ((mode === 'character' || mode === 'vs') && !characterId) { alert('Select a character.'); return; }
+      if ((mode === 'npc' || mode === 'vs') && !npcId) { alert('Select an NPC.'); return; }
+
+      const diffVal = document.getElementById('statCheckDifficulty').value;
+      const [diffDie, diffLabel] = diffVal.split('|');
+
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({
         type: 'stat_check_request',
-        character_id: characterId,
+        mode,
+        character_id: characterId || null,
+        npc_id: npcId || null,
         stat: _statCheckSelectedStat,
-        difficulty_die: diffDie,
-        difficulty_label: diffLabel,
+        difficulty_die: mode === 'vs' ? null : diffDie,
+        difficulty_label: mode === 'vs' ? null : diffLabel,
         flavor_text: flavor || null,
         bap_granted: bapGranted,
+        hidden,
       }));
       closeStatCheckModal();
     }
@@ -12996,13 +13071,14 @@
       const showBtn = isTarget && !isSW();
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
       const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;">✦ BAP Granted</span>` : '';
+      const vsLabel = data.mode === 'vs' ? ` <span style="color:var(--text-muted);font-size:0.78rem;">vs ${escHtml(data.npc_name || '')}</span>` : '';
       const rollBtn = showBtn
         ? `<button id="stat-check-btn-${data.request_id}" onclick="rollStatCheck('${data.request_id}','${data.stat}')"
             style="margin-top:10px;width:100%;padding:10px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.5);border-radius:8px;color:#a78bfa;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.15s;"
             onmouseover="this.style.background='rgba(124,58,237,0.35)'" onmouseout="this.style.background='rgba(124,58,237,0.2)'">
             🎲 Roll ${data.stat}
            </button>`
-        : `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">Waiting for ${escHtml(data.character_name)} to roll…</div>`;
+        : `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">Waiting for ${escHtml(data.character_name || '')} to roll…</div>`;
 
       const div = document.createElement('div');
       div.className = 'message-item';
@@ -13010,11 +13086,12 @@
       div.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
           <span style="font-size:1rem;">🎯</span>
-          <span style="font-weight:700;color:#a78bfa;font-size:0.88rem;">Stat Check — ${data.stat}</span>
+          <span style="font-weight:700;color:#a78bfa;font-size:0.88rem;">Stat Check — ${data.stat}${vsLabel}</span>
           ${bapBadge}
         </div>
         <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
-          <strong style="color:var(--text-primary);">${escHtml(data.character_name)}</strong> has been called to roll <strong>${data.stat}</strong>
+          <strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong> has been called to roll <strong>${data.stat}</strong>
+          ${data.mode === 'vs' ? `against <strong style="color:var(--accent-danger);">${escHtml(data.npc_name || '')}</strong>` : ''}
         </div>
         ${flavor}
         ${rollBtn}
@@ -13031,6 +13108,8 @@
       const debuffLine = data.debuff_modifier < 0
         ? `<div style="font-size:0.75rem;color:#f87171;">Debuff: ${data.debuff_modifier}</div>` : '';
       const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;">✦ BAP</span>` : '';
+      const isVs = data.mode === 'vs';
+      const rightLabel = isVs ? escHtml(data.npc_name || data.difficulty_label) : (data.difficulty_label || 'Difficulty');
 
       const div = document.createElement('div');
       div.className = 'message-item';
@@ -13042,20 +13121,20 @@
             <span style="font-weight:700;color:${color};font-size:0.88rem;">Stat Check — ${data.stat} — ${label}</span>
             ${bapBadge}
           </div>
-          <span style="font-size:0.82rem;color:var(--text-muted);">${data.difficulty_label}</span>
+          ${!isVs ? `<span style="font-size:0.82rem;color:var(--text-muted);">${data.difficulty_label || ''}</span>` : ''}
         </div>
         ${flavor}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
-            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name)}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')}</div>
             <div style="font-size:0.78rem;color:var(--text-secondary);">🎲 ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}</div>
             <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.player_total}</div>
             ${debuffLine}
           </div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
-            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">Difficulty</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${rightLabel}</div>
             <div style="font-size:0.78rem;color:var(--text-secondary);">🎲 ${data.sw_roll}</div>
-            <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary);">${data.sw_total}</div>
+            <div style="font-size:1.1rem;font-weight:700;color:${won ? 'var(--accent-danger)' : '#34d399'};">${data.sw_total}</div>
           </div>
         </div>
         <div style="text-align:center;margin-top:8px;font-size:0.82rem;color:${color};font-weight:600;">

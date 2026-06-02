@@ -111,6 +111,17 @@ class CampaignConnectionManager:
             if conn in self.active_connections[campaign_id]:
                 self.active_connections[campaign_id].remove(conn)
     
+    async def send_to_user(self, campaign_id: UUID, user_id: UUID, message: dict):
+        """Send message to a specific user in a campaign."""
+        if campaign_id not in self.active_connections:
+            return
+        for websocket, conn_user_id, display_name, username in self.active_connections[campaign_id]:
+            if str(conn_user_id) == str(user_id):
+                try:
+                    await websocket.send_json(message)
+                except Exception as e:
+                    logger.warning(f"Failed to send to {display_name}: {e}")
+
     async def broadcast_except(self, campaign_id: UUID, exclude_ws, message: dict):
         """Send message to all connections in a campaign except the given websocket."""
         if campaign_id not in self.active_connections:
@@ -2656,41 +2667,108 @@ async def broadcast_player_joined(campaign_id: UUID, username: str):
 
 
 async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data: dict, db: Session):
-    """SW sends a stat check request targeting a specific player character."""
+    """SW sends a stat check request — Character, Character VS NPC, or NPC modes."""
     from backend.models import StatCheckRequest
     from backend.roll_logic import roll_dice
+    from uuid import UUID as _UUID
+    from datetime import datetime as _dt
 
     if not await is_story_weaver(campaign_uuid, sw_user_id, db):
         return
 
-    character_id = data.get("character_id")
+    mode = data.get("mode", "character")  # character | vs | npc
     stat = (data.get("stat") or "").upper()
-    difficulty_die = data.get("difficulty_die", "1d8")
-    difficulty_label = data.get("difficulty_label", "Moderate")
+    if stat not in ("PP", "IP", "SP"):
+        return
+
+    character_id = data.get("character_id")
+    npc_id = data.get("npc_id")
     flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
     bap_granted = bool(data.get("bap_granted", False))
+    hidden = bool(data.get("hidden", False))
 
-    if stat not in ("PP", "IP", "SP") or not character_id:
+    char = None
+    npc = None
+
+    if mode in ("character", "vs") and character_id:
+        char = db.query(Character).filter(Character.id == _UUID(character_id)).first()
+        if not char:
+            return
+
+    if mode in ("npc", "vs") and npc_id:
+        npc = db.query(Character).filter(Character.id == _UUID(npc_id), Character.is_npc == True).first()
+        if not npc:
+            return
+
+    if mode == "character" and not char:
+        return
+    if mode == "npc" and not npc:
+        return
+    if mode == "vs" and (not char or not npc):
         return
 
-    # Roll the SW difficulty die now — hidden until resolution
-    rolls = roll_dice(difficulty_die)
-    sw_roll = sum(rolls)
+    # Determine difficulty — VS uses NPC's stat as live roll (no pre-roll), others use SW die
+    difficulty_die = data.get("difficulty_die") or "1d8"
+    difficulty_label = data.get("difficulty_label") or "Moderate"
 
-    from uuid import UUID as _UUID
-    char = db.query(Character).filter(Character.id == _UUID(character_id)).first()
-    if not char:
+    if mode == "vs":
+        # NPC rolls their stat right now — same formula as player
+        npc_stat_val = getattr(npc, stat.lower(), 1) or 1
+        npc_die_roll = roll_dice("1d6")[0]
+        npc_edge = npc.edge or 0
+        sw_roll = npc_die_roll + npc_stat_val + npc_edge
+        difficulty_label = f"{npc.name} ({stat} {npc_stat_val})"
+        difficulty_die = "1d6"
+    elif mode == "npc":
+        # NPC solo: NPC rolls immediately, result shown (optionally hidden)
+        npc_stat_val = getattr(npc, stat.lower(), 1) or 1
+        npc_die_roll = roll_dice("1d6")[0]
+        npc_edge = npc.edge or 0
+        npc_total = npc_die_roll + npc_stat_val + npc_edge
+        sw_roll_for_npc = roll_dice(difficulty_die)
+        sw_difficulty_total = sum(sw_roll_for_npc)
+        outcome = "win" if npc_total > sw_difficulty_total else "loss"
+
+        result = {
+            "type": "stat_check_result",
+            "mode": "npc",
+            "npc_id": str(npc.id),
+            "npc_name": npc.name,
+            "stat": stat,
+            "flavor_text": flavor_text,
+            "difficulty_label": difficulty_label,
+            "die_roll": npc_die_roll,
+            "stat_value": npc_stat_val,
+            "edge": npc_edge,
+            "debuff_modifier": 0,
+            "player_total": npc_total,
+            "sw_roll": sw_difficulty_total,
+            "sw_total": sw_difficulty_total,
+            "outcome": outcome,
+            "margin": npc_total - sw_difficulty_total,
+            "bap_granted": False,
+            "character_name": npc.name,
+            "character_id": str(npc.id),
+        }
+        if hidden:
+            await manager.send_to_user(campaign_uuid, sw_user_id, result)
+        else:
+            await manager.broadcast(campaign_uuid, result)
         return
+    else:
+        # Character mode: pre-roll SW difficulty die hidden
+        rolls = roll_dice(difficulty_die)
+        sw_roll = sum(rolls)
 
-    # Grant BAP token if requested
-    if bap_granted:
+    # Grant BAP token if requested (character or vs modes)
+    if bap_granted and char:
         char.bap_token_active = True
         char.bap_token_type = "sw_choice"
         db.commit()
 
     req = StatCheckRequest(
         campaign_id=campaign_uuid,
-        character_id=char.id,
+        character_id=char.id if char else npc.id,
         stat=stat,
         difficulty_die=difficulty_die,
         difficulty_label=difficulty_label,
@@ -2703,11 +2781,18 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
     db.commit()
     db.refresh(req)
 
+    # Store NPC result in extra field for VS mode resolution
+    if mode == "vs":
+        req.flavor_text = (flavor_text or "") + f"\n__npc_id:{npc.id}__npc_name:{npc.name}__npc_roll:{sw_roll}__"
+        db.commit()
+
     await manager.broadcast(campaign_uuid, {
         "type": "stat_check_request",
+        "mode": mode,
         "request_id": str(req.id),
-        "character_id": str(char.id),
-        "character_name": char.name,
+        "character_id": str(char.id) if char else None,
+        "character_name": char.name if char else None,
+        "npc_name": npc.name if npc else None,
         "stat": stat,
         "flavor_text": flavor_text,
         "bap_granted": bap_granted,
