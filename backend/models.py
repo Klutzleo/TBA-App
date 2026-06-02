@@ -1015,3 +1015,15 @@ class StatCheckRequest(Base):
     margin          = Column(Integer, nullable=True)
     created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
     resolved_at     = Column(DateTime(timezone=True), nullable=True)
+
+
+class UserAchievement(Base):
+    __tablename__ = "user_achievements"
+    __table_args__ = (
+        {"extend_existing": True},
+    )
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id        = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    achievement_id = Column(String(64), nullable=False)
+    earned_at      = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

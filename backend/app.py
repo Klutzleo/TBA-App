@@ -140,7 +140,7 @@ async def attach_request_id_and_auth(request: Request, call_next):
     # All routes that require JWT authentication (not API key)
     jwt_protected_routes = auth_paths | {
         "/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse", "/api/campaigns/join",
-        "/api/characters", "/api/notifications", "/api/upload", "/api/profile"
+        "/api/characters", "/api/notifications", "/api/upload", "/api/profile", "/api/achievements"
     }
 
     # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
@@ -273,6 +273,13 @@ try:
     logger.info("✅ Registered profile_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register profile_router: {e}")
+
+try:
+    from routes.achievements import achievements_router
+    application.include_router(achievements_router, tags=["Achievements"])
+    logger.info("✅ Registered achievements_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register achievements_router: {e}")
 
 
 # Custom OpenAPI schema
