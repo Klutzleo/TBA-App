@@ -552,6 +552,12 @@ async def campaign_websocket(
                     "timestamp": data.get("timestamp", ""),
                 })
 
+            elif message_type == "stat_check_request":
+                await _handle_stat_check_request(campaign_uuid, user_uuid, data, db)
+
+            elif message_type == "stat_check_roll":
+                await _handle_stat_check_roll(campaign_uuid, user_uuid, data, db)
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
 
@@ -2646,6 +2652,159 @@ async def broadcast_player_joined(campaign_id: UUID, username: str):
     await manager.broadcast(campaign_id, {
         "type": "player_joined_campaign",
         "username": username
+    })
+
+
+async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data: dict, db: Session):
+    """SW sends a stat check request targeting a specific player character."""
+    from backend.models import StatCheckRequest
+    from backend.roll_logic import roll_dice
+
+    if not await is_story_weaver(campaign_uuid, sw_user_id, db):
+        return
+
+    character_id = data.get("character_id")
+    stat = (data.get("stat") or "").upper()
+    difficulty_die = data.get("difficulty_die", "1d8")
+    difficulty_label = data.get("difficulty_label", "Moderate")
+    flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
+    bap_granted = bool(data.get("bap_granted", False))
+
+    if stat not in ("PP", "IP", "SP") or not character_id:
+        return
+
+    # Roll the SW difficulty die now — hidden until resolution
+    rolls = roll_dice(difficulty_die)
+    sw_roll = sum(rolls)
+
+    from uuid import UUID as _UUID
+    char = db.query(Character).filter(Character.id == _UUID(character_id)).first()
+    if not char:
+        return
+
+    # Grant BAP token if requested
+    if bap_granted:
+        char.bap_token_active = True
+        char.bap_token_type = "sw_choice"
+        db.commit()
+
+    req = StatCheckRequest(
+        campaign_id=campaign_uuid,
+        character_id=char.id,
+        stat=stat,
+        difficulty_die=difficulty_die,
+        difficulty_label=difficulty_label,
+        sw_roll=sw_roll,
+        flavor_text=flavor_text,
+        bap_granted=bap_granted,
+        status="pending",
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+
+    await manager.broadcast(campaign_uuid, {
+        "type": "stat_check_request",
+        "request_id": str(req.id),
+        "character_id": str(char.id),
+        "character_name": char.name,
+        "stat": stat,
+        "flavor_text": flavor_text,
+        "bap_granted": bap_granted,
+        "difficulty_label": difficulty_label,
+    })
+
+
+async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
+    """Player responds to a stat check request — resolve and broadcast result."""
+    from backend.models import StatCheckRequest
+    from backend.roll_logic import roll_dice
+    from uuid import UUID as _UUID
+    from datetime import datetime as _dt
+
+    request_id = data.get("request_id")
+    if not request_id:
+        return
+
+    req = db.query(StatCheckRequest).filter(
+        StatCheckRequest.id == _UUID(request_id),
+        StatCheckRequest.status == "pending",
+    ).first()
+    if not req:
+        return
+
+    char = db.query(Character).filter(Character.id == req.character_id).first()
+    if not char:
+        return
+
+    # Only the targeted player can roll
+    if str(char.user_id) != str(user_id):
+        return
+
+    # Roll player's d6
+    die_roll = roll_dice("1d6")[0]
+    stat_value = getattr(char, req.stat.lower(), 1) or 1
+    edge = char.edge or 0
+
+    # Sum active debuff modifiers
+    from backend.models import ActiveEffect
+    effects = db.query(ActiveEffect).filter(
+        ActiveEffect.character_id == char.id,
+        ActiveEffect.expires_at > _dt.utcnow(),
+    ).all()
+    debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
+
+    player_total = die_roll + stat_value + edge + debuff_modifier
+    sw_total = req.sw_roll
+    outcome = "win" if player_total > sw_total else "loss"
+    margin = player_total - sw_total
+
+    # Persist result
+    req.player_roll = die_roll
+    req.player_total = player_total
+    req.outcome = outcome
+    req.margin = margin
+    req.status = "resolved"
+    req.resolved_at = _dt.utcnow()
+    db.commit()
+
+    # Achievement tracking
+    try:
+        from backend.stats_tracker import track_stat_check_outcome, commit_stats
+        track_stat_check_outcome(
+            db,
+            user_id=str(char.user_id),
+            character_id=str(char.id),
+            stat=req.stat,
+            die_roll=die_roll,
+            stat_value=stat_value,
+            edge=edge,
+            debuff_modifier=debuff_modifier,
+            player_total=player_total,
+            outcome=outcome,
+        )
+        commit_stats(db)
+    except Exception as _se:
+        logger.warning(f"Stats track_stat_check_outcome failed: {_se}")
+
+    await manager.broadcast(campaign_uuid, {
+        "type": "stat_check_result",
+        "request_id": str(req.id),
+        "character_id": str(char.id),
+        "character_name": char.name,
+        "stat": req.stat,
+        "flavor_text": req.flavor_text,
+        "difficulty_label": req.difficulty_label,
+        "die_roll": die_roll,
+        "stat_value": stat_value,
+        "edge": edge,
+        "debuff_modifier": debuff_modifier,
+        "player_total": player_total,
+        "sw_roll": req.sw_roll,
+        "sw_total": sw_total,
+        "outcome": outcome,
+        "margin": margin,
+        "bap_granted": req.bap_granted,
     })
 
 

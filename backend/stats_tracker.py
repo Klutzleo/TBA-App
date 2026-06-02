@@ -323,6 +323,40 @@ def track_npc_created(db: Session, user_id: str):
     _upsert_user_stats(db, user_id, npcs_created=1)
 
 
+def track_stat_check_outcome(
+    db: Session, user_id: str, character_id: str | None,
+    stat: str, die_roll: int, stat_value: int, edge: int,
+    debuff_modifier: int, player_total: int, outcome: str,
+):
+    """Track a resolved stat check for achievement purposes."""
+    stat = stat.upper()
+    kwargs = {}
+
+    # Per-stat ones and maxes
+    if die_roll == 1:
+        kwargs[f"{stat.lower()}_check_ones"] = 1
+    if die_roll == 6:
+        kwargs[f"{stat.lower()}_check_maxes"] = 1
+        if stat_value == 1:
+            kwargs["stat_one_check_maxes"] = 1
+
+    # Debuff-related outcomes
+    if debuff_modifier < 0:
+        if outcome == "win":
+            kwargs["checks_while_debuffed_won"] = 1
+        if player_total <= 0:
+            kwargs["checks_total_zero_or_below"] = 1
+
+    # Two-parter achievement state
+    won = outcome == "win"
+    kwargs[f"last_{stat.lower()}_check_won"] = won
+
+    if kwargs:
+        _upsert_user_stats(db, user_id, **kwargs)
+        if character_id:
+            _upsert_character_stats(db, character_id, user_id, **kwargs)
+
+
 def commit_stats(db: Session):
     """Call after all track_* calls in a handler to flush to DB."""
     try:

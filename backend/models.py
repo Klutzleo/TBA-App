@@ -990,3 +990,25 @@ class CampaignStats(Base):
     total_messages     = Column(BigInteger, nullable=False, default=0)
     total_battles      = Column(BigInteger, nullable=False, default=0)
     updated_at         = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class StatCheckRequest(Base):
+    __tablename__ = "stat_check_requests"
+    __table_args__ = {'extend_existing': True}
+
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id     = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id    = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+    stat            = Column(String(2), nullable=False)           # PP, IP, SP
+    difficulty_die  = Column(String(8), nullable=False)           # 1d4, 1d6, 1d8, 1d10, 1d12, 2d6, 2d8
+    difficulty_label= Column(String(20), nullable=False)          # Trivial, Easy, Moderate, Hard, Very Hard, Extreme, Nearly Impossible
+    sw_roll         = Column(Integer, nullable=False)             # Pre-rolled, hidden until resolution
+    flavor_text     = Column(Text, nullable=True)
+    bap_granted     = Column(Boolean, nullable=False, default=False)
+    status          = Column(String(10), nullable=False, default='pending')  # pending, resolved
+    player_roll     = Column(Integer, nullable=True)              # raw d6 result
+    player_total    = Column(Integer, nullable=True)              # die + stat + edge + debuffs
+    outcome         = Column(String(4), nullable=True)            # win, loss
+    margin          = Column(Integer, nullable=True)
+    created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
+    resolved_at     = Column(DateTime(timezone=True), nullable=True)
