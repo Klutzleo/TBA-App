@@ -402,6 +402,12 @@ async def campaign_websocket(
                     "type": "scene_note_updated",
                     "note": note
                 })
+                try:
+                    from backend.stats_tracker import track_scene_update, commit_stats
+                    track_scene_update(db, str(user_id))
+                    commit_stats(db)
+                except Exception as _se:
+                    logger.warning(f"Stats track_scene_update failed: {_se}")
 
             elif message_type == "delete_message":
                 from uuid import UUID as _UUID
@@ -1279,9 +1285,14 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
 
         # Track combat stats
         try:
-            from backend.stats_tracker import track_attack, track_damage_taken, commit_stats
+            from backend.stats_tracker import track_attack, track_damage_taken, track_miss, commit_stats
             _atk_user = str(attacker.user_id) if attacker.user_id else str(user_id)
             track_attack(db, _atk_user, str(attacker.id), result["total_damage"], result["individual_rolls"], campaign_id=str(campaign_id))
+            if result.get("outcome") == "miss":
+                bap_was_active = bap_bonus > 0
+                track_miss(db, _atk_user, str(attacker.id), bap_was_active=bap_was_active)
+            if attacker.is_npc and attacker.user_id:
+                track_npc_damage(db, str(attacker.user_id), result["total_damage"])
             if not defender.is_npc and defender.user_id:
                 track_damage_taken(db, str(defender.user_id), str(defender.id), result["total_damage"])
             commit_stats(db)
@@ -1562,6 +1573,13 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
         visible_to_players=True,
     )
     db.add(summon)
+    try:
+        from backend.stats_tracker import track_summon_fired, commit_stats as _cs
+        if caster.user_id:
+            track_summon_fired(db, str(caster.user_id), str(caster.id))
+            _cs(db)
+    except Exception as _se:
+        logger.warning(f"Stats track_summon_fired failed: {_se}")
 
     # Add to active encounter initiative order
     encounter = db.query(Encounter).filter(
@@ -2736,6 +2754,19 @@ async def get_or_create_active_encounter(campaign_uuid: UUID, db: Session) -> En
         db.add(encounter)
         db.commit()
         db.refresh(encounter)
+        # Track battle initiated by SW
+        try:
+            sw_membership = db.query(CampaignMembership).filter(
+                CampaignMembership.campaign_id == campaign_uuid,
+                CampaignMembership.role == 'story_weaver',
+                CampaignMembership.left_at == None,
+            ).first()
+            if sw_membership:
+                from backend.stats_tracker import track_battle_initiated, commit_stats
+                track_battle_initiated(db, str(sw_membership.user_id))
+                commit_stats(db)
+        except Exception as _se:
+            logger.warning(f"Stats track_battle_initiated failed: {_se}")
 
     return encounter
 

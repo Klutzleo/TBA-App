@@ -276,6 +276,53 @@ def track_battle_end(db: Session, participant_ids: list[tuple[str, str | None]],
     _upsert_site_stats(db, total_battles=1)
 
 
+def track_miss(db: Session, user_id: str, character_id: str | None, bap_was_active: bool = False):
+    kwargs = {"miss_count": 1}
+    if bap_was_active:
+        kwargs["bap_miss_count"] = 1
+    _upsert_user_stats(db, user_id, **kwargs)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, **kwargs)
+
+
+def track_npc_damage(db: Session, user_id: str, damage: int):
+    _upsert_user_stats(db, user_id, npc_damage_dealt=damage)
+
+
+def track_scene_update(db: Session, user_id: str):
+    _upsert_user_stats(db, user_id, scene_updates=1)
+
+
+def track_battle_initiated(db: Session, user_id: str):
+    _upsert_user_stats(db, user_id, battles_initiated=1)
+
+
+def track_summon_fired(db: Session, user_id: str, character_id: str | None):
+    _upsert_user_stats(db, user_id, summons_fired=1)
+    if character_id:
+        _upsert_character_stats(db, character_id, user_id, summons_fired=1)
+
+
+def track_image_shared(db: Session, user_id: str):
+    _upsert_user_stats(db, user_id, images_shared=1)
+
+
+def track_campaign_created(db: Session, user_id: str):
+    _upsert_user_stats(db, user_id, campaigns_created=1)
+
+
+def track_lore_created(db: Session, user_id: str):
+    _upsert_user_stats(db, user_id, lore_entries_created=1)
+
+
+def track_item_gifted(db: Session, user_id: str):
+    _upsert_user_stats(db, user_id, items_gifted=1)
+
+
+def track_npc_created(db: Session, user_id: str):
+    _upsert_user_stats(db, user_id, npcs_created=1)
+
+
 def commit_stats(db: Session):
     """Call after all track_* calls in a handler to flush to DB."""
     try:

@@ -111,6 +111,13 @@ async def upload_campaign_image(
     db.commit()
     db.refresh(msg)
 
+    try:
+        from backend.stats_tracker import track_image_shared, commit_stats
+        track_image_shared(db, str(current_user.id))
+        commit_stats(db)
+    except Exception as _se:
+        pass
+
     return {
         "url": url,
         "key": key,

@@ -951,6 +951,14 @@ async def create_npc(
         db.refresh(npc)
 
         logger.info(f"[{request_id}] NPC created: {npc.id}")
+
+        try:
+            from backend.stats_tracker import track_npc_created, commit_stats
+            track_npc_created(db, str(current_user.id))
+            commit_stats(db)
+        except Exception:
+            pass
+
         return npc
 
     except ValueError as e:
