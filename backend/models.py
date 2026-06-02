@@ -834,8 +834,43 @@ class UserStats(Base):
     total_tethers_invoked = Column(Integer, nullable=False, default=0)
     total_boosts_applied= Column(Integer, nullable=False, default=0)
     total_messages_sent = Column(Integer, nullable=False, default=0)
-    total_level_ups     = Column(Integer, nullable=False, default=0)
+    total_level_ups       = Column(Integer, nullable=False, default=0)
     highest_level_reached = Column(Integer, nullable=False, default=0)
+
+    # Stat check granular tracking (populated when /check system ships)
+    pp_check_ones         = Column(Integer, nullable=False, default=0)
+    ip_check_ones         = Column(Integer, nullable=False, default=0)
+    sp_check_ones         = Column(Integer, nullable=False, default=0)
+    pp_check_maxes        = Column(Integer, nullable=False, default=0)
+    ip_check_maxes        = Column(Integer, nullable=False, default=0)
+    sp_check_maxes        = Column(Integer, nullable=False, default=0)
+    checks_while_debuffed_won  = Column(Integer, nullable=False, default=0)
+    checks_total_zero_or_below = Column(Integer, nullable=False, default=0)
+    stat_one_check_maxes  = Column(Integer, nullable=False, default=0)
+    last_pp_check_won     = Column(Boolean, nullable=True)
+    last_ip_check_won     = Column(Boolean, nullable=True)
+    last_sp_check_won     = Column(Boolean, nullable=True)
+
+    # Combat gaps
+    miss_count            = Column(Integer, nullable=False, default=0)
+    bap_miss_count        = Column(Integer, nullable=False, default=0)
+
+    # Social / platform
+    whispers_sent         = Column(Integer, nullable=False, default=0)
+    whispers_received     = Column(Integer, nullable=False, default=0)
+    mentions_received     = Column(Integer, nullable=False, default=0)
+    summons_fired         = Column(Integer, nullable=False, default=0)
+
+    # SW-specific counters
+    campaigns_created     = Column(Integer, nullable=False, default=0)
+    lore_entries_created  = Column(Integer, nullable=False, default=0)
+    images_shared         = Column(Integer, nullable=False, default=0)
+    scene_updates         = Column(Integer, nullable=False, default=0)
+    items_gifted          = Column(Integer, nullable=False, default=0)
+    npcs_created          = Column(Integer, nullable=False, default=0)
+    battles_initiated     = Column(Integer, nullable=False, default=0)
+    npc_damage_dealt      = Column(Integer, nullable=False, default=0)
+
     updated_at          = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -873,8 +908,41 @@ class CharacterStats(Base):
     total_tethers_invoked = Column(Integer, nullable=False, default=0)
     total_boosts_applied= Column(Integer, nullable=False, default=0)
     total_messages_sent = Column(Integer, nullable=False, default=0)
-    total_level_ups     = Column(Integer, nullable=False, default=0)
+    total_level_ups       = Column(Integer, nullable=False, default=0)
     highest_level_reached = Column(Integer, nullable=False, default=0)
+
+    # Stat check granular tracking
+    pp_check_ones         = Column(Integer, nullable=False, default=0)
+    ip_check_ones         = Column(Integer, nullable=False, default=0)
+    sp_check_ones         = Column(Integer, nullable=False, default=0)
+    pp_check_maxes        = Column(Integer, nullable=False, default=0)
+    ip_check_maxes        = Column(Integer, nullable=False, default=0)
+    sp_check_maxes        = Column(Integer, nullable=False, default=0)
+    checks_while_debuffed_won  = Column(Integer, nullable=False, default=0)
+    checks_total_zero_or_below = Column(Integer, nullable=False, default=0)
+    stat_one_check_maxes  = Column(Integer, nullable=False, default=0)
+    last_pp_check_won     = Column(Boolean, nullable=True)
+    last_ip_check_won     = Column(Boolean, nullable=True)
+    last_sp_check_won     = Column(Boolean, nullable=True)
+
+    # Combat gaps
+    miss_count            = Column(Integer, nullable=False, default=0)
+    bap_miss_count        = Column(Integer, nullable=False, default=0)
+
+    # Social / platform
+    whispers_sent         = Column(Integer, nullable=False, default=0)
+    mentions_received     = Column(Integer, nullable=False, default=0)
+    summons_fired         = Column(Integer, nullable=False, default=0)
+
+    # SW/character action counters
+    npc_damage_dealt      = Column(Integer, nullable=False, default=0)
+    lore_entries_created  = Column(Integer, nullable=False, default=0)
+    images_shared         = Column(Integer, nullable=False, default=0)
+    scene_updates         = Column(Integer, nullable=False, default=0)
+    items_gifted          = Column(Integer, nullable=False, default=0)
+    npcs_created          = Column(Integer, nullable=False, default=0)
+    battles_initiated     = Column(Integer, nullable=False, default=0)
+
     updated_at          = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
