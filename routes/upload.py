@@ -114,7 +114,7 @@ async def upload_campaign_image(
     try:
         from backend.stats_tracker import track_image_shared, commit_stats
         track_image_shared(db, str(current_user.id))
-        commit_stats(db)
+        commit_stats(db, str(current_user.id))
     except Exception as _se:
         pass
 

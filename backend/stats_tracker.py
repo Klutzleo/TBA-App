@@ -357,10 +357,14 @@ def track_stat_check_outcome(
             _upsert_character_stats(db, character_id, user_id, **kwargs)
 
 
-def commit_stats(db: Session):
-    """Call after all track_* calls in a handler to flush to DB."""
+def commit_stats(db: Session, user_id: str | None = None) -> list[str]:
+    """Commit stat changes and optionally evaluate achievements. Returns newly-awarded IDs."""
     try:
         db.commit()
+        if user_id:
+            from backend.achievements import check_and_award
+            return check_and_award(user_id, db)
     except Exception as e:
         logger.warning(f"Stats commit failed: {e}")
         db.rollback()
+    return []

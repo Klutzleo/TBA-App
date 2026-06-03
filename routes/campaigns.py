@@ -141,7 +141,7 @@ def create_campaign(
     try:
         from backend.stats_tracker import track_campaign_created, commit_stats
         track_campaign_created(db, str(current_user.id))
-        commit_stats(db)
+        commit_stats(db, str(current_user.id))
     except Exception:
         pass
 
@@ -1156,7 +1156,7 @@ async def create_lore(
     try:
         from backend.stats_tracker import track_lore_created, commit_stats
         track_lore_created(db, str(current_user.id))
-        commit_stats(db)
+        commit_stats(db, str(current_user.id))
     except Exception:
         pass
 
@@ -1417,7 +1417,7 @@ async def award_loot_pool_item(
     try:
         from backend.stats_tracker import track_item_gifted, commit_stats
         track_item_gifted(db, str(current_user.id))
-        commit_stats(db)
+        commit_stats(db, str(current_user.id))
     except Exception:
         pass
 

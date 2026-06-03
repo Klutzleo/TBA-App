@@ -416,7 +416,7 @@ async def campaign_websocket(
                 try:
                     from backend.stats_tracker import track_scene_update, commit_stats
                     track_scene_update(db, str(user_id))
-                    commit_stats(db)
+                    commit_stats(db, str(user_id))
                 except Exception as _se:
                     logger.warning(f"Stats track_scene_update failed: {_se}")
 
@@ -729,7 +729,7 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
             from backend.stats_tracker import track_message, commit_stats
             _char = db.query(Character).filter(Character.user_id == str(user_id)).first() if db else None
             track_message(db, str(user_id), str(_char.id) if _char else None, campaign_id=str(campaign_id))
-            commit_stats(db)
+            commit_stats(db, str(user_id))
         except Exception as _se:
             logger.warning(f"Stats track_message failed: {_se}")
 
@@ -1312,7 +1312,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 track_npc_damage(db, str(attacker.user_id), result["total_damage"])
             if not defender.is_npc and defender.user_id:
                 track_damage_taken(db, str(defender.user_id), str(defender.id), result["total_damage"])
-            commit_stats(db)
+            commit_stats(db, _atk_user)
         except Exception as _se:
             logger.warning(f"Stats track_attack failed: {_se}")
 
@@ -1344,7 +1344,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                         from backend.stats_tracker import track_calling, commit_stats
                         if defender.user_id:
                             track_calling(db, str(defender.user_id), str(defender.id), campaign_id=str(campaign_id))
-                            commit_stats(db)
+                            commit_stats(db, str(defender.user_id))
                     except Exception as _se:
                         logger.warning(f"Stats track_calling failed: {_se}")
                     calling_msg = Message(
@@ -1594,7 +1594,7 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
         from backend.stats_tracker import track_summon_fired, commit_stats as _cs
         if caster.user_id:
             track_summon_fired(db, str(caster.user_id), str(caster.id))
-            _cs(db)
+            _cs(db, str(caster.user_id))
     except Exception as _se:
         logger.warning(f"Stats track_summon_fired failed: {_se}")
 
@@ -2312,7 +2312,7 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
             _die_size = int(_die_match.group(1)) if _die_match else 6
             from backend.stats_tracker import track_dice_roll, commit_stats
             track_dice_roll(db, str(user_id), str(_roll_char.id) if _roll_char else None, breakdown, _die_size, campaign_id=str(campaign_id))
-            commit_stats(db)
+            commit_stats(db, str(user_id))
         except Exception as _se:
             logger.warning(f"Stats track_dice_roll failed: {_se}")
 
@@ -2515,7 +2515,7 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
     try:
         from backend.stats_tracker import track_stat_check, commit_stats
         track_stat_check(db, str(user_id), str(character.id), stat_type, die_roll, campaign_id=str(campaign_id))
-        commit_stats(db)
+        commit_stats(db, str(user_id))
     except Exception as _se:
         logger.warning(f"Stats track_stat_check failed: {_se}")
 
@@ -2868,7 +2868,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
             player_total=player_total,
             outcome=outcome,
         )
-        commit_stats(db)
+        commit_stats(db, str(char.user_id))
     except Exception as _se:
         logger.warning(f"Stats track_stat_check_outcome failed: {_se}")
 
@@ -3008,7 +3008,7 @@ async def get_or_create_active_encounter(campaign_uuid: UUID, db: Session) -> En
             if sw_membership:
                 from backend.stats_tracker import track_battle_initiated, commit_stats
                 track_battle_initiated(db, str(sw_membership.user_id))
-                commit_stats(db)
+                commit_stats(db, str(sw_membership.user_id))
         except Exception as _se:
             logger.warning(f"Stats track_battle_initiated failed: {_se}")
 

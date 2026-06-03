@@ -955,7 +955,7 @@ async def create_npc(
         try:
             from backend.stats_tracker import track_npc_created, commit_stats
             track_npc_created(db, str(current_user.id))
-            commit_stats(db)
+            commit_stats(db, str(current_user.id))
         except Exception:
             pass
 
@@ -2084,7 +2084,7 @@ async def resolve_the_calling(
     try:
         from backend.stats_tracker import track_calling_outcome, commit_stats
         track_calling_outcome(db, str(char.user_id), str(char.id), outcome)
-        commit_stats(db)
+        commit_stats(db, str(char.user_id))
     except Exception as _se:
         logger.warning(f"Stats track_calling_outcome failed: {_se}")
 
@@ -2565,7 +2565,7 @@ async def level_up_character(
     try:
         from backend.stats_tracker import track_level_up, commit_stats
         track_level_up(db, str(char.user_id), str(char.id), new_level)
-        commit_stats(db)
+        commit_stats(db, str(char.user_id))
     except Exception as _se:
         logger.warning(f"Stats track_level_up failed: {_se}")
 
@@ -3138,7 +3138,7 @@ async def apply_boosts(
             _used_bap = use_bap and any(b["type"] == "bap" for b in boosts)
             _tether_n = sum(1 for b in boosts if b["type"] == "tether")
             track_boost(db, str(current_user.id), str(char.id), _used_bap, _tether_n)
-            commit_stats(db)
+            commit_stats(db, str(current_user.id))
         except Exception as _se:
             logger.warning(f"Stats track_boost failed: {_se}")
 
