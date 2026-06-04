@@ -95,7 +95,8 @@
       background: #252937; border: 1px solid #3a3f54; border-radius: 10px;
       padding: 16px 14px; text-align: center;
     }
-    .stat-card .stat-icon { font-size: 1.5rem; margin-bottom: 6px; }
+    .stat-card .stat-icon { height: 1.75rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; color: #94a3b8; }
+    .stat-card .stat-icon i, .stat-card .stat-icon svg { width: 1.5rem; height: 1.5rem; }
     .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; color: #d4af37; }
     .stat-card .stat-label { font-size: 0.72rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
     .stat-card.shame .stat-value { color: #f87171; }
@@ -431,9 +432,9 @@
 
 <!-- Tabs -->
 <div class="tab-bar">
-  <button class="tab-btn active" onclick="switchTab('stats')">📊 Stats</button>
-  <button class="tab-btn" onclick="switchTab('characters')">⚔️ Characters</button>
-  <button class="tab-btn" onclick="switchTab('achievements')" id="achievementsTabBtn">🏆 Achievements</button>
+  <button class="tab-btn active" onclick="switchTab('stats')"><i data-lucide="bar-chart-2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Stats</button>
+  <button class="tab-btn" onclick="switchTab('characters')"><i data-lucide="sword" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Characters</button>
+  <button class="tab-btn" onclick="switchTab('achievements')" id="achievementsTabBtn"><i data-lucide="trophy" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Achievements</button>
 </div>
 
 <!-- Stats Tab -->
@@ -459,12 +460,12 @@
 
 <div id="editModal" onclick="if(event.target===this)closeEdit()">
   <div class="edit-modal-box">
-    <h3>✏️ Edit Profile</h3>
+    <h3><i data-lucide="pencil" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>Edit Profile</h3>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
       <div id="editAvatarPreview" style="width:56px;height:56px;border-radius:50%;border:2px solid #d4af37;background:#1e2130;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#d4af37;overflow:hidden;flex-shrink:0;"></div>
       <div>
         <div style="font-size:0.82rem;color:#9ca3af;margin-bottom:4px;">Profile Photo</div>
-        <button class="btn-cancel" style="font-size:0.78rem;padding:4px 10px;" onclick="document.getElementById('avatarFileInput').click()">📷 Change Photo</button>
+        <button class="btn-cancel" style="font-size:0.78rem;padding:4px 10px;" onclick="document.getElementById('avatarFileInput').click()"><i data-lucide="camera" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Change Photo</button>
         <div id="avatarUploadStatus" style="font-size:0.75rem;color:#6b7280;margin-top:4px;"></div>
       </div>
     </div>
@@ -539,13 +540,13 @@
     const bio = profile.bio
       ? `<div class="profile-bio">${escHtml(profile.bio)}</div>`
       : (isOwn ? `<div class="profile-bio-empty">No bio yet — click Edit to add one.</div>` : '');
-    const privacyBadge = !profile.is_public ? `<span class="private-badge">🔒 Private</span>` : '';
+    const privacyBadge = !profile.is_public ? `<span class="private-badge"><i data-lucide="lock" style="width:11px;height:11px;vertical-align:middle;margin-right:3px;"></i>Private</span>` : '';
     const editBtn = isOwn
-      ? `<button class="profile-edit-btn" onclick="openEdit()">✏️ Edit Profile</button>`
+      ? `<button class="profile-edit-btn" onclick="openEdit()"><i data-lucide="pencil" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Edit Profile</button>`
       : '';
 
     const avatarOverlay = isOwn
-      ? `<div class="avatar-edit-overlay" onclick="document.getElementById('avatarFileInput').click()"><span>📷</span>Change</div>`
+      ? `<div class="avatar-edit-overlay" onclick="document.getElementById('avatarFileInput').click()"><i data-lucide="camera" style="width:14px;height:14px;"></i>Change</div>`
       : '';
     document.getElementById('profileHeader').innerHTML = `
       <div class="profile-avatar">${avatarHtml}${avatarOverlay}</div>
@@ -553,8 +554,8 @@
         <div class="profile-username">${escHtml(d.username)} ${privacyBadge}</div>
         ${bio}
         <div class="profile-meta">
-          ${joinDate ? `<span>📅 Joined ${joinDate}</span>` : ''}
-          ${lastSeen ? `<span>🎲 ${lastSeen}</span>` : ''}
+          ${joinDate ? `<span><i data-lucide="calendar" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Joined ${joinDate}</span>` : ''}
+          ${lastSeen ? `<span><i data-lucide="clock" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>${lastSeen}</span>` : ''}
         </div>
         ${editBtn}
       </div>`;
@@ -577,13 +578,13 @@
         <div class="sw-camp-pills">
           <div class="sw-pill">🧙 <strong>${c.player_count}</strong> Players</div>
           <div class="sw-pill">🐉 <strong>${c.npc_count}</strong> NPCs</div>
-          ${c.created_at ? `<div class="sw-pill">📅 <strong>${Math.floor((Date.now() - new Date(c.created_at)) / 86400000)}d</strong> old</div>` : ''}
+          ${c.created_at ? `<div class="sw-pill"><i data-lucide="calendar" style="width:11px;height:11px;vertical-align:middle;margin-right:2px;"></i><strong>${Math.floor((Date.now() - new Date(c.created_at)) / 86400000)}d</strong> old</div>` : ''}
         </div>
       </div>`).join('');
 
     container.innerHTML = `
       <div class="sw-section">
-        <div class="sw-section-title">🎭 Story Weaver</div>
+        <div class="sw-section-title"><i data-lucide="book-open" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Story Weaver</div>
         <div class="sw-camp-grid">${cards}</div>
       </div>`;
     container.style.display = 'block';
@@ -603,7 +604,7 @@
       const isOwn = !targetUsername || profileData.is_own;
       document.getElementById('statsContent').innerHTML = `
         <div class="empty-state">
-          <div class="icon">🎲</div>
+          <div class="icon"><i data-lucide="dice-6" style="width:2rem;height:2rem;opacity:0.4;"></i></div>
           <div style="font-size:1rem;color:#e4e6eb;margin-bottom:8px;">No stats yet</div>
           <div style="font-size:0.85rem;color:#6b7280;max-width:340px;margin:0 auto;">
             ${isOwn
@@ -615,37 +616,38 @@
     }
 
     const cards = [
-      { icon: '🎲', val: fmt(s.total_rolls), label: 'Total Dice Rolled', cls: '' },
-      { icon: '💀', val: fmt(s.total_ones), label: '1s Rolled (Hall of Shame)', cls: 'shame' },
-      { icon: '✨', val: fmt(s.total_max_rolls), label: 'Max Rolls (Natural Max)', cls: 'glory' },
-      { icon: '⚔️', val: fmt(s.total_attacks), label: 'Attacks Made', cls: '' },
-      { icon: '💥', val: fmt(s.total_damage_dealt), label: 'Total Damage Dealt', cls: '' },
-      { icon: '🛡️', val: fmt(s.total_damage_taken), label: 'Total Damage Taken', cls: '' },
-      { icon: '🔥', val: fmt(s.biggest_hit_dealt), label: 'Biggest Hit Dealt', cls: 'glory' },
-      { icon: '😬', val: fmt(s.biggest_hit_taken), label: 'Biggest Hit Taken', cls: 'shame' },
-      { icon: '📊', val: fmt(s.total_stat_checks), label: 'Stat Checks', cls: '' },
-      { icon: '💪', val: fmt(s.total_pp_checks), label: 'PP Checks', cls: '' },
-      { icon: '🧠', val: fmt(s.total_ip_checks), label: 'IP Checks', cls: '' },
-      { icon: '🗣️', val: fmt(s.total_sp_checks), label: 'SP Checks', cls: '' },
-      { icon: '⚡', val: fmt(s.total_initiatives), label: 'Initiatives Rolled', cls: '' },
+      { icon: 'dice-6',       val: fmt(s.total_rolls),       label: 'Total Dice Rolled',      cls: '' },
+      { icon: 'skull',        val: fmt(s.total_ones),        label: '1s Rolled (Hall of Shame)', cls: 'shame' },
+      { icon: 'sparkles',     val: fmt(s.total_max_rolls),   label: 'Max Rolls (Natural Max)', cls: 'glory' },
+      { icon: 'sword',        val: fmt(s.total_attacks),     label: 'Attacks Made',           cls: '' },
+      { icon: 'zap',          val: fmt(s.total_damage_dealt),label: 'Total Damage Dealt',     cls: '' },
+      { icon: 'shield',       val: fmt(s.total_damage_taken),label: 'Total Damage Taken',     cls: '' },
+      { icon: 'flame',        val: fmt(s.biggest_hit_dealt), label: 'Biggest Hit Dealt',      cls: 'glory' },
+      { icon: 'alert-triangle', val: fmt(s.biggest_hit_taken), label: 'Biggest Hit Taken',   cls: 'shame' },
+      { icon: 'bar-chart-2',  val: fmt(s.total_stat_checks), label: 'Stat Checks',            cls: '' },
+      { icon: 'dumbbell',     val: fmt(s.total_pp_checks),   label: 'PP Checks',              cls: '' },
+      { icon: 'brain',        val: fmt(s.total_ip_checks),   label: 'IP Checks',              cls: '' },
+      { icon: 'message-circle', val: fmt(s.total_sp_checks), label: 'SP Checks',              cls: '' },
+      { icon: 'zap',          val: fmt(s.total_initiatives), label: 'Initiatives Rolled',     cls: '' },
       { icon: '✦', val: fmt(s.total_bap_used), label: 'BAP Used', cls: 'boost' },
       { icon: '🔗', val: fmt(s.total_tethers_invoked), label: 'Tethers Invoked', cls: 'boost' },
-      { icon: '✨', val: fmt(s.total_abilities_cast), label: 'Abilities Cast', cls: '' },
-      { icon: '💬', val: fmt(s.total_messages_sent), label: 'Messages Sent', cls: '' },
-      { icon: '⚔️', val: fmt(s.battles_survived), label: 'Battles Survived', cls: '' },
-      { icon: '💀', val: fmt(s.total_callings), label: 'Times Called', cls: 'shame' },
-      { icon: '🩹', val: fmt(s.total_battle_scars), label: 'Battle Scars', cls: '' },
+      { icon: 'wand',         val: fmt(s.total_abilities_cast), label: 'Abilities Cast',    cls: '' },
+      { icon: 'message-square', val: fmt(s.total_messages_sent), label: 'Messages Sent',  cls: '' },
+      { icon: 'swords',       val: fmt(s.battles_survived),  label: 'Battles Survived',   cls: '' },
+      { icon: 'skull',        val: fmt(s.total_callings),    label: 'Times Called',        cls: 'shame' },
+      { icon: 'bandage',      val: fmt(s.total_battle_scars),label: 'Battle Scars',        cls: '' },
     ];
 
     document.getElementById('statsContent').innerHTML = `
       <div class="stat-grid">
         ${cards.map(c => `
           <div class="stat-card ${c.cls}">
-            <div class="stat-icon">${c.icon}</div>
+            <div class="stat-icon"><i data-lucide="${c.icon}"></i></div>
             <div class="stat-value">${c.val}</div>
             <div class="stat-label">${c.label}</div>
           </div>`).join('')}
       </div>`;
+    if (window.lucide) lucide.createIcons();
   }
 
   // ── Render characters ──
@@ -653,7 +655,8 @@
     const chars = profileData.characters || [];
     const el = document.getElementById('charsContent');
     if (!chars.length) {
-      el.innerHTML = `<div class="empty-state"><div class="icon">⚔️</div><div>No characters yet.</div></div>`;
+      el.innerHTML = `<div class="empty-state"><div class="icon"><i data-lucide="sword" style="width:2rem;height:2rem;opacity:0.4;"></i></div><div>No characters yet.</div></div>`;
+      if (window.lucide) lucide.createIcons();
       return;
     }
     el.innerHTML = `
@@ -699,19 +702,20 @@
         <button class="char-detail-close" onclick="event.stopPropagation();toggleCharDetail(null)">&times;</button>
       </div>
       <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr));">
-        <div class="stat-card"><div class="stat-icon">🎲</div><div class="stat-value">${fmt(s.total_rolls)}</div><div class="stat-label">Rolls</div></div>
-        <div class="stat-card shame"><div class="stat-icon">💀</div><div class="stat-value">${fmt(s.total_ones)}</div><div class="stat-label">1s Rolled</div></div>
-        <div class="stat-card glory"><div class="stat-icon">✨</div><div class="stat-value">${fmt(s.total_max_rolls)}</div><div class="stat-label">Max Rolls</div></div>
-        <div class="stat-card"><div class="stat-icon">⚔️</div><div class="stat-value">${fmt(s.total_attacks)}</div><div class="stat-label">Attacks</div></div>
-        <div class="stat-card"><div class="stat-icon">💥</div><div class="stat-value">${fmt(s.total_damage_dealt)}</div><div class="stat-label">Dmg Dealt</div></div>
-        <div class="stat-card glory"><div class="stat-icon">🔥</div><div class="stat-value">${fmt(s.biggest_hit_dealt)}</div><div class="stat-label">Biggest Hit</div></div>
-        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value">${fmt(s.total_stat_checks)}</div><div class="stat-label">Stat Checks</div></div>
-        <div class="stat-card"><div class="stat-icon">✨</div><div class="stat-value">${fmt(s.total_abilities_cast)}</div><div class="stat-label">Abilities</div></div>
-        <div class="stat-card shame"><div class="stat-icon">💀</div><div class="stat-value">${fmt(s.total_callings)}</div><div class="stat-label">Times Called</div></div>
-        <div class="stat-card boost"><div class="stat-icon">✦</div><div class="stat-value">${fmt(s.total_bap_used)}</div><div class="stat-label">BAP Used</div></div>
-        <div class="stat-card boost"><div class="stat-icon">🔗</div><div class="stat-value">${fmt(s.total_tethers_invoked)}</div><div class="stat-label">Tethers</div></div>
-        <div class="stat-card"><div class="stat-icon">💬</div><div class="stat-value">${fmt(s.total_messages_sent)}</div><div class="stat-label">Messages</div></div>
+        <div class="stat-card"><div class="stat-icon"><i data-lucide="dice-6"></i></div><div class="stat-value">${fmt(s.total_rolls)}</div><div class="stat-label">Rolls</div></div>
+        <div class="stat-card shame"><div class="stat-icon"><i data-lucide="skull"></i></div><div class="stat-value">${fmt(s.total_ones)}</div><div class="stat-label">1s Rolled</div></div>
+        <div class="stat-card glory"><div class="stat-icon"><i data-lucide="sparkles"></i></div><div class="stat-value">${fmt(s.total_max_rolls)}</div><div class="stat-label">Max Rolls</div></div>
+        <div class="stat-card"><div class="stat-icon"><i data-lucide="sword"></i></div><div class="stat-value">${fmt(s.total_attacks)}</div><div class="stat-label">Attacks</div></div>
+        <div class="stat-card"><div class="stat-icon"><i data-lucide="zap"></i></div><div class="stat-value">${fmt(s.total_damage_dealt)}</div><div class="stat-label">Dmg Dealt</div></div>
+        <div class="stat-card glory"><div class="stat-icon"><i data-lucide="flame"></i></div><div class="stat-value">${fmt(s.biggest_hit_dealt)}</div><div class="stat-label">Biggest Hit</div></div>
+        <div class="stat-card"><div class="stat-icon"><i data-lucide="bar-chart-2"></i></div><div class="stat-value">${fmt(s.total_stat_checks)}</div><div class="stat-label">Stat Checks</div></div>
+        <div class="stat-card"><div class="stat-icon"><i data-lucide="wand"></i></div><div class="stat-value">${fmt(s.total_abilities_cast)}</div><div class="stat-label">Abilities</div></div>
+        <div class="stat-card shame"><div class="stat-icon"><i data-lucide="skull"></i></div><div class="stat-value">${fmt(s.total_callings)}</div><div class="stat-label">Times Called</div></div>
+        <div class="stat-card boost"><div class="stat-icon"><i data-lucide="zap"></i></div><div class="stat-value">${fmt(s.total_bap_used)}</div><div class="stat-label">BAP Used</div></div>
+        <div class="stat-card boost"><div class="stat-icon"><i data-lucide="link"></i></div><div class="stat-value">${fmt(s.total_tethers_invoked)}</div><div class="stat-label">Tethers</div></div>
+        <div class="stat-card"><div class="stat-icon"><i data-lucide="message-square"></i></div><div class="stat-value">${fmt(s.total_messages_sent)}</div><div class="stat-label">Messages</div></div>
       </div>`;
+    if (window.lucide) lucide.createIcons();
   }
 
   let openDetailIdx = null;

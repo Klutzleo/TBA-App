@@ -552,7 +552,7 @@
         <div style="display:flex;align-items:center;gap:8px;margin-top:8px;justify-content:center;">
           <button onclick="openWhatsNew()" title="What's New"
               style="background:none;border:none;cursor:pointer;font-size:1.4rem;opacity:0.7;"
-              id="whatsNewBtn">📣</button>
+              id="whatsNewBtn"><i data-lucide="megaphone" style="width:20px;height:20px;"></i></button>
           <div class="notif-bell-target"></div>
         </div>
     </div>
@@ -561,7 +561,7 @@
     <div id="whatsNewModal" class="whats-new-modal" onclick="if(event.target===this)closeWhatsNew()">
       <div class="whats-new-box">
         <div class="whats-new-top">
-          <span class="whats-new-title">📣 TBA Updates</span>
+          <span class="whats-new-title"><i data-lucide="megaphone" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>TBA Updates</span>
           <button class="whats-new-close" onclick="closeWhatsNew()">&times;</button>
         </div>
 
@@ -654,52 +654,52 @@
 
     <!-- Boast Bar -->
     <div id="boast-wrapper" class="boast-wrapper" style="display:none;">
-        <div class="boast-heading">⚔️ &nbsp;The TBA Universe — By the Numbers&nbsp; ⚔️</div>
+        <div class="boast-heading">The TBA Universe — By the Numbers</div>
         <div id="boast-bar" class="boast-bar">
             <div class="boast-stat">
-                <span class="boast-stat-icon">🧙</span>
+                <span class="boast-stat-icon"><i data-lucide="users" style="width:1.5rem;height:1.5rem;"></i></span>
                 <div class="boast-stat-body">
                     <span class="boast-stat-value" id="boast-players">—</span>
                     <span class="boast-stat-label">Adventurers</span>
                 </div>
             </div>
             <div class="boast-stat">
-                <span class="boast-stat-icon">💬</span>
+                <span class="boast-stat-icon"><i data-lucide="message-circle" style="width:1.5rem;height:1.5rem;"></i></span>
                 <div class="boast-stat-body">
                     <span class="boast-stat-value" id="boast-messages">—</span>
                     <span class="boast-stat-label">Tales Told</span>
                 </div>
             </div>
             <div class="boast-stat">
-                <span class="boast-stat-icon">⚔️</span>
+                <span class="boast-stat-icon"><i data-lucide="swords" style="width:1.5rem;height:1.5rem;"></i></span>
                 <div class="boast-stat-body">
                     <span class="boast-stat-value" id="boast-battles">—</span>
                     <span class="boast-stat-label">Wars Waged</span>
                 </div>
             </div>
             <div class="boast-stat glory">
-                <span class="boast-stat-icon">💥</span>
+                <span class="boast-stat-icon"><i data-lucide="zap" style="width:1.5rem;height:1.5rem;"></i></span>
                 <div class="boast-stat-body">
                     <span class="boast-stat-value" id="boast-damage">—</span>
                     <span class="boast-stat-label">Damage Unleashed</span>
                 </div>
             </div>
             <div class="boast-stat shame">
-                <span class="boast-stat-icon">💀</span>
+                <span class="boast-stat-icon"><i data-lucide="skull" style="width:1.5rem;height:1.5rem;"></i></span>
                 <div class="boast-stat-body">
                     <span class="boast-stat-value" id="boast-ones">—</span>
                     <span class="boast-stat-label">Critical Failures</span>
                 </div>
             </div>
             <div class="boast-stat">
-                <span class="boast-stat-icon">🌟</span>
+                <span class="boast-stat-icon"><i data-lucide="star" style="width:1.5rem;height:1.5rem;"></i></span>
                 <div class="boast-stat-body">
                     <span class="boast-stat-value" id="boast-callings">—</span>
                     <span class="boast-stat-label">Callings Awakened</span>
                 </div>
             </div>
             <div class="boast-stat">
-                <span class="boast-stat-icon">🎲</span>
+                <span class="boast-stat-icon"><i data-lucide="dice-6" style="width:1.5rem;height:1.5rem;"></i></span>
                 <div class="boast-stat-body">
                     <span class="boast-stat-value" id="boast-rolls">—</span>
                     <span class="boast-stat-label">Fates Tempted</span>
@@ -731,7 +731,7 @@
     <div id="browse-tab" class="tab-content">
         <div class="actions">
             <h2 style="color: #d4af37;">Browse Public Campaigns</h2>
-            <button class="btn-secondary btn" onclick="loadPublicCampaigns()">🔄 Refresh</button>
+            <button class="btn-secondary btn" onclick="loadPublicCampaigns()"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Refresh</button>
         </div>
         <div id="error-browse" class="error-message" style="display: none;"></div>
         <div id="success-browse" class="success-message" style="display: none;"></div>
@@ -971,6 +971,7 @@
 
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', async () => {
+            if (window.lucide) lucide.createIcons();
             // Get current user info
             const token = localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token');
             if (token) {
@@ -1170,20 +1171,20 @@
                     <div class="campaign-description">${escapeHtml(campaign.description)}</div>
                     <div class="campaign-meta">
                         <div class="campaign-meta-item">
-                            <span>👥</span>
+                            <span><i data-lucide="users" style="width:13px;height:13px;vertical-align:middle;"></i></span>
                             <span>${campaign.pc_count ?? campaign.member_count}/${campaign.max_players}</span>
                         </div>
-                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
+                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span><i data-lucide="eye" style="width:13px;height:13px;vertical-align:middle;"></i></span><span>${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
                         <div class="campaign-meta-item">
-                            <span>📅</span>
+                            <span><i data-lucide="calendar" style="width:13px;height:13px;vertical-align:middle;"></i></span>
                             <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
                         </div>
                         <div class="campaign-meta-item">
-                            <span>🌍</span>
+                            <span><i data-lucide="globe" style="width:13px;height:13px;vertical-align:middle;"></i></span>
                             <span>${campaign.timezone}</span>
                         </div>
                         <div class="campaign-meta-item">
-                            <span>📊</span>
+                            <span><i data-lucide="bar-chart-2" style="width:13px;height:13px;vertical-align:middle;"></i></span>
                             <span>${campaign.status}</span>
                         </div>
                     </div>
@@ -1191,12 +1192,12 @@
                         ${campaign.join_code}
                     </div>
                     <div class="campaign-actions">
-                        <button class="btn btn-small" onclick="enterCampaign('${campaign.id}')">🎮 Enter</button>
+                        <button class="btn btn-small" onclick="enterCampaign('${campaign.id}')"><i data-lucide="play" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Enter</button>
                         ${campaign.user_role === 'story_weaver'
-                            ? `<button class="btn btn-small" onclick="openSettingsModal('${campaign.id}')">⚙️ Settings</button>`
+                            ? `<button class="btn btn-small" onclick="openSettingsModal('${campaign.id}')"><i data-lucide="settings" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Settings</button>`
                             : `<button class="btn-danger btn btn-small" onclick="leaveCampaign('${campaign.id}')">Leave</button>`
                         }
-                        <button class="btn-secondary btn btn-small" onclick="copyjoinCode('${campaign.join_code}')">📋 Copy Code</button>
+                        <button class="btn-secondary btn btn-small" onclick="copyjoinCode('${campaign.join_code}')"><i data-lucide="clipboard" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Copy Code</button>
                     </div>
                 </div>
             `; }).join('');
@@ -1242,16 +1243,16 @@
                     <div class="campaign-description">${escapeHtml(campaign.description)}</div>
                     <div class="campaign-meta">
                         <div class="campaign-meta-item">
-                            <span>👥</span>
+                            <span><i data-lucide="users" style="width:13px;height:13px;vertical-align:middle;"></i></span>
                             <span>${campaign.pc_count ?? campaign.member_count}/${campaign.max_players}</span>
                         </div>
-                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span>👁</span><span>${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
+                        ${(campaign.spectator_count > 0) ? `<div class="campaign-meta-item"><span><i data-lucide="eye" style="width:13px;height:13px;vertical-align:middle;"></i></span><span>${campaign.spectator_count}${campaign.max_spectators != null ? '/'+campaign.max_spectators : ''}</span></div>` : ''}
                         <div class="campaign-meta-item">
-                            <span>📅</span>
+                            <span><i data-lucide="calendar" style="width:13px;height:13px;vertical-align:middle;"></i></span>
                             <span>${formatPostingFrequency(campaign.posting_frequency)}</span>
                         </div>
                         <div class="campaign-meta-item">
-                            <span>🌍</span>
+                            <span><i data-lucide="globe" style="width:13px;height:13px;vertical-align:middle;"></i></span>
                             <span>${campaign.timezone}</span>
                         </div>
                     </div>
@@ -1260,6 +1261,7 @@
                     </div>
                 </div>
             `).join('');
+            if (window.lucide) lucide.createIcons();
         }
 
         // Join campaign by code
@@ -1475,8 +1477,8 @@
                             ${char.abilities.map(a => `<span style="background:#252937;padding:2px 8px;border-radius:4px;margin-right:4px;">${escapeHtml(a.display_name)} (${a.macro_command})</span>`).join('')}
                         </div>` : ''}
                         <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
-                            <button class="btn btn-small" style="background:#4a7c59;" onclick="approveCharacter('${char.id}', '${campaignId}', '${escapeHtml(char.name)}')">✅ Approve</button>
-                            <button class="btn-danger btn btn-small" onclick="openRejectForm('${char.id}')">❌ Reject</button>
+                            <button class="btn btn-small" style="background:#4a7c59;" onclick="approveCharacter('${char.id}', '${campaignId}', '${escapeHtml(char.name)}')"><i data-lucide="check-circle" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Approve</button>
+                            <button class="btn-danger btn btn-small" onclick="openRejectForm('${char.id}')"><i data-lucide="x-circle" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Reject</button>
                         </div>
                         <div id="reject-form-${char.id}" style="display:none;margin-top:10px;">
                             <textarea id="reject-reason-${char.id}" placeholder="Reason for rejection (optional)..." style="width:100%;background:#0d0e17;border:1px solid #3a3f54;border-radius:6px;padding:8px;color:#e4e6eb;resize:vertical;min-height:60px;"></textarea>
@@ -1487,6 +1489,7 @@
                         </div>
                     </div>
                 `).join('');
+                if (window.lucide) lucide.createIcons();
             } catch (err) {
                 listEl.innerHTML = `<p style="color:#e57373;">Failed to load pending characters: ${err.message}</p>`;
             }
