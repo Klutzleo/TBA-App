@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.db import get_db
-from backend.models import User, UserAchievement, SiteStats
+from backend.models import User, UserAchievement
 from backend.achievements import ACHIEVEMENTS, BADGE_SHOWCASE_THRESHOLD, check_and_award
 from routes.auth import get_current_user
 
@@ -64,9 +64,8 @@ async def get_my_achievements(
         ).group_by(UserAchievement.achievement_id).all()
     }
 
-    # Total player count from site stats
-    site = db.query(SiteStats).filter(SiteStats.id == 1).first()
-    total_players = max(site.total_players, 1) if site else 1
+    # Count active users directly — SiteStats.total_players isn't maintained
+    total_players = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 1
 
     # This user's earned achievements
     earned_rows = (
