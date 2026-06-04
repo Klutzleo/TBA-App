@@ -1683,7 +1683,10 @@ def check_and_award(user_id, db: Session, character_id=None, silent=False) -> li
 
     stats = db.query(UserStats).filter(UserStats.user_id == user_id).first()
     if not stats:
-        return []
+        # Create a zero-stats row so time/founding checks can still run
+        stats = UserStats(user_id=user_id)
+        db.add(stats)
+        db.flush()
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
