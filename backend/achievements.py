@@ -38,6 +38,12 @@ from sqlalchemy.orm import Session
 FOUNDING_START = datetime(2025, 1, 1, tzinfo=timezone.utc)
 FOUNDING_END   = datetime(2027, 7, 31, 23, 59, 59, tzinfo=timezone.utc)
 
+# Launch windows
+LAUNCH_MONTH_START = datetime(2026, 2, 1,  tzinfo=timezone.utc)   # Day One
+LAUNCH_MONTH_END   = datetime(2026, 3, 31, 23, 59, 59, tzinfo=timezone.utc)
+LAUNCH_YEAR_START  = datetime(2026, 1, 1,  tzinfo=timezone.utc)   # Early Adopter
+LAUNCH_YEAR_END    = datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+
 # Badge showcase unlocks at this points total
 BADGE_SHOWCASE_THRESHOLD = 150
 
@@ -1608,8 +1614,6 @@ ACHIEVEMENTS = {
 # These are in the dict (so they display on profiles) but check_and_award()
 # skips them. Remove an ID from here once the tracking field ships.
 _FUTURE_IDS: set[str] = {
-    # Founding — launch date not yet defined
-    "day_one", "early_adopter",
     # Profile/platform — UI event tracking not built
     "heads_up", "lurker", "lorekeeper_tab", "archivist", "prepared",
     "treasure_hunter", "all_in", "quick_reference",
@@ -1715,6 +1719,10 @@ def check_and_award(user_id, db: Session, character_id=None, silent=False) -> li
         created_at = created_at.replace(tzinfo=timezone.utc)
     if FOUNDING_START <= created_at <= FOUNDING_END:
         award("og")
+    if LAUNCH_MONTH_START <= created_at <= LAUNCH_MONTH_END:
+        award("day_one")
+    if LAUNCH_YEAR_START <= created_at <= LAUNCH_YEAR_END:
+        award("early_adopter")
 
     # ── ACCOUNT AGE ───────────────────────────────────────────────────────────
     now = datetime.now(timezone.utc)
