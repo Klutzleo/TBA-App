@@ -1671,7 +1671,7 @@ _FUTURE_IDS: set[str] = {
 }
 
 
-def check_and_award(user_id, db: Session, character_id=None) -> list[str]:
+def check_and_award(user_id, db: Session, character_id=None, silent=False) -> list[str]:
     """
     Evaluate all achievement conditions for a user and award any newly earned ones.
     Returns the list of newly-awarded achievement IDs.
@@ -1910,7 +1910,7 @@ def check_and_award(user_id, db: Session, character_id=None) -> list[str]:
         try:
             from backend.notification_center import notify_achievement
             for aid in newly_awarded:
-                notify_achievement(db, user_id, aid, silent=False)
+                notify_achievement(db, user_id, aid, silent=silent)
             db.commit()
         except Exception as e:
             import logging
