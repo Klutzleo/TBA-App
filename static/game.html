@@ -4813,6 +4813,7 @@
           });
         }
       }
+      if (window.lucide) lucide.createIcons({ el: bubbleBar });
     }
 
     // Create a bubble element
@@ -4831,19 +4832,19 @@
       }
 
       const hiddenBadge = (character.type === 'npc' && userRole === 'SW' && !character.visible_to_players)
-        ? `<span style="font-size:0.55rem;opacity:0.5;display:block;line-height:1;">🙈</span>` : '';
+        ? `<span style="display:block;line-height:1;opacity:0.5;"><i data-lucide="eye-off" style="width:10px;height:10px;"></i></span>` : '';
 
       let avatarInner;
       if (character.portrait_url) {
         avatarInner = `<img src="${escHtml(character.portrait_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`;
       } else if (character.type === 'narrator') {
-        avatarInner = '📖';
+        avatarInner = `<i data-lucide="book-open" style="width:1rem;height:1rem;"></i>`;
       } else if (character.type === 'npc') {
-        avatarInner = '🎭';
+        avatarInner = `<i data-lucide="user-x" style="width:1rem;height:1rem;"></i>`;
       } else if (character.type === 'ally') {
-        avatarInner = '🤝';
+        avatarInner = `<i data-lucide="heart-handshake" style="width:1rem;height:1rem;"></i>`;
       } else {
-        avatarInner = '👤';
+        avatarInner = `<i data-lucide="user" style="width:1rem;height:1rem;"></i>`;
       }
 
       bubble.innerHTML = `
@@ -7334,7 +7335,7 @@
             <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-muted);">
               <span>PP ${c.pp||0} · IP ${c.ip||0} · SP ${c.sp||0}</span>
               <span style="display:flex;align-items:center;gap:4px;">
-                <span style="color:${usesColor};">⚡ ${usesRemaining}/${maxUses} uses</span>
+                <span style="color:${usesColor};display:inline-flex;align-items:center;gap:3px;"><i data-lucide="zap" style="width:11px;height:11px;"></i>${usesRemaining}/${maxUses} uses</span>
                 <button title="+1 use" onclick="swRestoreUses('${c.id}',1)"
                   style="background:none;border:1px solid rgba(255,255,255,0.15);border-radius:3px;color:var(--text-muted);font-size:0.65rem;padding:0 4px;cursor:pointer;line-height:1.4;">+1</button>
                 <button title="Restore all uses" onclick="swRestoreUses('${c.id}',0,true)"
@@ -7343,11 +7344,12 @@
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
               <div data-effect-char-id="${c.id}" data-effect-editable="true" style="flex:1;">${buildEffectChipsHtml(c.id, true)}</div>
-              <button class="btn-icon" title="Add effect" style="font-size:0.8rem;opacity:0.5;flex-shrink:0;" onclick="openAddEffectModal('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}')">✨</button>
+              <button class="btn-icon" title="Add effect" style="opacity:0.5;flex-shrink:0;display:flex;align-items:center;" onclick="openAddEffectModal('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}')"><i data-lucide="sparkles" style="width:14px;height:14px;"></i></button>
             </div>
           `;
           container.appendChild(card);
         });
+        if (window.lucide) lucide.createIcons({ el: container });
       } catch (_) {
         container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Could not load dashboard.</div>';
       }
@@ -12899,9 +12901,9 @@
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   ${callingSkull}
-                  ${!isSW() ? `<button class="btn-icon" title="Character options" onclick="showPlayerContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', '${(member.username || '').replace(/'/g, "\\'")}')">⚙</button>` : ''}
-                  ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}', '${(member.username || '').replace(/'/g, "\\'")}')">⚙</button>` : ''}
-                  ${isSW() ? `<button class="btn-icon" title="Add buff/debuff" style="font-size:0.85rem;opacity:0.55;" onclick="openAddEffectModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')">✨</button>` : ''}
+                  ${!isSW() ? `<button class="btn-icon" title="Character options" style="display:flex;align-items:center;" onclick="showPlayerContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', '${(member.username || '').replace(/'/g, "\\'")}')"><i data-lucide="settings" style="width:13px;height:13px;"></i></button>` : ''}
+                  ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" style="display:flex;align-items:center;" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}', '${(member.username || '').replace(/'/g, "\\'")}')"><i data-lucide="settings" style="width:13px;height:13px;"></i></button>` : ''}
+                  ${isSW() ? `<button class="btn-icon" title="Add buff/debuff" style="opacity:0.55;display:flex;align-items:center;" onclick="openAddEffectModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')"><i data-lucide="sparkles" style="width:13px;height:13px;"></i></button>` : ''}
                 </div>
               </div>
               <div class="character-details">
@@ -12933,6 +12935,7 @@
 
         // Now that knownPCs is populated, recolor any history already loaded
         recolorAllHistory();
+        if (window.lucide) lucide.createIcons({ el: charactersContainer });
 
       } catch (error) {
         console.error('Error loading characters:', error);

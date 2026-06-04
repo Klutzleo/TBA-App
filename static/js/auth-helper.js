@@ -105,7 +105,7 @@ function displayUserInfo(containerId = 'user-info') {
             style="margin-left: 10px; padding: 8px 16px; background: transparent; color: #d4af37; border: 1px solid #3a3f54; border-radius: 8px; font-weight: 600; cursor: pointer; text-decoration: none; font-size: 0.9rem; transition: all 0.3s ease;"
             onmouseover="this.style.borderColor='#d4af37'; this.style.background='rgba(212,175,55,0.1)'"
             onmouseout="this.style.borderColor='#3a3f54'; this.style.background='transparent'">
-            👤 Profile
+            <i data-lucide="user" style="width:14px;height:14px;vertical-align:middle;margin-right:5px;"></i>Profile
         </a>
         <button
             onclick="logout()"
@@ -115,4 +115,5 @@ function displayUserInfo(containerId = 'user-info') {
             Logout
         </button>
     `;
+    if (window.lucide) lucide.createIcons({ el: container });
 }

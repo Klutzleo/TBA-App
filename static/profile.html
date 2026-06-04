@@ -576,8 +576,8 @@
           <span class="sw-status-badge ${c.status}">${statusLabel(c.status)}</span>
         </div>
         <div class="sw-camp-pills">
-          <div class="sw-pill">🧙 <strong>${c.player_count}</strong> Players</div>
-          <div class="sw-pill">🐉 <strong>${c.npc_count}</strong> NPCs</div>
+          <div class="sw-pill"><i data-lucide="users" style="width:11px;height:11px;vertical-align:middle;margin-right:2px;"></i><strong>${c.player_count}</strong> Players</div>
+          <div class="sw-pill"><i data-lucide="skull" style="width:11px;height:11px;vertical-align:middle;margin-right:2px;"></i><strong>${c.npc_count}</strong> NPCs</div>
           ${c.created_at ? `<div class="sw-pill"><i data-lucide="calendar" style="width:11px;height:11px;vertical-align:middle;margin-right:2px;"></i><strong>${Math.floor((Date.now() - new Date(c.created_at)) / 86400000)}d</strong> old</div>` : ''}
         </div>
       </div>`).join('');
@@ -589,6 +589,7 @@
       </div>`;
     container.style.display = 'block';
     document.getElementById('statsLoading').style.display = 'none';
+    if (window.lucide) lucide.createIcons();
   }
 
   // ── Render stats ──
@@ -665,7 +666,7 @@
           <div class="char-card" onclick="toggleCharDetail(${i})">
             <div class="char-card-header">
               <div class="char-portrait">
-                ${c.portrait_url ? `<img src="${c.portrait_url}" alt="${escHtml(c.name)}">` : '⚔️'}
+                ${c.portrait_url ? `<img src="${c.portrait_url}" alt="${escHtml(c.name)}">` : '<i data-lucide="sword" style="width:1.4rem;height:1.4rem;opacity:0.4;"></i>'}
               </div>
               <div>
                 <div class="char-name">${escHtml(c.name)}</div>
@@ -685,6 +686,7 @@
             ${renderCharDetail(c)}
           </div>`).join('')}
       </div>`;
+    if (window.lucide) lucide.createIcons();
   }
 
   function renderCharDetail(c) {
@@ -693,7 +695,7 @@
     return `
       <div class="char-detail-header">
         <div class="char-detail-portrait">
-          ${c.portrait_url ? `<img src="${c.portrait_url}" alt="${escHtml(c.name)}">` : '⚔️'}
+          ${c.portrait_url ? `<img src="${c.portrait_url}" alt="${escHtml(c.name)}">` : '<i data-lucide="sword" style="width:1.4rem;height:1.4rem;opacity:0.4;"></i>'}
         </div>
         <div>
           <div class="char-detail-name">${escHtml(c.name)}</div>
