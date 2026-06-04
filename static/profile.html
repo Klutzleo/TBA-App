@@ -397,13 +397,17 @@
     .achv-showcase-slot .achv-badge-shape svg { width: 24px; height: 24px; }
     .achv-showcase-slot-name { font-size: 0.65rem; color: #9ca3af; line-height: 1.3; }
     .achv-showcase-slot.empty .achv-badge-shape {
-      background: #252937; border: 2px dashed #2a2d3e; border-radius: 12px;
+      background: #252937; border: 2px dashed #3a3d4e; border-radius: 12px;
     }
     .achv-showcase-slot.locked .achv-badge-shape {
-      background: #1a1d29; border: 2px dashed #1e2130; border-radius: 12px;
+      background: #161820; border: 2px dashed #374151;
+      border-radius: 12px; color: #374151;
+    }
+    .achv-showcase-slot.locked .achv-badge-shape svg {
+      width: 18px; height: 18px; color: #374151; stroke: #374151;
     }
     .achv-showcase-slot-locked-label {
-      font-size: 0.6rem; color: #374151; margin-top: 4px;
+      font-size: 0.62rem; color: #4b5563; margin-top: 4px; font-weight: 600;
     }
     .achv-showcase-hint {
       font-size: 0.7rem; color: #4b5563; margin-top: 10px;
@@ -903,8 +907,12 @@
 
       if (!isUnlocked) {
         slotsHtml += `
-          <div class="achv-showcase-slot locked">
-            <div class="achv-badge"><div class="achv-badge-shape dice" style="opacity:0.15;"></div></div>
+          <div class="achv-showcase-slot locked" title="${unlockPts ? 'Unlocks at ' + unlockPts + ' pts' : ''}">
+            <div class="achv-badge">
+              <div class="achv-badge-shape dice">
+                <i data-lucide="lock"></i>
+              </div>
+            </div>
             <div class="achv-showcase-slot-locked-label">${unlockPts ? unlockPts + ' pts' : ''}</div>
           </div>`;
       } else if (a) {
