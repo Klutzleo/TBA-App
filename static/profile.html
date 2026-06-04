@@ -818,9 +818,19 @@
   async function loadAchievements() {
     if (!authToken) return;
     try {
-      const resp = await fetch('/api/achievements/me', {
+      const achvUrl = targetUsername
+        ? `/api/achievements/${encodeURIComponent(targetUsername)}`
+        : '/api/achievements/me';
+      const resp = await fetch(achvUrl, {
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
+      if (resp.status === 403) {
+        document.getElementById('achvLoading').style.display = 'none';
+        document.getElementById('achvContent').innerHTML =
+          '<div class="empty-state"><div class="icon">🔒</div><div>This profile is private.</div></div>';
+        document.getElementById('achvContent').style.display = 'block';
+        return;
+      }
       if (!resp.ok) throw new Error();
       renderAchievements(await resp.json());
     } catch(e) {
