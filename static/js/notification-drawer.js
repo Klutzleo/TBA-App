@@ -45,7 +45,7 @@
     if (target) {
       target.innerHTML = `
         <button class="notif-bell-btn" id="notifBellBtn" onclick="toggleNotificationDrawer()" title="Notifications">
-          <i data-lucide="bell"></i>
+          <i data-lucide="scroll"></i>
           <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
         </button>`;
     }
