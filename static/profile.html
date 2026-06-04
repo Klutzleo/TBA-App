@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#1a1a2e" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <script src="/js/auth-helper.js"></script>
+  <script src="/js/lucide.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -225,6 +226,142 @@
       .stat-grid { grid-template-columns: repeat(2, 1fr); }
       .char-grid { grid-template-columns: 1fr; }
     }
+
+    /* ── Achievements ───────────────────────────────────── */
+    .achv-summary {
+      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+      padding: 16px 0 20px;
+      border-bottom: 1px solid #2a2d3e;
+      margin-bottom: 24px;
+    }
+    .achv-summary-stat { display: flex; flex-direction: column; align-items: center; }
+    .achv-summary-stat .val { font-size: 1.4rem; font-weight: 700; color: #e4e6eb; }
+    .achv-summary-stat .lbl { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+    .achv-progress-wrap { flex: 1; min-width: 180px; }
+    .achv-progress-label { font-size: 0.75rem; color: #9ca3af; margin-bottom: 6px; }
+    .achv-progress-bar { height: 5px; background: #2a2d3e; border-radius: 3px; overflow: hidden; }
+    .achv-progress-fill { height: 100%; background: linear-gradient(90deg, #d4af37, #f0cc5a); border-radius: 3px; transition: width 0.8s ease; }
+    .achv-showcase-unlocked {
+      display: flex; align-items: center; gap: 8px;
+      color: #d4af37; font-size: 0.82rem; font-weight: 600;
+      padding: 7px 14px; background: rgba(212,175,55,0.08);
+      border: 1px solid rgba(212,175,55,0.3); border-radius: 8px;
+    }
+
+    .achv-section { margin-bottom: 28px; }
+    .achv-section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .achv-section-name {
+      font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;
+    }
+    .achv-section-count { font-size: 0.72rem; color: #374151; }
+
+    .achv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+      gap: 8px;
+    }
+
+    .achv-card {
+      display: flex; flex-direction: column; align-items: center;
+      background: #1e2130; border: 1px solid #2a2d3e;
+      border-radius: 10px; padding: 12px 6px 10px;
+      position: relative; text-align: center;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .achv-card:hover { border-color: #3a3d4e; transform: translateY(-1px); }
+    .achv-card.earned { border-color: rgba(212,175,55,0.18); }
+    .achv-card.locked { opacity: 0.38; filter: grayscale(0.7); }
+
+    .achv-badge { width: 48px; height: 48px; margin-bottom: 8px; flex-shrink: 0; }
+    .achv-badge-shape {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .achv-badge-shape svg { width: 20px; height: 20px; color: rgba(255,255,255,0.92); stroke: rgba(255,255,255,0.92); }
+
+    /* Section badge shapes + colors */
+    .achv-badge-shape.founding {
+      clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+      background: linear-gradient(135deg,#d4af37,#b8941f);
+    }
+    .achv-badge-shape.platform { border-radius: 50%; background: #1d4ed8; }
+    .achv-badge-shape.time {
+      clip-path: polygon(20% 0%,80% 0%,100% 20%,100% 80%,80% 100%,20% 100%,0% 80%,0% 20%);
+      background: #6d28d9;
+    }
+    .achv-badge-shape.character {
+      clip-path: polygon(50% 0%,93% 100%,7% 100%);
+      background: #065f46;
+    }
+    .achv-badge-shape.character svg { margin-top: 10px; }
+    .achv-badge-shape.combat {
+      clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background: #b91c1c;
+    }
+    .achv-badge-shape.calling {
+      clip-path: polygon(50% 0%,100% 0%,50% 50%,100% 100%,0% 100%,50% 50%,0% 0%);
+      background: #4c1d95;
+    }
+    .achv-badge-shape.dice { border-radius: 22%; background: #0e7490; }
+    .achv-badge-shape.shame {
+      clip-path: polygon(0% 0%,75% 0%,100% 25%,100% 100%,25% 100%,0% 75%);
+      background: #991b1b;
+    }
+    .achv-badge-shape.story { border-radius: 50% 50% 50% 0; background: #1e40af; }
+    .achv-badge-shape.companions {
+      clip-path: polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%);
+      background: #166534;
+    }
+    .achv-badge-shape.sw { border-radius: 8px 8px 0 0; background: #0f766e; }
+
+    /* Narrative category gets a teal tint */
+    .achv-badge-shape.cat-narrative { filter: hue-rotate(30deg) brightness(0.9); }
+
+    .achv-name {
+      font-size: 0.7rem; font-weight: 600; color: #e4e6eb;
+      line-height: 1.3; margin-bottom: 5px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; width: 100%;
+    }
+    .achv-diff-pill {
+      font-size: 0.58rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; padding: 1px 6px; border-radius: 10px; margin-bottom: 4px;
+    }
+    .achv-diff-pill.easy     { background: #14532d; color: #4ade80; }
+    .achv-diff-pill.medium   { background: #1e3a5f; color: #60a5fa; }
+    .achv-diff-pill.hard     { background: #431407; color: #f97316; }
+    .achv-diff-pill.prestige { background: #3b1663; color: #a855f7; }
+    .achv-diff-pill.founding { background: #2a2410; color: #d4af37; }
+    .achv-diff-pill.narrative{ background: #0c2a2a; color: #22d3ee; }
+    .achv-diff-pill.sw       { background: #0a2a28; color: #2dd4bf; }
+    .achv-diff-pill.shame    { background: #2a0a0a; color: #f87171; }
+
+    .achv-rarity { font-size: 0.62rem; margin-bottom: 3px; }
+    .achv-rarity.common    { color: #4b5563; }
+    .achv-rarity.uncommon  { color: #d4af37; }
+    .achv-rarity.rare      { color: #60a5fa; text-shadow: 0 0 6px rgba(96,165,250,0.5); }
+    .achv-rarity.ultra_rare { color: #14b8a6; font-weight: 700; }
+    .achv-rarity.legendary {
+      color: #a855f7; font-weight: 700;
+      animation: legendPulse 2s infinite;
+    }
+    @keyframes legendPulse {
+      0%,100% { text-shadow: 0 0 4px rgba(168,85,247,0.5); }
+      50%      { text-shadow: 0 0 14px rgba(168,85,247,1); }
+    }
+
+    .achv-pts { font-size: 0.6rem; color: #4b5563; }
+    .achv-earned-date { font-size: 0.58rem; color: #4ade80; margin-top: 3px; }
+    .achv-checkmark {
+      position: absolute; top: 5px; right: 5px;
+      width: 14px; height: 14px; background: #14532d;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 8px; color: #4ade80; font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -243,7 +380,7 @@
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('stats')">📊 Stats</button>
   <button class="tab-btn" onclick="switchTab('characters')">⚔️ Characters</button>
-  <button class="tab-btn" onclick="switchTab('achievements')" id="achievementsTabBtn">🏆 Achievements <span style="font-size:0.7rem;color:#6b7280;">(soon)</span></button>
+  <button class="tab-btn" onclick="switchTab('achievements')" id="achievementsTabBtn">🏆 Achievements</button>
 </div>
 
 <!-- Stats Tab -->
@@ -260,7 +397,8 @@
 
 <!-- Achievements Tab -->
 <div id="tab-achievements" class="tab-pane">
-  <div class="empty-state"><div class="icon">🏆</div><div>Achievements coming soon!</div></div>
+  <div class="loading" id="achvLoading">Loading achievements…</div>
+  <div id="achvContent" style="display:none;"></div>
 </div>
 
 <!-- Edit Profile Modal -->
@@ -298,11 +436,16 @@
   let profileData = null;
 
   // ── Tab switching ──
+  let achievementsLoaded = false;
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
     event.target.closest('.tab-btn').classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'achievements' && !achievementsLoaded) {
+      achievementsLoaded = true;
+      loadAchievements();
+    }
   }
 
   // ── Load profile ──
@@ -601,6 +744,115 @@
 
   function escHtml(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Achievements ──────────────────────────────────────────────────────────
+  const SECTION_ORDER = ['founding','platform','time','character','combat','calling','dice','shame','story','companions','sw'];
+  const SECTION_NAMES = {
+    founding:   'Founding',
+    platform:   'Profile & Platform',
+    time:       'Time & Consistency',
+    character:  'Character & Leveling',
+    combat:     'Combat & Survival',
+    calling:    'The Calling',
+    dice:       'Dice & Rolls',
+    shame:      'Hall of Shame',
+    story:      'Story & Narrative',
+    companions: 'Companions',
+    sw:         'Story Weaver',
+  };
+
+  async function loadAchievements() {
+    if (!authToken) return;
+    try {
+      const resp = await fetch('/api/achievements/me', {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (!resp.ok) throw new Error();
+      renderAchievements(await resp.json());
+    } catch(e) {
+      document.getElementById('achvLoading').style.display = 'none';
+      document.getElementById('achvContent').innerHTML =
+        '<div class="empty-state"><div class="icon">🏆</div><div>Could not load achievements.</div></div>';
+      document.getElementById('achvContent').style.display = 'block';
+    }
+  }
+
+  function renderAchievements(d) {
+    const loading = document.getElementById('achvLoading');
+    const el = document.getElementById('achvContent');
+    loading.style.display = 'none';
+
+    const pct = Math.min((d.total_points / d.badge_showcase_threshold) * 100, 100);
+    const progressHtml = d.badge_showcase_unlocked
+      ? `<div class="achv-showcase-unlocked">✦ Badge Showcase Unlocked</div>`
+      : `<div class="achv-progress-wrap">
+           <div class="achv-progress-label">Badge Showcase: ${d.total_points.toLocaleString()} / ${d.badge_showcase_threshold} pts</div>
+           <div class="achv-progress-bar"><div class="achv-progress-fill" style="width:${pct}%"></div></div>
+         </div>`;
+
+    const summaryHtml = `
+      <div class="achv-summary">
+        <div class="achv-summary-stat"><div class="val">${d.total_earned}</div><div class="lbl">Earned</div></div>
+        <div class="achv-summary-stat"><div class="val">${d.total_possible}</div><div class="lbl">Total</div></div>
+        <div class="achv-summary-stat"><div class="val">${d.total_points.toLocaleString()}</div><div class="lbl">Points</div></div>
+        ${progressHtml}
+      </div>`;
+
+    // Group by section
+    const bySection = {};
+    for (const a of d.achievements) {
+      if (!bySection[a.section]) bySection[a.section] = [];
+      bySection[a.section].push(a);
+    }
+
+    const sectionsHtml = SECTION_ORDER
+      .filter(s => bySection[s] && bySection[s].length)
+      .map(s => {
+        const list = bySection[s];
+        const earnedCount = list.filter(a => a.earned).length;
+        const swNote = s === 'sw'
+          ? `<span style="font-size:0.65rem;color:#0d9488;margin-left:8px;font-weight:400;text-transform:none;letter-spacing:0;">Visible to all players</span>`
+          : '';
+        return `
+          <div class="achv-section">
+            <div class="achv-section-header">
+              <span class="achv-section-name">${SECTION_NAMES[s]}${swNote}</span>
+              <span class="achv-section-count">${earnedCount} / ${list.length}</span>
+            </div>
+            <div class="achv-grid">${list.map(renderAchvCard).join('')}</div>
+          </div>`;
+      }).join('');
+
+    el.innerHTML = summaryHtml + sectionsHtml;
+    el.style.display = 'block';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderAchvCard(a) {
+    const diffLabel = a.difficulty
+      ? a.difficulty.charAt(0).toUpperCase() + a.difficulty.slice(1)
+      : ({ founding:'Founding', narrative:'Narrative', sw:'SW', shame:'Shame' }[a.category] || '');
+    const diffClass = a.difficulty || ({ founding:'founding', narrative:'narrative', sw:'sw', shame:'shame' }[a.category] || '');
+    const diffPill = diffLabel ? `<div class="achv-diff-pill ${diffClass}">${diffLabel}</div>` : '';
+    const catClass = a.category !== 'standard' ? ` cat-${a.category}` : '';
+    const earnedDate = a.earned && a.earned_at
+      ? new Date(a.earned_at).toLocaleDateString('en-US', { month:'short', year:'numeric' })
+      : '';
+    return `
+      <div class="achv-card ${a.earned ? 'earned' : 'locked'}" title="${escHtml(a.description)}">
+        ${a.earned ? '<div class="achv-checkmark">✓</div>' : ''}
+        <div class="achv-badge">
+          <div class="achv-badge-shape ${a.section}${catClass}">
+            <i data-lucide="${a.icon}"></i>
+          </div>
+        </div>
+        <div class="achv-name">${escHtml(a.name)}</div>
+        ${diffPill}
+        <div class="achv-rarity ${a.rarity_label}">${a.rarity_display}</div>
+        <div class="achv-pts">${a.points} pts</div>
+        ${earnedDate ? `<div class="achv-earned-date">✓ ${earnedDate}</div>` : ''}
+      </div>`;
   }
 
   loadProfile();
