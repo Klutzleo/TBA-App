@@ -2417,6 +2417,7 @@
     window.addEventListener('resize', setVH);
     window.addEventListener('orientationchange', () => setTimeout(setVH, 150));
   </script>
+  <link rel="stylesheet" href="/css/notification-drawer.css">
 </head>
 <body>
   <div id="installBanner" class="install-banner" style="display:none;"></div>
@@ -2443,7 +2444,8 @@
           style="font-size:0.75rem; color:#a78bfa; text-decoration:none; margin-right:8px; opacity:0.8;">📖 Rules</a>
         <span class="status-indicator disconnected portrait-hide" id="statusIndicator"></span>
         <span id="statusText" class="portrait-hide">Disconnected</span>
-        <button id="notifBellBtn" title="Enable push notifications"
+        <div class="notif-bell-target"></div>
+        <button id="webPushBtn" title="Enable push notifications"
           onclick="toggleNotifications()"
           style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;opacity:0.45;margin-left:4px;">🔕</button>
         <button id="soundToggleBtn" title="Toggle message sounds"
@@ -3942,6 +3944,8 @@
   </div>
 
   <script src="/js/auth-helper.js"></script>
+  <script src="/js/lucide.min.js"></script>
+  <script src="/js/notification-drawer.js"></script>
   <script>
     // === Authentication ===
     requireAuth();
@@ -13157,6 +13161,7 @@
       navigator.serviceWorker.register('/sw.js').catch((err) => {
         console.warn('SW registration failed:', err);
       });
+      initNotificationCenter();
     });
 
   // ─── Mobile viewport height fix ──────────────────────────────────────────
@@ -13263,7 +13268,7 @@
 
   // ─── Bell icon toggle in toolbar ─────────────────────────────────────────
   function _updateNotifBell(enabled) {
-    const bell = document.getElementById('notifBellBtn');
+    const bell = document.getElementById('webPushBtn');
     if (!bell) return;
     bell.title   = enabled ? 'Notifications ON — click to disable' : 'Enable push notifications';
     bell.style.opacity = enabled ? '1' : '0.45';

@@ -281,6 +281,13 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register achievements_router: {e}")
 
+try:
+    from routes.notification_center import notifications_router
+    application.include_router(notifications_router, tags=["Notifications"])
+    logger.info("✅ Registered notifications_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register notifications_router: {e}")
+
 
 # Custom OpenAPI schema
 def custom_openapi():

@@ -8,6 +8,9 @@
     <meta name="theme-color" content="#1a1a2e" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <script src="/js/auth-helper.js"></script>
+    <script src="/js/lucide.min.js"></script>
+    <script src="/js/notification-drawer.js"></script>
+    <link rel="stylesheet" href="/css/notification-drawer.css">
     <style>
         * {
             box-sizing: border-box;
@@ -546,9 +549,12 @@
         <img src="/icons/icon-192.png" alt="TBA" style="width:56px;height:56px;border-radius:12px;margin-bottom:6px;">
         <h1>Campaign Management</h1>
         <div id="user-info" class="user-info"></div>
-        <button onclick="openWhatsNew()" title="What's New"
-            style="margin-top:8px;background:none;border:none;cursor:pointer;font-size:1.4rem;opacity:0.7;"
-            id="whatsNewBtn">📣</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;justify-content:center;">
+          <button onclick="openWhatsNew()" title="What's New"
+              style="background:none;border:none;cursor:pointer;font-size:1.4rem;opacity:0.7;"
+              id="whatsNewBtn">📣</button>
+          <div class="notif-bell-target"></div>
+        </div>
     </div>
 
     <!-- What's New Modal -->
@@ -940,6 +946,7 @@
         // Auth check - redirect to login if not authenticated
         requireAuth();
         displayUserInfo();
+        initNotificationCenter();
 
         // ── What's New ──
         const WHATS_NEW_VERSION = '2026-06-02';

@@ -1027,3 +1027,26 @@ class UserAchievement(Base):
     user_id        = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     achievement_id = Column(String(64), nullable=False)
     earned_at      = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = {"extend_existing": True}
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    type         = Column(String(30), nullable=False)   # achievement/level_up/whisper/invite/mention/approval/system
+    title        = Column(String(200), nullable=False)
+    body         = Column(Text, nullable=True)
+    icon         = Column(String(50), nullable=True)    # Lucide icon name
+    data         = Column(JSONB, nullable=True)         # type-specific payload
+    is_permanent = Column(Boolean, nullable=False, default=False)
+    shame        = Column(Boolean, nullable=False, default=False)
+    silent       = Column(Boolean, nullable=False, default=False)
+    read         = Column(Boolean, nullable=False, default=False)
+    created_at   = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<Notification(user={str(self.user_id)[:8]}..., type={self.type}, title='{self.title[:30]}')>"

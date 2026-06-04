@@ -1906,5 +1906,14 @@ def check_and_award(user_id, db: Session, character_id=None) -> list[str]:
 
     if newly_awarded:
         db.commit()
+        # Create notification rows for each newly earned achievement
+        try:
+            from backend.notification_center import notify_achievement
+            for aid in newly_awarded:
+                notify_achievement(db, user_id, aid, silent=False)
+            db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"notify_achievement failed: {e}")
 
     return newly_awarded

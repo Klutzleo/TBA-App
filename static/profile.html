@@ -9,6 +9,8 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <script src="/js/auth-helper.js"></script>
   <script src="/js/lucide.min.js"></script>
+  <script src="/js/notification-drawer.js"></script>
+  <link rel="stylesheet" href="/css/notification-drawer.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -368,7 +370,10 @@
 
 <div class="top-nav">
   <a href="/campaigns.html" class="nav-back">← Back to Campaigns</a>
-  <span id="viewingLabel" style="font-size:0.8rem;color:#6b7280;"></span>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span id="viewingLabel" style="font-size:0.8rem;color:#6b7280;"></span>
+    <div class="notif-bell-target"></div>
+  </div>
 </div>
 
 <!-- Profile Header -->
@@ -855,6 +860,7 @@
       </div>`;
   }
 
+  initNotificationCenter();
   loadProfile();
 </script>
 </body>
