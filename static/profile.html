@@ -364,6 +364,50 @@
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
       font-size: 8px; color: #4ade80; font-weight: 700;
     }
+    .achv-feature-btn {
+      margin-top: 5px; font-size: 0.58rem; font-weight: 600;
+      background: none; border: 1px solid #2a2d3e; border-radius: 6px;
+      color: #6b7280; padding: 2px 8px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      width: 100%;
+    }
+    .achv-feature-btn:hover { border-color: #d4af37; color: #d4af37; }
+    .achv-feature-btn.featured { border-color: #d4af37; color: #d4af37; background: rgba(212,175,55,0.08); }
+
+    /* Badge showcase */
+    .achv-showcase {
+      margin-bottom: 28px;
+      padding: 16px;
+      background: #1e2130; border: 1px solid rgba(212,175,55,0.2);
+      border-radius: 12px;
+    }
+    .achv-showcase-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #d4af37; margin-bottom: 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .achv-showcase-slots {
+      display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .achv-showcase-slot {
+      display: flex; flex-direction: column; align-items: center;
+      width: 80px; text-align: center;
+    }
+    .achv-showcase-slot .achv-badge { width: 56px; height: 56px; margin-bottom: 6px; }
+    .achv-showcase-slot .achv-badge-shape svg { width: 24px; height: 24px; }
+    .achv-showcase-slot-name { font-size: 0.65rem; color: #9ca3af; line-height: 1.3; }
+    .achv-showcase-slot.empty .achv-badge-shape {
+      background: #252937; border: 2px dashed #2a2d3e; border-radius: 12px;
+    }
+    .achv-showcase-slot.locked .achv-badge-shape {
+      background: #1a1d29; border: 2px dashed #1e2130; border-radius: 12px;
+    }
+    .achv-showcase-slot-locked-label {
+      font-size: 0.6rem; color: #374151; margin-top: 4px;
+    }
+    .achv-showcase-hint {
+      font-size: 0.7rem; color: #4b5563; margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -783,14 +827,18 @@
     }
   }
 
+  let _achvData = null;
+  const isOwnProfile = !targetUsername || (profileData && profileData.is_own);
+
   function renderAchievements(d) {
+    _achvData = d;
     const loading = document.getElementById('achvLoading');
     const el = document.getElementById('achvContent');
     loading.style.display = 'none';
 
     const pct = Math.min((d.total_points / d.badge_showcase_threshold) * 100, 100);
     const progressHtml = d.badge_showcase_unlocked
-      ? `<div class="achv-showcase-unlocked">✦ Badge Showcase Unlocked</div>`
+      ? ''
       : `<div class="achv-progress-wrap">
            <div class="achv-progress-label">Badge Showcase: ${d.total_points.toLocaleString()} / ${d.badge_showcase_threshold} pts</div>
            <div class="achv-progress-bar"><div class="achv-progress-fill" style="width:${pct}%"></div></div>
@@ -803,6 +851,8 @@
         <div class="achv-summary-stat"><div class="val">${d.total_points.toLocaleString()}</div><div class="lbl">Points</div></div>
         ${progressHtml}
       </div>`;
+
+    const showcaseHtml = _renderShowcase(d);
 
     // Group by section
     const bySection = {};
@@ -829,9 +879,73 @@
           </div>`;
       }).join('');
 
-    el.innerHTML = summaryHtml + sectionsHtml;
+    el.innerHTML = summaryHtml + showcaseHtml + sectionsHtml;
     el.style.display = 'block';
     if (window.lucide) lucide.createIcons();
+  }
+
+  function _renderShowcase(d) {
+    if (!d.badge_showcase_unlocked) return '';
+    const maxSlots = d.max_featured_slots || 3;
+    const featured = d.featured_badges || [];
+    const byId = {};
+    for (const a of d.achievements) byId[a.id] = a;
+    const thresholds = d.slot_thresholds || [150, 300, 500];
+    const nextThreshold = thresholds.find(t => t > d.total_points);
+
+    // Build slots: filled, empty, locked
+    let slotsHtml = '';
+    for (let i = 0; i < 5; i++) {
+      const isUnlocked = i < maxSlots;
+      const aid = featured[i];
+      const a = aid ? byId[aid] : null;
+      const unlockPts = thresholds[i] || null;
+
+      if (!isUnlocked) {
+        slotsHtml += `
+          <div class="achv-showcase-slot locked">
+            <div class="achv-badge"><div class="achv-badge-shape dice" style="opacity:0.15;"></div></div>
+            <div class="achv-showcase-slot-locked-label">${unlockPts ? unlockPts + ' pts' : ''}</div>
+          </div>`;
+      } else if (a) {
+        const catClass = a.category !== 'standard' ? ` cat-${a.category}` : '';
+        slotsHtml += `
+          <div class="achv-showcase-slot" title="${escHtml(a.description)}">
+            <div class="achv-badge">
+              <div class="achv-badge-shape ${a.section}${catClass}">
+                <i data-lucide="${a.icon}"></i>
+              </div>
+            </div>
+            <div class="achv-showcase-slot-name">${escHtml(a.name)}</div>
+          </div>`;
+      } else {
+        slotsHtml += `
+          <div class="achv-showcase-slot empty">
+            <div class="achv-badge"><div class="achv-badge-shape dice" style="opacity:0.2;"></div></div>
+            <div class="achv-showcase-slot-name" style="color:#374151;">Empty</div>
+          </div>`;
+      }
+    }
+
+    const hintText = isOwnProfile
+      ? (nextThreshold
+          ? `<div class="achv-showcase-hint">Earn ${nextThreshold - d.total_points} more pts to unlock another slot</div>`
+          : `<div class="achv-showcase-hint">All slots unlocked</div>`)
+      : '';
+
+    const editHint = isOwnProfile && featured.length === 0
+      ? `<div class="achv-showcase-hint">Click "Feature" on any earned badge below to add it here</div>`
+      : '';
+
+    return `
+      <div class="achv-showcase">
+        <div class="achv-showcase-title">
+          <span>✦ Badge Showcase</span>
+          <span style="font-size:0.65rem;color:#6b7280;font-weight:400;text-transform:none;letter-spacing:0;">${maxSlots} / 5 slots unlocked</span>
+        </div>
+        <div class="achv-showcase-slots">${slotsHtml}</div>
+        ${hintText}${editHint}
+      </div>`;
   }
 
   function renderAchvCard(a) {
@@ -843,6 +957,12 @@
     const catClass = a.category !== 'standard' ? ` cat-${a.category}` : '';
     const earnedDate = a.earned && a.earned_at
       ? new Date(a.earned_at).toLocaleDateString('en-US', { month:'short', year:'numeric' })
+      : '';
+    const featured = _achvData && (_achvData.featured_badges || []).includes(a.id);
+    const showFeatureBtn = a.earned && isOwnProfile && _achvData && _achvData.badge_showcase_unlocked;
+    const featureBtn = showFeatureBtn
+      ? `<button class="achv-feature-btn ${featured ? 'featured' : ''}"
+           onclick="toggleFeatured('${a.id}')">${featured ? '★ Featured' : '☆ Feature'}</button>`
       : '';
     return `
       <div class="achv-card ${a.earned ? 'earned' : 'locked'}" title="${escHtml(a.description)}">
@@ -857,7 +977,36 @@
         <div class="achv-rarity ${a.rarity_label}">${a.rarity_display}</div>
         <div class="achv-pts">${a.points} pts</div>
         ${earnedDate ? `<div class="achv-earned-date">✓ ${earnedDate}</div>` : ''}
+        ${featureBtn}
       </div>`;
+  }
+
+  async function toggleFeatured(achievementId) {
+    if (!_achvData) return;
+    const maxSlots = _achvData.max_featured_slots || 3;
+    let featured = [...(_achvData.featured_badges || [])];
+    if (featured.includes(achievementId)) {
+      featured = featured.filter(id => id !== achievementId);
+    } else {
+      if (featured.length >= maxSlots) {
+        // Remove the oldest to make room
+        featured.shift();
+      }
+      featured.push(achievementId);
+    }
+    try {
+      const resp = await fetch('/api/profile/me/featured-badges', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ featured_badges: featured }),
+      });
+      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      _achvData.featured_badges = data.featured_badges;
+      renderAchievements(_achvData);
+    } catch(e) {
+      alert('Could not save — try again');
+    }
   }
 
   initNotificationCenter();

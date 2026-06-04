@@ -119,6 +119,14 @@ async def get_my_achievements(
         key=lambda a: a["name"],
     )
 
+    from routes.profile import _max_featured
+    max_featured = _max_featured(total_points)
+
+    # Load featured badges from profile
+    from backend.models import UserProfile
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    featured_badges = profile.featured_badges if profile and profile.featured_badges else []
+
     return {
         "achievements": earned_list + unearned_list,
         "total_earned": len(earned_map),
@@ -126,6 +134,9 @@ async def get_my_achievements(
         "total_points": total_points,
         "badge_showcase_unlocked": badge_showcase_unlocked,
         "badge_showcase_threshold": BADGE_SHOWCASE_THRESHOLD,
+        "max_featured_slots": max_featured,
+        "featured_badges": featured_badges,
+        "slot_thresholds": [150, 300, 500],
     }
 
 

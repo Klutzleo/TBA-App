@@ -25,14 +25,30 @@ def _stats_dict(row) -> dict:
             for c in row.__table__.columns if c.name not in exclude}
 
 
+# Points needed to unlock each badge showcase slot
+BADGE_SLOT_THRESHOLDS = [150, 300, 500]  # 3, 4, 5 slots
+
+def _badge_slots_available(total_points: int) -> int:
+    slots = 0
+    for threshold in BADGE_SLOT_THRESHOLDS:
+        if total_points >= threshold:
+            slots += 1
+    return slots  # 0 = locked, 1 = 3 slots, 2 = 4 slots, 3 = 5 slots
+
+def _max_featured(total_points: int) -> int:
+    unlocked = _badge_slots_available(total_points)
+    if unlocked == 0: return 0
+    return unlocked + 2  # 1→3, 2→4, 3→5
+
 def _profile_dict(profile: UserProfile | None) -> dict:
     if not profile:
-        return {"bio": None, "is_public": True, "discord_username": None, "avatar_url": None}
+        return {"bio": None, "is_public": True, "discord_username": None, "avatar_url": None, "featured_badges": []}
     return {
         "bio": profile.bio,
         "is_public": profile.is_public,
         "discord_username": profile.discord_username,
         "avatar_url": profile.avatar_url,
+        "featured_badges": profile.featured_badges or [],
     }
 
 
@@ -188,6 +204,49 @@ async def update_my_profile(
 
     db.commit()
     return {"ok": True, "profile": _profile_dict(profile)}
+
+
+# ----------------------------------------------------------------
+# PATCH /api/profile/me/featured-badges — save badge showcase picks
+# ----------------------------------------------------------------
+@profile_router.patch("/me/featured-badges")
+async def update_featured_badges(
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from backend.models import UserAchievement, UserStats
+    from backend.achievements import ACHIEVEMENTS
+
+    badge_ids = req.get("featured_badges", [])
+    if not isinstance(badge_ids, list):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="featured_badges must be a list")
+
+    # Calculate how many slots this user has
+    stats = db.query(UserStats).filter(UserStats.user_id == current_user.id).first()
+    earned_pts = 0
+    if stats:
+        earned_rows = db.query(UserAchievement).filter(UserAchievement.user_id == current_user.id).all()
+        earned_pts = sum(ACHIEVEMENTS[r.achievement_id]["points"] for r in earned_rows if r.achievement_id in ACHIEVEMENTS)
+
+    max_slots = _max_featured(earned_pts)
+    if max_slots == 0:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Badge showcase not yet unlocked")
+
+    # Validate — must be earned achievements, max slots allowed
+    earned_ids = {r.achievement_id for r in db.query(UserAchievement).filter(UserAchievement.user_id == current_user.id).all()}
+    valid = [b for b in badge_ids if b in earned_ids and b in ACHIEVEMENTS][:max_slots]
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id)
+        db.add(profile)
+
+    profile.featured_badges = valid
+    db.commit()
+    return {"ok": True, "featured_badges": valid, "max_slots": max_slots}
 
 
 # ----------------------------------------------------------------

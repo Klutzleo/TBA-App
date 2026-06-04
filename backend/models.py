@@ -973,6 +973,7 @@ class UserProfile(Base):
     discord_id       = Column(String(32), nullable=True)
     discord_username = Column(String(64), nullable=True)
     avatar_url       = Column(Text, nullable=True)
+    featured_badges  = Column(JSONB, nullable=False, default=list)
     updated_at       = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
