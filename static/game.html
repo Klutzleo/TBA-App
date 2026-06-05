@@ -4620,6 +4620,30 @@
       return iconMap[icon] || '🏅';
     }
 
+    // Dev helper — call from console: testToast() or testToast('campaign') or testToast('global')
+    window.testToast = function(scope = 'personal') {
+      showAchievementToast({
+        scope,
+        name: 'First Blood',
+        icon: 'sword',
+        points: 5,
+        description: 'Deal damage in your first combat.',
+        rarity_label: 'common',
+        earner_name: currentActor || 'You',
+      });
+      if (scope !== 'personal') {
+        addMessage(makeAchievementChatCard({
+          scope,
+          name: 'First Blood',
+          icon: 'sword',
+          points: 5,
+          description: 'Deal damage in your first combat.',
+          rarity_label: 'common',
+          earner_name: currentActor || 'You',
+        }), 'message-card', {});
+      }
+    };
+
     function showPanelToast(message, type = 'info') {
       const colors = { info: '#3b82f6', success: '#22c55e', warning: '#f59e0b', error: '#ef4444' };
       const toast = document.createElement('div');
@@ -12321,6 +12345,7 @@
               }
             } else if (data.type === 'achievement_awarded') {
               showAchievementToast(data);
+              if (window.notificationCenterRefresh) notificationCenterRefresh();
             } else if (data.type === 'achievement_announced') {
               const card = makeAchievementChatCard(data);
               addMessage(card, 'message-card', data);
