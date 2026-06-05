@@ -298,6 +298,13 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register public_router: {e}")
 
+try:
+    from routes.bonds import bonds_router
+    application.include_router(bonds_router, tags=["Bonds"])
+    logger.info("✅ Registered bonds_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register bonds_router: {e}")
+
 
 # Custom OpenAPI schema
 def custom_openapi():

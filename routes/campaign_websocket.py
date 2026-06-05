@@ -570,6 +570,18 @@ async def campaign_websocket(
             elif message_type == "stat_check_roll":
                 await _handle_stat_check_roll(campaign_uuid, user_uuid, data, db)
 
+            elif message_type == "combo_propose":
+                await _handle_combo_propose(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "combo_accept":
+                await _handle_combo_accept(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "combo_decline":
+                await _handle_combo_decline(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "combo_ability_select":
+                await _handle_combo_ability_select(campaign_uuid, user_uuid, data, websocket, db)
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
 
@@ -3843,6 +3855,26 @@ async def advance_turn(
         # Advance index (wrapping)
         old_index = encounter.current_turn_index
         new_index = (old_index + 1) % len(rolls)
+
+        # Skip any characters holding for a combo (proposers waiting for their partner's turn)
+        from backend.models import PendingCombo as _PendingCombo
+        skipped_holders = []
+        safety = 0
+        while safety < len(rolls):
+            current_roll = rolls[new_index]
+            if current_roll.character_id:
+                holding = db.query(_PendingCombo).filter(
+                    _PendingCombo.encounter_id == encounter.id,
+                    _PendingCombo.proposer_character_id == current_roll.character_id,
+                    _PendingCombo.status == "holding",
+                ).first()
+                if holding:
+                    skipped_holders.append({"character_id": str(current_roll.character_id), "name": current_roll.name})
+                    new_index = (new_index + 1) % len(rolls)
+                    safety += 1
+                    continue
+            break
+
         encounter.current_turn_index = new_index
 
         # DP drain for active summons — fires at the start of each new round (index wraps to 0)
@@ -3935,7 +3967,56 @@ async def advance_turn(
             "whose_turn": whose_turn,
             "effects": effects_payload,
             "expired_effect_ids": expired_ids,
+            "skipped_holding": skipped_holders,
         })
+
+        # Check if the character whose turn it is is the acceptor of a pending combo
+        if active_roll.character_id:
+            waiting_combo = db.query(_PendingCombo).filter(
+                _PendingCombo.encounter_id == encounter.id,
+                _PendingCombo.acceptor_character_id == active_roll.character_id,
+                _PendingCombo.status == "holding",
+            ).first()
+            if waiting_combo:
+                waiting_combo.status = "ready"
+                db.commit()
+                # Send combo_fire_ready to both players with their own ability lists
+                proposer_char = db.query(Character).filter(Character.id == waiting_combo.proposer_character_id).first()
+                acceptor_char = db.query(Character).filter(Character.id == active_roll.character_id).first()
+
+                def _ability_list(char):
+                    from backend.models import Ability as _Ability
+                    abilities = db.query(_Ability).filter(
+                        _Ability.character_id == char.id
+                    ).order_by(_Ability.slot_number).all()
+                    return [{"slot": a.slot_number, "name": a.display_name, "die": a.die,
+                              "power_source": a.power_source, "uses_remaining": a.uses_remaining or 0}
+                             for a in abilities]
+
+                bond = waiting_combo.bond
+                base_payload = {
+                    "type": "combo_fire_ready",
+                    "combo_id": str(waiting_combo.id),
+                    "bond_name": bond.combo_name if bond else "Combo",
+                    "bond_description": bond.combo_description if bond else "",
+                }
+
+                if proposer_char and proposer_char.user_id:
+                    await manager.send_to_user(campaign_uuid, UUID(str(proposer_char.user_id)), {
+                        **base_payload,
+                        "your_character_id": str(proposer_char.id),
+                        "your_name": proposer_char.name,
+                        "partner_name": acceptor_char.name if acceptor_char else "Partner",
+                        "your_abilities": _ability_list(proposer_char),
+                    })
+                if acceptor_char and acceptor_char.user_id:
+                    await manager.send_to_user(campaign_uuid, UUID(str(acceptor_char.user_id)), {
+                        **base_payload,
+                        "your_character_id": str(acceptor_char.id),
+                        "your_name": acceptor_char.name,
+                        "partner_name": proposer_char.name if proposer_char else "Partner",
+                        "your_abilities": _ability_list(acceptor_char),
+                    })
 
         # Push "your turn" to the active combatant's player (PCs only)
         if active_roll.character_id:
@@ -3960,6 +4041,323 @@ async def advance_turn(
         except Exception:
             pass
         await websocket.send_json({"type": "error", "message": "❌ Failed to advance turn. Please try again."})
+
+
+async def _handle_combo_propose(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """Player proposes a combo on their turn. Validates it's actually their turn."""
+    from backend.models import Bond, PendingCombo, Encounter, InitiativeRoll
+
+    partner_character_id = data.get("partner_character_id")
+    bond_id = data.get("bond_id")
+    if not partner_character_id:
+        await websocket.send_json({"type": "error", "message": "partner_character_id required"})
+        return
+
+    # Find proposer's character in this campaign
+    proposer_char = db.query(Character).filter(
+        Character.user_id == str(user_uuid),
+        Character.campaign_id == str(campaign_uuid),
+        Character.is_npc == False,
+    ).first()
+    if not proposer_char:
+        await websocket.send_json({"type": "error", "message": "You don't have a character in this campaign"})
+        return
+
+    # Validate it's the proposer's turn
+    encounter = db.query(Encounter).filter(
+        Encounter.campaign_id == campaign_uuid,
+        Encounter.is_active == True
+    ).first()
+    if not encounter:
+        await websocket.send_json({"type": "error", "message": "No active encounter — combos require combat"})
+        return
+
+    rolls = db.query(InitiativeRoll).filter(
+        InitiativeRoll.encounter_id == encounter.id,
+        InitiativeRoll.is_silent == False
+    ).all()
+    rolls = _sort_initiative_rolls(rolls, db)
+    if not rolls:
+        await websocket.send_json({"type": "error", "message": "No initiative order yet"})
+        return
+
+    current_roll = rolls[encounter.current_turn_index % len(rolls)]
+    if str(current_roll.character_id) != str(proposer_char.id):
+        await websocket.send_json({"type": "error", "message": "You can only propose a combo on your own turn"})
+        return
+
+    # Check for active bond between the two characters
+    bond = db.query(Bond).filter(
+        Bond.campaign_id == campaign_uuid,
+        Bond.broken_at == None,
+    ).filter(
+        ((Bond.character_id_a == proposer_char.id) & (Bond.character_id_b == partner_character_id)) |
+        ((Bond.character_id_a == partner_character_id) & (Bond.character_id_b == proposer_char.id))
+    ).first()
+    if not bond:
+        await websocket.send_json({"type": "error", "message": "No active bond with that character"})
+        return
+
+    # Check no existing pending combo for this encounter
+    existing = db.query(PendingCombo).filter(
+        PendingCombo.encounter_id == encounter.id,
+        PendingCombo.proposer_character_id == proposer_char.id,
+        PendingCombo.status.in_(["pending", "holding", "ready"]),
+    ).first()
+    if existing:
+        await websocket.send_json({"type": "error", "message": "You already have a pending combo"})
+        return
+
+    # Find acceptor character + their user
+    acceptor_char = db.query(Character).filter(Character.id == partner_character_id).first()
+    if not acceptor_char:
+        await websocket.send_json({"type": "error", "message": "Partner character not found"})
+        return
+
+    combo = PendingCombo(
+        encounter_id=encounter.id,
+        campaign_id=campaign_uuid,
+        bond_id=bond.id,
+        proposer_character_id=proposer_char.id,
+        acceptor_character_id=acceptor_char.id,
+        status="pending",
+    )
+    db.add(combo)
+    db.commit()
+    db.refresh(combo)
+
+    # Notify the acceptor's player
+    if acceptor_char.user_id:
+        await manager.send_to_user(campaign_uuid, UUID(str(acceptor_char.user_id)), {
+            "type": "combo_incoming",
+            "combo_id": str(combo.id),
+            "proposer_character_id": str(proposer_char.id),
+            "proposer_name": proposer_char.name,
+            "bond_name": bond.combo_name or "Combo",
+            "bond_description": bond.combo_description or "",
+        })
+
+    # Confirm to proposer
+    await websocket.send_json({
+        "type": "combo_proposed",
+        "combo_id": str(combo.id),
+        "partner_name": acceptor_char.name,
+        "bond_name": bond.combo_name or "Combo",
+    })
+
+    logger.info(f"Combo proposed: {proposer_char.name} → {acceptor_char.name} (bond: {bond.combo_name})")
+
+
+async def _handle_combo_accept(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """Acceptor confirms the combo. Proposer's turn is now held."""
+    from backend.models import PendingCombo
+
+    combo_id = data.get("combo_id")
+    if not combo_id:
+        await websocket.send_json({"type": "error", "message": "combo_id required"})
+        return
+
+    combo = db.query(PendingCombo).filter(
+        PendingCombo.id == combo_id,
+        PendingCombo.campaign_id == campaign_uuid,
+        PendingCombo.status == "pending",
+    ).first()
+    if not combo:
+        await websocket.send_json({"type": "error", "message": "Combo not found or already resolved"})
+        return
+
+    # Verify acceptor owns the acceptor character
+    acceptor_char = db.query(Character).filter(
+        Character.id == combo.acceptor_character_id,
+        Character.user_id == str(user_uuid),
+    ).first()
+    if not acceptor_char:
+        await websocket.send_json({"type": "error", "message": "You are not the acceptor of this combo"})
+        return
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+
+    combo.status = "holding"
+    db.commit()
+
+    # Broadcast to whole campaign so initiative tracker shows the hold
+    await manager.broadcast(campaign_uuid, {
+        "type": "combo_holding",
+        "combo_id": str(combo.id),
+        "proposer_character_id": str(combo.proposer_character_id),
+        "proposer_name": proposer_char.name if proposer_char else "Unknown",
+        "acceptor_name": acceptor_char.name,
+        "bond_name": combo.bond.combo_name if combo.bond else "Combo",
+        "message": f"⚔️ {proposer_char.name if proposer_char else '?'} is holding for a Combo with {acceptor_char.name}!",
+    })
+
+    logger.info(f"Combo accepted: {combo.id}, proposer {combo.proposer_character_id} now holding")
+
+
+async def _handle_combo_decline(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """Acceptor declines. Proposer's turn proceeds normally."""
+    from backend.models import PendingCombo
+
+    combo_id = data.get("combo_id")
+    combo = db.query(PendingCombo).filter(
+        PendingCombo.id == combo_id,
+        PendingCombo.campaign_id == campaign_uuid,
+        PendingCombo.status == "pending",
+    ).first()
+    if not combo:
+        await websocket.send_json({"type": "error", "message": "Combo not found"})
+        return
+
+    acceptor_char = db.query(Character).filter(
+        Character.id == combo.acceptor_character_id,
+        Character.user_id == str(user_uuid),
+    ).first()
+    if not acceptor_char:
+        await websocket.send_json({"type": "error", "message": "You are not the acceptor"})
+        return
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+
+    combo.status = "declined"
+    db.commit()
+
+    # Notify proposer
+    if proposer_char and proposer_char.user_id:
+        await manager.send_to_user(campaign_uuid, UUID(str(proposer_char.user_id)), {
+            "type": "combo_declined",
+            "combo_id": str(combo.id),
+            "declined_by": acceptor_char.name,
+        })
+
+    await websocket.send_json({"type": "ok", "message": "Combo declined"})
+
+
+async def _handle_combo_ability_select(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """Player picks their ability slot when combo fires. Once both lock in, resolve."""
+    from backend.models import PendingCombo, Ability
+
+    combo_id = data.get("combo_id")
+    slot = data.get("slot")
+    if not combo_id or slot is None:
+        await websocket.send_json({"type": "error", "message": "combo_id and slot required"})
+        return
+
+    combo = db.query(PendingCombo).filter(
+        PendingCombo.id == combo_id,
+        PendingCombo.campaign_id == campaign_uuid,
+        PendingCombo.status == "ready",
+    ).first()
+    if not combo:
+        await websocket.send_json({"type": "error", "message": "Combo not ready or not found"})
+        return
+
+    # Determine if this user is proposer or acceptor
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    acceptor_char = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
+
+    is_proposer = proposer_char and str(proposer_char.user_id) == str(user_uuid)
+    is_acceptor = acceptor_char and str(acceptor_char.user_id) == str(user_uuid)
+
+    if not is_proposer and not is_acceptor:
+        await websocket.send_json({"type": "error", "message": "You are not part of this combo"})
+        return
+
+    if is_proposer:
+        combo.proposer_ability_slot = slot
+    else:
+        combo.acceptor_ability_slot = slot
+
+    db.commit()
+
+    # Notify partner that this player has locked in
+    partner_char = acceptor_char if is_proposer else proposer_char
+    if partner_char and partner_char.user_id:
+        await manager.send_to_user(campaign_uuid, UUID(str(partner_char.user_id)), {
+            "type": "combo_partner_locked",
+            "combo_id": str(combo.id),
+            "locked_by": proposer_char.name if is_proposer else acceptor_char.name,
+        })
+
+    # If both have locked in, resolve
+    if combo.proposer_ability_slot is not None and combo.acceptor_ability_slot is not None:
+        await _resolve_combo(campaign_uuid, combo, db)
+
+
+async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
+    """Both slots locked — roll both abilities, grant BAP, broadcast result."""
+    from backend.models import Ability
+    from backend.roll_logic import roll_dice
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    acceptor_char = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
+
+    def _roll_for(char, slot) -> dict:
+        ability = db.query(Ability).filter(
+            Ability.character_id == char.id,
+            Ability.slot_number == slot,
+        ).first()
+        if not ability:
+            return {"slot": slot, "ability_name": "Basic Attack", "die": "1d4",
+                    "rolls": [1], "total": 1, "error": "Ability not found"}
+        stat_map = {"PP": char.pp, "IP": char.ip, "SP": char.sp}
+        power_stat = stat_map.get(ability.power_source, 0)
+        rolls = roll_dice(ability.die)
+        total = sum(rolls) + power_stat + (char.edge or 0)
+        # Deduct 2 uses (combo cost)
+        ability.uses_remaining = max(0, (ability.uses_remaining or 0) - 2)
+        return {
+            "slot": slot,
+            "ability_name": ability.display_name,
+            "die": ability.die,
+            "power_source": ability.power_source,
+            "power_stat": power_stat,
+            "edge": char.edge or 0,
+            "rolls": rolls,
+            "total": total,
+            "effect_type": ability.effect_type,
+            "uses_remaining": ability.uses_remaining,
+        }
+
+    proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
+    acceptor_result = _roll_for(acceptor_char, combo.acceptor_ability_slot)
+
+    # Grant full BAP to both
+    proposer_bap = proposer_char.bap or 1
+    acceptor_bap = acceptor_char.bap or 1
+    proposer_char.current_bap = min((proposer_char.current_bap or 0) + proposer_bap, proposer_bap)
+    acceptor_char.current_bap = min((acceptor_char.current_bap or 0) + acceptor_bap, acceptor_bap)
+
+    combo.status = "fired"
+    db.commit()
+
+    bond_name = combo.bond.combo_name if combo.bond else "Combo"
+    bond_desc = combo.bond.combo_description if combo.bond else ""
+
+    await manager.broadcast(campaign_uuid, {
+        "type": "combo_resolved",
+        "combo_id": str(combo.id),
+        "bond_name": bond_name,
+        "bond_description": bond_desc,
+        "proposer": {
+            "character_id": str(proposer_char.id),
+            "name": proposer_char.name,
+            "portrait_url": proposer_char.portrait_url,
+            **proposer_result,
+        },
+        "acceptor": {
+            "character_id": str(acceptor_char.id),
+            "name": acceptor_char.name,
+            "portrait_url": acceptor_char.portrait_url,
+            **acceptor_result,
+        },
+        "bap_granted": {
+            str(proposer_char.id): proposer_bap,
+            str(acceptor_char.id): acceptor_bap,
+        },
+        "message": f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + {acceptor_char.name} rolls {acceptor_result['total']}!",
+    })
+
+    logger.info(f"Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / {acceptor_char.name} {acceptor_result['total']}")
 
 
 async def send_help_text(websocket: WebSocket):

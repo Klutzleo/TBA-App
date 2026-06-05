@@ -1051,3 +1051,54 @@ class Notification(Base):
 
     def __repr__(self):
         return f"<Notification(user={str(self.user_id)[:8]}..., type={self.type}, title='{self.title[:30]}')>"
+
+
+class Bond(Base):
+    """Bond between two characters, declared by the SW. Enables combo moves."""
+    __tablename__ = "bonds"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id_a = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+    character_id_b = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+    combo_name = Column(String(100), nullable=True)
+    combo_description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    broken_at = Column(DateTime, nullable=True)
+    broken_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
+    char_a = relationship("Character", foreign_keys=[character_id_a])
+    char_b = relationship("Character", foreign_keys=[character_id_b])
+
+    @property
+    def is_active(self):
+        return self.broken_at is None
+
+    def __repr__(self):
+        return f"<Bond(a={str(self.character_id_a)[:8]}, b={str(self.character_id_b)[:8]}, active={self.is_active})>"
+
+
+class PendingCombo(Base):
+    """In-flight combo request within an encounter. Cleared when encounter ends."""
+    __tablename__ = "pending_combos"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    encounter_id = Column(UUID(as_uuid=True), ForeignKey("encounters.id", ondelete="CASCADE"), nullable=False, index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    bond_id = Column(UUID(as_uuid=True), ForeignKey("bonds.id", ondelete="SET NULL"), nullable=True)
+    proposer_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+    acceptor_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+    # pending → holding (accepted, proposer holding) → ready (acceptor's turn) → fired / declined / cancelled
+    status = Column(String(20), nullable=False, default="pending")
+    proposer_ability_slot = Column(Integer, nullable=True)
+    acceptor_ability_slot = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    proposer = relationship("Character", foreign_keys=[proposer_character_id])
+    acceptor = relationship("Character", foreign_keys=[acceptor_character_id])
+    bond = relationship("Bond")
+
+    def __repr__(self):
+        return f"<PendingCombo(status={self.status}, proposer={str(self.proposer_character_id)[:8]}, acceptor={str(self.acceptor_character_id)[:8]})>"

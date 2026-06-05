@@ -1984,6 +1984,78 @@
     .init-entry .init-dp-fill.medium { background: #eab308; }
     .init-entry .init-dp-fill.low    { background: #f97316; }
     .init-entry .init-dp-fill.critical { background: var(--accent-danger); }
+    .init-entry.holding-combo { opacity: 0.6; border-left: 2px solid #a78bfa; }
+    .init-entry .init-holding-badge {
+      font-size: 0.62rem; font-weight: 700; color: #a78bfa;
+      background: rgba(167,139,250,0.12); border-radius: 4px;
+      padding: 1px 5px; flex-shrink: 0; white-space: nowrap;
+    }
+    .init-entry .init-bond-icon { color: #f59e0b; font-size: 0.75rem; flex-shrink: 0; margin-left: 2px; }
+
+    /* ── Combo modals ── */
+    .combo-modal-overlay {
+      position: fixed; inset: 0; z-index: 9100;
+      background: rgba(0,0,0,0.75); display: flex;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .combo-modal {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 14px;
+      padding: 24px; max-width: 400px; width: 100%;
+    }
+    .combo-modal h3 {
+      color: #d4af37; font-size: 1.1rem; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .combo-modal .combo-subtitle { font-size: 0.82rem; color: #6b7280; margin-bottom: 18px; }
+    .combo-partner-btn {
+      width: 100%; padding: 12px 16px; background: #1e2130;
+      border: 1px solid #3a3f54; border-radius: 8px; color: #e4e6eb;
+      font-size: 0.9rem; cursor: pointer; text-align: left;
+      display: flex; align-items: center; gap: 10px;
+      transition: border-color 0.15s; margin-bottom: 8px;
+    }
+    .combo-partner-btn:hover { border-color: #d4af37; }
+    .combo-partner-btn .bond-name { font-size: 0.75rem; color: #a78bfa; margin-top: 2px; }
+    .combo-ability-btn {
+      width: 100%; padding: 10px 14px; background: #1e2130;
+      border: 1px solid #3a3f54; border-radius: 8px; color: #e4e6eb;
+      font-size: 0.88rem; cursor: pointer; text-align: left;
+      display: flex; justify-content: space-between; align-items: center;
+      transition: border-color 0.15s; margin-bottom: 8px;
+    }
+    .combo-ability-btn:hover:not(:disabled) { border-color: #a78bfa; }
+    .combo-ability-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .combo-ability-btn .slot-badge {
+      font-size: 0.7rem; color: #6b7280; background: #252937;
+      border-radius: 4px; padding: 1px 6px; flex-shrink: 0;
+    }
+    .combo-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .btn-combo-cancel {
+      padding: 8px 16px; background: transparent; border: 1px solid #3a3f54;
+      border-radius: 8px; color: #6b7280; cursor: pointer; font-size: 0.85rem;
+    }
+    .btn-combo-cancel:hover { border-color: #e4e6eb; color: #e4e6eb; }
+
+    /* ── Combo chat card ── */
+    .combo-card {
+      background: linear-gradient(135deg, rgba(167,139,250,0.08), rgba(212,175,55,0.06));
+      border: 1px solid rgba(167,139,250,0.3); border-radius: 12px;
+      padding: 14px 16px; margin: 4px 0;
+    }
+    .combo-card-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    }
+    .combo-card-title { font-size: 1rem; font-weight: 700; color: #a78bfa; }
+    .combo-card-desc { font-size: 0.78rem; color: #6b7280; }
+    .combo-rolls { display: flex; gap: 10px; flex-wrap: wrap; }
+    .combo-roll-block {
+      flex: 1; min-width: 140px; background: #1e2130;
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .combo-roll-name { font-size: 0.72rem; color: #d4af37; font-weight: 700; margin-bottom: 4px; }
+    .combo-roll-ability { font-size: 0.8rem; color: #e4e6eb; margin-bottom: 6px; }
+    .combo-roll-total { font-size: 1.4rem; font-weight: 700; color: #a78bfa; }
+    .combo-roll-breakdown { font-size: 0.68rem; color: #4b5563; margin-top: 2px; }
     #initiativeTurnCounter {
       padding: 6px 8px;
       font-size: 0.75rem;
@@ -2472,6 +2544,66 @@
     }
     .achievement-chat-card.global .achievement-chat-card-detail { border-top-color: rgba(245,158,11,0.2); }
   </style>
+
+  <!-- ── Combo: propose partner picker ── -->
+  <div id="comboProposeModal" class="combo-modal-overlay" style="display:none;">
+    <div class="combo-modal">
+      <h3><i data-lucide="zap" style="width:18px;height:18px;color:#a78bfa;"></i>Start a Combo</h3>
+      <div class="combo-subtitle">Choose your bond partner. They must accept before the combo fires.</div>
+      <div id="comboBondList"></div>
+      <div class="combo-modal-actions">
+        <button class="btn-combo-cancel" onclick="closeComboProposeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Combo: incoming request (acceptor) ── -->
+  <div id="comboIncomingModal" class="combo-modal-overlay" style="display:none;">
+    <div class="combo-modal">
+      <h3><i data-lucide="zap" style="width:18px;height:18px;color:#a78bfa;"></i>Combo Incoming!</h3>
+      <div id="comboIncomingBody" style="font-size:0.9rem;color:#e4e6eb;margin-bottom:18px;line-height:1.6;"></div>
+      <div class="combo-modal-actions">
+        <button class="btn-combo-cancel" onclick="rejectCombo()">Decline</button>
+        <button style="padding:8px 20px;background:#a78bfa;border:none;border-radius:8px;color:#13151f;font-weight:700;font-size:0.88rem;cursor:pointer;" onclick="acceptCombo()">Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Combo: ability picker (fires when it's time) ── -->
+  <div id="comboAbilityModal" class="combo-modal-overlay" style="display:none;">
+    <div class="combo-modal">
+      <h3><i data-lucide="swords" style="width:18px;height:18px;color:#a78bfa;"></i><span id="comboAbilityTitle">Choose Your Ability</span></h3>
+      <div id="comboAbilitySubtitle" class="combo-subtitle"></div>
+      <div id="comboAbilityList"></div>
+      <div id="comboAbilityWaiting" style="display:none;text-align:center;padding:16px;color:#6b7280;font-size:0.85rem;">
+        <i data-lucide="loader" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;animation:spin 1s linear infinite;"></i>
+        Waiting for your partner to choose…
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SW: Bond management modal ── -->
+  <div id="bondManageModal" class="combo-modal-overlay" style="display:none;">
+    <div class="combo-modal" style="max-width:480px;">
+      <h3><i data-lucide="link" style="width:18px;height:18px;color:#d4af37;"></i>Manage Bonds</h3>
+      <div class="combo-subtitle">Declare or break bonds between characters.</div>
+      <div id="bondManageContent"></div>
+      <div id="bondCreateForm" style="margin-top:16px;border-top:1px solid #3a3f54;padding-top:16px;">
+        <div style="font-size:0.8rem;color:#9ca3af;margin-bottom:10px;font-weight:600;">Declare New Bond</div>
+        <select id="bondCharA" style="width:100%;background:#1e2130;border:1px solid #3a3f54;border-radius:6px;color:#e4e6eb;padding:7px 10px;font-size:0.85rem;margin-bottom:8px;"></select>
+        <select id="bondCharB" style="width:100%;background:#1e2130;border:1px solid #3a3f54;border-radius:6px;color:#e4e6eb;padding:7px 10px;font-size:0.85rem;margin-bottom:8px;"></select>
+        <input id="bondComboName" type="text" maxlength="100" placeholder="Combo name (e.g. Bring the Rain)"
+          style="width:100%;background:#1e2130;border:1px solid #3a3f54;border-radius:6px;color:#e4e6eb;padding:7px 10px;font-size:0.85rem;margin-bottom:8px;">
+        <textarea id="bondComboDesc" rows="2" maxlength="300" placeholder="Combo description (optional)"
+          style="width:100%;background:#1e2130;border:1px solid #3a3f54;border-radius:6px;color:#e4e6eb;padding:7px 10px;font-size:0.85rem;font-family:inherit;resize:vertical;margin-bottom:8px;"></textarea>
+        <button onclick="declareBond()" style="width:100%;padding:9px;background:#d4af37;border:none;border-radius:8px;color:#13151f;font-weight:700;cursor:pointer;">Declare Bond</button>
+      </div>
+      <div class="combo-modal-actions" style="margin-top:12px;">
+        <button class="btn-combo-cancel" onclick="closeBondManageModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Set --vh to the true visible viewport height so Android nav buttons
     // don't cut off the bottom of the screen.
@@ -2614,7 +2746,10 @@
         <div class="sidebar-section" id="sidebarInitiativePanel" style="display:none;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <h2 style="margin:0;">Initiative</h2>
-            <button id="nextTurnBtn" class="btn-sm" onclick="advanceTurn()" style="display:none; font-size:0.75rem; padding:3px 10px;">Next Turn ▶</button>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button id="bondsMgmtBtn" class="btn-sm" onclick="openBondManageModal()" style="display:none; font-size:0.75rem; padding:3px 10px; background:transparent; border:1px solid #a78bfa; color:#a78bfa;">Bonds</button>
+              <button id="nextTurnBtn" class="btn-sm" onclick="advanceTurn()" style="display:none; font-size:0.75rem; padding:3px 10px;">Next Turn ▶</button>
+            </div>
           </div>
           <div id="initiativeTracker">
             <div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px;">
@@ -7411,8 +7546,9 @@
         const isKO       = roll.dp !== null && roll.dp !== undefined && roll.dp <= 0;
         const isNpc      = roll.is_npc;
 
+        const isHolding = roll.character_id && _holdingComboIds.has(roll.character_id);
         const entry = document.createElement('div');
-        entry.className = 'init-entry' + (isActive ? ' active-turn' : '') + (isKO ? ' knocked-out' : '');
+        entry.className = 'init-entry' + (isActive ? ' active-turn' : '') + (isKO ? ' knocked-out' : '') + (isHolding ? ' holding-combo' : '');
 
         // Roll number
         const rollSpan = document.createElement('span');
@@ -7469,6 +7605,14 @@
           fill.style.width = pct + '%';
           barWrap.appendChild(fill);
           entry.appendChild(barWrap);
+        }
+
+        // Holding-for-combo badge
+        if (isHolding) {
+          const badge = document.createElement('span');
+          badge.className = 'init-holding-badge';
+          badge.textContent = 'HOLDING';
+          entry.appendChild(badge);
         }
 
         // SW: ping button for PC entries
@@ -10802,6 +10946,13 @@
 
           // Hydrate initiative tracker from REST (no WS needed on refresh)
           await loadInitiativeState();
+
+          // Load bonds for combo system; show Bonds mgmt button to SW
+          await loadBonds();
+          if (userRole === 'SW') {
+            const bondsMgmtBtn = document.getElementById('bondsMgmtBtn');
+            if (bondsMgmtBtn) bondsMgmtBtn.style.display = '';
+          }
         };
 
         // Note: Join notification is now handled by the backend after caching character data
@@ -12133,6 +12284,11 @@
 
               storeAndDisplayMessage(container, data);
 
+              // Clear combo holding state on encounter end
+              _holdingComboIds.clear();
+              _pendingComboId = null;
+              _activeComboId = null;
+
               // SW: clear initiative tracker and switch back to party panel
               if (userRole === 'SW') {
                 currentInitiativeOrder = [];
@@ -12156,15 +12312,57 @@
 
               storeAndDisplayMessage(container, data);
 
+            } else if (data.type === 'combo_incoming') {
+              showComboIncoming(data);
+
+            } else if (data.type === 'combo_proposed') {
+              // Confirmed to proposer
+              showPanelToast(`Combo proposed to ${escHtml(data.partner_name)} — waiting…`, 'info');
+
+            } else if (data.type === 'combo_holding') {
+              // Someone accepted and proposer is now holding
+              _holdingComboIds.add(data.proposer_character_id);
+              if (userRole === 'SW') renderInitiativeTracker();
+              showPanelToast(`⚡ ${escHtml(data.message || 'Combo holding…')}`, 'info');
+
+            } else if (data.type === 'combo_declined') {
+              showPanelToast(`${escHtml(data.declined_by)} declined the combo.`, 'info');
+              _activeComboId = null;
+
+            } else if (data.type === 'combo_partner_locked') {
+              showPanelToast(`${escHtml(data.locked_by)} has chosen their ability. Waiting for you…`, 'info');
+
+            } else if (data.type === 'combo_fire_ready') {
+              // Close ability modal if open (in case we're the acceptor and it auto-opens)
+              document.getElementById('comboAbilityModal').style.display = 'none';
+              showComboAbilityPicker(data);
+
+            } else if (data.type === 'combo_resolved') {
+              _holdingComboIds.delete(data.proposer?.character_id);
+              _activeComboId = null;
+              document.getElementById('comboAbilityModal').style.display = 'none';
+              if (userRole === 'SW') renderInitiativeTracker();
+              const comboEl = renderComboCard(data);
+              addMessage(comboEl, '', data, true);
+              showPanelToast(`⚡ ${escHtml(data.bond_name || 'Combo')} fires!`, 'info');
+
             } else if (data.type === 'turn_advance') {
               // Sync turn index from server
               currentTurnIndex = data.current_turn_index ?? 0;
+              // Remove any resolved holders from skipped_holding
+              if (data.skipped_holding) {
+                data.skipped_holding.forEach(s => _holdingComboIds.add(s.character_id));
+              }
               if (userRole === 'SW') {
                 renderInitiativeTracker();
               }
               // Toast for everyone showing whose turn it is
               const whose = data.whose_turn?.name || '???';
-              showPanelToast(`⚔️ ${whose}'s turn`, 'info');
+              const holdingNote = (data.skipped_holding || []).map(s => s.name).join(', ');
+              const turnMsg = holdingNote ? `⚔️ ${whose}'s turn (${holdingNote} holding)` : `⚔️ ${whose}'s turn`;
+              showPanelToast(turnMsg, 'info');
+              // Show combo button if it's this player's turn
+              _updateComboButton(data.whose_turn);
               // Sync effects — decrement happened server-side
               if (data.effects) {
                 campaignEffects = data.effects;
@@ -13386,6 +13584,246 @@
        PWA: Service Worker registration + Web Push subscription
        ═══════════════════════════════════════════════════════════ -->
   <script>
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BONDS + COMBO SYSTEM
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  let _campaignBonds = [];       // active bonds for this campaign
+  let _pendingComboId = null;    // combo_id of incoming proposal (acceptor side)
+  let _activeComboId = null;     // combo_id currently in ability picker
+  let _holdingComboIds = new Set(); // character_ids currently holding for a combo
+
+  // ── Load bonds from API ──────────────────────────────────────────────────
+  async function loadBonds() {
+    if (!campaignId) return;
+    try {
+      const r = await fetch(`/api/campaigns/${campaignId}/bonds`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      _campaignBonds = d.bonds || [];
+    } catch(e) {}
+  }
+
+  // Bonds where the current player's character is one of the pair
+  function myBonds() {
+    if (!characterId) return [];
+    return _campaignBonds.filter(b =>
+      b.character_id_a === characterId || b.character_id_b === characterId
+    );
+  }
+
+  // ── SW: Manage bonds modal ───────────────────────────────────────────────
+  async function openBondManageModal() {
+    await loadBonds();
+    const modal = document.getElementById('bondManageModal');
+    const content = document.getElementById('bondManageContent');
+
+    // Populate character dropdowns
+    const chars = knownPCs || [];
+    const options = chars.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+    document.getElementById('bondCharA').innerHTML = options;
+    document.getElementById('bondCharB').innerHTML = options;
+
+    // List active bonds
+    content.innerHTML = _campaignBonds.length === 0
+      ? '<div style="color:#6b7280;font-size:0.85rem;text-align:center;padding:12px;">No active bonds.</div>'
+      : _campaignBonds.map(b => `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px;background:#1e2130;border-radius:8px;margin-bottom:6px;">
+            <div style="flex:1;">
+              <div style="font-size:0.85rem;color:#e4e6eb;font-weight:600;">${escHtml(b.character_name_a)} ↔ ${escHtml(b.character_name_b)}</div>
+              ${b.combo_name ? `<div style="font-size:0.72rem;color:#a78bfa;">"${escHtml(b.combo_name)}"</div>` : ''}
+            </div>
+            <button onclick="breakBond('${b.id}')"
+              style="padding:4px 10px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:6px;color:#f87171;font-size:0.75rem;cursor:pointer;">
+              Break
+            </button>
+          </div>`).join('');
+
+    modal.style.display = 'flex';
+    if (window.lucide) lucide.createIcons({ el: modal });
+  }
+
+  function closeBondManageModal() {
+    document.getElementById('bondManageModal').style.display = 'none';
+  }
+
+  async function declareBond() {
+    const charA = document.getElementById('bondCharA').value;
+    const charB = document.getElementById('bondCharB').value;
+    const comboName = document.getElementById('bondComboName').value.trim();
+    const comboDesc = document.getElementById('bondComboDesc').value.trim();
+    if (charA === charB) { showPanelToast('Choose two different characters', 'error'); return; }
+    try {
+      const r = await fetch(`/api/campaigns/${campaignId}/bonds`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character_id_a: charA, character_id_b: charB, combo_name: comboName || null, combo_description: comboDesc || null }),
+      });
+      const d = await r.json();
+      if (!r.ok) { showPanelToast(d.detail || 'Failed', 'error'); return; }
+      showPanelToast(`🔗 Bond declared!`, 'info');
+      await openBondManageModal();
+    } catch(e) { showPanelToast('Error declaring bond', 'error'); }
+  }
+
+  async function breakBond(bondId) {
+    if (!confirm('Break this bond? It will apply a Grief Tether (−1) to both characters.')) return;
+    try {
+      const r = await fetch(`/api/campaigns/${campaignId}/bonds/${bondId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const d = await r.json();
+      if (!r.ok) { showPanelToast(d.detail || 'Failed', 'error'); return; }
+      showPanelToast('Bond broken. Grief Tether applied.', 'info');
+      _campaignBonds = _campaignBonds.filter(b => b.id !== bondId);
+      await openBondManageModal();
+    } catch(e) { showPanelToast('Error', 'error'); }
+  }
+
+  // ── Player: propose a combo ──────────────────────────────────────────────
+  function openComboProposeModal() {
+    const bonds = myBonds();
+    if (!bonds.length) { showPanelToast('No active bonds to combo with', 'info'); return; }
+    const list = document.getElementById('comboBondList');
+    list.innerHTML = bonds.map(b => {
+      const partnerName = b.character_id_a === characterId ? b.character_name_b : b.character_name_a;
+      const partnerId   = b.character_id_a === characterId ? b.character_id_b : b.character_id_a;
+      return `
+        <button class="combo-partner-btn" onclick="proposeCombo('${b.id}','${partnerId}')">
+          <i data-lucide="zap" style="width:16px;height:16px;color:#a78bfa;flex-shrink:0;"></i>
+          <div>
+            <div>${escHtml(partnerName)}</div>
+            ${b.combo_name ? `<div class="bond-name">"${escHtml(b.combo_name)}"</div>` : ''}
+          </div>
+        </button>`;
+    }).join('');
+    document.getElementById('comboProposeModal').style.display = 'flex';
+    if (window.lucide) lucide.createIcons({ el: document.getElementById('comboProposeModal') });
+  }
+
+  function closeComboProposeModal() {
+    document.getElementById('comboProposeModal').style.display = 'none';
+  }
+
+  function proposeCombo(bondId, partnerCharId) {
+    ws.send(JSON.stringify({ type: 'combo_propose', partner_character_id: partnerCharId, bond_id: bondId }));
+    closeComboProposeModal();
+    showPanelToast('Combo proposed — waiting for response…', 'info');
+  }
+
+  // ── Acceptor: incoming combo ─────────────────────────────────────────────
+  function showComboIncoming(data) {
+    _pendingComboId = data.combo_id;
+    const bondLabel = data.bond_name ? `"${escHtml(data.bond_name)}"` : 'a Combo';
+    document.getElementById('comboIncomingBody').innerHTML =
+      `<strong style="color:#d4af37;">${escHtml(data.proposer_name)}</strong> wants to fire ${bondLabel} with you.
+       ${data.bond_description ? `<div style="margin-top:6px;font-size:0.8rem;color:#6b7280;">${escHtml(data.bond_description)}</div>` : ''}
+       <div style="margin-top:10px;font-size:0.8rem;color:#6b7280;">They will hold their action — the combo fires on your next turn.</div>`;
+    document.getElementById('comboIncomingModal').style.display = 'flex';
+  }
+
+  function acceptCombo() {
+    if (!_pendingComboId) return;
+    ws.send(JSON.stringify({ type: 'combo_accept', combo_id: _pendingComboId }));
+    document.getElementById('comboIncomingModal').style.display = 'none';
+    showPanelToast('Combo accepted! They are holding for your turn.', 'info');
+    _pendingComboId = null;
+  }
+
+  function rejectCombo() {
+    if (!_pendingComboId) return;
+    ws.send(JSON.stringify({ type: 'combo_decline', combo_id: _pendingComboId }));
+    document.getElementById('comboIncomingModal').style.display = 'none';
+    _pendingComboId = null;
+  }
+
+  // ── Ability picker (fires when it's your turn with a combo ready) ────────
+  function showComboAbilityPicker(data) {
+    _activeComboId = data.combo_id;
+    document.getElementById('comboAbilityTitle').textContent = `${data.bond_name || 'Combo'} — Choose Your Ability`;
+    document.getElementById('comboAbilitySubtitle').textContent =
+      `Firing with ${escHtml(data.partner_name)}. Pick the ability you'll use.`;
+    const list = document.getElementById('comboAbilityList');
+    list.innerHTML = (data.your_abilities || []).map(a => `
+      <button class="combo-ability-btn" onclick="selectComboAbility(${a.slot})" ${a.uses_remaining <= 0 ? 'disabled' : ''}>
+        <div>
+          <div>${escHtml(a.name)}</div>
+          <div style="font-size:0.72rem;color:#6b7280;">${a.die} · ${a.power_source} · ${a.uses_remaining} uses</div>
+        </div>
+        <span class="slot-badge">Slot ${a.slot}</span>
+      </button>`).join('');
+    document.getElementById('comboAbilityWaiting').style.display = 'none';
+    document.getElementById('comboAbilityModal').style.display = 'flex';
+  }
+
+  function selectComboAbility(slot) {
+    if (!_activeComboId) return;
+    ws.send(JSON.stringify({ type: 'combo_ability_select', combo_id: _activeComboId, slot }));
+    document.getElementById('comboAbilityList').innerHTML = '';
+    document.getElementById('comboAbilityWaiting').style.display = 'block';
+  }
+
+  // ── Render combo resolved chat card ─────────────────────────────────────
+  function renderComboCard(data) {
+    const p = data.proposer;
+    const a = data.acceptor;
+    const bd = n => n ? `<div class="combo-roll-breakdown">${escHtml(n)}</div>` : '';
+    const rollBreak = r => `[${(r.rolls || []).join('+')}]+${r.power_source}(${r.power_stat})+Edge(${r.edge})`;
+    const el = document.createElement('div');
+    el.className = 'combo-card';
+    el.innerHTML = `
+      <div class="combo-card-header">
+        <i data-lucide="zap" style="width:18px;height:18px;color:#a78bfa;flex-shrink:0;"></i>
+        <div>
+          <div class="combo-card-title">${escHtml(data.bond_name || 'Combo')}</div>
+          ${data.bond_description ? `<div class="combo-card-desc">${escHtml(data.bond_description)}</div>` : ''}
+        </div>
+      </div>
+      <div class="combo-rolls">
+        <div class="combo-roll-block">
+          <div class="combo-roll-name">${escHtml(p.name)}</div>
+          <div class="combo-roll-ability">${escHtml(p.ability_name)}</div>
+          <div class="combo-roll-total">${p.total}</div>
+          ${bd(rollBreak(p))}
+        </div>
+        <div class="combo-roll-block">
+          <div class="combo-roll-name">${escHtml(a.name)}</div>
+          <div class="combo-roll-ability">${escHtml(a.ability_name)}</div>
+          <div class="combo-roll-total">${a.total}</div>
+          ${bd(rollBreak(a))}
+        </div>
+      </div>`;
+    if (window.lucide) lucide.createIcons({ el });
+    return el;
+  }
+
+  // ── Combo button: show on player's own turn if they have bonds ───────────
+  function _updateComboButton(whoseTurn) {
+    // Remove any existing combo button
+    const existing = document.getElementById('myComboBtn');
+    if (existing) existing.remove();
+    if (!whoseTurn || !characterId || userRole !== 'Player') return;
+    if (whoseTurn.character_id !== characterId) return;
+    if (!myBonds().length) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'myComboBtn';
+    btn.innerHTML = '<i data-lucide="zap" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Combo';
+    btn.style.cssText = 'padding:6px 14px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.4);border-radius:8px;color:#a78bfa;font-size:0.82rem;font-weight:700;cursor:pointer;margin-left:6px;';
+    btn.onclick = openComboProposeModal;
+    // Inject next to the send button area
+    const sendArea = document.getElementById('sendBtn') || document.getElementById('chatInput');
+    if (sendArea && sendArea.parentNode) {
+      sendArea.parentNode.insertBefore(btn, sendArea.nextSibling);
+      if (window.lucide) lucide.createIcons({ el: btn });
+    }
+  }
+  </script>
+
+  <script>
   // ─── Service Worker ──────────────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -13942,6 +14380,23 @@
           </div>`;
         })() : ''}
         ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}
+        ${(() => {
+          const charBonds = _campaignBonds.filter(b => b.is_active && (b.character_id_a === String(char.id) || b.character_id_b === String(char.id)));
+          if (!charBonds.length) return '';
+          return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid #a78bfa;">
+            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">⚡ Bonds (${charBonds.length})</div>
+            ${charBonds.map(b => {
+              const partner = b.character_id_a === String(char.id) ? b.character_name_b : b.character_name_a;
+              return `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);">↔ ${escHtml(partner)}</span>
+                  ${b.combo_name ? `<span style="font-size:0.72rem;color:#a78bfa;font-style:italic;">${escHtml(b.combo_name)}</span>` : ''}
+                </div>
+                ${b.combo_description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${escHtml(b.combo_description)}</div>` : ''}
+              </div>`;
+            }).join('')}
+          </div>`;
+        })()}
         <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
         <div id="swAbilitiesContainer">${abilityRows}</div>
         <h4 style="color:var(--accent-primary);margin:16px 0 8px;">Inventory</h4>
@@ -14371,6 +14826,23 @@
           ${char.tethers.map(t => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;">${escHtml(t.description)}</span>${t.is_active ? `<span style="font-size:0.7rem;color:${t.modifier >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${t.modifier >= 0 ? '+' : ''}${t.modifier}</span>` : ''}</div>`).join('')}
         </div>` : ''}
         ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}
+        ${(() => {
+          const charBonds = _campaignBonds.filter(b => b.is_active && (b.character_id_a === String(char.id) || b.character_id_b === String(char.id)));
+          if (!charBonds.length) return '';
+          return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid #a78bfa;">
+            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">⚡ Bonds (${charBonds.length})</div>
+            ${charBonds.map(b => {
+              const partner = b.character_id_a === String(char.id) ? b.character_name_b : b.character_name_a;
+              return `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);">↔ ${escHtml(partner)}</span>
+                  ${b.combo_name ? `<span style="font-size:0.72rem;color:#a78bfa;font-style:italic;">${escHtml(b.combo_name)}</span>` : ''}
+                </div>
+                ${b.combo_description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${escHtml(b.combo_description)}</div>` : ''}
+              </div>`;
+            }).join('')}
+          </div>`;
+        })()}
         ${(char.portrait_url || isOwnChar) ? '</div></div>' : ''}
       `;
     } catch (e) {
