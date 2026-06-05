@@ -263,10 +263,14 @@ async def get_site_stats(db: Session = Depends(get_db)):
         CampaignMembership.left_at == None,
     ).scalar() or 0
 
+    from backend.models import UserAchievement
+    total_achievements = db.query(_func.count(UserAchievement.id)).scalar() or 0
+
     if not row:
         return {"total_rolls": 0, "total_ones": 0, "total_attacks": 0,
                 "total_callings": 0, "total_messages": 0, "total_battles": 0,
-                "total_players": total_players, "total_damage_dealt": 0}
+                "total_players": total_players, "total_damage_dealt": 0,
+                "total_achievements": total_achievements}
     return {
         "total_rolls": row.total_rolls,
         "total_ones": row.total_ones,
@@ -276,4 +280,5 @@ async def get_site_stats(db: Session = Depends(get_db)):
         "total_battles": row.total_battles,
         "total_players": total_players,
         "total_damage_dealt": row.total_damage_dealt,
+        "total_achievements": total_achievements,
     }

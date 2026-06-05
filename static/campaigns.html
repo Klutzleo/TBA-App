@@ -705,6 +705,13 @@
                     <span class="boast-stat-label">Fates Tempted</span>
                 </div>
             </div>
+            <div class="boast-stat glory">
+                <span class="boast-stat-icon"><i data-lucide="trophy" style="width:1.5rem;height:1.5rem;"></i></span>
+                <div class="boast-stat-body">
+                    <span class="boast-stat-value" id="boast-achievements">—</span>
+                    <span class="boast-stat-label">Achievements Earned</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1100,7 +1107,8 @@
                 document.getElementById('boast-callings').textContent = fmt(d.total_callings);
                 document.getElementById('boast-messages').textContent = fmt(d.total_messages);
                 document.getElementById('boast-ones').textContent     = fmt(d.total_ones);
-                document.getElementById('boast-players').textContent  = fmt(d.total_players);
+                document.getElementById('boast-players').textContent      = fmt(d.total_players);
+                document.getElementById('boast-achievements').textContent = fmt(d.total_achievements);
                 document.getElementById('boast-wrapper').style.display = 'block';
             } catch (e) {
                 // boast bar is decorative — fail silently
