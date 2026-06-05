@@ -2819,6 +2819,22 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
     broadcast_payload["message_id"] = str(msg.id)
     await manager.broadcast(campaign_uuid, broadcast_payload)
 
+    # Push notification to the targeted player
+    if char and char.user_id:
+        try:
+            from backend.notifications import send_push
+            flavor_snippet = f' "{flavor_text[:60]}…"' if flavor_text and len(flavor_text) > 60 else (f' "{flavor_text}"' if flavor_text else '')
+            send_push(
+                db,
+                user_id=str(char.user_id),
+                title=f"🎯 Stat Check — Roll {stat}!",
+                body=f"The Story Weaver called a {stat} check for {char.name}.{flavor_snippet}",
+                url=f"/game.html?campaign_id={campaign_uuid}&character_id={char.id}",
+                campaign_id=str(campaign_uuid),
+            )
+        except Exception as _pe:
+            logger.warning(f"Stat check push notification failed: {_pe}")
+
 
 async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
     """Player responds to a stat check request — resolve and broadcast result."""
