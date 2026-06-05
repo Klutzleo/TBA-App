@@ -2432,8 +2432,17 @@
     }
     .achievement-toast.global .achievement-toast-label { color: #f59e0b; }
     .achievement-toast-name { font-size: 0.95rem; font-weight: 700; color: #f1f5f9; line-height: 1.2; }
-    .achievement-toast-pts { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+    .achievement-toast-pts { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
     .achievement-toast-pts span { color: #d4af37; font-weight: 600; }
+    .achv-rarity-pill {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 1px 6px; border-radius: 99px; border: 1px solid currentColor; opacity: 0.85;
+    }
+    .achv-rarity-pill.common     { color: #6b7280; }
+    .achv-rarity-pill.uncommon   { color: #22c55e; }
+    .achv-rarity-pill.rare       { color: #3b82f6; }
+    .achv-rarity-pill.ultra_rare { color: #a855f7; }
+    .achv-rarity-pill.legendary  { color: #f59e0b; }
     @keyframes achieveSlideUp {
       from { opacity: 0; transform: translateY(40px) scale(0.95); }
       to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -4590,8 +4599,12 @@
         <div class="achievement-toast-body">
           <div class="achievement-toast-label">${label}</div>
           <div class="achievement-toast-name">${escHtml(data.name)}</div>
-          <div class="achievement-toast-pts"><span>+${data.points} pts</span> &middot; ${rarity}</div>
+          <div class="achievement-toast-pts">
+            <span>+${data.points} pts</span>
+            <span class="achv-rarity-pill ${data.rarity_label || 'common'}">${rarity}</span>
+          </div>
         </div>`;
+      playAchievementSound();
       stack.appendChild(toast);
       setTimeout(() => {
         toast.classList.add('leaving');
@@ -9073,6 +9086,27 @@
           gain.gain.linearRampToValueAtTime(0, start + 0.09);
           osc.connect(gain); gain.connect(ctx.destination);
           osc.start(start); osc.stop(start + 0.1);
+        });
+      } catch (e) {}
+    }
+
+    function playAchievementSound() {
+      if (!_soundEnabled) return;
+      try {
+        const ctx = _getAudioCtx();
+        const now = ctx.currentTime;
+        // Three-note ascending fanfare: C5 → E5 → G5, each 110ms, 90ms apart
+        [[523, now], [659, now + 0.09], [784, now + 0.18]].forEach(([freq, start], i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          const vol = 0.12 + i * 0.04; // each note slightly louder
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(vol, start + 0.015);
+          gain.gain.linearRampToValueAtTime(0, start + 0.11);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(start); osc.stop(start + 0.12);
         });
       } catch (e) {}
     }
