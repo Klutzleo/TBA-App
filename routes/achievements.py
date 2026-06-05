@@ -38,23 +38,10 @@ def _format_rarity(pct: float) -> str:
     return f"{pct:.1f}%"
 
 
-@achievements_router.get("/me")
-async def get_my_achievements(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    Returns every achievement — earned and unearned — so the frontend can
-    render all profile sections with locked achievements greyed out.
+def _build_achievements_response(user_id, db: Session) -> dict:
+    """Shared logic for building the full achievements payload for any user."""
+    from backend.models import UserProfile
 
-    Each achievement includes:
-      earned        bool
-      earned_at     ISO string or null
-      rarity_pct    float (% of all players who earned it)
-      rarity_label  common / uncommon / rare / ultra_rare / legendary
-      rarity_display formatted string e.g. "0.031%"
-      ...all metadata fields from ACHIEVEMENTS dict
-    """
     # Count earn records per achievement across all users (for rarity)
     earn_counts: dict[str, int] = {
         row.achievement_id: row.count
@@ -67,10 +54,9 @@ async def get_my_achievements(
     # Count active users directly — SiteStats.total_players isn't maintained
     total_players = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 1
 
-    # This user's earned achievements
     earned_rows = (
         db.query(UserAchievement)
-        .filter(UserAchievement.user_id == current_user.id)
+        .filter(UserAchievement.user_id == user_id)
         .all()
     )
     earned_map: dict[str, str] = {
@@ -78,14 +64,12 @@ async def get_my_achievements(
         for row in earned_rows
     }
 
-    # Total points earned
     total_points = sum(
         ACHIEVEMENTS[aid]["points"]
         for aid in earned_map
         if aid in ACHIEVEMENTS
     )
 
-    # Badge showcase unlocked?
     badge_showcase_unlocked = (
         "badges_we_aint_got" in earned_map or total_points >= BADGE_SHOWCASE_THRESHOLD
     )
@@ -96,7 +80,6 @@ async def get_my_achievements(
         count = earn_counts.get(achievement_id, 0)
         pct = round((count / total_players) * 100, 3)
         label = _rarity_label(pct)
-
         results.append({
             "id": achievement_id,
             "earned": earned_at is not None,
@@ -107,7 +90,6 @@ async def get_my_achievements(
             **meta,
         })
 
-    # Sort: earned first (desc by earned_at), then unearned alphabetically by name
     earned_list = sorted(
         [a for a in results if a["earned"]],
         key=lambda a: a["earned_at"],
@@ -121,9 +103,7 @@ async def get_my_achievements(
     from routes.profile import _max_featured
     max_featured = _max_featured(total_points)
 
-    # Load featured badges from profile
-    from backend.models import UserProfile
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
     featured_badges = profile.featured_badges if profile and profile.featured_badges else []
 
     return {
@@ -137,6 +117,35 @@ async def get_my_achievements(
         "featured_badges": featured_badges,
         "slot_thresholds": [150, 300, 500],
     }
+
+
+@achievements_router.get("/me")
+async def get_my_achievements(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns every achievement for the current user — earned and unearned."""
+    return _build_achievements_response(current_user.id, db)
+
+
+@achievements_router.get("/{username}")
+async def get_user_achievements(
+    username: str,
+    db: Session = Depends(get_db),
+):
+    """Public achievements for any user. Respects profile is_public setting."""
+    from fastapi import HTTPException
+    from backend.models import UserProfile
+
+    target = db.query(User).filter(User.username == username).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == target.id).first()
+    if profile and not profile.is_public:
+        raise HTTPException(status_code=403, detail="This profile is private")
+
+    return _build_achievements_response(target.id, db)
 
 
 @achievements_router.post("/me/evaluate")
