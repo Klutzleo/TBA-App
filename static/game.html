@@ -10275,6 +10275,17 @@
                 storeAndDisplayMessage(container, { type: 'combat_result', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle stat rolls from database
+              else if (msg.message_type === 'stat_check_request') {
+                const d = msg.extra_data || {};
+                // History: render without the roll button (state is past)
+                const card = renderStatCheckRequestCard({ ...d, _historyMode: true });
+                storeAndDisplayMessage(card, { type: 'stat_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+              }
+              else if (msg.message_type === 'stat_check_result') {
+                const d = msg.extra_data || {};
+                const card = renderStatCheckResultCard(d);
+                storeAndDisplayMessage(card, { type: 'stat_check_result', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+              }
               else if (msg.message_type === 'stat_roll') {
                 console.log('📊 Loading stat roll from history:', msg);
                 const data = msg.extra_data || {};
@@ -13292,17 +13303,19 @@
 
     function renderStatCheckRequestCard(data) {
       const isTarget = currentUser && String(currentUser.id) === String(data.character_id);
-      const showBtn = isTarget && !isSW();
+      const showBtn = isTarget && !isSW() && !data._historyMode;
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
       const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;">✦ BAP Granted</span>` : '';
       const vsLabel = data.mode === 'vs' ? ` <span style="color:var(--text-muted);font-size:0.78rem;">vs ${escHtml(data.npc_name || '')}</span>` : '';
-      const rollBtn = showBtn
-        ? `<button id="stat-check-btn-${data.request_id}" onclick="rollStatCheck('${data.request_id}','${data.stat}')"
-            style="margin-top:10px;width:100%;padding:10px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.5);border-radius:8px;color:#a78bfa;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.15s;"
-            onmouseover="this.style.background='rgba(124,58,237,0.35)'" onmouseout="this.style.background='rgba(124,58,237,0.2)'">
-            🎲 Roll ${data.stat}
-           </button>`
-        : `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">Waiting for ${escHtml(data.character_name || '')} to roll…</div>`;
+      const rollBtn = data._historyMode
+        ? ''
+        : showBtn
+          ? `<button id="stat-check-btn-${data.request_id}" onclick="rollStatCheck('${data.request_id}','${data.stat}')"
+              style="margin-top:10px;width:100%;padding:10px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.5);border-radius:8px;color:#a78bfa;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.15s;"
+              onmouseover="this.style.background='rgba(124,58,237,0.35)'" onmouseout="this.style.background='rgba(124,58,237,0.2)'">
+              🎲 Roll ${data.stat}
+             </button>`
+          : `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">Waiting for ${escHtml(data.character_name || '')} to roll…</div>`;
 
       const div = document.createElement('div');
       div.className = 'message-item';

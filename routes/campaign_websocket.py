@@ -2793,7 +2793,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
         req.flavor_text = (flavor_text or "") + f"\n__npc_id:{npc.id}__npc_name:{npc.name}__npc_roll:{sw_roll}__"
         db.commit()
 
-    await manager.broadcast(campaign_uuid, {
+    broadcast_payload = {
         "type": "stat_check_request",
         "mode": mode,
         "request_id": str(req.id),
@@ -2804,7 +2804,20 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
         "flavor_text": flavor_text,
         "bap_granted": bap_granted,
         "difficulty_label": difficulty_label,
-    })
+    }
+    msg = Message(
+        campaign_id=str(campaign_uuid),
+        party_id=None,
+        sender_id=str(sw_user_id),
+        sender_name=manager.get_display_name(campaign_uuid, sw_user_id),
+        content=f"Stat Check — {stat} — {char.name if char else npc.name if npc else ''}",
+        message_type="stat_check_request",
+        extra_data=broadcast_payload,
+    )
+    db.add(msg)
+    db.commit()
+    broadcast_payload["message_id"] = str(msg.id)
+    await manager.broadcast(campaign_uuid, broadcast_payload)
 
 
 async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
@@ -2880,7 +2893,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     except Exception as _se:
         logger.warning(f"Stats track_stat_check_outcome failed: {_se}")
 
-    await manager.broadcast(campaign_uuid, {
+    result_payload = {
         "type": "stat_check_result",
         "request_id": str(req.id),
         "character_id": str(char.id),
@@ -2898,7 +2911,20 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "outcome": outcome,
         "margin": margin,
         "bap_granted": req.bap_granted,
-    })
+    }
+    result_msg = Message(
+        campaign_id=str(campaign_uuid),
+        party_id=None,
+        sender_id=str(user_id),
+        sender_name=char.name,
+        content=f"Stat Check — {req.stat} — {char.name} — {'Success' if outcome == 'win' else 'Failure'}",
+        message_type="stat_check_result",
+        extra_data=result_payload,
+    )
+    db.add(result_msg)
+    db.commit()
+    result_payload["message_id"] = str(result_msg.id)
+    await manager.broadcast(campaign_uuid, result_payload)
 
 
 async def broadcast_level_up(campaign_id: UUID, character_id: str, character_name: str, old_level: int, new_level: int, new_slot_unlocked: bool):
