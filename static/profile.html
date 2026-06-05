@@ -545,7 +545,7 @@
       ? `<button class="profile-edit-btn" onclick="openEdit()"><i data-lucide="pencil" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Edit Profile</button>`
       : '';
     const shareUrl = `${location.origin}/u/${encodeURIComponent(d.username)}`;
-    const shareBtn = profile.is_public
+    const shareBtn = (isOwn || profile.is_public)
       ? `<button class="profile-edit-btn" id="shareProfileBtn" onclick="shareProfile('${shareUrl}')"><i data-lucide="share-2" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Share Profile</button>`
       : '';
 
