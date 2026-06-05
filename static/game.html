@@ -12928,7 +12928,7 @@
                   ${callingSkull}
                   ${!isSW() ? `<button class="btn-icon" title="Character options" style="display:flex;align-items:center;" onclick="showPlayerContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', '${(member.username || '').replace(/'/g, "\\'")}')"><i data-lucide="settings" style="width:13px;height:13px;"></i></button>` : ''}
                   ${isSW() ? `<button class="btn-icon convert-npc-btn" title="Character options" style="display:flex;align-items:center;" onclick="showPCContextMenu(event, '${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.is_called || false}, '${char.user_id || ''}', '${(member.username || '').replace(/'/g, "\\'")}')"><i data-lucide="settings" style="width:13px;height:13px;"></i></button>` : ''}
-                  ${isSW() ? `<button class="btn-icon" title="Add buff/debuff" style="opacity:0.55;display:flex;align-items:center;" onclick="openAddEffectModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')"><i data-lucide="sparkles" style="width:13px;height:13px;"></i></button>` : ''}
+                  ${isSW() ? `<button class="btn-icon" title="Add buff/debuff" style="opacity:0.7;display:flex;align-items:center;color:#f59e0b;" onclick="openAddEffectModal('${char.id}', '${char.name.replace(/'/g, "\\'")}')"><i data-lucide="sparkles" style="width:13px;height:13px;"></i></button>` : ''}
                 </div>
               </div>
               <div class="character-details">
