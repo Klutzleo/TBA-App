@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TBA — Player Profile</title>
+  <meta name="description" content="Check out this player's achievements and characters in The Binding Arc.">
+  <script src="/js/lucide.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #1a1d29; min-height: 100vh; color: #e4e6eb;
+    }
+
+    /* ── CTA banner ── */
+    .cta-banner {
+      background: linear-gradient(135deg, #1e2130, #252937);
+      border-bottom: 1px solid rgba(212,175,55,0.2);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .cta-banner-text { font-size: 0.9rem; color: #9ca3af; }
+    .cta-banner-text strong { color: #d4af37; }
+    .cta-banner-actions { display: flex; gap: 10px; align-items: center; }
+    .btn-cta {
+      padding: 8px 20px; background: #d4af37; border: none; border-radius: 8px;
+      color: #13151f; font-weight: 700; font-size: 0.88rem; cursor: pointer;
+      text-decoration: none; transition: background 0.15s;
+    }
+    .btn-cta:hover { background: #e8c547; }
+    .btn-login {
+      padding: 8px 16px; background: transparent; border: 1px solid #3a3f54;
+      border-radius: 8px; color: #9ca3af; font-size: 0.88rem; cursor: pointer;
+      text-decoration: none; transition: all 0.15s;
+    }
+    .btn-login:hover { border-color: #d4af37; color: #d4af37; }
+
+    /* ── Logged-in nav ── */
+    .logged-in-nav {
+      background: #1e2130; border-bottom: 1px solid #2a2d3e;
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-home { color: #d4af37; text-decoration: none; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; }
+    .nav-home:hover { text-decoration: underline; }
+
+    /* ── Main content ── */
+    .page-wrap { max-width: 900px; margin: 0 auto; padding: 28px 20px; }
+
+    /* ── Profile header ── */
+    .profile-header {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 14px;
+      padding: 28px; display: flex; gap: 24px; align-items: flex-start;
+      margin-bottom: 28px;
+    }
+    .profile-avatar {
+      width: 96px; height: 96px; border-radius: 50%; object-fit: cover;
+      border: 3px solid #d4af37; background: #1e2130; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem; color: #d4af37; overflow: hidden;
+    }
+    .profile-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+    .profile-info { flex: 1; min-width: 0; }
+    .profile-username { font-size: 1.6rem; font-weight: 700; color: #d4af37; margin-bottom: 4px; }
+    .profile-bio { color: #9ca3af; font-size: 0.9rem; margin-bottom: 12px; line-height: 1.5; }
+    .profile-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.8rem; color: #6b7280; }
+    .profile-meta span { display: flex; align-items: center; gap: 4px; }
+    .profile-header-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .btn-share {
+      padding: 7px 14px; background: transparent; border: 1px solid #3a3f54;
+      border-radius: 8px; color: #9ca3af; font-size: 0.82rem; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+    }
+    .btn-share:hover { border-color: #d4af37; color: #d4af37; }
+    .share-copied { border-color: #34d399 !important; color: #34d399 !important; }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      display: flex; gap: 8px; border-bottom: 1px solid #3a3f54;
+      padding-bottom: 0; margin-bottom: 20px;
+    }
+    .tab-btn {
+      padding: 9px 18px; background: transparent; border: none;
+      border-bottom: 2px solid transparent; color: #6b7280;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .tab-btn:hover { color: #e4e6eb; }
+    .tab-btn.active { color: #d4af37; border-bottom-color: #d4af37; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Stat grid ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 10px; padding: 16px 14px; text-align: center;
+    }
+    .stat-card .stat-icon { height: 1.75rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; color: #94a3b8; }
+    .stat-card .stat-icon i, .stat-card .stat-icon svg { width: 1.5rem; height: 1.5rem; }
+    .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; color: #d4af37; }
+    .stat-card .stat-label { font-size: 0.72rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .stat-card.shame .stat-value { color: #f87171; }
+    .stat-card.glory .stat-value { color: #a78bfa; }
+    .stat-card.boost .stat-value { color: #f59e0b; }
+
+    /* ── Character cards ── */
+    .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .char-card {
+      background: #252937; border: 1px solid #3a3f54; border-radius: 12px; padding: 16px; transition: all 0.15s;
+    }
+    .char-card:hover { border-color: #d4af37; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(212,175,55,0.1); }
+    .char-card-header { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .char-portrait {
+      width: 52px; height: 52px; border-radius: 50%; background: #1e2130;
+      border: 2px solid #3a3f54; display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; flex-shrink: 0; overflow: hidden;
+    }
+    .char-portrait img { width: 100%; height: 100%; object-fit: cover; }
+    .char-name { font-weight: 700; color: #e4e6eb; margin-bottom: 2px; }
+    .char-level { font-size: 0.78rem; color: #6b7280; }
+    .char-stats-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 0.78rem; }
+    .char-stat-pill { background: #1e2130; border-radius: 6px; padding: 5px 6px; text-align: center; }
+    .char-stat-pill .val { font-weight: 700; color: #e4e6eb; }
+    .char-stat-pill .lbl { color: #6b7280; font-size: 0.68rem; }
+
+    /* ── SW campaign cards ── */
+    .sw-section { margin-bottom: 28px; }
+    .sw-section-title {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #6b7280; font-weight: 600; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sw-section-title::after { content: ''; flex: 1; height: 1px; background: #3a3f54; }
+    .sw-camp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .sw-camp-card { background: #252937; border: 1px solid #3a3f54; border-radius: 10px; padding: 14px 16px; }
+    .sw-camp-name {
+      font-weight: 700; color: #d4af37; font-size: 0.95rem; margin-bottom: 8px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sw-camp-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sw-pill {
+      background: #1e2130; border-radius: 6px; padding: 4px 10px;
+      font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 4px;
+    }
+    .sw-pill strong { color: #e4e6eb; }
+    .sw-status-badge {
+      font-size: 0.62rem; font-weight: 700; border-radius: 4px; padding: 1px 7px;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-left: auto;
+    }
+    .sw-status-badge.active   { background: rgba(52,211,153,0.15); color: #34d399; }
+    .sw-status-badge.on_break { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+    .sw-status-badge.archived { background: rgba(107,114,128,0.15); color: #6b7280; }
+
+    /* ── Achievements ── */
+    .achv-summary {
+      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+      padding: 16px 0 20px; border-bottom: 1px solid #2a2d3e; margin-bottom: 24px;
+    }
+    .achv-summary-stat { display: flex; flex-direction: column; align-items: center; }
+    .achv-summary-stat .val { font-size: 1.4rem; font-weight: 700; color: #e4e6eb; }
+    .achv-summary-stat .lbl { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .achv-section { margin-bottom: 28px; }
+    .achv-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .achv-section-name { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; }
+    .achv-section-count { font-size: 0.72rem; color: #374151; }
+    .achv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
+
+    .achv-card {
+      display: flex; flex-direction: column; align-items: center;
+      background: #1e2130; border: 1px solid #2a2d3e; border-radius: 10px;
+      padding: 12px 6px 10px; position: relative; text-align: center;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .achv-card:hover { border-color: #3a3d4e; transform: translateY(-1px); }
+    .achv-card.earned { border-color: rgba(212,175,55,0.18); }
+    .achv-card.locked { opacity: 0.35; filter: grayscale(0.7); }
+
+    .achv-badge { width: 48px; height: 48px; margin-bottom: 8px; flex-shrink: 0; }
+    .achv-badge-shape {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    }
+    .achv-badge-shape svg { width: 20px; height: 20px; color: rgba(255,255,255,0.92); stroke: rgba(255,255,255,0.92); }
+
+    .achv-badge-shape.founding {
+      clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+      background: linear-gradient(135deg,#d4af37,#b8941f);
+    }
+    .achv-badge-shape.platform { border-radius: 50%; background: #1d4ed8; }
+    .achv-badge-shape.time {
+      clip-path: polygon(20% 0%,80% 0%,100% 20%,100% 80%,80% 100%,20% 100%,0% 80%,0% 20%);
+      background: #6d28d9;
+    }
+    .achv-badge-shape.character { clip-path: polygon(50% 0%,93% 100%,7% 100%); background: #065f46; }
+    .achv-badge-shape.character svg { margin-top: 10px; }
+    .achv-badge-shape.combat {
+      clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background: #b91c1c;
+    }
+    .achv-badge-shape.calling {
+      clip-path: polygon(0% 0%,100% 0%,72% 48%,100% 100%,0% 100%,28% 48%);
+      background: #4c1d95;
+    }
+    .achv-badge-shape.dice { border-radius: 22%; background: #0e7490; }
+    .achv-badge-shape.shame {
+      clip-path: polygon(0% 0%,75% 0%,100% 25%,100% 100%,25% 100%,0% 75%);
+      background: #991b1b;
+    }
+    .achv-badge-shape.story { border-radius: 50% 50% 50% 0; background: #1e40af; }
+    .achv-badge-shape.companions {
+      clip-path: polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%);
+      background: #166534;
+    }
+    .achv-badge-shape.sw { border-radius: 8px 8px 0 0; background: #0f766e; }
+
+    .achv-name {
+      font-size: 0.7rem; font-weight: 600; color: #e4e6eb; line-height: 1.3; margin-bottom: 5px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%;
+    }
+    .achv-diff-pill {
+      font-size: 0.58rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; padding: 1px 6px; border-radius: 10px; margin-bottom: 4px;
+    }
+    .achv-diff-pill.easy     { background: #14532d; color: #4ade80; }
+    .achv-diff-pill.medium   { background: #1e3a5f; color: #60a5fa; }
+    .achv-diff-pill.hard     { background: #431407; color: #f97316; }
+    .achv-diff-pill.prestige { background: #3b1663; color: #a855f7; }
+    .achv-diff-pill.founding { background: #2a2410; color: #d4af37; }
+    .achv-diff-pill.narrative{ background: #0c2a2a; color: #22d3ee; }
+    .achv-diff-pill.sw       { background: #0a2a28; color: #2dd4bf; }
+    .achv-diff-pill.shame    { background: #2a0a0a; color: #f87171; }
+
+    .achv-rarity { font-size: 0.62rem; margin-bottom: 3px; }
+    .achv-rarity.common    { color: #4b5563; }
+    .achv-rarity.uncommon  { color: #d4af37; }
+    .achv-rarity.rare      { color: #60a5fa; text-shadow: 0 0 6px rgba(96,165,250,0.5); }
+    .achv-rarity.ultra_rare { color: #14b8a6; font-weight: 700; }
+    .achv-rarity.legendary { color: #a855f7; font-weight: 700; animation: legendPulse 2s infinite; }
+    @keyframes legendPulse {
+      0%,100% { text-shadow: 0 0 4px rgba(168,85,247,0.5); }
+      50%      { text-shadow: 0 0 14px rgba(168,85,247,1); }
+    }
+
+    .achv-pts { font-size: 0.6rem; color: #4b5563; }
+    .achv-earned-date { font-size: 0.58rem; color: #4ade80; margin-top: 3px; }
+    .achv-checkmark {
+      position: absolute; top: 5px; right: 5px; width: 14px; height: 14px;
+      background: #14532d; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 8px; color: #4ade80; font-weight: 700;
+    }
+
+    /* Badge showcase */
+    .achv-showcase {
+      margin-bottom: 28px; padding: 16px;
+      background: #1e2130; border: 1px solid rgba(212,175,55,0.2); border-radius: 12px;
+    }
+    .achv-showcase-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #d4af37; margin-bottom: 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .achv-showcase-slots { display: flex; gap: 12px; flex-wrap: wrap; }
+    .achv-showcase-slot { display: flex; flex-direction: column; align-items: center; width: 80px; text-align: center; }
+    .achv-showcase-slot .achv-badge { width: 56px; height: 56px; margin-bottom: 6px; }
+    .achv-showcase-slot .achv-badge-shape svg { width: 24px; height: 24px; }
+    .achv-showcase-slot-name { font-size: 0.65rem; color: #9ca3af; line-height: 1.3; }
+
+    /* ── Loading / empty ── */
+    .loading { text-align: center; padding: 60px; color: #6b7280; font-size: 1rem; }
+    .empty-state { text-align: center; padding: 40px; color: #6b7280; }
+
+    /* ── Private / not found ── */
+    .page-error {
+      text-align: center; padding: 80px 20px;
+    }
+    .page-error .icon { font-size: 3rem; margin-bottom: 16px; color: #4b5563; }
+    .page-error h2 { color: #e4e6eb; margin-bottom: 8px; }
+    .page-error p { color: #6b7280; font-size: 0.9rem; }
+
+    @media (max-width: 600px) {
+      .profile-header { flex-direction: column; align-items: center; text-align: center; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .char-grid { grid-template-columns: 1fr; }
+      .cta-banner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- CTA / nav bar — swapped based on login state -->
+<div id="ctaBanner" class="cta-banner" style="display:none;">
+  <div class="cta-banner-text">
+    <strong>The Binding Arc</strong> — A tabletop RPG system with live digital support.
+  </div>
+  <div class="cta-banner-actions">
+    <a href="/auth.html" class="btn-login">Sign In</a>
+    <a href="/auth.html?mode=register" class="btn-cta"><i data-lucide="play" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Play Free</a>
+  </div>
+</div>
+<div id="loggedInNav" class="logged-in-nav" style="display:none;">
+  <a href="/campaigns.html" class="nav-home"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i>Back to Campaigns</a>
+  <a href="/profile.html" class="btn-login" style="text-decoration:none;font-size:0.82rem;">My Profile</a>
+</div>
+
+<div class="page-wrap">
+  <div id="profileHeader" class="profile-header">
+    <div class="loading" style="width:100%">Loading profile…</div>
+  </div>
+
+  <div id="tabBar" class="tab-bar" style="display:none;">
+    <button class="tab-btn active" onclick="switchTab('stats', this)"><i data-lucide="bar-chart-2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Stats</button>
+    <button class="tab-btn" onclick="switchTab('characters', this)"><i data-lucide="sword" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Characters</button>
+    <button class="tab-btn" onclick="switchTab('achievements', this)"><i data-lucide="trophy" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Achievements</button>
+  </div>
+
+  <div id="tab-stats" class="tab-pane active">
+    <div id="statsContent"></div>
+  </div>
+  <div id="tab-characters" class="tab-pane">
+    <div id="charsContent"></div>
+  </div>
+  <div id="tab-achievements" class="tab-pane">
+    <div class="loading" id="achvLoading" style="display:none;">Loading achievements…</div>
+    <div id="achvContent"></div>
+  </div>
+</div>
+
+<script>
+  // Extract username from /u/{username} path
+  const pathUsername = location.pathname.split('/u/')[1]?.split('/')[0];
+  if (!pathUsername) { location.href = '/'; }
+
+  document.title = `${pathUsername} — TBA Profile`;
+
+  // Check if logged in (no redirect — just affects which nav shows)
+  const _token = (() => {
+    try { return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || null; } catch(e) { return null; }
+  })();
+
+  document.getElementById(_token ? 'loggedInNav' : 'ctaBanner').style.display = '';
+
+  let profileData = null;
+  let _achvData = null;
+  let achievementsLoaded = false;
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Tab switching ──
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'achievements' && !achievementsLoaded) {
+      achievementsLoaded = true;
+      loadAchievements();
+    }
+  }
+
+  // ── Load profile ──
+  async function loadProfile() {
+    try {
+      const resp = await fetch(`/api/public/profile/${encodeURIComponent(pathUsername)}`);
+      if (resp.status === 404) { showError('notfound'); return; }
+      if (resp.status === 403) { showError('private'); return; }
+      if (!resp.ok) throw new Error();
+      profileData = await resp.json();
+      document.title = `${profileData.username} — TBA Profile`;
+      renderHeader();
+      renderStats();
+      renderCharacters();
+      document.getElementById('tabBar').style.display = '';
+      if (window.lucide) lucide.createIcons();
+    } catch(e) {
+      showError('notfound');
+    }
+  }
+
+  function showError(type) {
+    const msgs = {
+      notfound: { icon: 'user-x', title: 'Player Not Found', body: 'This profile doesn\'t exist or may have been removed.' },
+      private:  { icon: 'lock',   title: 'Private Profile',  body: 'This player has set their profile to private.' },
+    };
+    const m = msgs[type] || msgs.notfound;
+    document.getElementById('profileHeader').innerHTML = `
+      <div class="page-error" style="width:100%">
+        <div class="icon"><i data-lucide="${m.icon}" style="width:3rem;height:3rem;"></i></div>
+        <h2>${m.title}</h2>
+        <p>${m.body}</p>
+      </div>`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ── Render header ──
+  function renderHeader() {
+    const d = profileData;
+    const profile = d.profile || {};
+    const avatarHtml = profile.avatar_url
+      ? `<img src="${escHtml(profile.avatar_url)}" alt="avatar">`
+      : (d.username ? d.username[0].toUpperCase() : '?');
+    const joinDate = d.created_at
+      ? new Date(d.created_at).toLocaleDateString('en-US', { year:'numeric', month:'short' })
+      : '';
+    const lastSeen = d.last_played_at
+      ? `Last played ${new Date(d.last_played_at).toLocaleDateString()}`
+      : '';
+    const bio = profile.bio
+      ? `<div class="profile-bio">${escHtml(profile.bio)}</div>`
+      : '';
+
+    document.getElementById('profileHeader').innerHTML = `
+      <div class="profile-avatar">${avatarHtml}</div>
+      <div class="profile-info">
+        <div class="profile-username">${escHtml(d.username)}</div>
+        ${bio}
+        <div class="profile-meta">
+          ${joinDate ? `<span><i data-lucide="calendar" style="width:12px;height:12px;"></i>Joined ${joinDate}</span>` : ''}
+          ${lastSeen ? `<span><i data-lucide="clock" style="width:12px;height:12px;"></i>${lastSeen}</span>` : ''}
+          <span><i data-lucide="trophy" style="width:12px;height:12px;"></i>${d.total_achievements} achievements</span>
+        </div>
+        <div class="profile-header-actions">
+          <button class="btn-share" id="shareBtn" onclick="shareProfile()">
+            <i data-lucide="share-2" style="width:13px;height:13px;"></i>Share Profile
+          </button>
+        </div>
+      </div>`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function shareProfile() {
+    const url = location.href;
+    navigator.clipboard?.writeText(url).then(() => {
+      const btn = document.getElementById('shareBtn');
+      btn.classList.add('share-copied');
+      btn.innerHTML = '<i data-lucide="check" style="width:13px;height:13px;"></i>Copied!';
+      if (window.lucide) lucide.createIcons({ el: btn });
+      setTimeout(() => {
+        btn.classList.remove('share-copied');
+        btn.innerHTML = '<i data-lucide="share-2" style="width:13px;height:13px;"></i>Share Profile';
+        if (window.lucide) lucide.createIcons({ el: btn });
+      }, 2000);
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  }
+
+  // ── Render stats ──
+  function renderStats() {
+    const s = profileData.stats || {};
+    const el = document.getElementById('statsContent');
+    const fmt = n => (n || 0).toLocaleString();
+
+    // SW campaigns first
+    const camps = profileData.sw_campaigns || [];
+    let swHtml = '';
+    if (camps.length) {
+      const statusLabel = st => st === 'on_break' ? 'On Break' : st.charAt(0).toUpperCase() + st.slice(1);
+      const cards = camps.map(c => `
+        <div class="sw-camp-card">
+          <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+            <div class="sw-camp-name" style="flex:1">${escHtml(c.name)}</div>
+            <span class="sw-status-badge ${c.status}">${statusLabel(c.status)}</span>
+          </div>
+          <div class="sw-camp-pills">
+            <div class="sw-pill"><i data-lucide="users" style="width:11px;height:11px;vertical-align:middle;margin-right:2px;"></i><strong>${c.player_count}</strong> Players</div>
+            ${c.created_at ? `<div class="sw-pill"><i data-lucide="calendar" style="width:11px;height:11px;vertical-align:middle;margin-right:2px;"></i><strong>${Math.floor((Date.now() - new Date(c.created_at)) / 86400000)}d</strong> old</div>` : ''}
+          </div>
+        </div>`).join('');
+      swHtml = `
+        <div class="sw-section">
+          <div class="sw-section-title"><i data-lucide="book-open" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Story Weaver</div>
+          <div class="sw-camp-grid">${cards}</div>
+        </div>`;
+    }
+
+    const totalActivity = (s.total_rolls || 0) + (s.total_messages_sent || 0) + (s.total_attacks || 0);
+    let statsHtml = '';
+    if (totalActivity > 0) {
+      const cards = [
+        { icon: 'dice-6',       val: fmt(s.total_rolls),        label: 'Dice Rolled',       cls: '' },
+        { icon: 'skull',        val: fmt(s.total_ones),         label: '1s (Hall of Shame)', cls: 'shame' },
+        { icon: 'sparkles',     val: fmt(s.total_max_rolls),    label: 'Max Rolls',          cls: 'glory' },
+        { icon: 'sword',        val: fmt(s.total_attacks),      label: 'Attacks Made',       cls: '' },
+        { icon: 'zap',          val: fmt(s.total_damage_dealt), label: 'Damage Dealt',       cls: '' },
+        { icon: 'flame',        val: fmt(s.biggest_hit_dealt),  label: 'Biggest Hit',        cls: 'glory' },
+        { icon: 'bar-chart-2',  val: fmt(s.total_stat_checks),  label: 'Stat Checks',        cls: '' },
+        { icon: 'wand-2',       val: fmt(s.total_abilities_cast),label: 'Abilities Cast',    cls: '' },
+        { icon: 'swords',       val: fmt(s.battles_survived),   label: 'Battles Survived',  cls: '' },
+        { icon: 'skull',        val: fmt(s.total_callings),     label: 'Times Called',       cls: 'shame' },
+        { icon: 'zap',          val: fmt(s.total_bap_used),     label: 'BAP Used',           cls: 'boost' },
+        { icon: 'message-square',val: fmt(s.total_messages_sent),label: 'Messages Sent',    cls: '' },
+      ];
+      statsHtml = `<div class="stat-grid">
+        ${cards.map(c => `
+          <div class="stat-card ${c.cls}">
+            <div class="stat-icon"><i data-lucide="${c.icon}"></i></div>
+            <div class="stat-value">${c.val}</div>
+            <div class="stat-label">${c.label}</div>
+          </div>`).join('')}
+      </div>`;
+    }
+
+    el.innerHTML = swHtml + statsHtml;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ── Render characters ──
+  function renderCharacters() {
+    const chars = profileData.characters || [];
+    const el = document.getElementById('charsContent');
+    if (!chars.length) {
+      el.innerHTML = `<div class="empty-state"><i data-lucide="sword" style="width:2rem;height:2rem;opacity:0.3;"></i><div style="margin-top:10px;">No characters yet.</div></div>`;
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    el.innerHTML = `<div class="char-grid">${chars.map(c => `
+      <div class="char-card">
+        <div class="char-card-header">
+          <div class="char-portrait">
+            ${c.portrait_url ? `<img src="${escHtml(c.portrait_url)}" alt="${escHtml(c.name)}">` : '<i data-lucide="sword" style="width:1.4rem;height:1.4rem;opacity:0.4;"></i>'}
+          </div>
+          <div>
+            <div class="char-name">${escHtml(c.name)}</div>
+            <div class="char-level">Level ${c.level || 1}</div>
+          </div>
+        </div>
+        <div class="char-stats-mini">
+          <div class="char-stat-pill"><div class="val">${c.pp || 0}</div><div class="lbl">PP</div></div>
+          <div class="char-stat-pill"><div class="val">${c.ip || 0}</div><div class="lbl">IP</div></div>
+          <div class="char-stat-pill"><div class="val">${c.sp || 0}</div><div class="lbl">SP</div></div>
+          <div class="char-stat-pill"><div class="val">${c.dp || 0}</div><div class="lbl">DP</div></div>
+          <div class="char-stat-pill"><div class="val">${c.edge || 0}</div><div class="lbl">Edge</div></div>
+          <div class="char-stat-pill"><div class="val">${c.bap || 0}</div><div class="lbl">BAP</div></div>
+        </div>
+      </div>`).join('')}</div>`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ── Achievements ──
+  const SECTION_ORDER = ['founding','platform','time','character','combat','calling','dice','shame','story','companions','sw'];
+  const SECTION_NAMES = {
+    founding:'Founding', platform:'Profile & Platform', time:'Time & Consistency',
+    character:'Character & Leveling', combat:'Combat & Survival', calling:'The Calling',
+    dice:'Dice & Rolls', shame:'Hall of Shame', story:'Story & Narrative',
+    companions:'Companions', sw:'Story Weaver',
+  };
+
+  async function loadAchievements() {
+    document.getElementById('achvLoading').style.display = 'block';
+    try {
+      const resp = await fetch(`/api/public/achievements/${encodeURIComponent(pathUsername)}`);
+      if (resp.status === 403) {
+        document.getElementById('achvLoading').style.display = 'none';
+        document.getElementById('achvContent').innerHTML =
+          '<div class="empty-state"><div style="margin-bottom:8px;"><i data-lucide="lock" style="width:2rem;height:2rem;opacity:0.4;"></i></div>This profile is private.</div>';
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+      if (!resp.ok) throw new Error();
+      _achvData = await resp.json();
+      renderAchievements(_achvData);
+    } catch(e) {
+      document.getElementById('achvLoading').style.display = 'none';
+      document.getElementById('achvContent').innerHTML =
+        '<div class="empty-state">Could not load achievements.</div>';
+    }
+  }
+
+  function renderAchievements(d) {
+    document.getElementById('achvLoading').style.display = 'none';
+    const el = document.getElementById('achvContent');
+
+    const summaryHtml = `
+      <div class="achv-summary">
+        <div class="achv-summary-stat"><div class="val">${d.total_earned}</div><div class="lbl">Earned</div></div>
+        <div class="achv-summary-stat"><div class="val">${d.total_possible}</div><div class="lbl">Total</div></div>
+        <div class="achv-summary-stat"><div class="val">${d.total_points.toLocaleString()}</div><div class="lbl">Points</div></div>
+      </div>`;
+
+    const showcaseHtml = _renderShowcase(d);
+
+    const bySection = {};
+    for (const a of d.achievements) {
+      if (!bySection[a.section]) bySection[a.section] = [];
+      bySection[a.section].push(a);
+    }
+
+    const sectionsHtml = SECTION_ORDER
+      .filter(s => bySection[s]?.length)
+      .map(s => {
+        const list = bySection[s];
+        const earnedCount = list.filter(a => a.earned).length;
+        return `
+          <div class="achv-section">
+            <div class="achv-section-header">
+              <span class="achv-section-name">${SECTION_NAMES[s]}</span>
+              <span class="achv-section-count">${earnedCount} / ${list.length}</span>
+            </div>
+            <div class="achv-grid">${list.map(renderAchvCard).join('')}</div>
+          </div>`;
+      }).join('');
+
+    el.innerHTML = summaryHtml + showcaseHtml + sectionsHtml;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function _renderShowcase(d) {
+    if (!d.badge_showcase_unlocked) return '';
+    const maxSlots = d.max_featured_slots || 3;
+    const featured = d.featured_badges || [];
+    const byId = {};
+    for (const a of d.achievements) byId[a.id] = a;
+
+    let slotsHtml = '';
+    for (let i = 0; i < maxSlots; i++) {
+      const aid = featured[i];
+      const a = aid ? byId[aid] : null;
+      const catClass = a?.category !== 'standard' ? ` cat-${a.category}` : '';
+      if (a) {
+        slotsHtml += `
+          <div class="achv-showcase-slot" title="${escHtml(a.description)}">
+            <div class="achv-badge"><div class="achv-badge-shape ${a.section}${catClass}"><i data-lucide="${a.icon}"></i></div></div>
+            <div class="achv-showcase-slot-name">${escHtml(a.name)}</div>
+          </div>`;
+      } else {
+        slotsHtml += `
+          <div class="achv-showcase-slot">
+            <div class="achv-badge"><div class="achv-badge-shape dice" style="opacity:0.2;"></div></div>
+            <div class="achv-showcase-slot-name" style="color:#374151;">Empty</div>
+          </div>`;
+      }
+    }
+
+    return `
+      <div class="achv-showcase">
+        <div class="achv-showcase-title">
+          <span>✦ Badge Showcase</span>
+          <span style="font-size:0.65rem;color:#6b7280;font-weight:400;text-transform:none;letter-spacing:0;">${maxSlots} slots</span>
+        </div>
+        <div class="achv-showcase-slots">${slotsHtml}</div>
+      </div>`;
+  }
+
+  function renderAchvCard(a) {
+    const diffLabel = a.difficulty
+      ? a.difficulty.charAt(0).toUpperCase() + a.difficulty.slice(1)
+      : ({ founding:'Founding', narrative:'Narrative', sw:'SW', shame:'Shame' }[a.category] || '');
+    const diffClass = a.difficulty || ({ founding:'founding', narrative:'narrative', sw:'sw', shame:'shame' }[a.category] || '');
+    const diffPill = diffLabel ? `<div class="achv-diff-pill ${diffClass}">${diffLabel}</div>` : '';
+    const catClass = a.category !== 'standard' ? ` cat-${a.category}` : '';
+    const earnedDate = a.earned && a.earned_at
+      ? new Date(a.earned_at).toLocaleDateString('en-US', { month:'short', year:'numeric' })
+      : '';
+    return `
+      <div class="achv-card ${a.earned ? 'earned' : 'locked'}" title="${escHtml(a.description)}">
+        ${a.earned ? '<div class="achv-checkmark">✓</div>' : ''}
+        <div class="achv-badge"><div class="achv-badge-shape ${a.section}${catClass}"><i data-lucide="${a.icon}"></i></div></div>
+        <div class="achv-name">${escHtml(a.name)}</div>
+        ${diffPill}
+        <div class="achv-rarity ${a.rarity_label}">${a.rarity_display}</div>
+        <div class="achv-pts">${a.points} pts</div>
+        ${earnedDate ? `<div class="achv-earned-date">✓ ${earnedDate}</div>` : ''}
+      </div>`;
+  }
+
+  lucide.createIcons();
+  loadProfile();
+</script>
+</body>
+</html>

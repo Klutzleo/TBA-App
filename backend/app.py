@@ -131,6 +131,8 @@ async def attach_request_id_and_auth(request: Request, call_next):
 
     # Exempt these paths from ALL authentication (public routes only)
     exempt_paths = {"/health", "/docs", "/openapi.json", "/", "/redoc"}
+    # Prefixes that are entirely public — no API key, no JWT
+    public_prefixes = ("/api/public",)
 
     # Auth routes (JWT-based authentication)
     auth_paths = {"/api/auth/register", "/api/auth/login", "/api/auth/logout",
@@ -147,8 +149,9 @@ async def attach_request_id_and_auth(request: Request, call_next):
     # Check if path starts with any JWT protected route
     is_jwt_protected = any(request.url.path.startswith(route) or request.url.path == route
                            for route in jwt_protected_routes)
+    is_public = request.url.path.startswith(public_prefixes)
 
-    if request.url.path.startswith("/api/") and request.url.path not in exempt_paths and not is_jwt_protected:
+    if request.url.path.startswith("/api/") and request.url.path not in exempt_paths and not is_jwt_protected and not is_public:
         provided_key = request.headers.get("X-API-Key")
         if not provided_key or provided_key != API_KEY:
             logger.warning(f"[{request_id}] Unauthorized: {request.method} {request.url.path}")
@@ -288,6 +291,13 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Failed to register notifications_router: {e}")
 
+try:
+    from routes.public_profile import public_router
+    application.include_router(public_router, tags=["Public"])
+    logger.info("✅ Registered public_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register public_router: {e}")
+
 
 # Custom OpenAPI schema
 def custom_openapi():
@@ -372,6 +382,16 @@ async def direct_join_campaign(code: str):
 
     # Redirect to campaigns page with join code
     return RedirectResponse(url=f"/campaigns.html?join={code}", status_code=302)
+
+@application.get("/u/{username}", response_class=HTMLResponse)
+async def player_profile_page(username: str):
+    """Serve the public shareable profile page for any player."""
+    static_path = Path(__file__).resolve().parent.parent / "static" / "player-profile.html"
+    try:
+        return HTMLResponse(static_path.read_text(encoding="utf-8"))
+    except Exception:
+        return HTMLResponse("<h1>Profile Not Found</h1>", status_code=404)
+
 
 # Mount static files BEFORE the if __name__ block
 application.mount("/", StaticFiles(directory="static", html=True), name="static")
