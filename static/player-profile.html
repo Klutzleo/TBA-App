@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TBA — Player Profile</title>
-  <meta name="description" content="Check out this player's achievements and characters in The Binding Arc.">
+  <meta name="description" content="Check out this player's achievements and characters in Tools for the Bad Ass.">
   <script src="/js/lucide.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -291,7 +291,7 @@
 <!-- CTA / nav bar — swapped based on login state -->
 <div id="ctaBanner" class="cta-banner" style="display:none;">
   <div class="cta-banner-text">
-    <strong>The Binding Arc</strong> — A tabletop RPG system with live digital support.
+    <strong>Tools for the Bad Ass</strong> — A tabletop RPG system with live digital support.
   </div>
   <div class="cta-banner-actions">
     <a href="/auth.html" class="btn-login">Sign In</a>
@@ -431,7 +431,7 @@
   }
 
   function shareProfile() {
-    const url = location.href;
+    const url = `https://tba-rpg.com/u/${encodeURIComponent(pathUsername)}`;
     navigator.clipboard?.writeText(url).then(() => {
       const btn = document.getElementById('shareBtn');
       btn.classList.add('share-copied');

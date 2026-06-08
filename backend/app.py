@@ -395,7 +395,8 @@ async def player_profile_page(username: str):
     """Serve the public shareable profile page for any player."""
     static_path = Path(__file__).resolve().parent.parent / "static" / "player-profile.html"
     try:
-        return HTMLResponse(static_path.read_text(encoding="utf-8"))
+        headers = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+        return HTMLResponse(static_path.read_text(encoding="utf-8"), headers=headers)
     except Exception:
         return HTMLResponse("<h1>Profile Not Found</h1>", status_code=404)
 
