@@ -17,18 +17,24 @@ An age gate toggles between these modes, adjusting language, narration tone, and
 
 ---
 
-## 🔧 Core Features (In Development)
+## 🔧 Core Features
 
-| Feature | Description |
-|---------|-------------|
-| **Real-Time Multiplayer Chat** | WebSocket party chat — IC/OOC, system macros, emotional tone indicators, message reactions. The living table where everything happens. |
-| **Narration Engine** | Every effect, roll, and action generates expressive, replayable story beats. |
-| **Modular API** | Endpoints for actors, effects, encounters, and chat-based resolution. |
-| **Session Manager** | Tracks scenes, rolls, emotional beats, and memory markers across campaigns. |
-| **Lore & Asset Library** | Taggable, reusable homebrew content—spells, NPCs, vehicles, and more. |
-| **Cross-Platform Spectator Mode** | View-only access from web, mobile, or Discord. Spectators can react to messages. |
-| **AI Assistant (Optional)** | Prompt-based support for NPC generation, scene narration, and lore expansion. |
-| **Age-Gated Experience** | Switch between adult and kid-friendly modes with filtered narration and UI. |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Real-Time Multiplayer Chat** | ✅ Live | WebSocket party chat — system macros, inline rolls, combat broadcast, persistent log. |
+| **Achievement System** | ✅ Live | 153 achievements across 11 categories. Rarity tiers, points, badge showcase, retroactive unlock, live toast + Zelda chime. |
+| **Public Player Profiles** | ✅ Live | Shareable `/u/username` pages showing stats, characters, achievements, and Story Weaver campaigns. No login required to view. |
+| **Notification Center** | ✅ Live | Push notifications for stat checks, achievement unlocks, and campaign activity. Live unread count in the top bar. |
+| **Bonds + Combo System** | ✅ Live | Characters form Bonds with allies and chain into Combo attacks. |
+| **Stat Check System** | ✅ Live | Story Weaver sends hidden-difficulty checks to players. Three modes: Character, Character VS NPC, NPC. |
+| **Narration Engine** | ✅ Live | Every roll, attack, and ability generates expressive narrative output. |
+| **Initiative & Encounter** | ✅ Live | `/initiative`, turn order, SW controls, auto-restore on encounter end. |
+| **Custom Ability Macros** | ✅ Live | Character-specific abilities with 6 effect types, usage tracking, and power sources (PP/IP/SP). |
+| **Tether Boosts** | ✅ Live | Combine BAP + Tethers into a single boost card after any roll. |
+| **Lore & Asset Library** | 🔄 Planned | Taggable, reusable homebrew content — spells, NPCs, vehicles, and more. |
+| **Social & Friends** | 🔄 Planned | Follow players, get notified when friends start a campaign. |
+| **Discord Integration** | 🔄 Planned | Link Discord account, earn the TBA Player role in the community server. |
+| **Age-Gated Experience** | 🔄 Planned | Switch between adult and kid-friendly modes with filtered narration and UI. |
 
 ---
 
@@ -44,22 +50,25 @@ TBA is built on three pillars:
 
 ## 🛠️ Development Status
 
-TBA is in active development. The backend engine is functional and modular, with narration, effect resolution, and encounter persistence already implemented. Upcoming sprints will focus on tactical coordination, reactive storytelling, and multiplayer session management.
-
-The UI and hosting layers will follow once the emotional and mechanical foundations are solid.
+TBA is in active development and live at [tba-rpg.com](https://tba-rpg.com). Core gameplay systems are fully operational — real-time combat, achievements, public player profiles, notification center, Bonds, Combo attacks, and stat checks are all shipped. Upcoming work focuses on social features, Discord integration, and emotional expression tools.
 
 ---
 
 ## 🧭 Roadmap Highlights
 
 - ✅ **Phase 1 MVP:** Multi-die combat resolution, FastAPI endpoints, Railway deployment
-- ✅ **Phase 2a:** Real-time WebSocket party chat (working on Railway)
+- ✅ **Phase 2a:** Real-time WebSocket party chat
 - ✅ **Phase 2b:** System macros (`/roll`, `/attack`, `/pp`/`/ip`/`/sp`), combat broadcasting, persistent chat
-- ✅ **Phase 2d:** Custom ability macros, initiative & encounter system, usage tracking (3 per level per encounter)
-- 🔄 **Phase 2c:** Emotional tone indicators, message reactions, markdown support
-- 🔄 **Phase 3:** Character builder UI improvements, ability slot management
-- 🧍 **Alpha Testing:** Chat tabs (IC/OOC/DMs), spectator integration (Discord/Twitch)
-- 🚀 **Beta:** Full encounter manager UI, campaign persistence, cross-platform spectator mode
+- ✅ **Phase 2d:** Custom ability macros, initiative & encounter system, usage tracking
+- ✅ **Stat Checks:** Hidden-difficulty checks, Character VS NPC mode, push notifications
+- ✅ **Achievement System:** 153 achievements, rarity, badge showcase, live toasts, retroactive unlock
+- ✅ **Public Profiles:** Shareable `/u/username` pages — stats, characters, achievements
+- ✅ **Notification Center:** Push alerts, live unread count, scroll icon drawer
+- ✅ **Bonds + Combo System:** Inter-character bonds that power Combo attacks
+- 🔄 **Social & Friends:** Follow players, friend activity feed
+- 🔄 **Discord Integration:** Account linking, community server role
+- 🔄 **Emotional Expression:** Tone indicators, message reactions, markdown support
+- 🚀 **Beta:** Full encounter manager UI, spectator mode, cross-platform access
 
 ---
 
