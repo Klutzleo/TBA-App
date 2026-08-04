@@ -694,7 +694,7 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
         db.rollback()
 
     # Broadcast to all connected clients
-    await manager.broadcast(campaign_id, broadcast_data)
+j    await manager.broadcast(campaign_id, broadcast_data)
 
     # Push notification for IC and OOC messages (narrator included)
     if db and chat_mode in ('ic', 'ooc') and not whisper_targets:

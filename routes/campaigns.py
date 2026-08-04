@@ -1005,6 +1005,32 @@ def get_campaign_messages(
         .limit(limit)\
         .all()
 
+    # Look up live status for any stat check requests in this page, so history
+    # replay can tell a still-pending check apart from a resolved one — the
+    # extra_data stored on the message is frozen at send time and never updated.
+    from backend.models import StatCheckRequest
+    stat_check_ids = []
+    for msg in messages:
+        if msg.message_type == "stat_check_request" and msg.extra_data:
+            req_id = msg.extra_data.get("request_id")
+            if req_id:
+                try:
+                    stat_check_ids.append(UUID(req_id))
+                except ValueError:
+                    pass
+    stat_check_statuses = {}
+    if stat_check_ids:
+        rows = db.query(StatCheckRequest.id, StatCheckRequest.status)\
+            .filter(StatCheckRequest.id.in_(stat_check_ids)).all()
+        stat_check_statuses = {str(r.id): r.status for r in rows}
+
+    def _extra_data(msg):
+        if msg.message_type != "stat_check_request" or not msg.extra_data:
+            return msg.extra_data
+        req_id = msg.extra_data.get("request_id")
+        status = stat_check_statuses.get(req_id, "resolved")
+        return {**msg.extra_data, "status": status}
+
     return {
         "campaign_id": campaign_id,
         "messages": [
@@ -1018,7 +1044,7 @@ def get_campaign_messages(
                 "chat_mode": msg.mode,     # Frontend expects 'chat_mode'
                 "message_type": msg.message_type,  # Keep for backward compatibility
                 "mode": msg.mode,                  # Keep for backward compatibility
-                "extra_data": msg.extra_data,      # Include extra_data (dice roll breakdowns, etc.)
+                "extra_data": _extra_data(msg),    # Include extra_data (dice roll breakdowns, etc.)
                 "is_edited": msg.is_edited or False,
                 "timestamp": msg.created_at.isoformat() if msg.created_at else None
             }

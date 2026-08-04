@@ -4,7 +4,7 @@ Bond management — SW declares/breaks bonds between characters.
 """
 import logging
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -47,10 +47,6 @@ class BondCreate(BaseModel):
     character_id_b: UUID
     combo_name: Optional[str] = None
     combo_description: Optional[str] = None
-
-
-class BondBreak(BaseModel):
-    pass
 
 
 # ── GET /api/campaigns/{id}/bonds ──────────────────────────────────
@@ -157,10 +153,11 @@ async def update_bond(
 async def break_bond(
     campaign_id: UUID,
     bond_id: UUID,
+    weight: int = Query(-1),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """SW breaks a bond. Triggers grief tether on both characters via WS."""
+    """SW breaks a bond. Triggers grief tether (SW-weighted) on both characters via WS."""
     if not _is_sw(campaign_id, current_user, db):
         raise HTTPException(status_code=403, detail="Only the Story Weaver can break bonds")
 
@@ -175,7 +172,9 @@ async def break_bond(
     bond.broken_at = datetime.utcnow()
     bond.broken_by_user_id = current_user.id
 
-    # Apply grief tether (−1) to both characters
+    # Grief Tether weight is SW-selected per the significance of the Bond, clamped to -5..-1
+    weight = max(-5, min(-1, weight))
+
     grief_applied = []
     for char_id in [bond.character_id_a, bond.character_id_b]:
         char = db.query(Character).filter(Character.id == char_id).first()
@@ -185,7 +184,7 @@ async def break_bond(
                 "id": str(bond.id) + "_grief",
                 "description": f"Grief Tether — bond with {bond.char_b.name if str(char_id) == str(bond.character_id_a) else bond.char_a.name} broken",
                 "is_active": True,
-                "modifier": -1,
+                "modifier": weight,
                 "source": "grief",
             })
             char.tethers = tethers
