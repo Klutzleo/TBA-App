@@ -10424,12 +10424,12 @@
                 const d = msg.extra_data || {};
                 // Backend attaches live `status` (pending/resolved) so a still-open
                 // check keeps its roll button across a page reload.
-                const card = renderStatCheckRequestCard(d);
+                const card = renderStatCheckRequestCard({ ...d, timestamp: msg.timestamp });
                 storeAndDisplayMessage(card, { type: 'stat_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
               }
               else if (msg.message_type === 'stat_check_result') {
                 const d = msg.extra_data || {};
-                const card = renderStatCheckResultCard(d);
+                const card = renderStatCheckResultCard({ ...d, timestamp: msg.timestamp });
                 storeAndDisplayMessage(card, { type: 'stat_check_result', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
               }
               else if (msg.message_type === 'stat_roll') {
@@ -13520,11 +13520,21 @@
           ? `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">Waiting for ${escHtml(data.character_name || '')} to roll…</div>`
           : '';
 
+      const timestamp = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
       const div = document.createElement('div');
       div.className = 'message-item';
       div.style.cssText = 'background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.25);border-radius:10px;padding:12px 14px;margin:4px 0;';
-      div.innerHTML = `
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+
+      const outerRow = document.createElement('div');
+      outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+      outerRow.appendChild(buildAvatarEl(data.character_name, null));
+
+      const contentCol = document.createElement('div');
+      contentCol.style.cssText = 'flex:1;min-width:0;';
+      contentCol.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          <span style="color:var(--text-muted);font-size:0.78rem;">[${timestamp}]</span>
           <span style="font-size:1rem;">🎯</span>
           <span style="font-weight:700;color:#a78bfa;font-size:0.88rem;">Stat Check — ${data.stat}${vsLabel}</span>
           ${bapBadge}
@@ -13537,6 +13547,8 @@
         ${flavor}
         ${rollBtn}
       `;
+      outerRow.appendChild(contentCol);
+      div.appendChild(outerRow);
       return div;
     }
 
@@ -13552,12 +13564,22 @@
       const isVs = data.mode === 'vs';
       const rightLabel = isVs ? escHtml(data.npc_name || data.difficulty_label) : (data.difficulty_label || 'Difficulty');
 
+      const timestamp = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
       const div = document.createElement('div');
       div.className = 'message-item';
       div.style.cssText = `background:rgba(${won ? '52,211,153' : '248,113,113'},0.06);border:1px solid rgba(${won ? '52,211,153' : '248,113,113'},0.25);border-radius:10px;padding:12px 14px;margin:4px 0;`;
-      div.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="display:flex;align-items:center;gap:6px;">
+
+      const outerRow = document.createElement('div');
+      outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+      outerRow.appendChild(buildAvatarEl(data.character_name, null));
+
+      const contentCol = document.createElement('div');
+      contentCol.style.cssText = 'flex:1;min-width:0;';
+      contentCol.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="color:var(--text-muted);font-size:0.78rem;">[${timestamp}]</span>
             <span style="font-size:1rem;">🎯</span>
             <span style="font-weight:700;color:${color};font-size:0.88rem;">Stat Check — ${data.stat} — ${label}</span>
             ${bapBadge}
@@ -13585,6 +13607,8 @@
           Margin: ${marginText}
         </div>
       `;
+      outerRow.appendChild(contentCol);
+      div.appendChild(outerRow);
       return div;
     }
   </script>
