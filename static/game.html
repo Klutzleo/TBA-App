@@ -13501,6 +13501,17 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
     }
 
+    // Look up a character/NPC's assigned chat color by name, for the left accent
+    // stripe convention used on every other message card in the feed.
+    function lookupChatColor(name) {
+      if (!name) return null;
+      const pc = (knownPCs || []).find(c => c.name === name);
+      if (pc && pc.chat_color) return pc.chat_color;
+      const npc = (campaignNPCs || []).find(c => c.name === name);
+      if (npc && npc.chat_color) return npc.chat_color;
+      return null;
+    }
+
     function renderStatCheckRequestCard(data) {
       const isTarget = characterId && String(characterId) === String(data.character_id);
       // Live requests carry no `status` field (they were just created, always pending).
@@ -13521,14 +13532,16 @@
           : '';
 
       const timestamp = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const chatColor = lookupChatColor(data.character_name);
 
       const div = document.createElement('div');
       div.className = 'message-item';
       div.style.cssText = 'background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.25);border-radius:10px;padding:12px 14px;margin:4px 0;';
+      if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
 
       const outerRow = document.createElement('div');
       outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
-      outerRow.appendChild(buildAvatarEl(data.character_name, null));
+      outerRow.appendChild(buildAvatarEl(data.character_name, chatColor));
 
       const contentCol = document.createElement('div');
       contentCol.style.cssText = 'flex:1;min-width:0;';
@@ -13565,14 +13578,16 @@
       const rightLabel = isVs ? escHtml(data.npc_name || data.difficulty_label) : (data.difficulty_label || 'Difficulty');
 
       const timestamp = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const chatColor = lookupChatColor(data.character_name);
 
       const div = document.createElement('div');
       div.className = 'message-item';
       div.style.cssText = `background:rgba(${won ? '52,211,153' : '248,113,113'},0.06);border:1px solid rgba(${won ? '52,211,153' : '248,113,113'},0.25);border-radius:10px;padding:12px 14px;margin:4px 0;`;
+      if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
 
       const outerRow = document.createElement('div');
       outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
-      outerRow.appendChild(buildAvatarEl(data.character_name, null));
+      outerRow.appendChild(buildAvatarEl(data.character_name, chatColor));
 
       const contentCol = document.createElement('div');
       contentCol.style.cssText = 'flex:1;min-width:0;';
