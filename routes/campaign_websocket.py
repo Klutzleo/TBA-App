@@ -2879,11 +2879,10 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     stat_value = getattr(char, req.stat.lower(), 1) or 1
     edge = char.edge or 0
 
-    # Sum active debuff modifiers
+    # Sum active debuff modifiers (rows are removed on expiry — presence means active)
     from backend.models import ActiveEffect
     effects = db.query(ActiveEffect).filter(
         ActiveEffect.character_id == char.id,
-        ActiveEffect.expires_at > _dt.utcnow(),
     ).all()
     debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
 
