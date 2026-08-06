@@ -1511,6 +1511,8 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
                 old_dp = target.dp
                 target.dp -= damage
                 db.commit()
+                if damage > 0:
+                    await cancel_holding_combo_on_damage(campaign_id, target.id, db)
                 outcome = "hit" if damage > 0 else "miss"
                 atk_bd = f"{ability.die}=[{'+'.join(str(r) for r in attack_rolls)}]+IP({power_stat})+Edge({caster.edge})={attack_total}"
                 def_bd = f"{target.defense_die}=[{'+'.join(str(r) for r in def_rolls)}]+IP({target_stat})+Edge({target.edge or 0})={defense_total}"
@@ -1888,6 +1890,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                         calling_triggered = True
 
                 db.commit()
+
+                if damage > 0:
+                    await cancel_holding_combo_on_damage(campaign_id, target.id, db)
 
                 outcome = "hit" if damage > 0 else "miss"
                 atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
@@ -4040,6 +4045,48 @@ async def advance_turn(
         except Exception:
             pass
         await websocket.send_json({"type": "error", "message": "❌ Failed to advance turn. Please try again."})
+
+
+async def cancel_holding_combo_on_damage(campaign_id: UUID, character_id, db: Session):
+    """If a character holding for a Combo takes damage before it fires, cancel it —
+    the proposer resumes their normal turn rotation and the acceptor takes their
+    turn normally instead of being pulled into the ability-select flow."""
+    from backend.models import PendingCombo
+
+    encounter = db.query(Encounter).filter(
+        Encounter.campaign_id == campaign_id,
+        Encounter.is_active == True,  # noqa: E712
+    ).first()
+    if not encounter:
+        return
+
+    combo = db.query(PendingCombo).filter(
+        PendingCombo.encounter_id == encounter.id,
+        PendingCombo.proposer_character_id == character_id,
+        PendingCombo.status.in_(["pending", "holding"]),
+    ).first()
+    if not combo:
+        return
+
+    combo.status = "cancelled"
+    db.commit()
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    acceptor_char = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
+    proposer_name = proposer_char.name if proposer_char else "Unknown"
+    acceptor_name = acceptor_char.name if acceptor_char else "Unknown"
+
+    await manager.broadcast(campaign_id, {
+        "type": "combo_cancelled",
+        "combo_id": str(combo.id),
+        "reason": "proposer_damaged",
+        "proposer_character_id": str(combo.proposer_character_id),
+        "proposer_name": proposer_name,
+        "acceptor_name": acceptor_name,
+        "message": f"💔 {proposer_name} took damage — the Combo with {acceptor_name} is cancelled!",
+    })
+
+    logger.info(f"Combo cancelled (proposer damaged): {combo.id}")
 
 
 async def _handle_combo_propose(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):

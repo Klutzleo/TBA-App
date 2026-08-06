@@ -2662,7 +2662,8 @@
           style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;opacity:0.6;color:inherit;display:flex;align-items:center;">
           <i data-lucide="book-open" style="width:18px;height:18px;"></i></button>
         <a href="https://ko-fi.com/gameoctane" target="_blank" title="Support TBA on Ko-fi"
-          style="font-size:1.1rem;padding:2px 6px;margin-left:2px;opacity:0.45;text-decoration:none;">☕</a>
+          style="display:inline-flex;align-items:center;padding:2px 6px;margin-left:2px;opacity:0.45;text-decoration:none;color:inherit;">
+          <i data-lucide="coffee" style="width:18px;height:18px;"></i></a>
       </div>
     </header>
     <div id="campaignNameBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:3px 8px;font-size:0.75rem;color:var(--text-muted);font-style:italic;border-bottom:1px solid rgba(255,255,255,0.05);"></div>
@@ -9611,17 +9612,22 @@
       headerRow.appendChild(sep1);
 
       const modeConfigs = {
-        ic:      { label: '🎭 In Character', cls: 'message-ic' },
-        ooc:     { label: '💬 Out of Character', cls: 'message-ooc' },
-        whisper: { label: '🤫 Whisper', cls: 'message-whisper' }
+        ic:      { icon: 'drama', label: 'In Character', cls: 'message-ic' },
+        ooc:     { icon: 'message-circle', label: 'Out of Character', cls: 'message-ooc' },
+        whisper: { icon: 'eye-off', label: 'Whisper', cls: 'message-whisper' }
       };
       const cfg = modeConfigs[mode];
       container.className = cfg.cls;
 
       const modeSpan = document.createElement('span');
       modeSpan.className = 'mode-label';
-      modeSpan.textContent = cfg.label;
+      const modeIconEl = document.createElement('i');
+      modeIconEl.setAttribute('data-lucide', cfg.icon);
+      modeIconEl.style.cssText = 'width:12px;height:12px;vertical-align:middle;margin-right:3px;';
+      modeSpan.appendChild(modeIconEl);
+      modeSpan.appendChild(document.createTextNode(cfg.label));
       headerRow.appendChild(modeSpan);
+      if (window.lucide) lucide.createIcons({ el: modeSpan });
 
       const sep2 = document.createElement('span');
       sep2.style.color = 'var(--text-muted)';
@@ -12339,6 +12345,15 @@
               document.getElementById('comboAbilityModal').style.display = 'none';
               showComboAbilityPicker(data);
 
+            } else if (data.type === 'combo_cancelled') {
+              // Proposer took damage while holding — combo is off, acceptor takes their turn normally
+              _holdingComboIds.delete(data.proposer_character_id);
+              if (_activeComboId === data.combo_id) _activeComboId = null;
+              if (_pendingComboId === data.combo_id) _pendingComboId = null;
+              document.getElementById('comboAbilityModal').style.display = 'none';
+              if (userRole === 'SW') renderInitiativeTracker();
+              showPanelToast(`💔 ${escHtml(data.message || 'Combo cancelled')}`, 'error');
+
             } else if (data.type === 'combo_resolved') {
               _holdingComboIds.delete(data.proposer?.character_id);
               _activeComboId = null;
@@ -13317,15 +13332,16 @@
         notesBtn.className = 'tab-btn';
         notesBtn.dataset.tab = 'player_notes';
         notesBtn.onclick = () => switchTab('player_notes');
-        notesBtn.textContent = '📓 Notes';
+        notesBtn.innerHTML = '<i data-lucide="file-text" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Notes';
         tabBarEl.appendChild(notesBtn);
 
         const invBtn = document.createElement('button');
         invBtn.className = 'tab-btn';
         invBtn.dataset.tab = 'inventory';
         invBtn.onclick = () => switchTab('inventory');
-        invBtn.textContent = '📦 Inventory';
+        invBtn.innerHTML = '<i data-lucide="backpack" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Inventory';
         tabBarEl.appendChild(invBtn);
+        if (window.lucide) lucide.createIcons({ el: tabBarEl });
       }
       loadPlayerNotes();
       loadInventory();
