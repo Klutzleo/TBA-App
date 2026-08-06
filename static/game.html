@@ -2677,7 +2677,7 @@
           <button class="back-button" style="flex:1;" onclick="window.location.href='/campaigns.html'">
             ← Campaigns
           </button>
-          <button title="Leave this campaign" onclick="leaveCampaignFromGame()" style="background:none;border:none;color:var(--accent-danger);font-size:0.72rem;cursor:pointer;padding:4px 8px;opacity:0.65;white-space:nowrap;align-self:center;flex-shrink:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.65">Leave ✕</button>
+          <button title="Leave this campaign" onclick="leaveCampaignFromGame()" style="background:none;border:none;color:var(--accent-danger);font-size:0.72rem;cursor:pointer;padding:4px 8px;opacity:0.65;white-space:nowrap;align-self:center;flex-shrink:0;display:inline-flex;align-items:center;gap:3px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.65">Leave <i data-lucide="log-out" style="width:12px;height:12px;"></i></button>
         </div>
 
         <!-- SW-only sidebar tab switcher -->
@@ -2783,7 +2783,7 @@
         <!-- Pinned message banner — always visible above chat, never scrolls -->
         <div id="pinBanner" style="display:none;">
           <span id="pinBannerText"></span>
-          <button id="pinBannerUnpin" title="Unpin" onclick="unpinMessage()" style="display:none;">✕</button>
+          <button id="pinBannerUnpin" title="Unpin" onclick="unpinMessage()" style="display:none;"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
         </div>
 
         <!-- Character Bubble Bar (for active speaker switching) -->
@@ -2793,7 +2793,7 @@
           <!-- Populated dynamically via JS -->
         </div>
 
-        <button id="scrollToBottomBtn" title="Scroll to latest" onclick="chatMessagesEl.scrollTop=chatMessagesEl.scrollHeight" style="display:none;">↓</button>
+        <button id="scrollToBottomBtn" title="Scroll to latest" onclick="chatMessagesEl.scrollTop=chatMessagesEl.scrollHeight" style="display:none;"><i data-lucide="arrow-down" style="width:14px;height:14px;"></i></button>
 
         <button id="loadMoreBtn" class="load-more-btn" style="display: none;">
           Load Older Messages
@@ -2861,7 +2861,7 @@
 
         <!-- Player Notepad Pane (hidden until Notes tab active, player only) -->
         <div id="playerNotesPane" style="display:none; flex:1; flex-direction:column; padding:12px 16px; gap:8px;">
-          <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;">📓 Your Notes — private, only you can see these</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;display:flex;align-items:center;gap:4px;"><i data-lucide="file-text" style="width:12px;height:12px;"></i>Your Notes — private, only you can see these</div>
           <textarea id="playerNotesTextarea"
             placeholder="Jot down clues, NPC names, quest hooks, things to remember..."
             style="flex:1; width:100%; min-height:300px; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:var(--radius); padding:12px; font-size:0.875rem; line-height:1.6; resize:vertical; font-family:inherit;"></textarea>
@@ -2871,7 +2871,7 @@
         <!-- Inventory Pane (player only) -->
         <div id="inventoryPane">
           <div class="inv-currency-bar">
-            <label>💰</label>
+            <label><i data-lucide="coins" style="width:14px;height:14px;"></i></label>
             <input id="invCurrencyInput" class="inv-currency-input" type="number" min="0" value="0"
               onchange="saveCurrency()" title="Your currency">
             <span id="invCurrencyName" class="inv-currency-name">Gold</span>
@@ -3039,7 +3039,7 @@
             <div style="display:flex; align-items:center; gap:8px;">
               <img id="imagePreviewThumb" src="" alt="" style="height:56px; width:auto; max-width:110px; border-radius:4px; object-fit:cover; border:1px solid var(--border-color);">
               <span id="imagePreviewName" style="font-size:0.75rem; color:var(--text-muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
-              <button onclick="clearStagedImage()" title="Remove" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.1rem;padding:2px 6px;line-height:1;border-radius:4px;">✕</button>
+              <button onclick="clearStagedImage()" title="Remove" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px 6px;line-height:1;border-radius:4px;display:inline-flex;align-items:center;"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
             </div>
           </div>
           <div class="chat-input-main">
@@ -3051,12 +3051,12 @@
             ></textarea>
             <button class="input-row-only" title="Expand editor" onclick="openExpandedEditor()"
               style="background:var(--bg-input,#1e2130);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;padding:2px 9px;font-size:0.82rem;cursor:pointer;line-height:1.6;flex-shrink:0;align-self:center;transition:background 0.15s;min-width:auto;width:auto;"
-              onmouseover="this.style.background='var(--bg-hover,#252937)'" onmouseout="this.style.background='var(--bg-input,#1e2130)'">⛶</button>
+              onmouseover="this.style.background='var(--bg-hover,#252937)'" onmouseout="this.style.background='var(--bg-input,#1e2130)'"><i data-lucide="maximize-2" style="width:13px;height:13px;"></i></button>
             <button id="colorPickerBtn" class="input-row-only" title="Chat color" onclick="toggleColorPicker()"
               style="width:28px;height:28px;min-width:28px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:#d4af37;"></button>
             <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
             <button id="attachBtn" class="input-row-only" title="Upload image (or Ctrl+V to paste)" onclick="document.getElementById('imageFileInput').click()"
-              style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);font-size:1rem;display:none;">📎</button>
+              style="width:32px;height:32px;min-width:32px;border-radius:6px;border:1px solid var(--border-color);cursor:pointer;flex-shrink:0;padding:0;align-self:center;background:var(--bg-secondary);color:var(--text-muted);display:none;"><i data-lucide="paperclip" style="width:15px;height:15px;"></i></button>
             <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
           </div>
         </div>
@@ -3201,7 +3201,7 @@
         <p style="color:var(--text-muted);">Loading...</p>
       </div>
       <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border-color);">
-        <button id="playerSheetEditBtn" class="btn" style="display:none;" onclick="openPlayerSheetEdit()">✏️ Edit Stats</button>
+        <button id="playerSheetEditBtn" class="btn" style="display:none;" onclick="openPlayerSheetEdit()"><i data-lucide="pencil" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Edit Stats</button>
         <button class="btn btn-secondary" onclick="closePlayerSheetModal()">Close</button>
       </div>
     </div>
@@ -3702,8 +3702,8 @@
           <button class="btn" style="padding:4px 12px;" onclick="addAoeTarget()">Add</button>
         </div>
         <div style="display:flex; gap:10px;">
-          <button class="btn" style="flex:1;" onclick="submitAoeApproval()">✅ Approve</button>
-          <button class="btn" style="flex:1; background:var(--accent-danger);" onclick="denyAoeCast()">❌ Deny</button>
+          <button class="btn" style="flex:1;" onclick="submitAoeApproval()"><i data-lucide="check" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Approve</button>
+          <button class="btn" style="flex:1; background:var(--accent-danger);" onclick="denyAoeCast()"><i data-lucide="x" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Deny</button>
         </div>
       </div>
     </div>
@@ -3713,7 +3713,7 @@
   <div id="aoeCasterModal" class="modal">
     <div class="modal-content" style="max-width: 420px;">
       <div class="modal-header" style="border-bottom-color: var(--accent-dice);">
-        <h2 style="color: var(--accent-dice);">🌀 SW Modified Targets</h2>
+        <h2 style="color: var(--accent-dice);"><i data-lucide="radar" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"></i>SW Modified Targets</h2>
       </div>
       <div class="modal-body">
         <p id="aoeCasterLabel" style="margin-bottom:12px;"></p>
@@ -3728,8 +3728,8 @@
           </div>
         </div>
         <div style="display:flex; gap:10px;">
-          <button class="btn" style="flex:1;" onclick="confirmAoeCast()">⚡ Cast with SW targets</button>
-          <button class="btn" style="flex:1; background:var(--bg-panel);" onclick="cancelAoeCast()">✋ Cancel</button>
+          <button class="btn" style="flex:1;" onclick="confirmAoeCast()"><i data-lucide="zap" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Cast with SW targets</button>
+          <button class="btn" style="flex:1; background:var(--bg-panel);" onclick="cancelAoeCast()"><i data-lucide="x" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Cancel</button>
         </div>
       </div>
     </div>
@@ -3738,7 +3738,7 @@
   <div id="theCallingModal" class="modal">
     <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header" style="border-bottom-color: var(--accent-danger);">
-        <h2 style="color: var(--accent-danger);">💀 THE CALLING</h2>
+        <h2 style="color: var(--accent-danger);"><i data-lucide="skull" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"></i>THE CALLING</h2>
         <button class="modal-close" onclick="closeCallingModal()">&times;</button>
       </div>
       <div class="modal-body">
@@ -3774,8 +3774,8 @@
           <div id="callingPlayerRoll" style="display:none; margin-bottom:12px;">
             <p style="margin-bottom:8px; font-size:0.85rem; color:var(--text-muted);">Your answer will be spoken aloud. Choose your stat to fight back:</p>
             <div style="display:flex; gap:10px;">
-              <button class="btn" id="callingRollIP" onclick="resolveTheCalling('ip')" style="flex:1;">🧠 Roll with IP</button>
-              <button class="btn" id="callingRollSP" onclick="resolveTheCalling('sp')" style="flex:1; background:var(--accent-secondary);">💬 Roll with SP</button>
+              <button class="btn" id="callingRollIP" onclick="resolveTheCalling('ip')" style="flex:1;"><i data-lucide="brain" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Roll with IP</button>
+              <button class="btn" id="callingRollSP" onclick="resolveTheCalling('sp')" style="flex:1; background:var(--accent-secondary);"><i data-lucide="message-circle" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Roll with SP</button>
             </div>
           </div>
 
@@ -3783,8 +3783,8 @@
           <details id="callingSWBackupRoll" style="display:none; margin-bottom:12px;">
             <summary style="font-size:0.8rem; color:var(--text-muted); cursor:pointer;">Roll for player (backup — only if they're offline)</summary>
             <div style="display:flex; gap:10px; margin-top:8px;">
-              <button class="btn btn-secondary" onclick="resolveTheCalling('ip')" style="flex:1; font-size:0.85rem;">🧠 IP (backup)</button>
-              <button class="btn btn-secondary" onclick="resolveTheCalling('sp')" style="flex:1; font-size:0.85rem;">💬 SP (backup)</button>
+              <button class="btn btn-secondary" onclick="resolveTheCalling('ip')" style="flex:1; font-size:0.85rem;"><i data-lucide="brain" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>IP (backup)</button>
+              <button class="btn btn-secondary" onclick="resolveTheCalling('sp')" style="flex:1; font-size:0.85rem;"><i data-lucide="message-circle" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>SP (backup)</button>
             </div>
           </details>
 
@@ -3806,7 +3806,7 @@
             <textarea id="callingTetherText" rows="2"
               style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:4px; color:var(--text-primary); padding:6px; resize:vertical; box-sizing:border-box; font-size:0.85rem;"></textarea>
             <div style="display:flex; gap:8px; margin-top:8px;">
-              <button class="btn" style="flex:1; font-size:0.85rem;" onclick="saveScarAsTether()">🔗 Add Tether</button>
+              <button class="btn" style="flex:1; font-size:0.85rem;" onclick="saveScarAsTether()"><i data-lucide="link" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Add Tether</button>
               <button class="btn btn-secondary" style="flex:1; font-size:0.85rem;" onclick="document.getElementById('callingTetherPrompt').style.display='none'">Skip</button>
             </div>
           </div>
@@ -3867,7 +3867,7 @@
   <div id="deleteCharacterModal" class="modal">
     <div class="modal-content" style="max-width:380px;">
       <div class="modal-header" style="border-bottom-color:#ef4444;">
-        <h2 style="color:#ef4444;">🗑️ Delete Character</h2>
+        <h2 style="color:#ef4444;"><i data-lucide="trash-2" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"></i>Delete Character</h2>
         <button class="modal-close" onclick="closeDeleteCharacterModal()">&times;</button>
       </div>
       <div class="modal-body">
@@ -3882,14 +3882,14 @@
   <div id="healModal" class="modal">
     <div class="modal-content" style="max-width:360px;">
       <div class="modal-header" style="border-bottom-color:var(--accent-success);">
-        <h2 style="color:var(--accent-success);">❤️ Heal DP</h2>
+        <h2 style="color:var(--accent-success);"><i data-lucide="heart-pulse" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"></i>Heal DP</h2>
         <button class="modal-close" onclick="closeHealModal()">&times;</button>
       </div>
       <div class="modal-body">
         <p id="healCharLabel" style="font-weight:bold;margin-bottom:4px;"></p>
         <p id="healDpLabel" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px;"></p>
         <div style="display:flex;flex-direction:column;gap:10px;">
-          <button class="btn" style="background:var(--accent-success);color:#fff;" onclick="doHeal(true)">❤️ Full Heal</button>
+          <button class="btn" style="background:var(--accent-success);color:#fff;" onclick="doHeal(true)"><i data-lucide="heart-pulse" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Full Heal</button>
           <div style="display:flex;gap:8px;align-items:center;">
             <input type="number" id="healAmountInput" min="1" max="999" placeholder="Amount"
               style="flex:1;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.95rem;">
@@ -3971,7 +3971,7 @@
     <div id="levelUpModal" class="modal">
     <div class="modal-content" style="max-width: 460px;">
       <div class="modal-header" style="border-bottom-color: var(--accent-primary);">
-        <h2 style="color: var(--accent-primary);">⬆️ Level Up</h2>
+        <h2 style="color: var(--accent-primary);"><i data-lucide="arrow-up" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"></i>Level Up</h2>
         <button class="modal-close" onclick="closeLevelUpModal()">&times;</button>
       </div>
       <div class="modal-body">
@@ -4016,7 +4016,7 @@
           <div id="levelUpSlotBody" style="font-size:0.85rem;"></div>
         </div>
 
-        <button class="btn" style="width:100%;" onclick="confirmLevelUp()">⬆️ Confirm Level Up</button>
+        <button class="btn" style="width:100%;" onclick="confirmLevelUp()"><i data-lucide="arrow-up" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Confirm Level Up</button>
       </div>
     </div>
   </div>
@@ -4144,7 +4144,7 @@
       <!-- NPC Inventory Section -->
       <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border-color);">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-          <label class="form-label" style="margin:0;">🎒 Inventory</label>
+          <label class="form-label" style="margin:0;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="backpack" style="width:13px;height:13px;"></i>Inventory</label>
           <button class="btn" style="font-size:0.75rem; padding:3px 10px;"
             onclick="openAddItemModal(document.getElementById('editNpcId').value)">+ Add Item</button>
         </div>
@@ -4941,7 +4941,7 @@
           rejectedBubble.className = 'character-bubble';
           rejectedBubble.style.cssText = 'border:2px solid #7c2a2a;cursor:default;opacity:0.8;';
           rejectedBubble.innerHTML = `
-            <div class="bubble-avatar" style="background:#7c2a2a;font-size:1rem;">❌</div>
+            <div class="bubble-avatar" style="background:#7c2a2a;font-size:1rem;"><i data-lucide="x" style="width:14px;height:14px;"></i></div>
             <div class="bubble-name" style="color:#ffb3b3;">Rejected</div>
           `;
           bubbleBar.appendChild(rejectedBubble);
@@ -5285,10 +5285,10 @@
           <button class="fmt-btn macro-btn" data-macro="${escHtml(a.macro_command)}" title="${escHtml(a.display_name)}">${escHtml(a.macro_command)}</button>
         `).join('')}
         <div class="toolbar-sep toolbar-mobile-only"></div>
-        <button class="fmt-btn toolbar-mobile-only" title="Expand editor" onclick="openExpandedEditor()">⛶</button>
+        <button class="fmt-btn toolbar-mobile-only" title="Expand editor" onclick="openExpandedEditor()"><i data-lucide="maximize-2" style="width:14px;height:14px;"></i></button>
         <button class="toolbar-mobile-only" id="colorPickerBtnMobile" title="Chat color" onclick="toggleColorPicker()"
           style="width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;padding:0;align-self:center;background:${currentColor};flex-shrink:0;"></button>
-        <button class="fmt-btn toolbar-mobile-only" id="attachBtnMobile" title="Upload image" onclick="document.getElementById('imageFileInput').click()">📎</button>
+        <button class="fmt-btn toolbar-mobile-only" id="attachBtnMobile" title="Upload image" onclick="document.getElementById('imageFileInput').click()"><i data-lucide="paperclip" style="width:14px;height:14px;"></i></button>
       `;
     }
 
@@ -5670,7 +5670,8 @@
     async function awardRetroactiveBap(attackerId, messageId, btn, container) {
       if (!attackerId || !messageId) return;
       btn.disabled = true;
-      btn.textContent = '✦ Awarding…';
+      btn.innerHTML = '<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Awarding…';
+      if (window.lucide) lucide.createIcons({ el: btn });
       try {
         const resp = await fetch(`/api/characters/${attackerId}/bap-retroactive`, {
           method: 'POST',
@@ -5681,7 +5682,8 @@
         // WS bap_retroactive broadcast will update all clients' cards
       } catch (e) {
         btn.disabled = false;
-        btn.textContent = '✦ Award BAP';
+        btn.innerHTML = '<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Award BAP';
+        if (window.lucide) lucide.createIcons({ el: btn });
         showPanelToast(`Error: ${e.message}`, 'error');
       }
     }
@@ -5705,7 +5707,7 @@
       bapRow.className = 'boost-option';
       bapRow.innerHTML = `
         <input type="checkbox" id="boostChkBap" onchange="updateBoostPreview()">
-        <label for="boostChkBap">✦ BAP</label>
+        <label for="boostChkBap"><i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>BAP</label>
         <span class="boost-modifier">+${bap}</span>`;
       optionsEl.appendChild(bapRow);
 
@@ -5715,11 +5717,12 @@
         row.className = 'boost-option';
         row.innerHTML = `
           <input type="checkbox" id="boostChkTether_${i}" data-tether-id="${t.id}" data-modifier="${t.modifier}" onchange="updateBoostPreview()">
-          <label for="boostChkTether_${i}">🔗 ${escHtml(t.description)}</label>
+          <label for="boostChkTether_${i}"><i data-lucide="link" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>${escHtml(t.description)}</label>
           <span class="boost-tether-mod">${t.modifier > 0 ? '+' : ''}${t.modifier}</span>`;
         optionsEl.appendChild(row);
       });
 
+      if (window.lucide) lucide.createIcons({ el: optionsEl });
       updateBoostPreview();
       document.getElementById('boostModal').classList.add('open');
     }
@@ -5753,7 +5756,8 @@
 
       const btn = document.getElementById('boostApplyBtn');
       btn.disabled = true;
-      btn.textContent = '⚡ Applying…';
+      btn.innerHTML = '<i data-lucide="zap" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Applying…';
+      if (window.lucide) lucide.createIcons({ el: btn });
 
       try {
         const resp = await fetch(`/api/characters/${_boostState.charId}/apply-boosts`, {
@@ -5771,7 +5775,8 @@
         // WS boosts_applied broadcast handles all clients' UI updates
       } catch (e) {
         btn.disabled = false;
-        btn.textContent = '⚡ APPLY BOOST';
+        btn.innerHTML = '<i data-lucide="zap" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>APPLY BOOST';
+        if (window.lucide) lucide.createIcons({ el: btn });
         showPanelToast(`Boost error: ${e.message}`, 'error');
       }
     }
@@ -5849,7 +5854,7 @@
     const TIER_HEAL = {1:6, 2:8, 3:10, 4:12, 5:12, 6:16};
     const TIER_MOD  = {1:1, 2:2, 3:3,  4:4,  5:5,  6:6};
     const TIER_DIE  = {1:'1d6', 2:'1d8', 3:'1d10', 4:'1d12', 5:'2d6', 6:'2d8'};
-    const TYPE_ICON = {consumable:'🧪', key_item:'🔑', equipment:'⚔️', misc:'🎒'};
+    const TYPE_ICON = {consumable:'flask-conical', key_item:'key', equipment:'sword', misc:'backpack'};
     const TYPE_LABEL = {consumable:'Consumable', key_item:'Key Item', equipment:'Equipment', misc:'Misc'};
 
     let invItems = [];
@@ -5899,8 +5904,9 @@
         list.parentElement.insertBefore(bonusBar, list);
       }
       bonusBar.innerHTML = `
-        <span class="inv-bonus-tag">⚔️ Attack bonus: <strong>+${atkBonus}</strong></span>
-        <span class="inv-bonus-tag">🛡️ Defense bonus: <strong>+${defBonus}</strong></span>`;
+        <span class="inv-bonus-tag"><i data-lucide="swords" style="width:12px;height:12px;vertical-align:middle;"></i> Attack bonus: <strong>+${atkBonus}</strong></span>
+        <span class="inv-bonus-tag"><i data-lucide="shield" style="width:12px;height:12px;vertical-align:middle;"></i> Defense bonus: <strong>+${defBonus}</strong></span>`;
+      if (window.lucide) lucide.createIcons({ el: bonusBar });
 
       if (!invItems.length) {
         list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">No items yet.</div>';
@@ -5913,7 +5919,7 @@
         if (item.is_equipped) div.style.borderColor = '#86efac';
         div.dataset.id = item.id;
 
-        const icon = TYPE_ICON[item.item_type] || '🎒';
+        const icon = TYPE_ICON[item.item_type] || 'backpack';
         const typeClass = `type-${item.item_type.replace('_', '-')}`;
 
         let metaParts = [`<span class="${typeClass}">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
@@ -5941,7 +5947,7 @@
         const giveBtn = `<button class="inv-give-btn" onclick="openGiveItemModal('${item.id}', '${escHtml(item.name).replace(/'/g, "\\'")}')">Give</button>`;
 
         div.innerHTML = `
-          <span class="inv-item-icon">${icon}</span>
+          <span class="inv-item-icon"><i data-lucide="${icon}" style="width:16px;height:16px;"></i></span>
           <div class="inv-item-body">
             <div class="inv-item-name">${escHtml(item.name)}</div>
             <div class="inv-item-meta">${metaParts.join(' · ')}</div>
@@ -5949,10 +5955,11 @@
           <div class="inv-item-actions">
             ${useBtn}${equipBtn}${giveBtn}
             <span class="inv-qty-badge">×${item.quantity}</span>
-            <button class="inv-del-btn" onclick="removeItem('${item.id}')" title="Remove">✕</button>
+            <button class="inv-del-btn" onclick="removeItem('${item.id}')" title="Remove"><i data-lucide="x" style="width:13px;height:13px;"></i></button>
           </div>`;
         list.appendChild(div);
       });
+      if (window.lucide) lucide.createIcons({ el: list });
     }
 
     let currencySaveTimer = null;
@@ -6283,7 +6290,7 @@
 
         const tile = (icon, val, label, cls='') =>
           `<div style="background:var(--bg-darker);border:1px solid var(--border-color);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;${cls}">
-            <span style="font-size:1.4rem;line-height:1">${icon}</span>
+            <span style="font-size:1.4rem;line-height:1"><i data-lucide="${icon}" style="width:22px;height:22px;vertical-align:middle;"></i></span>
             <div>
               <div style="font-size:1.2rem;font-weight:700;color:var(--accent-primary);line-height:1.1">${val}</div>
               <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px">${label}</div>
@@ -6300,22 +6307,23 @@
           <p style="text-align:center;color:var(--text-muted);font-size:0.8rem;margin-bottom:16px;font-style:italic">${d.campaign_name}</p>
 
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">
-            ${tile('🎲', fmt(d.total_rolls),        'Fates Tempted')}
-            ${gloryTile('💥', fmt(d.total_damage_dealt), 'Damage Unleashed')}
-            ${tile('⚔️', fmt(d.total_attacks),      'Attacks Made')}
-            ${tile('⚡', fmt(d.total_battles),       'Wars Waged')}
-            ${tile('🌟', fmt(d.total_callings),      'Callings Awakened')}
-            ${tile('💬', fmt(d.total_messages),      'Tales Told')}
-            ${shameTile('💀', fmt(d.total_ones),     'Critical Failures')}
-            ${gloryTile('💢', fmt(d.biggest_hit),    'Biggest Hit')}
+            ${tile('dices', fmt(d.total_rolls),        'Fates Tempted')}
+            ${gloryTile('flame', fmt(d.total_damage_dealt), 'Damage Unleashed')}
+            ${tile('swords', fmt(d.total_attacks),      'Attacks Made')}
+            ${tile('zap', fmt(d.total_battles),       'Wars Waged')}
+            ${tile('sparkles', fmt(d.total_callings),      'Callings Awakened')}
+            ${tile('message-circle', fmt(d.total_messages),      'Tales Told')}
+            ${shameTile('skull', fmt(d.total_ones),     'Critical Failures')}
+            ${gloryTile('crosshair', fmt(d.biggest_hit),    'Biggest Hit')}
           </div>
 
           <div style="border-top:1px solid var(--border-color);padding-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
-            ${tile('🧙', d.active_players,   'Active Players')}
-            ${tile('👁️', d.spectators,        'Spectators')}
-            ${tile('🐉', d.active_characters, 'Characters')}
-            ${d.created_at ? tile('📅', Math.floor((Date.now() - new Date(d.created_at)) / 86400000) + ' days', 'Campaign Age') : ''}
+            ${tile('wand-2', d.active_players,   'Active Players')}
+            ${tile('eye', d.spectators,        'Spectators')}
+            ${tile('users', d.active_characters, 'Characters')}
+            ${d.created_at ? tile('calendar', Math.floor((Date.now() - new Date(d.created_at)) / 86400000) + ' days', 'Campaign Age') : ''}
           </div>`;
+        if (window.lucide) lucide.createIcons({ el: body });
       } catch (e) {
         body.innerHTML = `<p style="color:#f87171;text-align:center;padding:16px">Could not load stats.</p>`;
       }
@@ -6535,7 +6543,7 @@
       }
       list.innerHTML = '';
       lootPoolItems.forEach(item => {
-        const icon = TYPE_ICON[item.item_type] || '🎒';
+        const icon = TYPE_ICON[item.item_type] || 'backpack';
         const typeClass = `type-${item.item_type.replace('_', '-')}`;
         let meta = [`<span class="${typeClass}">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
         if (item.item_type === 'consumable' && item.tier) {
@@ -6549,7 +6557,7 @@
         const div = document.createElement('div');
         div.className = 'loot-item';
         div.innerHTML = `
-          <span style="font-size:1.1rem;">${icon}</span>
+          <span style="font-size:1.1rem;"><i data-lucide="${icon}" style="width:16px;height:16px;vertical-align:middle;"></i></span>
           <div class="loot-item-body">
             <div class="loot-item-name">${escHtml(item.name)} <span style="color:var(--text-muted);font-size:0.75rem;">×${item.quantity}</span></div>
             <div class="loot-item-meta">${meta.join(' · ')}</div>
@@ -6557,10 +6565,11 @@
           <div class="loot-item-actions">
             <button class="btn" style="font-size:0.75rem;padding:3px 10px;" onclick="openAwardLootModal('${item.id}', '${escHtml(item.name).replace(/'/g, "\\'")}', ${item.quantity})">Award</button>
             <button class="btn" style="font-size:0.75rem;padding:3px 10px;background:var(--bg-panel-hover);border:1px solid var(--border-color);color:var(--text-primary);" onclick="openEditLootItemModal('${item.id}')">Edit</button>
-            <button class="inv-del-btn" onclick="deleteLootItem('${item.id}')" title="Delete">✕</button>
+            <button class="inv-del-btn" onclick="deleteLootItem('${item.id}')" title="Delete"><i data-lucide="x" style="width:13px;height:13px;"></i></button>
           </div>`;
         list.appendChild(div);
       });
+      if (window.lucide) lucide.createIcons({ el: list });
     }
 
     function openLootItemModal() {
@@ -7242,8 +7251,9 @@
       if (memoryEchoes.length) {
         const fallenHeader = document.createElement('div');
         fallenHeader.style.cssText = 'margin:20px 0 10px;padding-top:16px;border-top:1px solid rgba(248,113,113,0.25);';
-        fallenHeader.innerHTML = '<span style="font-size:0.72rem;color:#f87171;text-transform:uppercase;letter-spacing:0.08em;">⚰️ Fallen</span>';
+        fallenHeader.innerHTML = '<span style="font-size:0.72rem;color:#f87171;text-transform:uppercase;letter-spacing:0.08em;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="skull" style="width:11px;height:11px;"></i>Fallen</span>';
         list.appendChild(fallenHeader);
+        if (window.lucide) lucide.createIcons({ el: fallenHeader });
         memoryEchoes.forEach(echo => {
           const card = document.createElement('div');
           card.style.cssText = 'background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.2);border-radius:6px;padding:10px 12px;margin-bottom:8px;border-left:3px solid rgba(248,113,113,0.5);';
@@ -7416,13 +7426,13 @@
         return;
       }
       const sections = [
-        { label: '🌟 Story Weaver', items: users.filter(u => u.role === 'SW') },
-        { label: '⚔️ Players',      items: users.filter(u => u.role === 'player') },
-        { label: '👁 Spectators',   items: users.filter(u => u.role === 'spectator') },
+        { icon: 'sparkles', label: 'Story Weaver', items: users.filter(u => u.role === 'SW') },
+        { icon: 'swords',   label: 'Players',      items: users.filter(u => u.role === 'player') },
+        { icon: 'eye',      label: 'Spectators',   items: users.filter(u => u.role === 'spectator') },
       ];
       container.innerHTML = sections.filter(s => s.items.length).map(s => `
         <div style="margin-bottom:14px;">
-          <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">${s.label}</div>
+          <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;display:flex;align-items:center;gap:4px;"><i data-lucide="${s.icon}" style="width:12px;height:12px;"></i>${s.label}</div>
           ${s.items.map(u => `
             <div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
               <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${u.connected ? '#10b981' : '#6b7280'};"></span>
@@ -7431,6 +7441,7 @@
           `).join('')}
         </div>
       `).join('');
+      if (window.lucide) lucide.createIcons({ el: container });
     }
 
     async function renderSWDashboard() {
@@ -7459,18 +7470,18 @@
           checklistDiv.style.cssText = 'background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:10px 12px;margin-bottom:8px;';
           const calledItems = calledChars.map(m =>
             `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;">
-               <span style="font-size:0.82rem;color:#c084fc;">👁 ${escHtml(m.character.name)} — Called Check needed</span>
+               <span style="font-size:0.82rem;color:#c084fc;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="eye" style="width:12px;height:12px;"></i>${escHtml(m.character.name)} — Called Check needed</span>
                <button style="background:none;border:1px solid rgba(192,132,252,0.4);border-radius:4px;color:#c084fc;font-size:0.72rem;padding:1px 6px;cursor:pointer;"
                  onclick="doCalledCheck('${m.character.id}')">Roll 1d6</button>
              </div>`
           ).join('');
           const restBtn = needsRest.length
             ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
-                 <button class="btn" style="width:100%;font-size:0.82rem;padding:5px;" onclick="doFullRest()">🌙 Full Rest — Heal All PCs</button>
+                 <button class="btn" style="width:100%;font-size:0.82rem;padding:5px;" onclick="doFullRest()"><i data-lucide="moon" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Full Rest — Heal All PCs</button>
                </div>`
             : '';
           checklistDiv.innerHTML = `
-            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">📋 Before Next Session</div>
+            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;display:flex;align-items:center;gap:4px;"><i data-lucide="clipboard-list" style="width:12px;height:12px;"></i>Before Next Session</div>
             ${calledItems}
             ${restBtn}`;
           container.appendChild(checklistDiv);
@@ -7496,7 +7507,7 @@
                 <span style="font-size:0.72rem;color:var(--text-muted);">Lvl ${c.level}</span>
               </div>
               <div style="display:flex;gap:6px;align-items:center;">
-                ${timesCalled > 0 ? `<span style="font-size:0.72rem;color:${calledColor};" title="${timesCalled}/5 Callings">💀${timesCalled}</span>` : ''}
+                ${timesCalled > 0 ? `<span style="font-size:0.72rem;color:${calledColor};display:inline-flex;align-items:center;gap:2px;" title="${timesCalled}/5 Callings"><i data-lucide="skull" style="width:11px;height:11px;"></i>${timesCalled}</span>` : ''}
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
@@ -7561,8 +7572,19 @@
         // Name
         const nameSpan = document.createElement('span');
         nameSpan.className = 'init-name' + (isNpc ? ' is-npc' : '');
-        nameSpan.textContent = roll.name + (roll.is_silent ? ' 👁' : '');
-        if (roll.is_summon) nameSpan.textContent += ` ✨`;
+        nameSpan.textContent = roll.name;
+        if (roll.is_silent) {
+          const eyeIcon = document.createElement('i');
+          eyeIcon.setAttribute('data-lucide', 'eye');
+          eyeIcon.style.cssText = 'width:11px;height:11px;vertical-align:middle;margin-left:3px;';
+          nameSpan.appendChild(eyeIcon);
+        }
+        if (roll.is_summon) {
+          const sparkleIcon = document.createElement('i');
+          sparkleIcon.setAttribute('data-lucide', 'sparkles');
+          sparkleIcon.style.cssText = 'width:11px;height:11px;vertical-align:middle;margin-left:3px;';
+          nameSpan.appendChild(sparkleIcon);
+        }
         entry.appendChild(nameSpan);
 
         // Summon: durability dots + summoner label + dismiss button
@@ -7584,8 +7606,8 @@
             const dismissBtn = document.createElement('button');
             dismissBtn.className = 'btn-icon';
             dismissBtn.title = 'Dismiss summon';
-            dismissBtn.textContent = '✕';
-            dismissBtn.style.cssText = 'font-size:0.75rem;opacity:0.5;padding:0 3px;flex-shrink:0;color:#ef4444;';
+            dismissBtn.innerHTML = '<i data-lucide="x" style="width:12px;height:12px;"></i>';
+            dismissBtn.style.cssText = 'font-size:0.75rem;opacity:0.5;padding:0 3px;flex-shrink:0;color:#ef4444;display:inline-flex;align-items:center;';
             dismissBtn.onmouseenter = () => dismissBtn.style.opacity = '1';
             dismissBtn.onmouseleave = () => dismissBtn.style.opacity = '0.5';
             dismissBtn.onclick = (e) => {
@@ -7622,8 +7644,8 @@
           const pingBtn = document.createElement('button');
           pingBtn.className = 'btn-icon';
           pingBtn.title = `Ping ${roll.name}`;
-          pingBtn.textContent = '📣';
-          pingBtn.style.cssText = 'font-size:0.8rem;opacity:0.5;padding:0 2px;flex-shrink:0;';
+          pingBtn.innerHTML = '<i data-lucide="megaphone" style="width:13px;height:13px;"></i>';
+          pingBtn.style.cssText = 'font-size:0.8rem;opacity:0.5;padding:0 2px;flex-shrink:0;display:inline-flex;align-items:center;';
           pingBtn.onmouseenter = () => pingBtn.style.opacity = '1';
           pingBtn.onmouseleave = () => pingBtn.style.opacity = '0.5';
           pingBtn.onclick = (e) => { e.stopPropagation(); pingPlayer(roll.user_id, roll.name); };
@@ -7632,6 +7654,7 @@
 
         tracker.appendChild(entry);
       });
+      if (window.lucide) lucide.createIcons({ el: tracker });
 
       // Turn counter
       let counter = document.getElementById('initiativeTurnCounter');
@@ -7984,7 +8007,7 @@
         }
         list.innerHTML = '';
         items.forEach(item => {
-          const icon = TYPE_ICON[item.item_type] || '🎒';
+          const icon = TYPE_ICON[item.item_type] || 'backpack';
           const typeClass = `type-${item.item_type.replace('_', '-')}`;
           let meta = [`<span class="${typeClass}" style="font-size:0.7rem;">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
           if (item.item_type === 'equipment' && item.bonus) meta.push(`+${item.bonus} ${item.bonus_type || ''}`);
@@ -7992,7 +8015,7 @@
           const div = document.createElement('div');
           div.className = 'loot-item';
           div.innerHTML = `
-            <span>${icon}</span>
+            <span><i data-lucide="${icon}" style="width:14px;height:14px;vertical-align:middle;"></i></span>
             <div class="loot-item-body">
               <div class="loot-item-name" style="font-size:0.85rem;">${escHtml(item.name)} <span style="color:var(--text-muted);font-size:0.72rem;">×${item.quantity}</span></div>
               <div class="loot-item-meta">${meta.join(' · ')}</div>
@@ -8000,10 +8023,11 @@
             <div style="display:flex;gap:4px;align-items:center;">
               ${item.item_type === 'equipment' ? `<button class="inv-equip-btn" onclick="equipNpcItem('${npcId}','${item.id}',this)" style="font-size:0.72rem;padding:2px 7px;">${item.is_equipped ? 'Unequip' : 'Equip'}</button>` : ''}
               ${item.item_type === 'consumable' && item.effect_type !== 'damage' ? `<button class="inv-use-btn" onclick="useNpcItem('${npcId}','${item.id}')" style="font-size:0.72rem;padding:2px 7px;">Use</button>` : ''}
-              <button class="inv-del-btn" onclick="removeNpcItem('${npcId}','${item.id}')" title="Remove">✕</button>
+              <button class="inv-del-btn" onclick="removeNpcItem('${npcId}','${item.id}')" title="Remove"><i data-lucide="x" style="width:13px;height:13px;"></i></button>
             </div>`;
           list.appendChild(div);
         });
+        if (window.lucide) lucide.createIcons({ el: list });
       } catch (e) {
         list.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:12px;">Error loading inventory.</div>';
       }
@@ -8303,7 +8327,7 @@
             ${char.notes ? `<div style="color:#b0b3ba;font-size:0.85rem;font-style:italic;margin-bottom:8px;">"${char.notes}"</div>` : ''}
             ${char.abilities.length > 0 ? `<div style="font-size:0.85rem;margin-bottom:10px;"><strong>Abilities:</strong> ${char.abilities.map(a => `<span style="background:#252937;padding:2px 8px;border-radius:4px;margin-right:4px;">${a.display_name} (${a.macro_command})</span>`).join('')}</div>` : ''}
             <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
-              <button class="btn" style="background:#4a7c59;padding:6px 14px;font-size:0.85rem;" onclick="swApproveChar('${char.id}', '${char.name.replace(/'/g, "\\'")}')">✅ Approve</button>
+              <button class="btn" style="background:#4a7c59;padding:6px 14px;font-size:0.85rem;" onclick="swApproveChar('${char.id}', '${char.name.replace(/'/g, "\\'")}')"><i data-lucide="check" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Approve</button>
               <button class="btn-danger btn" style="padding:6px 14px;font-size:0.85rem;" onclick="swOpenRejectForm('${char.id}')">Reject</button>
             </div>
             <div id="sw-reject-form-${char.id}" style="display:none;margin-top:10px;">
@@ -8315,6 +8339,7 @@
             </div>
           </div>
         `).join('');
+        if (window.lucide) lucide.createIcons({ el: listEl });
       } catch (err) {
         listEl.innerHTML = `<p style="color:#e57373;">Failed to load pending characters: ${err.message}</p>`;
       }
@@ -8409,9 +8434,10 @@
       _aoeCurrentTargets.forEach((t, i) => {
         const chip = document.createElement('span');
         chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:20px;padding:3px 10px;font-size:0.85rem;';
-        chip.innerHTML = `${t} <button onclick="removeAoeTarget(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;padding:0;line-height:1;">✕</button>`;
+        chip.innerHTML = `${t} <button onclick="removeAoeTarget(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0;line-height:1;display:inline-flex;vertical-align:middle;"><i data-lucide="x" style="width:12px;height:12px;"></i></button>`;
         list.appendChild(chip);
       });
+      if (window.lucide) lucide.createIcons({ el: list });
     }
 
     function addAoeTarget() {
@@ -8545,7 +8571,7 @@
         thresholdDiv.className = 'message-card';
         thresholdDiv.style.cssText = 'border-left:4px solid #7c3aed; background:rgba(124,58,237,0.08); padding:12px 16px; margin:4px 0; border-radius:4px;';
         thresholdDiv.innerHTML = `
-          <div style="font-size:0.75rem; color:#a78bfa; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⚔ At the threshold · ${data?.character_name || 'Player'}</div>
+          <div style="font-size:0.75rem; color:#a78bfa; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;"><i data-lucide="swords" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>At the threshold · ${data?.character_name || 'Player'}</div>
           <div style="font-style:italic; color:#c4b5fd; font-size:0.85rem; margin-bottom:4px;">${question}</div>
           <div style="color:var(--text-primary); font-size:0.95rem;">"${responseText}"</div>`;
         storeAndDisplayMessage(thresholdDiv, { type: 'calling_response', actor: 'system' });
@@ -8931,6 +8957,7 @@
       });
 
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      if (window.lucide) lucide.createIcons({ el: chatMessagesEl });
     }
 
     // Apply chat color styling to a message element based on its actor
@@ -8985,7 +9012,7 @@
           const pinBtn = document.createElement('button');
           pinBtn.className = 'msg-action-btn';
           pinBtn.title = 'Pin';
-          pinBtn.textContent = '📌';
+          pinBtn.innerHTML = '<i data-lucide="pin" style="width:12px;height:12px;"></i>';
           pinBtn.onclick = (e) => {
             e.stopPropagation();
             const txt = data.text || element.querySelector('.message-text, .message-content, span')?.textContent || '';
@@ -8998,14 +9025,14 @@
           const editBtn = document.createElement('button');
           editBtn.className = 'msg-action-btn';
           editBtn.title = 'Edit';
-          editBtn.textContent = '✏️';
+          editBtn.innerHTML = '<i data-lucide="pencil" style="width:12px;height:12px;"></i>';
           editBtn.onclick = (e) => { e.stopPropagation(); startEditMessage(element, data); };
           actionsDiv.appendChild(editBtn);
 
           const delBtn = document.createElement('button');
           delBtn.className = 'msg-action-btn delete-btn';
           delBtn.title = 'Delete';
-          delBtn.textContent = '🗑️';
+          delBtn.innerHTML = '<i data-lucide="trash-2" style="width:12px;height:12px;"></i>';
           delBtn.onclick = (e) => {
             e.stopPropagation();
             if (confirm('Delete this message?')) {
@@ -9037,6 +9064,7 @@
         applyMessageColor(element, data.actor, data.chat_mode);
         chatMessagesEl.appendChild(element);
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        if (window.lucide) lucide.createIcons({ el: element });
       }
     }
 
@@ -9065,13 +9093,13 @@
             const editBtn = document.createElement('button');
             editBtn.className = 'msg-action-btn';
             editBtn.title = 'Edit';
-            editBtn.textContent = '✏️';
+            editBtn.innerHTML = '<i data-lucide="pencil" style="width:12px;height:12px;"></i>';
             editBtn.onclick = (e) => { e.stopPropagation(); startEditMessage(el, m); };
             actionsDiv.appendChild(editBtn);
             const delBtn = document.createElement('button');
             delBtn.className = 'msg-action-btn delete-btn';
             delBtn.title = 'Delete';
-            delBtn.textContent = '🗑️';
+            delBtn.innerHTML = '<i data-lucide="trash-2" style="width:12px;height:12px;"></i>';
             delBtn.onclick = (e) => {
               e.stopPropagation();
               if (confirm('Delete this message?')) {
@@ -9084,7 +9112,7 @@
               const pinBtn = document.createElement('button');
               pinBtn.className = 'msg-action-btn';
               pinBtn.title = 'Pin';
-              pinBtn.textContent = '📌';
+              pinBtn.innerHTML = '<i data-lucide="pin" style="width:12px;height:12px;"></i>';
               pinBtn.onclick = (ev) => {
                 ev.stopPropagation();
                 pinMessage((m.text || '').slice(0, 500), m.actor || '');
@@ -9092,6 +9120,7 @@
               actionsDiv.insertBefore(pinBtn, actionsDiv.firstChild);
             }
             el.appendChild(actionsDiv);
+            if (window.lucide) lucide.createIcons({ el: actionsDiv });
           }
           break;
         }
@@ -9278,7 +9307,8 @@
       bapArmed = !bapArmed;
       const btn = document.getElementById('bapArmBtn');
       if (btn) {
-        btn.textContent = bapArmed ? '✦ BAP ARMED!' : '✦ USE BAP';
+        btn.innerHTML = `<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>${bapArmed ? 'BAP ARMED!' : 'USE BAP'}`;
+        if (window.lucide) lucide.createIcons({ el: btn });
         btn.style.background = bapArmed ? '#d97706' : '';
         btn.style.color = bapArmed ? '#fff' : '';
         btn.style.animation = bapArmed ? 'pulse 1s infinite' : '';
@@ -9290,7 +9320,8 @@
       bapArmed = false;
       const btn = document.getElementById('bapArmBtn');
       if (btn) {
-        btn.textContent = '✦ USE BAP';
+        btn.innerHTML = '<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>USE BAP';
+        if (window.lucide) lucide.createIcons({ el: btn });
         btn.style.background = '';
         btn.style.color = '';
         btn.style.animation = '';
@@ -9342,6 +9373,7 @@
         // without being stored in allMessages — they won't interfere with sort order
         chatMessagesEl.appendChild(div);
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        if (window.lucide) lucide.createIcons({ el: div });
       } else {
         storeAndDisplayMessage(div, data);
       }
@@ -9373,7 +9405,7 @@
 
       const header = document.createElement('div');
       header.className = 'roll-header';
-      header.textContent = '🎲 DICE ROLL';
+      header.innerHTML = '<i data-lucide="dices" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>DICE ROLL';
       container.appendChild(header);
 
       if (formula) {
@@ -9399,6 +9431,7 @@
 
       chatMessagesEl.appendChild(container);
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      if (window.lucide) lucide.createIcons({ el: container });
     }
 
     // Display formatted attack result
@@ -9408,7 +9441,7 @@
 
       const header = document.createElement('div');
       header.className = 'attack-header';
-      header.textContent = '⚔️ ATTACK';
+      header.innerHTML = '<i data-lucide="swords" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>ATTACK';
       container.appendChild(header);
 
       const attackerDiv = document.createElement('div');
@@ -9430,6 +9463,7 @@
 
       chatMessagesEl.appendChild(container);
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      if (window.lucide) lucide.createIcons({ el: container });
     }
 
     // Display system message
@@ -9508,7 +9542,46 @@
     function fmtTs(ts) {
       return ts ? new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
     }
-    function makeHeaderRow(tsStr, titleText, { toggle = null, tab = null } = {}) {
+    // Fills a "⚡ Boosted: ..." badge safely — tether descriptions are user-entered text,
+    // so they're inserted as text nodes rather than string-concatenated into innerHTML.
+    function renderBoostedBadge(badge, boosts) {
+      badge.textContent = '';
+      const zapIcon = document.createElement('i');
+      zapIcon.setAttribute('data-lucide', 'zap');
+      zapIcon.style.cssText = 'width:12px;height:12px;vertical-align:middle;margin-right:3px;';
+      badge.appendChild(zapIcon);
+      badge.appendChild(document.createTextNode('Boosted: '));
+      (boosts || []).forEach((b, idx) => {
+        if (idx > 0) badge.appendChild(document.createTextNode(' | '));
+        if (b.type === 'bap') {
+          badge.appendChild(document.createTextNode(`BAP +${b.bonus}`));
+        } else {
+          const linkIcon = document.createElement('i');
+          linkIcon.setAttribute('data-lucide', 'link');
+          linkIcon.style.cssText = 'width:11px;height:11px;vertical-align:middle;margin:0 2px;';
+          badge.appendChild(linkIcon);
+          badge.appendChild(document.createTextNode(`${b.description} +${b.modifier}`));
+        }
+      });
+      if (window.lucide) lucide.createIcons({ el: badge });
+    }
+
+    // Rebuilds a header-title span as [icon]<text node> — used at creation and whenever
+    // a retro-boost update needs to refresh the title without clobbering the icon (textContent
+    // would wipe the <i data-lucide> element along with the text).
+    function setHeaderTitle(titleEl, icon, text) {
+      titleEl.innerHTML = '';
+      if (icon) {
+        const iconEl = document.createElement('i');
+        iconEl.setAttribute('data-lucide', icon);
+        iconEl.style.cssText = 'width:13px;height:13px;vertical-align:middle;margin-right:4px;';
+        titleEl.appendChild(iconEl);
+      }
+      titleEl.appendChild(document.createTextNode(text));
+      if (window.lucide) lucide.createIcons({ el: titleEl });
+    }
+
+    function makeHeaderRow(tsStr, titleText, { toggle = null, tab = null, icon = null } = {}) {
       const row = document.createElement('div');
       row.className = 'msg-header-row';
       if (tsStr) {
@@ -9520,7 +9593,7 @@
       }
       const title = document.createElement('span');
       title.style.fontWeight = 'bold';
-      title.textContent = titleText;
+      setHeaderTitle(title, icon, titleText);
       row.appendChild(title);
       if (toggle) row.appendChild(toggle);
       if (tab) {
@@ -9801,7 +9874,7 @@
       // Legacy rendering (fallback)
       const header = document.createElement('div');
       header.className = 'message-header';
-      header.innerHTML = `<span class="icon">⚔️</span><span>${data.attacker_name || data.attacker} attacks ${data.defender_name || data.defender}</span>`;
+      header.innerHTML = `<span class="icon"><i data-lucide="swords" style="width:14px;height:14px;vertical-align:middle;"></i></span><span>${data.attacker_name || data.attacker} attacks ${data.defender_name || data.defender}</span>`;
       container.appendChild(header);
 
       // Show weapon vs defense info
@@ -9936,7 +10009,7 @@
 
       const label = document.createElement('div');
       label.className = 'mode-label';
-      label.textContent = '🛡️ Defense Roll';
+      label.innerHTML = '<i data-lucide="shield" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Defense Roll';
       container.appendChild(label);
 
       const header = document.createElement('div');
@@ -9986,7 +10059,7 @@
       storeAndDisplayMessage(container, { type: 'defend', ...data });
     }
 
-    function renderDiceRoll(data, icon = '🎲') {
+    function renderDiceRoll(data, icon = 'dices') {
       const container = document.createElement('div');
 
       // Format timestamp
@@ -9999,7 +10072,7 @@
       const header = document.createElement('div');
       header.className = 'message-header';
       const diceExpr = data.dice ? ` (${data.dice})` : '';
-      header.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85em; margin-right: 8px;">[${timestamp}]</span><span class="icon">${icon}</span><span>${data.actor}${diceExpr}: ${data.text}</span>`;
+      header.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85em; margin-right: 8px;">[${timestamp}]</span><span class="icon"><i data-lucide="${icon}" style="width:14px;height:14px;vertical-align:middle;"></i></span><span>${data.actor}${diceExpr}: ${data.text}</span>`;
 
       if (Array.isArray(data.breakdown)) {
         const bd = document.createElement('div');
@@ -10035,7 +10108,7 @@
       // Header: "Caster casts Spell on Target!"
       const header = document.createElement('div');
       header.className = 'spell-header';
-      header.innerHTML = `<span>✨</span><span>${data.caster_name} casts ${data.spell_name} on ${data.target_name}!</span>`;
+      header.innerHTML = `<span><i data-lucide="sparkles" style="width:14px;height:14px;vertical-align:middle;"></i></span><span>${data.caster_name} casts ${data.spell_name} on ${data.target_name}!</span>`;
       container.appendChild(header);
 
       // Roll breakdown section
@@ -10045,13 +10118,13 @@
       // Attack roll line
       const attackLine = document.createElement('div');
       attackLine.className = 'roll-line';
-      attackLine.innerHTML = `<span class="roll-icon">🎲</span><span>Attack: ${data.spell_breakdown}</span>`;
+      attackLine.innerHTML = `<span class="roll-icon"><i data-lucide="dices" style="width:13px;height:13px;vertical-align:middle;"></i></span><span>Attack: ${data.spell_breakdown}</span>`;
       rollsDiv.appendChild(attackLine);
 
       // Defense roll line
       const defenseLine = document.createElement('div');
       defenseLine.className = 'roll-line';
-      defenseLine.innerHTML = `<span class="roll-icon">🛡️</span><span>Defense: ${data.defense_breakdown}</span>`;
+      defenseLine.innerHTML = `<span class="roll-icon"><i data-lucide="shield" style="width:13px;height:13px;vertical-align:middle;"></i></span><span>Defense: ${data.defense_breakdown}</span>`;
       rollsDiv.appendChild(defenseLine);
 
       container.appendChild(rollsDiv);
@@ -10233,7 +10306,7 @@
                 if (isSW() && diceEx.character_id && msg.id && !diceEx.boost_applied) {
                   const boostBtn = document.createElement('button');
                   boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                  boostBtn.textContent = '⚡ Boost';
+                  boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                   boostBtn.onclick = () => openBoostModal(
                     diceEx.character_id, msg.id, 'roll', diceEx.total,
                     diceEx.bap || 1, diceEx.tethers || [],
@@ -10403,12 +10476,12 @@
                   const boosts = data.boosts || (data.bap_awarded ? [{ type: 'bap', bonus: data.bap_bonus || 1 }] : []);
                   const badge = document.createElement('div');
                   badge.className = 'bap-badge';
-                  badge.textContent = '⚡ Boosted: ' + boosts.map(b => b.type === 'bap' ? `BAP +${b.bonus}` : `🔗 ${b.description} +${b.modifier}`).join(' | ');
+                  renderBoostedBadge(badge, boosts);
                   container.appendChild(badge);
                 } else if (isSW() && data.attacker_id && msg.id) {
                   const boostBtn = document.createElement('button');
                   boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                  boostBtn.textContent = '⚡ Boost';
+                  boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                   boostBtn.onclick = () => openBoostModal(
                     data.attacker_id, msg.id, 'combat', data.damage,
                     data.attacker_bap || 1, data.attacker_tethers || [],
@@ -10463,7 +10536,7 @@
                   });
                 }
 
-                const statHistHeaderRow = makeHeaderRow(fmtTs(msg.timestamp), `📊 ${msg.sender_name} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statHistTog, tab: 'STORY' });
+                const statHistHeaderRow = makeHeaderRow(fmtTs(msg.timestamp), `${msg.sender_name} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statHistTog, tab: 'STORY', icon: 'bar-chart-2' });
                 const statHistTitleSpan = statHistHeaderRow.querySelector('span[style*="font-weight"]');
                 if (statHistTitleSpan && msg.id) statHistTitleSpan.dataset.statTotal = msg.id;
                 container.appendChild(statHistHeaderRow);
@@ -10477,12 +10550,12 @@
                     const boosts = data.boosts || (data.bap_awarded ? [{ type: 'bap', bonus: data.bap_bonus || 1 }] : []);
                     const badge = document.createElement('div');
                     badge.className = 'bap-badge';
-                    badge.textContent = '⚡ Boosted: ' + boosts.map(b => b.type === 'bap' ? `BAP +${b.bonus}` : `🔗 ${b.description} +${b.modifier}`).join(' | ');
+                    renderBoostedBadge(badge, boosts);
                     container.appendChild(badge);
                   } else {
                     const boostBtn = document.createElement('button');
                     boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                    boostBtn.textContent = '⚡ Boost';
+                    boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                     boostBtn.onclick = () => openBoostModal(
                       data.character_id, msg.id, 'stat', data.total,
                       data.bap || 1, data.tethers || [],
@@ -10549,7 +10622,7 @@
                   });
                 }
 
-                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), `✨ ${data.caster} casts ${data.ability_name}!`, { toggle: castHistTog, tab: 'STORY' }));
+                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), `${data.caster} casts ${data.ability_name}!`, { toggle: castHistTog, tab: 'STORY', icon: 'sparkles' }));
                 container.appendChild(narrative);
                 if (castHistBd) container.appendChild(castHistBd);
 
@@ -10593,11 +10666,11 @@
                   const bapBtn = document.createElement('button');
                   bapBtn.className = 'btn btn-sm';
                   bapBtn.style.cssText = 'margin-top:6px;font-size:0.78rem;padding:2px 10px;background:#78350f;border-color:#92400e;color:#fde68a;';
-                  bapBtn.textContent = '✦ Award BAP';
+                  bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Award BAP'; if (window.lucide) lucide.createIcons({ el: bapBtn });
                   bapBtn.onclick = async () => {
                     bapBtn.disabled = true;
                     await grantBapToken(data.caster_char_id, 'encounter');
-                    bapBtn.textContent = '✦ BAP Awarded!';
+                    bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>BAP Awarded!'; if (window.lucide) lucide.createIcons({ el: bapBtn });
                     bapBtn.style.opacity = '0.5';
                   };
                   container.appendChild(bapBtn);
@@ -10637,7 +10710,8 @@
                 header.style.padding = '12px';
                 header.style.borderRadius = '8px';
                 header.style.backgroundColor = 'rgba(255, 152, 0, 0.1)';
-                header.textContent = msg.content || '⚔️ Combat has begun!';
+                header.innerHTML = '<i data-lucide="swords" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>';
+                header.appendChild(document.createTextNode(msg.content || 'Combat has begun!'));
                 container.appendChild(header);
 
                 storeAndDisplayMessage(container, { type: 'encounter_start', timestamp: msg.timestamp, message_id: msg.id, ...data });
@@ -10658,7 +10732,8 @@
                 header.style.padding = '12px';
                 header.style.borderRadius = '8px';
                 header.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
-                header.textContent = `🏁 ${msg.content}`;
+                header.innerHTML = '<i data-lucide="flag" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>';
+                header.appendChild(document.createTextNode(msg.content || ''));
                 container.appendChild(header);
 
                 storeAndDisplayMessage(container, { type: 'encounter_end', timestamp: msg.timestamp, message_id: msg.id, ...data });
@@ -10676,7 +10751,8 @@
                 header.style.textAlign = 'center';
                 header.style.padding = '8px';
                 header.style.color = 'var(--text-muted)';
-                header.textContent = `🔄 ${msg.content}`;
+                header.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle;margin-right:5px;"></i>';
+                header.appendChild(document.createTextNode(msg.content || ''));
                 container.appendChild(header);
 
                 storeAndDisplayMessage(container, { type: 'initiative_clear', timestamp: msg.timestamp, message_id: msg.id, ...data });
@@ -10724,7 +10800,7 @@
                   defBd.style.display = showing ? 'none' : 'block';
                   defTog.textContent = showing ? 'Show details' : 'Hide details';
                 });
-                const defHeader = makeHeaderRow(fmtTs(msg.created_at), `🛡️ ${escHtml(d.character_name)} — ${d.stat_label} Defense: ${d.defense_total}`, { toggle: defTog, tab: 'STORY' });
+                const defHeader = makeHeaderRow(fmtTs(msg.created_at), `${escHtml(d.character_name)} — ${d.stat_label} Defense: ${d.defense_total}`, { toggle: defTog, tab: 'STORY', icon: 'shield' });
                 const defTotalSpanH = defHeader.querySelector('span[style*="font-weight"]');
                 if (defTotalSpanH && msg.id) defTotalSpanH.dataset.defenseTotal = msg.id;
                 container.appendChild(defHeader);
@@ -10733,7 +10809,7 @@
                 if (isSW() && d.character_id && msg.id && !d.boost_applied) {
                   const boostBtn = document.createElement('button');
                   boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                  boostBtn.textContent = '⚡ Boost';
+                  boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                   boostBtn.onclick = () => openBoostModal(
                     d.character_id, msg.id, 'defense', d.defense_total,
                     d.bap || 1, d.tethers || [],
@@ -11119,7 +11195,7 @@
               trDiv.className = 'message-card';
               trDiv.style.cssText = 'border-left:4px solid #7c3aed; background:rgba(124,58,237,0.08); padding:12px 16px; margin:4px 0; border-radius:4px;';
               trDiv.innerHTML = `
-                <div style="font-size:0.75rem; color:#a78bfa; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⚔ At the threshold · ${data.character_name}</div>
+                <div style="font-size:0.75rem; color:#a78bfa; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;"><i data-lucide="swords" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>At the threshold · ${data.character_name}</div>
                 <div style="font-style:italic; color:#c4b5fd; font-size:0.85rem; margin-bottom:4px;">${data.question}</div>
                 <div style="color:var(--text-primary); font-size:0.95rem;">"${data.response}"</div>`;
               storeAndDisplayMessage(trDiv, { type: 'calling_response', actor: 'system' });
@@ -11456,7 +11532,7 @@
                 const bapBadge = document.createElement('div');
                 bapBadge.className = 'bap-badge';
                 const dmgPart = data.damage_delta > 0 ? ` (+${data.damage_delta} dmg applied)` : ' (no additional damage)';
-                bapBadge.textContent = `✦ BAP +${data.bap_bonus} awarded to ${data.character_name}${dmgPart}`;
+                setHeaderTitle(bapBadge, 'star', `BAP +${data.bap_bonus} awarded to ${data.character_name}${dmgPart}`);
                 const tabIndicator = card.querySelector('.message-tab-indicator');
                 if (tabIndicator) card.insertBefore(bapBadge, tabIndicator);
                 else card.appendChild(bapBadge);
@@ -11648,7 +11724,7 @@
                 });
               }
 
-              const diceHeaderRow = makeHeaderRow(fmtNow(), `🎲 ${data.actor}${diceExpr}: ${data.text}`, { toggle: diceTog, tab: 'STORY' });
+              const diceHeaderRow = makeHeaderRow(fmtNow(), `${data.actor}${diceExpr}: ${data.text}`, { toggle: diceTog, tab: 'STORY', icon: 'dices' });
               const diceTotalSpan = diceHeaderRow.querySelector('span[style*="font-weight"]');
               if (diceTotalSpan && data.message_id) diceTotalSpan.dataset.diceTotal = data.message_id;
               container.appendChild(diceHeaderRow);
@@ -11657,7 +11733,7 @@
               if (isSW() && data.character_id && data.message_id && !data.boost_applied) {
                 const boostBtn = document.createElement('button');
                 boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                boostBtn.textContent = '⚡ Boost';
+                boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                 boostBtn.onclick = () => openBoostModal(
                   data.character_id, data.message_id, 'roll', data.result,
                   data.bap || 1, data.tethers || [],
@@ -11821,7 +11897,7 @@
               if (isSW() && data.attacker_id && data.message_id && !data.boost_applied) {
                 const boostBtn = document.createElement('button');
                 boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                boostBtn.textContent = '⚡ Boost';
+                boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                 boostBtn.onclick = () => openBoostModal(
                   data.attacker_id, data.message_id, 'combat', data.damage,
                   data.attacker_bap || 1, data.attacker_tethers || [],
@@ -11863,7 +11939,7 @@
                 });
               }
 
-              const statHeaderRow = makeHeaderRow(fmtNow(), `📊 ${data.actor} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statTog, tab: 'STORY' });
+              const statHeaderRow = makeHeaderRow(fmtNow(), `${data.actor} — ${data.stat_name || data.stat} Check: ${data.total}`, { toggle: statTog, tab: 'STORY', icon: 'bar-chart-2' });
               // Tag the title span so bap_stat_roll can update it
               const statTitleSpan = statHeaderRow.querySelector('span[style*="font-weight"]');
               if (statTitleSpan && data.message_id) statTitleSpan.dataset.statTotal = data.message_id;
@@ -11878,7 +11954,7 @@
               if (isSW() && data.character_id && data.message_id && !data.boost_applied) {
                 const boostBtn = document.createElement('button');
                 boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                boostBtn.textContent = '⚡ Boost';
+                boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                 boostBtn.onclick = () => openBoostModal(
                   data.character_id, data.message_id, 'stat', data.total,
                   data.bap || 1, data.tethers || [],
@@ -11894,15 +11970,15 @@
               container.style.cssText = 'border-left:3px solid #f97316;';
 
               const headerRow = makeHeaderRow(fmtNow(),
-                `🌍 ${escHtml(data.source)} (Tier ${data.tier}) → ${escHtml(data.target_name)}: ${data.result_text}`,
-                { tab: 'STORY' }
+                `${escHtml(data.source)} (Tier ${data.tier}) → ${escHtml(data.target_name)}: ${data.result_text}`,
+                { tab: 'STORY', icon: 'globe' }
               );
               container.appendChild(headerRow);
 
               if (isSW()) {
                 const details = document.createElement('div');
                 details.style.cssText = 'font-family:monospace;font-size:11px;margin-left:16px;margin-top:4px;color:var(--text-secondary);';
-                details.innerHTML = `⚔️ ${escHtml(data.atk_breakdown)}<br>🛡️ ${escHtml(data.def_breakdown)}`;
+                details.innerHTML = `<i data-lucide="swords" style="width:11px;height:11px;vertical-align:middle;"></i> ${escHtml(data.atk_breakdown)}<br><i data-lucide="shield" style="width:11px;height:11px;vertical-align:middle;"></i> ${escHtml(data.def_breakdown)}`;
                 container.appendChild(details);
               }
 
@@ -11926,7 +12002,7 @@
                 defBd.style.display = showing ? 'none' : 'block';
                 defTog.textContent = showing ? 'Show details' : 'Hide details';
               });
-              const defHeader = makeHeaderRow(fmtNow(), `🛡️ ${data.character_name} — ${data.stat_label} Defense: ${data.defense_total}`, { toggle: defTog, tab: 'STORY' });
+              const defHeader = makeHeaderRow(fmtNow(), `${data.character_name} — ${data.stat_label} Defense: ${data.defense_total}`, { toggle: defTog, tab: 'STORY', icon: 'shield' });
               const defTotalSpan = defHeader.querySelector('span[style*="font-weight"]');
               if (defTotalSpan && data.message_id) defTotalSpan.dataset.defenseTotal = data.message_id;
               container.appendChild(defHeader);
@@ -11935,7 +12011,7 @@
               if (isSW() && data.character_id && data.message_id && !data.boost_applied) {
                 const boostBtn = document.createElement('button');
                 boostBtn.className = 'bap-retro-btn boost-retro-btn';
-                boostBtn.textContent = '⚡ Boost';
+                boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost'; if (window.lucide) lucide.createIcons({ el: boostBtn });
                 boostBtn.onclick = () => openBoostModal(
                   data.character_id, data.message_id, 'defense', data.defense_total,
                   data.bap || 1, data.tethers || [],
@@ -11951,10 +12027,10 @@
                 card.querySelectorAll('.bap-retro-btn').forEach(el => el.remove());
                 // Update the total in the header
                 const totalSpan = card.querySelector(`[data-stat-total="${data.message_id}"]`);
-                if (totalSpan) totalSpan.textContent = `📊 ${data.character_name} — ${data.stat_name} Check: ${data.new_total}`;
+                if (totalSpan) setHeaderTitle(totalSpan, 'bar-chart-2', `${data.character_name} — ${data.stat_name} Check: ${data.new_total}`);
                 const badge = document.createElement('div');
                 badge.className = 'bap-badge';
-                badge.textContent = `✦ BAP +${data.bap_bonus} awarded — new total: ${data.new_total}`;
+                setHeaderTitle(badge, 'star', `BAP +${data.bap_bonus} awarded — new total: ${data.new_total}`);
                 card.appendChild(badge);
               }
               showPanelToast(`✦ BAP awarded to ${data.character_name} — ${data.stat_name} Check now ${data.new_total}`, 'warning');
@@ -11974,17 +12050,17 @@
                 // Stat roll header total
                 const totalSpan = card.querySelector(`[data-stat-total="${data.message_id}"]`);
                 if (totalSpan && data.roll_type === 'stat') {
-                  totalSpan.textContent = `📊 ${data.character_name} — ${data.stat_name} Check: ${data.new_total}`;
+                  setHeaderTitle(totalSpan, 'bar-chart-2', `${data.character_name} — ${data.stat_name} Check: ${data.new_total}`);
                 }
                 // Defense roll total
                 const defSpan = card.querySelector(`[data-defense-total="${data.message_id}"]`);
                 if (defSpan && data.roll_type === 'defense') {
-                  defSpan.textContent = `🛡️ ${data.character_name} — ${data.stat_name} Defense: ${data.new_total}`;
+                  setHeaderTitle(defSpan, 'shield', `${data.character_name} — ${data.stat_name} Defense: ${data.new_total}`);
                 }
                 // Generic dice roll total
                 const diceSpan = card.querySelector(`[data-dice-total="${data.message_id}"]`);
                 if (diceSpan && data.roll_type === 'roll') {
-                  diceSpan.textContent = `🎲 ${data.character_name} — ${data.stat_name}: ${data.new_total}`;
+                  setHeaderTitle(diceSpan, 'dices', `${data.character_name} — ${data.stat_name}: ${data.new_total}`);
                 }
                 // Combat damage summary
                 if (data.roll_type === 'combat') {
@@ -12000,8 +12076,8 @@
               fanfare.className = 'boost-fanfare';
 
               const boostPills = (data.boosts || []).map(b => {
-                if (b.type === 'bap') return `<span class="boost-fanfare-pill bap">✦ BAP +${b.bonus}</span>`;
-                return `<span class="boost-fanfare-pill tether">🔗 ${escHtml(b.description)} ${b.modifier > 0 ? '+' : ''}${b.modifier}</span>`;
+                if (b.type === 'bap') return `<span class="boost-fanfare-pill bap"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP +${b.bonus}</span>`;
+                return `<span class="boost-fanfare-pill tether"><i data-lucide="link" style="width:11px;height:11px;vertical-align:middle;"></i> ${escHtml(b.description)} ${b.modifier > 0 ? '+' : ''}${b.modifier}</span>`;
               }).join('');
 
               const rollLabel = data.roll_type === 'stat'
@@ -12036,7 +12112,7 @@
 
               const castTitle = document.createElement('span');
               castTitle.style.fontWeight = 'bold';
-              castTitle.textContent = `✨ ${data.caster} casts ${data.ability_name}!`;
+              setHeaderTitle(castTitle, 'sparkles', `${data.caster} casts ${data.ability_name}!`);
               castHeaderRow.appendChild(castTitle);
 
               // Narrative (outcome text only — no redundant "X casts Y!" prefix)
@@ -12159,11 +12235,11 @@
                 const bapBtn = document.createElement('button');
                 bapBtn.className = 'btn btn-sm';
                 bapBtn.style.cssText = 'margin-top:6px;font-size:0.78rem;padding:2px 10px;background:#78350f;border-color:#92400e;color:#fde68a;';
-                bapBtn.textContent = '✦ Award BAP';
+                bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Award BAP'; if (window.lucide) lucide.createIcons({ el: bapBtn });
                 bapBtn.onclick = async () => {
                   bapBtn.disabled = true;
                   await grantBapToken(data.caster_char_id || data.character_id, 'encounter');
-                  bapBtn.textContent = '✦ BAP Awarded!';
+                  bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>BAP Awarded!'; if (window.lucide) lucide.createIcons({ el: bapBtn });
                   bapBtn.style.opacity = '0.5';
                 };
                 container.appendChild(bapBtn);
@@ -12214,7 +12290,7 @@
               header.style.marginBottom = '12px';
               header.style.borderBottom = '2px solid var(--primary)';
               header.style.paddingBottom = '8px';
-              header.textContent = '⚔️ Initiative Order';
+              header.innerHTML = '<i data-lucide="swords" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>Initiative Order';
               container.appendChild(header);
 
               const orderList = document.createElement('div');
@@ -12269,7 +12345,8 @@
               header.style.padding = '12px';
               header.style.borderRadius = '8px';
               header.style.backgroundColor = 'rgba(255, 152, 0, 0.1)';
-              header.textContent = data.message || '⚔️ Combat has begun!';
+              header.innerHTML = '<i data-lucide="swords" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>';
+              header.appendChild(document.createTextNode(data.message || 'Combat has begun!'));
               container.appendChild(header);
 
               storeAndDisplayMessage(container, data);
@@ -12287,7 +12364,8 @@
               header.style.padding = '12px';
               header.style.borderRadius = '8px';
               header.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
-              header.textContent = `🏁 ${data.message}`;
+              header.innerHTML = '<i data-lucide="flag" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>';
+              header.appendChild(document.createTextNode(data.message || ''));
               container.appendChild(header);
 
               storeAndDisplayMessage(container, data);
@@ -12315,7 +12393,8 @@
               header.style.textAlign = 'center';
               header.style.padding = '8px';
               header.style.color = 'var(--text-muted)';
-              header.textContent = `🔄 ${data.message}`;
+              header.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle;margin-right:5px;"></i>';
+              header.appendChild(document.createTextNode(data.message || ''));
               container.appendChild(header);
 
               storeAndDisplayMessage(container, data);
@@ -12480,7 +12559,7 @@
 
             } else if (data.type === 'initiative') {
               // Legacy initiative (fallback)
-              renderDiceRoll(data, '🧭');
+              renderDiceRoll(data, 'compass');
 
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
               const myActor = (activeSpeaker ? activeSpeaker.name : (currentActor.trim() || 'User')).toLowerCase();
@@ -13094,7 +13173,7 @@
                 <div style="font-size:2rem; margin-bottom:8px;">🎲</div>
                 <div style="font-weight:bold; color:var(--text-primary); margin-bottom:6px;">No characters yet</div>
                 <div style="font-size:0.85rem; margin-bottom:12px;">Share the campaign code with your players so they can join and create characters.</div>
-                <button class="btn" style="font-size:0.85rem;" onclick="openCampaignSettings()">⚙ View Campaign Code</button>
+                <button class="btn" style="font-size:0.85rem;" onclick="openCampaignSettings()"><i data-lucide="settings" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>View Campaign Code</button>
               </div>`;
           } else {
             charactersContainer.innerHTML = `
@@ -13102,6 +13181,7 @@
                 <div style="font-size:0.85rem;">No characters in this campaign yet.</div>
               </div>`;
           }
+          if (window.lucide) lucide.createIcons({ el: charactersContainer });
           return;
         }
 
@@ -13151,16 +13231,16 @@
               : `In The Calling (${timesCalled}/5) — click to open`;
             const callingSkull = char.in_calling
               ? `<button class="btn-icon" title="${callingTitle}" style="${callingDanger} font-size:1.1rem; animation: pulse 1.5s infinite;"
-                  onclick="openCallingModal('${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.dp}, ${char.ip}, ${char.sp}, ${char.edge || 0}, ${timesCalled})">💀${timesCalled > 0 ? `<sup style="font-size:0.6rem;">${timesCalled}</sup>` : ''}</button>`
+                  onclick="openCallingModal('${char.id}', '${char.name.replace(/'/g, "\\'")}', ${char.dp}, ${char.ip}, ${char.sp}, ${char.edge || 0}, ${timesCalled})"><i data-lucide="skull" style="width:14px;height:14px;vertical-align:middle;"></i>${timesCalled > 0 ? `<sup style="font-size:0.6rem;">${timesCalled}</sup>` : ''}</button>`
               : (timesCalled > 0
-                ? `<span title="${timesCalled}/5 Callings survived" style="font-size:0.7rem;color:${timesCalled >= 4 ? '#ff4444' : '#f87171'};opacity:0.7;cursor:default;">💀${timesCalled}</span>`
+                ? `<span title="${timesCalled}/5 Callings survived" style="font-size:0.7rem;color:${timesCalled >= 4 ? '#ff4444' : '#f87171'};opacity:0.7;cursor:default;display:inline-flex;align-items:center;gap:2px;"><i data-lucide="skull" style="width:11px;height:11px;"></i>${timesCalled}</span>`
                 : '');
             const bapTokenBadge = '';
             const isCalledBadge = char.is_called
               ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;margin-left:4px;" title="The Called — haunted by visions and nightmares">The Called</span>`
               : '';
             const tetherBadge = (char.active_tether_modifier && char.active_tether_modifier !== 0)
-              ? `<span style="font-size:0.7rem;color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};background:rgba(147,197,253,0.08);border:1px solid rgba(147,197,253,0.25);border-radius:4px;padding:1px 5px;margin-left:4px;" title="Active Tether modifier">🔗${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>`
+              ? `<span style="font-size:0.7rem;color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};background:rgba(147,197,253,0.08);border:1px solid rgba(147,197,253,0.25);border-radius:4px;padding:1px 5px;margin-left:4px;display:inline-flex;align-items:center;gap:2px;" title="Active Tether modifier"><i data-lucide="link" style="width:10px;height:10px;"></i>${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>`
               : '';
             const scars = Array.isArray(char.battle_scars) ? char.battle_scars : [];
             const scarsHtml = scars.length > 0
@@ -13535,13 +13615,13 @@
       const isPending = data.status !== 'resolved';
       const showBtn = isTarget && !isSW() && isPending;
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
-      const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;">✦ BAP Granted</span>` : '';
+      const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP Granted</span>` : '';
       const vsLabel = data.mode === 'vs' ? ` <span style="color:var(--text-muted);font-size:0.78rem;">vs ${escHtml(data.npc_name || '')}</span>` : '';
       const rollBtn = showBtn
         ? `<button id="stat-check-btn-${data.request_id}" onclick="rollStatCheck('${data.request_id}','${data.stat}')"
               style="margin-top:10px;width:100%;padding:10px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.5);border-radius:8px;color:#a78bfa;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.15s;"
               onmouseover="this.style.background='rgba(124,58,237,0.35)'" onmouseout="this.style.background='rgba(124,58,237,0.2)'">
-              🎲 Roll ${data.stat}
+              <i data-lucide="dices" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i>Roll ${data.stat}
              </button>`
         : isPending
           ? `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">Waiting for ${escHtml(data.character_name || '')} to roll…</div>`
@@ -13564,7 +13644,7 @@
       contentCol.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
           <span style="color:var(--text-muted);font-size:0.78rem;">[${timestamp}]</span>
-          <span style="font-size:1rem;">🎯</span>
+          <span style="font-size:1rem;"><i data-lucide="target" style="width:16px;height:16px;vertical-align:middle;"></i></span>
           <span style="font-weight:700;color:#a78bfa;font-size:0.88rem;">Stat Check — ${data.stat}${vsLabel}</span>
           ${bapBadge}
           <span class="message-tab-indicator">STORY</span>
@@ -13589,7 +13669,7 @@
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.82rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
       const debuffLine = data.debuff_modifier < 0
         ? `<div style="font-size:0.75rem;color:#f87171;">Debuff: ${data.debuff_modifier}</div>` : '';
-      const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;">✦ BAP</span>` : '';
+      const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP</span>` : '';
       const isVs = data.mode === 'vs';
       const rightLabel = isVs ? escHtml(data.npc_name || data.difficulty_label) : (data.difficulty_label || 'Difficulty');
 
@@ -13611,7 +13691,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span style="color:var(--text-muted);font-size:0.78rem;">[${timestamp}]</span>
-            <span style="font-size:1rem;">🎯</span>
+            <span style="font-size:1rem;"><i data-lucide="target" style="width:16px;height:16px;vertical-align:middle;"></i></span>
             <span style="font-weight:700;color:${color};font-size:0.88rem;">Stat Check — ${data.stat} — ${label}</span>
             ${bapBadge}
           </div>
@@ -13624,13 +13704,13 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')}</div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);">🎲 ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}</div>
             <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.player_total}</div>
             ${debuffLine}
           </div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${rightLabel}</div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);">🎲 ${data.sw_roll}</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.sw_roll}</div>
             <div style="font-size:1.1rem;font-weight:700;color:${won ? 'var(--accent-danger)' : '#34d399'};">${data.sw_total}</div>
           </div>
         </div>
@@ -14314,8 +14394,8 @@
                     ${ a.is_aoe ? `<span style="color:#fbbf24;margin-left:4px;">AOE</span>` : '' }
                   </span>
                   <div style="display:flex;gap:4px;">
-                    <button class="btn" style="font-size:0.75rem;padding:2px 10px;" onclick="saveAbilityEdits(${i})">💾 Save</button>
-                    <button class="btn" style="font-size:0.75rem;padding:2px 8px;background:#ef4444;border-color:#ef4444;" onclick="deleteAbility(${i})" title="Delete ability">🗑️</button>
+                    <button class="btn" style="font-size:0.75rem;padding:2px 10px;" onclick="saveAbilityEdits(${i})"><i data-lucide="save" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Save</button>
+                    <button class="btn" style="font-size:0.75rem;padding:2px 8px;background:#ef4444;border-color:#ef4444;" onclick="deleteAbility(${i})" title="Delete ability"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:4px;">
@@ -14349,9 +14429,9 @@
                 <input id="swItem_qty_${i}" type="number" min="1" value="${item.quantity || 1}"
                   style="width:44px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 4px;color:var(--text-primary);font-size:0.85rem;text-align:center;">
                 <span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">${item.item_type || ''}</span>
-                <button title="Save name/qty" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="saveItemEdits(${i})">💾</button>
-                <button title="Transfer to another character" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="startItemTransfer(${i})">🔀</button>
-                <button id="swRemoveBtn_${i}" title="Silently remove — player not notified" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 2px;" onclick="promptRemoveItem(${i})">🗑️</button>
+                <button title="Save name/qty" style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" onclick="saveItemEdits(${i})"><i data-lucide="save" style="width:14px;height:14px;"></i></button>
+                <button title="Transfer to another character" style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" onclick="startItemTransfer(${i})"><i data-lucide="arrow-right-left" style="width:14px;height:14px;"></i></button>
+                <button id="swRemoveBtn_${i}" title="Silently remove — player not notified" style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" onclick="promptRemoveItem(${i})"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>
               </div>
               ${item.description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;padding:0 2px;font-style:italic;">${escHtml(item.description)}</div>` : ''}
               <div id="swItemTransferPanel_${i}" style="display:none;gap:6px;align-items:center;margin-top:6px;">
@@ -14360,7 +14440,7 @@
                   <option value="">Loading…</option>
                 </select>
                 <button class="btn" style="font-size:0.75rem;padding:2px 8px;" onclick="confirmItemTransfer(${i})">Send</button>
-                <button class="btn-secondary btn" style="font-size:0.75rem;padding:2px 8px;" onclick="cancelItemTransfer(${i})">✕</button>
+                <button class="btn-secondary btn" style="font-size:0.75rem;padding:2px 8px;" onclick="cancelItemTransfer(${i})"><i data-lucide="x" style="width:13px;height:13px;"></i></button>
               </div>
             </div>`).join('')
         : '<p style="color:var(--text-muted);font-size:0.85rem;" id="swEmptyInv">Empty inventory.</p>';
@@ -14392,7 +14472,7 @@
             ${statRow('Defense Die', char.defense_die || '—')}
             <h4 style="color:var(--accent-primary);margin:12px 0 8px;">Currency</h4>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="color:var(--text-muted);font-size:0.85rem;">💰</span>
+              <span style="color:var(--text-muted);"><i data-lucide="coins" style="width:14px;height:14px;"></i></span>
               <input id="swEdit_currency" type="number" min="0" value="${invData.currency ?? 0}"
                 style="width:72px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:0.85rem;text-align:center;">
               <button class="btn" style="font-size:0.75rem;padding:2px 8px;" onclick="swSaveCurrency()">Save</button>
@@ -14401,7 +14481,7 @@
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border-left:3px solid #60a5fa;">
-            <div style="font-size:0.7rem;color:#60a5fa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">⚔️ Weapon</div>
+            <div style="font-size:0.7rem;color:#60a5fa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:flex;align-items:center;gap:3px;"><i data-lucide="sword" style="width:11px;height:11px;"></i>Weapon</div>
             <input id="swEditWeaponName" placeholder="Weapon name" value="${escHtml((char.weapon && char.weapon.name) || '')}"
               style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.82rem;margin-bottom:4px;">
             <div style="display:flex;align-items:center;gap:6px;">
@@ -14412,7 +14492,7 @@
             </div>
           </div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;border-left:3px solid #34d399;">
-            <div style="font-size:0.7rem;color:#34d399;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🛡️ Armor</div>
+            <div style="font-size:0.7rem;color:#34d399;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:flex;align-items:center;gap:3px;"><i data-lucide="shield" style="width:11px;height:11px;"></i>Armor</div>
             <input id="swEditArmorName" placeholder="Armor name" value="${escHtml((char.armor && char.armor.name) || '')}"
               style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.82rem;margin-bottom:4px;">
             <div style="display:flex;align-items:center;gap:4px;">
@@ -14433,12 +14513,12 @@
               <span style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;">${escHtml(t.description)}</span>
               <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;margin-left:8px;">
                 ${t.is_active ? `<span style="font-size:0.7rem;color:${t.modifier >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${t.modifier >= 0 ? '+' : ''}${t.modifier}</span>` : ''}
-                <button style="background:none;border:none;cursor:pointer;font-size:0.8rem;padding:0 2px;" title="${t.is_active ? 'Deactivate' : 'Activate'}" onclick="swToggleTether('${_swSheetCharId}','${t.id}',${!t.is_active},${t.modifier||0})">${t.is_active ? '🔗' : '⛓️'}</button>
-                <button style="background:none;border:none;cursor:pointer;font-size:0.8rem;padding:0 2px;" title="Remove" onclick="swRemoveTether('${_swSheetCharId}','${t.id}')">🗑️</button>
+                <button style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" title="${t.is_active ? 'Deactivate' : 'Activate'}" onclick="swToggleTether('${_swSheetCharId}','${t.id}',${!t.is_active},${t.modifier||0})"><i data-lucide="${t.is_active ? 'link' : 'unlink'}" style="width:13px;height:13px;"></i></button>
+                <button style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" title="Remove" onclick="swRemoveTether('${_swSheetCharId}','${t.id}')"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
               </div></div>`).join('');
           return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(147,197,253,0.4);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;">🔗 Tethers ${char.tethers && char.tethers.length >= 3 ? '(max)' : ''}</span>
+              <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:3px;"><i data-lucide="link" style="width:11px;height:11px;"></i>Tethers ${char.tethers && char.tethers.length >= 3 ? '(max)' : ''}</span>
               ${char.active_tether_modifier ? `<span style="font-size:0.72rem;padding:1px 6px;border-radius:3px;background:${char.active_tether_modifier > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'};color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};">Active: ${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>` : ''}
             </div>
             ${tList}
@@ -14450,7 +14530,7 @@
           const charBonds = _campaignBonds.filter(b => b.is_active && (b.character_id_a === String(char.id) || b.character_id_b === String(char.id)));
           if (!charBonds.length) return '';
           return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid #a78bfa;">
-            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">⚡ Bonds (${charBonds.length})</div>
+            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="zap" style="width:11px;height:11px;"></i>Bonds (${charBonds.length})</div>
             ${charBonds.map(b => {
               const partner = b.character_id_a === String(char.id) ? b.character_name_b : b.character_name_a;
               return `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
@@ -14491,6 +14571,7 @@
           </div>
         </div>
       `;
+      if (window.lucide) lucide.createIcons({ el: document.getElementById('swSheetBody') });
     } catch (e) {
       document.getElementById('swSheetBody').innerHTML = `<p style="color:var(--accent-danger);">Error: ${e.message}</p>`;
     }
@@ -14641,14 +14722,18 @@
   function promptRemoveItem(idx) {
     const btn = document.getElementById(`swRemoveBtn_${idx}`);
     if (!btn) return;
-    btn.textContent = '⚠️ Confirm';
+    btn.innerHTML = '<i data-lucide="trash-2" style="width:14px;height:14px;"></i> Confirm';
+    btn.dataset.confirming = 'true';
     btn.style.color = 'var(--accent-danger)';
     btn.onclick = () => doRemoveItem(idx);
+    if (window.lucide) lucide.createIcons({ el: btn });
     setTimeout(() => {
-      if (btn && btn.textContent === '⚠️ Confirm') {
-        btn.textContent = '🗑️';
+      if (btn && btn.dataset.confirming === 'true') {
+        btn.innerHTML = '<i data-lucide="trash-2" style="width:14px;height:14px;"></i>';
+        btn.dataset.confirming = 'false';
         btn.style.color = '';
         btn.onclick = () => promptRemoveItem(idx);
+        if (window.lucide) lucide.createIcons({ el: btn });
       }
     }, 3000);
   }
@@ -14880,13 +14965,13 @@
           ${row('Defense Die', char.defense_die || '—')}
         </div>
         ${char.weapon ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid #60a5fa;"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">⚔️ Weapon</div><div style="font-weight:600;">${escHtml(char.weapon.name || 'Unnamed')}</div>${char.weapon.bonus_damage ? `<div style="font-size:0.75rem;color:#60a5fa;">+${char.weapon.bonus_damage} Damage</div>` : ''}</div>` : ''}
-        ${char.armor ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid #34d399;"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">🛡️ Armor</div><div style="font-weight:600;">${escHtml(char.armor.name || 'Unnamed')}</div>${char.armor.bonus_defense ? `<div style="font-size:0.75rem;color:#34d399;">+${char.armor.bonus_defense} Defense</div>` : ''}${char.armor.bonus_dp ? `<div style="font-size:0.75rem;color:#a78bfa;">+${char.armor.bonus_dp} DP</div>` : ''}</div>` : ''}
+        ${char.armor ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid #34d399;"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;display:flex;align-items:center;gap:3px;"><i data-lucide="shield" style="width:11px;height:11px;"></i>Armor</div><div style="font-weight:600;">${escHtml(char.armor.name || 'Unnamed')}</div>${char.armor.bonus_defense ? `<div style="font-size:0.75rem;color:#34d399;">+${char.armor.bonus_defense} Defense</div>` : ''}${char.armor.bonus_dp ? `<div style="font-size:0.75rem;color:#a78bfa;">+${char.armor.bonus_dp} DP</div>` : ''}</div>` : ''}
         <h4 style="color:var(--accent-primary);margin-bottom:8px;">Abilities</h4>
         ${abilityRows}
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
         ${(char.tethers && char.tethers.length > 0) ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid rgba(147,197,253,0.4);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;">🔗 Tethers</span>
+            <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:3px;"><i data-lucide="link" style="width:11px;height:11px;"></i>Tethers</span>
             ${char.active_tether_modifier ? `<span style="font-size:0.72rem;padding:1px 6px;border-radius:3px;background:${char.active_tether_modifier > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'};color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};">Active: ${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>` : ''}
           </div>
           ${char.tethers.map(t => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;">${escHtml(t.description)}</span>${t.is_active ? `<span style="font-size:0.7rem;color:${t.modifier >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${t.modifier >= 0 ? '+' : ''}${t.modifier}</span>` : ''}</div>`).join('')}
@@ -14896,7 +14981,7 @@
           const charBonds = _campaignBonds.filter(b => b.is_active && (b.character_id_a === String(char.id) || b.character_id_b === String(char.id)));
           if (!charBonds.length) return '';
           return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid #a78bfa;">
-            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">⚡ Bonds (${charBonds.length})</div>
+            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="zap" style="width:11px;height:11px;"></i>Bonds (${charBonds.length})</div>
             ${charBonds.map(b => {
               const partner = b.character_id_a === String(char.id) ? b.character_name_b : b.character_name_a;
               return `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
@@ -14911,6 +14996,7 @@
         })()}
         ${(char.portrait_url || isOwnChar) ? '</div></div>' : ''}
       `;
+      if (window.lucide) lucide.createIcons({ el: document.getElementById('playerSheetBody') });
     } catch (e) {
       document.getElementById('playerSheetBody').innerHTML = `<p style="color:var(--accent-danger);">Error: ${e.message}</p>`;
     }
@@ -14963,7 +15049,7 @@
         </select>
       </div>
       <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;margin-bottom:12px;border-left:3px solid #60a5fa;">
-        <div style="font-size:0.7rem;color:#60a5fa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">⚔️ Weapon</div>
+        <div style="font-size:0.7rem;color:#60a5fa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="sword" style="width:11px;height:11px;"></i>Weapon</div>
         <div class="form-group" style="margin-bottom:6px;">
           <label class="form-label">Name</label>
           <input type="text" id="psEditWeaponName" class="form-input" value="${escHtml((c.weapon && c.weapon.name) || '')}" placeholder="e.g. Iron Blade">
@@ -14974,7 +15060,7 @@
         </div>
       </div>
       <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;margin-bottom:12px;border-left:3px solid #34d399;">
-        <div style="font-size:0.7rem;color:#34d399;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">🛡️ Armor</div>
+        <div style="font-size:0.7rem;color:#34d399;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="shield" style="width:11px;height:11px;"></i>Armor</div>
         <div class="form-group" style="margin-bottom:6px;">
           <label class="form-label">Name</label>
           <input type="text" id="psEditArmorName" class="form-input" value="${escHtml((c.armor && c.armor.name) || '')}" placeholder="e.g. Leather Vest">
@@ -15011,6 +15097,7 @@
         <button class="btn btn-secondary" style="flex:1;" onclick="openPlayerSheetModal(_playerSheetCharId, '${escHtml(c.name)}')">Cancel</button>
       </div>
     `;
+    if (window.lucide) lucide.createIcons({ el: document.getElementById('playerSheetBody') });
   }
 
   async function savePlayerSheetEdit() {
@@ -15075,9 +15162,10 @@
       banner.innerHTML = `
         <img src="/icons/icon-192.png" alt="TBA">
         <span>📲 ${msg}</span>
-        <button class="dismiss" onclick="this.closest('#installBanner').style.display='none';localStorage.setItem('installBannerDismissed','1');">✕</button>
+        <button class="dismiss" onclick="this.closest('#installBanner').style.display='none';localStorage.setItem('installBannerDismissed','1');"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
       `;
       banner.style.display = 'flex';
+      if (window.lucide) lucide.createIcons({ el: banner });
     })();
   </script>
   <div style="text-align:center;padding:10px;font-size:0.72rem;color:rgba(255,255,255,0.2);">
@@ -15087,7 +15175,7 @@
   <!-- Boost Modal (BAP + Tethers) -->
   <div id="boostModal" onclick="if(event.target===this)closeBoostModal()">
     <div class="boost-modal-box">
-      <h3>⚡ Boost This Roll</h3>
+      <h3><i data-lucide="zap" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"></i>Boost This Roll</h3>
       <div id="boostModalLabel" class="boost-roll-label"></div>
       <div id="boostModalOptions"></div>
       <div class="boost-preview">
@@ -15095,7 +15183,7 @@
       </div>
       <div class="boost-actions">
         <button class="boost-cancel-btn" onclick="closeBoostModal()">Cancel</button>
-        <button class="boost-apply-btn" id="boostApplyBtn" onclick="applyBoosts()">⚡ APPLY BOOST</button>
+        <button class="boost-apply-btn" id="boostApplyBtn" onclick="applyBoosts()"><i data-lucide="zap" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>APPLY BOOST</button>
       </div>
     </div>
   </div>
