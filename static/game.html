@@ -5140,15 +5140,28 @@
 
       const menu = document.createElement('div');
       menu.className = 'context-menu active';
-      const items = campaignPCs.map(pc => {
-        const safeName = pc.name.replace(/'/g, "\\'");
-        const colorArg = pc.chat_color ? `'${pc.chat_color}'` : 'null';
-        const portraitArg = pc.portrait_url ? `'${pc.portrait_url}'` : 'null';
-        return `<button class="context-menu-item" onclick="setActiveSpeaker({ id: '${pc.id}', name: '${safeName}', type: 'puppet', chat_color: ${colorArg}, portrait_url: ${portraitArg} })"><i data-lucide="drama" style="width:13px;height:13px;vertical-align:middle;margin-right:6px;"></i>${escHtml(pc.name)}</button>`;
-      }).join('');
-      menu.innerHTML = items || `<div style="padding:8px 12px;color:var(--text-muted);font-size:0.8rem;">No player characters yet</div>`;
+
+      if (campaignPCs.length === 0) {
+        menu.innerHTML = `<div style="padding:8px 12px;color:var(--text-muted);font-size:0.8rem;">No player characters yet</div>`;
+      } else {
+        campaignPCs.forEach(pc => {
+          const btn = document.createElement('button');
+          btn.className = 'context-menu-item';
+          btn.style.cssText = 'display:flex;align-items:center;gap:8px;';
+          btn.appendChild(buildAvatarEl(pc.name, pc.chat_color || null));
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = pc.name;
+          btn.appendChild(nameSpan);
+          btn.onclick = () => setActiveSpeaker({ id: pc.id, name: pc.name, type: 'puppet', chat_color: pc.chat_color || null, portrait_url: pc.portrait_url || null });
+          menu.appendChild(btn);
+        });
+      }
       if (activeSpeaker && activeSpeaker.type === 'puppet') {
-        menu.innerHTML += `<button class="context-menu-item" onclick="setActiveSpeaker({ id: null, name: 'Narrator', type: 'narrator' })"><i data-lucide="x" style="width:13px;height:13px;vertical-align:middle;margin-right:6px;"></i>Stop puppeting</button>`;
+        const stopBtn = document.createElement('button');
+        stopBtn.className = 'context-menu-item';
+        stopBtn.innerHTML = '<i data-lucide="x" style="width:13px;height:13px;vertical-align:middle;margin-right:6px;"></i>Stop puppeting';
+        stopBtn.onclick = () => setActiveSpeaker({ id: null, name: 'Narrator', type: 'narrator' });
+        menu.appendChild(stopBtn);
       }
 
       document.body.appendChild(menu);
