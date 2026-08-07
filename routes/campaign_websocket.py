@@ -911,6 +911,12 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             # Look up the defender (current user's character or SW-specified)
             attacker_id_override = data.get("attacker_id")
             if attacker_id_override:
+                if not await is_story_weaver(campaign_id, user_id, db):
+                    await manager.broadcast(campaign_id, {
+                        "type": "system",
+                        "text": "❌ Only the Story Weaver can roll defense for another character"
+                    })
+                    return
                 defender = db.query(Character).filter(Character.id == attacker_id_override).first()
             else:
                 defender = db.query(Character).filter(
@@ -1696,8 +1702,14 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             name = m.group(1) if m.group(1) else m.group(2).replace('_', ' ')
             target_names.append(name)
 
-        # Get caster's character (PC lookup by user_id, or NPC lookup by speaker_id)
-        if cmd.speaker_id and cmd.speaker_type == 'npc':
+        # Get caster's character (PC lookup by user_id, or SW-overridden NPC/puppeted PC via speaker_id)
+        if cmd.speaker_id and cmd.speaker_type in ('npc', 'pc'):
+            if not await is_story_weaver(campaign_id, user_id, db):
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": "❌ Only the Story Weaver can cast abilities as another character"
+                })
+                return
             caster = db.query(Character).filter(
                 Character.id == cmd.speaker_id
             ).first()
@@ -2399,9 +2411,15 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
     display_name = manager.get_display_name(campaign_id, user_id)
     stat_type = data.get("stat", "PP").upper()  # "PP", "IP", or "SP"
 
-    # If a specific character_id is provided (e.g. SW rolling as NPC), use that
+    # If a specific character_id is provided (e.g. SW rolling as NPC/puppeted PC), use that
     character_id = data.get("character_id")
     if character_id:
+        if not await is_story_weaver(campaign_id, user_id, db):
+            await websocket.send_json({
+                "type": "system",
+                "text": "❌ Only the Story Weaver can roll a stat check for another character"
+            })
+            return
         character = db.query(Character).filter(
             Character.id == UUID_type(character_id)
         ).first()
@@ -2875,9 +2893,14 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     if not char:
         return
 
-    # Only the targeted player can roll
-    if str(char.user_id) != str(user_id):
-        return
+    # The targeted player can always roll; the SW can roll on their behalf
+    # (e.g. player AFK) — tracked via rolled_by_sw for accountability.
+    is_owner = str(char.user_id) == str(user_id)
+    rolled_by_sw = False
+    if not is_owner:
+        if not await is_story_weaver(campaign_uuid, user_id, db):
+            return
+        rolled_by_sw = True
 
     # Roll player's d6
     die_roll = roll_dice("1d6")[0]
@@ -2902,6 +2925,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     req.outcome = outcome
     req.margin = margin
     req.status = "resolved"
+    req.rolled_by_sw = rolled_by_sw
     req.resolved_at = _dt.utcnow()
     db.commit()
 
@@ -2943,6 +2967,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "outcome": outcome,
         "margin": margin,
         "bap_granted": req.bap_granted,
+        "rolled_by_sw": rolled_by_sw,
     }
     result_msg = Message(
         campaign_id=str(campaign_uuid),
@@ -3158,8 +3183,14 @@ async def roll_initiative_self(
     Command: /initiative
     """
     try:
-        # If SW is speaking as an NPC, look up by speaker_id instead of user_id
+        # If SW is speaking as an NPC/puppeted PC, look up by speaker_id instead of user_id
         if speaker_id:
+            if not await is_story_weaver(campaign_uuid, user_uuid, db):
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Only the Story Weaver can roll initiative for another character"
+                })
+                return
             from uuid import UUID as _UUID
             character = db.query(Character).filter(
                 Character.id == _UUID(speaker_id),

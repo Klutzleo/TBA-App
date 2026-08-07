@@ -1014,6 +1014,7 @@ class StatCheckRequest(Base):
     player_total    = Column(Integer, nullable=True)
     outcome         = Column(String(4), nullable=True)            # win, loss
     margin          = Column(Integer, nullable=True)
+    rolled_by_sw    = Column(Boolean, nullable=False, default=False)
     created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
     resolved_at     = Column(DateTime(timezone=True), nullable=True)
 

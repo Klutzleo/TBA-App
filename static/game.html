@@ -2786,6 +2786,13 @@
           <button id="pinBannerUnpin" title="Unpin" onclick="unpinMessage()" style="display:none;"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
         </div>
 
+        <!-- Puppet banner — shown to SW only, while acting mechanically as a player's PC -->
+        <div id="puppetBanner" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:rgba(167,139,250,0.12);border-bottom:1px solid rgba(167,139,250,0.3);font-size:0.8rem;color:#a78bfa;">
+          <i data-lucide="drama" style="width:14px;height:14px;flex-shrink:0;"></i>
+          <span id="puppetBannerText" style="flex:1;"></span>
+          <button onclick="setActiveSpeaker({ id: null, name: 'Narrator', type: 'narrator' })" style="background:none;border:1px solid rgba(167,139,250,0.4);border-radius:5px;color:#a78bfa;font-size:0.75rem;padding:2px 8px;cursor:pointer;">Stop puppeting</button>
+        </div>
+
         <!-- Character Bubble Bar (for active speaker switching) -->
         <div class="bubble-bar" id="bubbleBar">
           <!-- SW: Narrator + NPCs -->
@@ -4406,10 +4413,18 @@
     });
 
     // === NPC/Character Bubble Bar State ===
-    let activeSpeaker = null;  // { id, name, type: 'pc'|'npc'|'ally'|'narrator' }
+    // 'puppet': SW acting mechanically as a specific player's PC (AFK backup) — NOT roleplay,
+    // chat sends are blocked while puppeting (see isOverrideSpeaker() call sites).
+    let activeSpeaker = null;  // { id, name, type: 'pc'|'npc'|'ally'|'narrator'|'puppet' }
     let playerCharacters = [];  // Player's PC and Ally (if any)
     let campaignNPCs = [];  // All NPCs for this campaign (SW only)
+    let campaignPCs = [];  // Real player characters only (no Narrator/NPC) — for SW puppet bubbles
     const visibleNPCNames = new Set(); // NPCs revealed to players via non-silent initiative
+
+    // Whether a speaker can be attributed on mechanical commands (/attack, /pp, /cast, etc.)
+    function isOverrideSpeaker(s) {
+      return !!(s && s.id && (s.type === 'npc' || s.type === 'ally' || s.type === 'puppet'));
+    }
 
     // === Ally/NPC Leveling Tables ===
     // PC/NPC DP progression (from Leveling Table v2.0)
@@ -4910,6 +4925,19 @@
           bubbleBar.appendChild(npcBubble);
         });
 
+        // Puppet bubbles — mechanics-only stand-ins for AFK players, NOT roleplay.
+        // Chat sends are blocked while one of these is active (see puppet guard at send-time).
+        campaignPCs.forEach(pc => {
+          const puppetBubble = createBubble({
+            id: pc.id,
+            name: pc.name,
+            type: 'puppet',
+            chat_color: pc.chat_color || null,
+            portrait_url: pc.portrait_url || null
+          });
+          bubbleBar.appendChild(puppetBubble);
+        });
+
         // Add NPC button
         const addButton = document.createElement('div');
         addButton.className = 'character-bubble bubble-add';
@@ -5007,6 +5035,14 @@
 
       const hiddenBadge = (character.type === 'npc' && userRole === 'SW' && !character.visible_to_players)
         ? `<span style="display:block;line-height:1;opacity:0.5;"><i data-lucide="eye-off" style="width:10px;height:10px;"></i></span>` : '';
+      // Puppet badge: makes it visually unmistakable this bubble is a mechanics-only stand-in,
+      // not the SW's own voice — pairs with the "Puppeting: X" banner shown while active.
+      const puppetBadge = character.type === 'puppet'
+        ? `<span title="Puppet — mechanics only, not roleplay" style="display:block;line-height:1;color:#a78bfa;"><i data-lucide="drama" style="width:10px;height:10px;"></i></span>` : '';
+
+      if (character.type === 'puppet') {
+        bubble.style.border = '1px dashed rgba(167,139,250,0.6)';
+      }
 
       let avatarInner;
       if (character.portrait_url) {
@@ -5023,7 +5059,7 @@
 
       bubble.innerHTML = `
         <div class="bubble-avatar" style="${character.portrait_url ? 'overflow:hidden;border-radius:50%;' : ''}">${avatarInner}</div>
-        <div class="bubble-name">${character.name}${hiddenBadge}</div>
+        <div class="bubble-name">${character.name}${hiddenBadge}${puppetBadge}</div>
       `;
 
       // Click to set active speaker
@@ -5107,6 +5143,20 @@
       }
       renderBubbleBar();
       renderChatToolbar();
+      updatePuppetBanner();
+    }
+
+    // Shows/hides the "Puppeting: X — mechanics only" banner to match activeSpeaker.
+    function updatePuppetBanner() {
+      const banner = document.getElementById('puppetBanner');
+      if (!banner) return;
+      if (activeSpeaker && activeSpeaker.type === 'puppet') {
+        document.getElementById('puppetBannerText').textContent =
+          `Puppeting ${activeSpeaker.name} — mechanics only (attack/cast/pp/ip/sp). Chat still speaks as Narrator.`;
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
     }
 
     // Insert formatting wrapper around selected text (or placeholder)
@@ -12761,6 +12811,10 @@
       // Check for chat mode commands (/say, /ooc, /whisper)
       const chatCmd = parseChatCommand(text);
       if (chatCmd) {
+        if (activeSpeaker && activeSpeaker.type === 'puppet') {
+          showPanelToast('Puppeting is mechanics-only — switch back to Narrator to speak in chat.', 'error');
+          return;
+        }
         // Check if it's an /ooc command
         const isOocCommand = chatCmd.mode === 'ooc' && text.toLowerCase().startsWith('/ooc');
 
@@ -12799,7 +12853,7 @@
           raw_command: text
         };
         // SW attacking/defending as an NPC: pass the NPC's character ID
-        if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
+        if (isOverrideSpeaker(activeSpeaker)) {
           payload.attacker_id = activeSpeaker.id;
         }
         if (bapArmed) { payload.use_bap = true; disarmBap(); }
@@ -12811,7 +12865,7 @@
           type: 'combat_command',
           raw_command: text
         };
-        if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
+        if (isOverrideSpeaker(activeSpeaker)) {
           payload.attacker_id = activeSpeaker.id;
         }
         if (bapArmed) { payload.use_bap = true; disarmBap(); }
@@ -12841,7 +12895,7 @@
           stat: stat  // Backend will add: 1d6 + stat value + edge
         };
         // If SW is speaking as an NPC, send the NPC's character ID
-        if (activeSpeaker && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally') && activeSpeaker.id) {
+        if (isOverrideSpeaker(activeSpeaker)) {
           payload.character_id = activeSpeaker.id;
         }
         if (bapArmed) { payload.use_bap = true; disarmBap(); }
@@ -12880,7 +12934,7 @@
           raw_command: text
         };
         // Include active NPC/ally speaker so backend can roll for them on /initiative
-        if (activeSpeaker && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally') && activeSpeaker.id) {
+        if (isOverrideSpeaker(activeSpeaker)) {
           payload.speaker_id = activeSpeaker.id;
           payload.speaker_type = activeSpeaker.type;
         }
@@ -12912,6 +12966,10 @@
           ws.send(JSON.stringify(payload));
         }
       } else {
+        if (activeSpeaker && activeSpeaker.type === 'puppet') {
+          showPanelToast('Puppeting is mechanics-only — use a command like /attack, /cast, or /pp, or switch back to Narrator to speak in chat.', 'error');
+          return;
+        }
         // Regular message - use active tab to determine chat mode
         let chatMode = 'ic'; // default
         let whisperTargets = null;
@@ -13003,7 +13061,7 @@
         if (userRole === 'SW' && (!activeSpeaker || !activeSpeaker.id)) return;
         const stat = cmdLower.replace('/', '').toUpperCase();
         const payload = { type: 'stat_check', stat };
-        if (activeSpeaker && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally') && activeSpeaker.id) {
+        if (isOverrideSpeaker(activeSpeaker)) {
           payload.character_id = activeSpeaker.id;
         }
         if (bapArmed) { payload.use_bap = true; disarmBap(); }
@@ -13021,7 +13079,7 @@
 
       } else if (/^\/(attack|defense|defend|cast|technique)/i.test(cmdLower)) {
         const payload = { type: 'combat_command', raw_command: command };
-        if (activeSpeaker && activeSpeaker.id && (activeSpeaker.type === 'npc' || activeSpeaker.type === 'ally')) {
+        if (isOverrideSpeaker(activeSpeaker)) {
           payload.attacker_id = activeSpeaker.id;
         }
         if (bapArmed) { payload.use_bap = true; disarmBap(); }
@@ -13192,6 +13250,7 @@
         knownPCs = members
           .filter(m => m.character && !m.character.is_npc)
           .map(m => ({ id: m.character.id, name: m.character.name, chat_color: m.character.chat_color || null, portrait_url: m.character.portrait_url || null }));
+        campaignPCs = knownPCs.slice(); // snapshot before Narrator/NPC entries get appended below
 
         // Add Narrator (SW voice) to knownPCs so history messages from SW get colored for all viewers
         const swMember = members.find(m => m.role === 'story_weaver');
@@ -13296,6 +13355,7 @@
         // Now that knownPCs is populated, recolor any history already loaded
         recolorAllHistory();
         if (window.lucide) lucide.createIcons({ el: charactersContainer });
+        if (userRole === 'SW') renderBubbleBar(); // refresh puppet bubbles now that campaignPCs is set
 
       } catch (error) {
         console.error('Error loading characters:', error);
@@ -13592,8 +13652,8 @@
         type: 'stat_check_roll',
         request_id: requestId,
       }));
-      // Disable the button immediately to prevent double-roll
-      const btn = document.getElementById(`stat-check-btn-${requestId}`);
+      // Disable whichever button triggered this (player's own, or SW's backup) to prevent double-roll
+      const btn = document.getElementById(`stat-check-btn-${requestId}`) || document.getElementById(`stat-check-sw-btn-${requestId}`);
       if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
     }
 
@@ -13617,6 +13677,7 @@
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
       const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP Granted</span>` : '';
       const vsLabel = data.mode === 'vs' ? ` <span style="color:var(--text-muted);font-size:0.78rem;">vs ${escHtml(data.npc_name || '')}</span>` : '';
+      const showSwBackupBtn = isSW() && !isTarget && isPending && data.mode !== 'npc';
       const rollBtn = showBtn
         ? `<button id="stat-check-btn-${data.request_id}" onclick="rollStatCheck('${data.request_id}','${data.stat}')"
               style="margin-top:10px;width:100%;padding:10px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.5);border-radius:8px;color:#a78bfa;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.15s;"
@@ -13624,7 +13685,15 @@
               <i data-lucide="dices" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i>Roll ${data.stat}
              </button>`
         : isPending
-          ? `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">Waiting for ${escHtml(data.character_name || '')} to roll…</div>`
+          ? `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">
+               Waiting for ${escHtml(data.character_name || '')} to roll…
+               ${showSwBackupBtn ? `
+                 <button id="stat-check-sw-btn-${data.request_id}" onclick="rollStatCheck('${data.request_id}','${data.stat}')"
+                   title="Roll for ${escHtml(data.character_name || '')} — backup, if they're offline/AFK"
+                   style="margin-left:6px;padding:2px 8px;background:none;border:1px solid rgba(167,139,250,0.4);border-radius:5px;color:#a78bfa;font-size:0.72rem;cursor:pointer;">
+                   <i data-lucide="dices" style="width:11px;height:11px;vertical-align:middle;margin-right:3px;"></i>Roll for them
+                 </button>` : ''}
+             </div>`
           : '';
 
       const timestamp = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -13670,6 +13739,7 @@
       const debuffLine = data.debuff_modifier < 0
         ? `<div style="font-size:0.75rem;color:#f87171;">Debuff: ${data.debuff_modifier}</div>` : '';
       const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP</span>` : '';
+      const swRolledBadge = data.rolled_by_sw ? `<span title="Story Weaver rolled this on the player's behalf" style="font-size:0.72rem;color:#93c5fd;background:rgba(147,197,253,0.1);border:1px solid rgba(147,197,253,0.3);border-radius:4px;padding:1px 6px;">SW rolled</span>` : '';
       const isVs = data.mode === 'vs';
       const rightLabel = isVs ? escHtml(data.npc_name || data.difficulty_label) : (data.difficulty_label || 'Difficulty');
 
@@ -13694,6 +13764,7 @@
             <span style="font-size:1rem;"><i data-lucide="target" style="width:16px;height:16px;vertical-align:middle;"></i></span>
             <span style="font-weight:700;color:${color};font-size:0.88rem;">Stat Check — ${data.stat} — ${label}</span>
             ${bapBadge}
+            ${swRolledBadge}
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
             ${!isVs ? `<span style="font-size:0.82rem;color:var(--text-muted);">${data.difficulty_label || ''}</span>` : ''}
