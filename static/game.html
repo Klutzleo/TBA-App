@@ -4931,18 +4931,10 @@
           bubbleBar.appendChild(npcBubble);
         });
 
-        // Puppet bubbles — mechanics-only stand-ins for AFK players, NOT roleplay.
-        // Chat sends are blocked while one of these is active (see puppet guard at send-time).
-        campaignPCs.forEach(pc => {
-          const puppetBubble = createBubble({
-            id: pc.id,
-            name: pc.name,
-            type: 'puppet',
-            chat_color: pc.chat_color || null,
-            portrait_url: pc.portrait_url || null
-          });
-          bubbleBar.appendChild(puppetBubble);
-        });
+        // Single puppet-picker bubble (opens a dropdown of PCs) instead of one bubble per PC —
+        // keeps the bar usable in campaigns with a lot of NPCs. Mechanics-only stand-in, NOT roleplay;
+        // chat sends are blocked while puppeting (see puppet guard at send-time).
+        bubbleBar.appendChild(buildPuppetPickerBubble());
 
         // Add NPC button
         const addButton = document.createElement('div');
@@ -5041,14 +5033,6 @@
 
       const hiddenBadge = (character.type === 'npc' && userRole === 'SW' && !character.visible_to_players)
         ? `<span style="display:block;line-height:1;opacity:0.5;"><i data-lucide="eye-off" style="width:10px;height:10px;"></i></span>` : '';
-      // Puppet badge: makes it visually unmistakable this bubble is a mechanics-only stand-in,
-      // not the SW's own voice — pairs with the "Puppeting: X" banner shown while active.
-      const puppetBadge = character.type === 'puppet'
-        ? `<span title="Puppet — mechanics only, not roleplay" style="display:block;line-height:1;color:#a78bfa;"><i data-lucide="drama" style="width:10px;height:10px;"></i></span>` : '';
-
-      if (character.type === 'puppet') {
-        bubble.style.border = '1px dashed rgba(167,139,250,0.6)';
-      }
 
       let avatarInner;
       if (character.portrait_url) {
@@ -5065,7 +5049,7 @@
 
       bubble.innerHTML = `
         <div class="bubble-avatar" style="${character.portrait_url ? 'overflow:hidden;border-radius:50%;' : ''}">${avatarInner}</div>
-        <div class="bubble-name">${character.name}${hiddenBadge}${puppetBadge}</div>
+        <div class="bubble-name">${character.name}${hiddenBadge}</div>
       `;
 
       // Click to set active speaker
@@ -5125,6 +5109,69 @@
       }
 
       return bubble;
+    }
+
+    // Single bubble that opens a dropdown of PCs to puppet, instead of one bubble per PC —
+    // stays usable even in campaigns with a large NPC roster. Shows the puppeted character
+    // (name + portrait) while active, otherwise a generic "Puppet PC" label.
+    function buildPuppetPickerBubble() {
+      const isPuppeting = activeSpeaker && activeSpeaker.type === 'puppet';
+      const bubble = document.createElement('div');
+      bubble.className = 'character-bubble puppet' + (isPuppeting ? ' active' : '');
+      bubble.style.border = '1px dashed rgba(167,139,250,0.6)';
+
+      const avatarInner = (isPuppeting && activeSpeaker.portrait_url)
+        ? `<img src="${escHtml(activeSpeaker.portrait_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`
+        : `<i data-lucide="drama" style="width:1rem;height:1rem;"></i>`;
+      const label = isPuppeting ? escHtml(activeSpeaker.name) : 'Puppet PC';
+
+      bubble.innerHTML = `
+        <div class="bubble-avatar" style="${isPuppeting && activeSpeaker.portrait_url ? 'overflow:hidden;border-radius:50%;' : ''}">${avatarInner}</div>
+        <div class="bubble-name">${label}</div>
+      `;
+      bubble.onclick = (e) => showPuppetPicker(e);
+      return bubble;
+    }
+
+    function showPuppetPicker(event) {
+      event.stopPropagation();
+      const existing = document.querySelector('.context-menu');
+      if (existing) existing.remove();
+
+      const menu = document.createElement('div');
+      menu.className = 'context-menu active';
+      const items = campaignPCs.map(pc => {
+        const safeName = pc.name.replace(/'/g, "\\'");
+        const colorArg = pc.chat_color ? `'${pc.chat_color}'` : 'null';
+        const portraitArg = pc.portrait_url ? `'${pc.portrait_url}'` : 'null';
+        return `<button class="context-menu-item" onclick="setActiveSpeaker({ id: '${pc.id}', name: '${safeName}', type: 'puppet', chat_color: ${colorArg}, portrait_url: ${portraitArg} })"><i data-lucide="drama" style="width:13px;height:13px;vertical-align:middle;margin-right:6px;"></i>${escHtml(pc.name)}</button>`;
+      }).join('');
+      menu.innerHTML = items || `<div style="padding:8px 12px;color:var(--text-muted);font-size:0.8rem;">No player characters yet</div>`;
+      if (activeSpeaker && activeSpeaker.type === 'puppet') {
+        menu.innerHTML += `<button class="context-menu-item" onclick="setActiveSpeaker({ id: null, name: 'Narrator', type: 'narrator' })"><i data-lucide="x" style="width:13px;height:13px;vertical-align:middle;margin-right:6px;"></i>Stop puppeting</button>`;
+      }
+
+      document.body.appendChild(menu);
+      if (window.lucide) lucide.createIcons({ el: menu });
+
+      // Position menu with viewport boundary checks (same pattern as showContextMenu)
+      const mouseX = event.clientX || event.pageX;
+      const mouseY = event.clientY || event.pageY;
+      const menuRect = menu.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      let left = mouseX;
+      let top = mouseY;
+      if (left + menuRect.width > viewportWidth) left = mouseX - menuRect.width;
+      if (top + menuRect.height > viewportHeight) top = mouseY - menuRect.height;
+      left = Math.max(0, Math.min(left, viewportWidth - menuRect.width));
+      top = Math.max(0, Math.min(top, viewportHeight - menuRect.height));
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+
+      setTimeout(() => {
+        document.addEventListener('click', () => menu.remove(), { once: true });
+      }, 100);
     }
 
     // Set active speaker — update chat color to match the new speaker
