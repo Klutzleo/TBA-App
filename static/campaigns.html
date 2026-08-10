@@ -571,9 +571,17 @@
 
         <div class="whats-new-entry">
           <div class="whats-new-entry-header">
+            <span class="whats-new-entry-icon">🎭</span>
+            <span class="whats-new-entry-title">Puppet Mode for AFK Players</span>
+            <span class="new-badge">New</span>
+          </div>
+          <div class="whats-new-entry-desc">Story Weavers can now stand in for a quiet player's character — pick them from the new <strong>Puppet PC</strong> bubble and <strong>/attack</strong>, <strong>/cast</strong>, <strong>/pp</strong>/<strong>/ip</strong>/<strong>/sp</strong>, and <strong>/initiative</strong> resolve as that character. A banner always shows who's being puppeted, and it's mechanics-only — no chatting as someone else. Stat checks also got their own "Roll for them" backup button for when a check's been sitting unanswered.</div>
+        </div>
+
+        <div class="whats-new-entry">
+          <div class="whats-new-entry-header">
             <span class="whats-new-entry-icon">🏆</span>
             <span class="whats-new-entry-title">Achievement System</span>
-            <span class="new-badge">New</span>
           </div>
           <div class="whats-new-entry-desc">153 achievements across 11 categories — Combat, Dice, The Calling, Hall of Shame, Story Weaver, and more. Earn points, unlock rarity tiers (Common → Legendary), and showcase your top badges on your profile. Achievements awarded retroactively, live toast with a Zelda chime on unlock.</div>
         </div>
@@ -582,7 +590,6 @@
           <div class="whats-new-entry-header">
             <span class="whats-new-entry-icon">👤</span>
             <span class="whats-new-entry-title">Public Player Profiles</span>
-            <span class="new-badge">New</span>
           </div>
           <div class="whats-new-entry-desc">Every player now has a shareable profile at <strong>tba-rpg.com/u/username</strong>. Shows lifetime stats, characters, achievements, Story Weaver campaigns, and a badge showcase. Hit the Share button on your profile to copy the link — works without logging in.</div>
         </div>
@@ -591,7 +598,6 @@
           <div class="whats-new-entry-header">
             <span class="whats-new-entry-icon">🔔</span>
             <span class="whats-new-entry-title">Notification Center</span>
-            <span class="new-badge">New</span>
           </div>
           <div class="whats-new-entry-desc">A notification drawer lives in the top bar — get push alerts for stat checks sent your way, achievement unlocks, and campaign activity. The scroll icon updates live with your unread count.</div>
         </div>
@@ -600,7 +606,6 @@
           <div class="whats-new-entry-header">
             <span class="whats-new-entry-icon">🤝</span>
             <span class="whats-new-entry-title">Bonds + Combo System</span>
-            <span class="new-badge">New</span>
           </div>
           <div class="whats-new-entry-desc">Characters can now form Bonds with allies and chain into Combo attacks. Build connection through play and turn it into mechanical power at the table.</div>
         </div>
@@ -971,7 +976,7 @@
         initNotificationCenter();
 
         // ── What's New ──
-        const WHATS_NEW_VERSION = '2026-06-02';
+        const WHATS_NEW_VERSION = '2026-08-10';
         const SEEN_KEY = 'tba_whats_new_seen';
 
         function openWhatsNew() {
