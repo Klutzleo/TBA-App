@@ -8,6 +8,7 @@ runs exactly once — already-applied migrations are fully skipped
 """
 import os
 import sys
+import time
 from pathlib import Path
 import psycopg2
 
@@ -33,15 +34,29 @@ def run_migrations():
         print("⚠️  No migration files found in backend/migrations/")
         return
 
-    try:
-        conn = psycopg2.connect(database_url)
-        conn.autocommit = True
-        cursor = conn.cursor()
-        print("✅ Connected to database")
-        print("")
-    except Exception as e:
-        print(f"❌ Failed to connect to database: {e}")
-        sys.exit(1)
+    # Postgres may still be mid-restart/crash-recovery (e.g. after a Railway maintenance
+    # update) — retry the initial connection instead of failing immediately, so the app
+    # comes back up on its own once the DB is ready instead of needing a manual restart.
+    max_wait_seconds = 120
+    retry_interval_seconds = 3
+    deadline = time.monotonic() + max_wait_seconds
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            conn = psycopg2.connect(database_url, connect_timeout=5)
+            conn.autocommit = True
+            cursor = conn.cursor()
+            print(f"✅ Connected to database (attempt {attempt})")
+            print("")
+            break
+        except Exception as e:
+            if time.monotonic() >= deadline:
+                print(f"❌ Failed to connect to database after {attempt} attempts over {max_wait_seconds}s: {e}")
+                sys.exit(1)
+            print(f"⏳ Database not ready yet (attempt {attempt}): {e}")
+            print(f"   Retrying in {retry_interval_seconds}s...")
+            time.sleep(retry_interval_seconds)
 
     # Serialize concurrent migration runs (e.g. two Railway dynos starting simultaneously).
     # pg_advisory_lock blocks until free; released automatically when connection closes.
