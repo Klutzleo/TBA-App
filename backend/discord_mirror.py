@@ -64,6 +64,9 @@ DENYLIST_TYPES = {
     # Privacy: SW's private /s roll routes through broadcast() but is rendered
     # SW-only client-side — must never leak to a public Discord channel.
     "secret_roll_result",
+    # This module's own reaction-poller output loops back through broadcast()
+    # like everything else — mirroring it as a message would be a feedback loop.
+    "discord_reaction",
 }
 
 # Small, hand-verified formatters for the types whose exact field names are
