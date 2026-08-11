@@ -130,6 +130,12 @@ def enqueue_outbound(campaign_id, message: dict):
         return
     if msg_type == "system" and str(message.get("text", "")).startswith("❌"):
         return
+    # WS connect/disconnect presence pings (SystemNotification event="player_joined"/
+    # "player_left") fire on every reconnect/tab-switch/page-reload — noisy, not a real
+    # membership change (that's the separate, already-denylisted player_joined_campaign/
+    # player_left_campaign types).
+    if msg_type == "system" and message.get("event") in ("player_joined", "player_left"):
+        return
 
     channel_id = _get_channel_id(str(campaign_id))
     if not channel_id:
