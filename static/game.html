@@ -1705,6 +1705,23 @@
       0%, 100% { box-shadow: 0 0 3px rgba(245, 158, 11, 0.3); }
       50%       { box-shadow: 0 0 9px rgba(245, 158, 11, 0.7); }
     }
+    .discord-reactions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .discord-reaction-badge {
+      font-size: 0.75rem;
+      color: #a3a3ff;
+      background: rgba(88, 101, 242, 0.12);
+      border: 1px solid rgba(88, 101, 242, 0.35);
+      border-radius: var(--radius-sm);
+      padding: 1px 7px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
 
     /* === Boost Modal === */
     #boostModal { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; }
@@ -3671,6 +3688,16 @@
               style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.9rem;">
             <button class="btn" style="padding:6px 14px; font-size:0.85rem;" onclick="saveCurrencyName()">Save</button>
           </div>
+        </div>
+        <!-- Discord Live Mirror -->
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Discord Channel ID</label>
+          <div style="display:flex; gap:8px;">
+            <input id="settingsDiscordChannelId" type="text" maxlength="32" placeholder="e.g. 123456789012345678"
+              style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.9rem; font-family:monospace;">
+            <button class="btn" style="padding:6px 14px; font-size:0.85rem;" onclick="saveDiscordChannelId()">Save</button>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Mirrors live campaign activity to a Discord channel. Right-click the channel in Discord → Copy Channel ID (enable Developer Mode first). The bot must already be invited to this channel. Leave blank to disable.</div>
         </div>
         <!-- Join Code -->
         <div>
@@ -6363,9 +6390,10 @@
 
     async function openCampaignSettings() {
       try {
-        const [cnResp, campResp] = await Promise.all([
+        const [cnResp, campResp, dcResp] = await Promise.all([
           fetch(`/api/campaigns/${campaignId}/currency-name`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
-          fetch(`/api/campaigns/${campaignId}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+          fetch(`/api/campaigns/${campaignId}`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+          fetch(`/api/campaigns/${campaignId}/discord-channel-id`, { headers: { 'Authorization': `Bearer ${authToken}` } })
         ]);
         if (cnResp.ok) {
           const cn = await cnResp.json();
@@ -6375,6 +6403,10 @@
           const camp = await campResp.json();
           document.getElementById('settingsCharMode').value = camp.character_creation_mode || 'open';
           document.getElementById('settingsJoinCode').textContent = camp.join_code || '—';
+        }
+        if (dcResp.ok) {
+          const dc = await dcResp.json();
+          document.getElementById('settingsDiscordChannelId').value = dc.discord_channel_id || '';
         }
       } catch (e) { /* show modal anyway */ }
       document.getElementById('campaignSettingsModal').classList.add('active');
@@ -6610,6 +6642,25 @@
         showPanelToast(`Currency set to "${name}"`, 'success');
       } catch (e) {
         showPanelToast('Could not save currency name', 'error');
+      }
+    }
+
+    async function saveDiscordChannelId() {
+      const raw = document.getElementById('settingsDiscordChannelId').value.trim();
+      if (raw && !/^\d{1,32}$/.test(raw)) {
+        showPanelToast('Discord channel ID must be numeric', 'error');
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/discord-channel-id`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ discord_channel_id: raw })
+        });
+        if (!resp.ok) throw new Error('Failed to save');
+        showPanelToast(raw ? 'Discord mirror channel saved' : 'Discord mirroring disabled', 'success');
+      } catch (e) {
+        showPanelToast('Could not save Discord channel ID', 'error');
       }
     }
 
@@ -11322,7 +11373,7 @@
               _dcard.className = 'message-card message-system';
               _dcard.style.cssText = 'border-left:3px solid #ef4444;padding-left:12px;';
               _dcard.innerHTML = '⚔️ <strong>' + escHtml(data.source) + '</strong> hits <strong>' + escHtml(data.character_name) + '</strong> for <strong style="color:#ef4444;">-' + data.amount + ' DP</strong> (' + data.old_dp + ' → ' + data.new_dp + '/' + data.max_dp + ')';
-              storeAndDisplayMessage(_dcard, { type: 'damage_applied', actor: 'system', _tab: 'story' });
+              storeAndDisplayMessage(_dcard, { type: 'damage_applied', actor: 'system', _tab: 'story', message_id: data.message_id });
             } else if (data.type === 'dp_healed') {
               loadCharacters();
               loadBubbleBar();
@@ -11335,7 +11386,7 @@
               _hcard.className = 'message-card message-system';
               _hcard.style.cssText = 'border-left:3px solid var(--accent-success);padding-left:12px;';
               _hcard.innerHTML = '❤️ <strong>' + escHtml(data.character_name) + '</strong> healed <strong style="color:var(--accent-success);">+' + _healed + ' DP</strong> (' + data.old_dp + ' → ' + data.new_dp + '/' + data.max_dp + ')';
-              storeAndDisplayMessage(_hcard, { type: 'dp_healed', actor: 'system' });
+              storeAndDisplayMessage(_hcard, { type: 'dp_healed', actor: 'system', message_id: data.message_id });
             } else if (data.type === 'calling_triggered') {
               // Dramatic story broadcast visible to everyone — deep purple threshold aesthetic
               const dramaDiv = document.createElement('div');
@@ -11345,7 +11396,7 @@
                 <div style="font-size:1.5rem; font-weight:bold; color:#a78bfa; letter-spacing:0.08em;">💀 THE CALLING</div>
                 <div style="margin-top:8px; color:var(--text-primary); font-size:1rem;">${data.defender} has been pulled to the threshold.</div>
                 <div style="margin-top:4px; color:#a78bfa; font-size:0.85rem; font-style:italic;">The veil grows thin. (DP: ${data.defender_new_dp})</div>`;
-              storeAndDisplayMessage(dramaDiv, { type: 'calling_drama', actor: 'system' });
+              storeAndDisplayMessage(dramaDiv, { type: 'calling_drama', actor: 'system', message_id: data.message_id });
               // Open modal for all clients
               openCallingModal(data.character_id, data.defender, data.defender_new_dp,
                 data.defender_ip, data.defender_sp, data.defender_edge, data.defender_times_called);
@@ -11370,7 +11421,7 @@
                   Margin: <strong style="color:${outcomeColor[data.outcome] || '#fff'};">${marginStr}</strong>
                 </div>
                 <div style="margin-top:10px; font-weight:bold; color:${outcomeColor[data.outcome] || '#fff'};">${outcomeLabel[data.outcome] || ''}</div>`;
-              storeAndDisplayMessage(resultDiv, { type: 'calling_result_story', actor: 'system' });
+              storeAndDisplayMessage(resultDiv, { type: 'calling_result_story', actor: 'system', message_id: data.message_id });
 
               // Also update the modal result pane
               const outcomes = {
@@ -11532,7 +11583,7 @@
                     ${slotLine}
                   </div>
                 </div>`;
-              storeAndDisplayMessage(container, { type: 'system', actor: 'system' });
+              storeAndDisplayMessage(container, { type: 'system', actor: 'system', message_id: data.message_id });
               // Refresh party panel so new stats show
               loadBubbleBar();
               loadCharacters();
@@ -11588,8 +11639,7 @@
                 <div>1d6: <strong>${data.roll}</strong> → <strong style="color:${effectColors[data.effect] || '#fff'};">${effectEmoji[data.effect] || ''} ${data.effect}</strong></div>
                 ${data.modifier !== 0 ? `<div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">${data.modifier > 0 ? '+' : ''}${data.modifier} to next roll</div>` : ''}
                 <div style="font-style:italic; color:var(--text-muted); font-size:0.85rem; margin-top:6px;">${data.narrative}</div>`;
-              document.getElementById('chatMessages').appendChild(checkDiv);
-              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              storeAndDisplayMessage(checkDiv, data);
 
             } else if (data.type === 'called_cleansed') {
               const cleanseDiv = document.createElement('div');
@@ -11597,8 +11647,7 @@
               cleanseDiv.style.cssText = 'border-left:4px solid #86efac; background:rgba(134,239,172,0.07); padding:10px 16px; margin:4px 0;';
               cleanseDiv.innerHTML = `
                 <div style="color:#86efac; font-size:0.85rem;">✨ ${data.character_name} has been cleansed — The Called status removed.</div>`;
-              document.getElementById('chatMessages').appendChild(cleanseDiv);
-              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              storeAndDisplayMessage(cleanseDiv, data);
               loadCharacters();
 
             } else if (data.type === 'full_rest') {
@@ -11618,6 +11667,7 @@
               grantEl.className = 'message-card message-system';
               grantEl.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;';
               grantEl.innerHTML = `✦ <strong>${escHtml(data.character_name)}</strong> received a <strong style="color:#f59e0b;">BAP token</strong>${data.token_type ? ` — ${typeLabels[data.token_type] || data.token_type}` : ''}`;
+              if (data.message_id) grantEl.dataset.messageId = data.message_id;
               document.getElementById('chatMessages').appendChild(grantEl);
               document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
               loadCharacters();
@@ -11729,7 +11779,7 @@
               const msg = active
                 ? `${icon} ${data.character_name}'s Tether activated (${modStr}): "${data.description}"`
                 : `${icon} ${data.character_name}'s Tether released: "${data.description}"`;
-              addMessage(msg, 'message-card message-system');
+              addMessage(msg, 'message-card message-system', { type: data.type, actor: 'system', message_id: data.message_id });
               await loadCharacters();
 
             } else if (data.type === 'item_added') {
@@ -12098,7 +12148,7 @@
                 container.appendChild(details);
               }
 
-              storeAndDisplayMessage(container, { type: 'env_attack', actor: data.source, target_id: data.target_id, new_dp: data.new_dp, max_dp: data.max_dp });
+              storeAndDisplayMessage(container, { type: 'env_attack', actor: data.source, target_id: data.target_id, new_dp: data.new_dp, max_dp: data.max_dp, message_id: data.message_id });
               updateCharacterSheet(data.target_name, data.new_dp);
 
             } else if (data.type === 'defense_roll') {
@@ -12555,7 +12605,7 @@
               document.getElementById('comboAbilityModal').style.display = 'none';
               if (userRole === 'SW') renderInitiativeTracker();
               const comboEl = renderComboCard(data);
-              addMessage(comboEl, '', data, true);
+              addMessage(comboEl, '', data, false);
               showPanelToast(`⚡ ${escHtml(data.bond_name || 'Combo')} fires!`, 'info');
 
             } else if (data.type === 'turn_advance') {
@@ -12604,7 +12654,7 @@
               el.className = 'message-card message-combat';
               el.style.cssText = 'border-left:3px solid #d4af37;padding:8px 12px;';
               el.innerHTML = `<span style="color:#d4af37;font-weight:600;">${escHtml(data.message)}</span>`;
-              addMessage(el, '', data, true);
+              addMessage(el, '', data, false);
               showPanelToast(`✨ ${data.summon_name} summoned!`, 'info');
 
             } else if (data.type === 'summon_hit') {
@@ -12623,7 +12673,7 @@
               el.className = 'message-card message-combat';
               el.style.cssText = 'border-left:3px solid #6b7280;padding:8px 12px;';
               el.innerHTML = `<span style="color:#9ca3af;">${escHtml(data.message)}</span>`;
-              addMessage(el, '', data, true);
+              addMessage(el, '', data, false);
               showPanelToast(`💨 ${data.summon_name} dismissed`, 'info');
 
             } else if (data.type === 'summon_dp_drain') {
@@ -12803,6 +12853,28 @@
             } else if (data.type === 'achievement_announced') {
               const card = makeAchievementChatCard(data);
               addMessage(card, 'message-card', data);
+            } else if (data.type === 'discord_reaction') {
+              // Cosmetic hype signal from a Discord viewer's reaction — never touches game state.
+              const targetCard = data.message_id ? document.querySelector(`[data-message-id="${data.message_id}"]`) : null;
+              if (targetCard) {
+                let bar = targetCard.querySelector('.discord-reactions-bar');
+                if (!bar) {
+                  bar = document.createElement('div');
+                  bar.className = 'discord-reactions-bar';
+                  targetCard.appendChild(bar);
+                }
+                let badge = bar.querySelector(`[data-emoji-key="${CSS.escape(data.emoji)}"]`);
+                if (!badge) {
+                  badge = document.createElement('span');
+                  badge.className = 'discord-reaction-badge';
+                  badge.dataset.emojiKey = data.emoji;
+                  bar.appendChild(badge);
+                }
+                const emojiLabel = (data.emoji || '').split(':')[0];
+                badge.textContent = `${emojiLabel} ×${data.count}`;
+              } else {
+                showPanelToast(`${(data.emoji || '').split(':')[0]} ×${data.count} on Discord`, 'info');
+              }
             } else {
               const content = document.createElement('div');
               content.textContent = `[${data.type}] ${data.actor || 'system'}: ${data.text || ev.data}`;

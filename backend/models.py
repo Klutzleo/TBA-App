@@ -323,6 +323,9 @@ class Campaign(Base):
     # Currency name chosen by the SW (e.g. "Gold", "Credits", "Chips")
     currency_name = Column(String(50), nullable=False, default='Gold')
 
+    # Discord live-mirror channel — mirroring is "on" iff this is non-null (no separate enabled flag)
+    discord_channel_id = Column(String(32), nullable=True)
+
     # Legacy fields (kept for backward compatibility)
     created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
     is_active = Column(Boolean, nullable=False, default=True)
@@ -1017,6 +1020,37 @@ class StatCheckRequest(Base):
     rolled_by_sw    = Column(Boolean, nullable=False, default=False)
     created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
     resolved_at     = Column(DateTime(timezone=True), nullable=True)
+
+
+class DiscordMirroredMessage(Base):
+    """Maps a mirrored campaign event to the Discord message it was posted as.
+
+    source_message_id is a best-effort correlation to messages.id (no FK — some
+    mirrored events, like initiative_order, have no backing Message row at all).
+    """
+    __tablename__ = "discord_mirrored_messages"
+    __table_args__ = {'extend_existing': True}
+
+    id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id         = Column(UUID(as_uuid=True), nullable=False, index=True)
+    discord_channel_id  = Column(String(32), nullable=False)
+    discord_message_id  = Column(String(32), nullable=False)
+    event_type          = Column(String(64), nullable=False)
+    source_message_id   = Column(UUID(as_uuid=True), nullable=True, index=True)
+    posted_at           = Column(DateTime, default=datetime.utcnow)
+
+
+class DiscordReactionCount(Base):
+    """Last-seen reaction count per emoji on a mirrored Discord message —
+    lets the reaction poller detect new reactions without per-user tracking."""
+    __tablename__ = "discord_reaction_counts"
+    __table_args__ = {'extend_existing': True}
+
+    id                    = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    mirrored_message_id   = Column(UUID(as_uuid=True), ForeignKey("discord_mirrored_messages.id", ondelete="CASCADE"), nullable=False)
+    emoji_key             = Column(String(80), nullable=False)
+    last_count            = Column(Integer, nullable=False, default=0)
+    updated_at            = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class UserAchievement(Base):

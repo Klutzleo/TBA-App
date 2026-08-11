@@ -131,6 +131,20 @@ class NarrationBroadcast(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
+class DiscordReactionBroadcast(BaseModel):
+    """Server broadcasts a Discord emoji reaction count as a cosmetic hype signal.
+
+    Purely decorative — never carries or influences any game-state field
+    (HP, dice results, turn order, etc.). Emitted only by the reaction
+    poller in backend/discord_mirror.py.
+    """
+    type: Literal["discord_reaction"] = "discord_reaction"
+    emoji: str
+    count: int
+    message_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
 class DiceRollBroadcast(BaseModel):
     """Broadcast dice roll result to all players."""
     type: Literal["dice_roll_result"] = "dice_roll_result"  # ✅ Result type (different!)

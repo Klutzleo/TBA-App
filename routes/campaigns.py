@@ -902,6 +902,46 @@ async def update_currency_name(
     return {"currency_name": campaign.currency_name}
 
 
+@router.get("/{campaign_id}/discord-channel-id")
+async def get_discord_channel_id(
+    campaign_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the campaign's Discord mirror channel ID (all members)."""
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return {"discord_channel_id": campaign.discord_channel_id}
+
+
+@router.patch("/{campaign_id}/discord-channel-id")
+async def update_discord_channel_id(
+    campaign_id: UUID,
+    req: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """SW sets (or clears) the campaign's Discord mirror channel ID. Empty string disables mirroring."""
+    campaign = _require_sw(campaign_id, current_user, db)
+    raw = (req.get("discord_channel_id") or "").strip()
+    if not raw:
+        campaign.discord_channel_id = None
+    else:
+        if not raw.isdigit() or len(raw) > 32:
+            raise HTTPException(status_code=400, detail="Discord channel ID must be numeric and at most 32 characters")
+        campaign.discord_channel_id = raw
+    db.commit()
+    return {"discord_channel_id": campaign.discord_channel_id}
+
+
 @router.patch("/{campaign_id}/pin")
 async def pin_message(
     campaign_id: UUID,

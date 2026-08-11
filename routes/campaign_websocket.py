@@ -95,6 +95,12 @@ class CampaignConnectionManager:
     
     async def broadcast(self, campaign_id: UUID, message: dict):
         """Send message to all connections in a campaign."""
+        try:
+            from backend import discord_mirror
+            discord_mirror.enqueue_outbound(campaign_id, message)
+        except Exception as e:
+            logger.warning(f"Discord mirror enqueue failed: {e}")
+
         if campaign_id not in self.active_connections:
             return
 
@@ -534,6 +540,17 @@ async def campaign_websocket(
                             db.query(InitiativeRoll).filter(InitiativeRoll.character_id == summon.id).delete()
                             db.delete(summon)
                             db.commit()
+                            dismiss_msg = Message(
+                                campaign_id=campaign_uuid,
+                                party_id=None,
+                                sender_id=summoner_id or str(user_uuid),
+                                sender_name=summon_name,
+                                message_type="summon_dismissed",
+                                content=f"💨 {summon_name} has been dismissed.",
+                                extra_data={"summon_id": summon_id, "summon_name": summon_name, "summoner_id": summoner_id, "reason": "dismissed"}
+                            )
+                            db.add(dismiss_msg)
+                            db.commit()
                             await manager.broadcast(campaign_uuid, {
                                 "type": "summon_dismissed",
                                 "summon_id": summon_id,
@@ -541,6 +558,7 @@ async def campaign_websocket(
                                 "summoner_id": summoner_id,
                                 "reason": "dismissed",
                                 "message": f"💨 {summon_name} has been dismissed.",
+                                "message_id": str(dismiss_msg.id),
                             })
                     except Exception as _e:
                         logger.warning(f"dismiss_summon failed: {_e}")
@@ -1077,7 +1095,8 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 "max_dp": target_char.max_dp,
                 "atk_breakdown": atk_str,
                 "def_breakdown": def_str,
-                "result_text": result_text
+                "result_text": result_text,
+                "message_id": str(env_msg.id),
             })
             return
 
@@ -1502,10 +1521,22 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
                         db.query(InitiativeRoll).filter(InitiativeRoll.character_id == target.id).delete()
                         db.delete(target)
                         db.commit()
+                        defeat_msg = Message(
+                            campaign_id=campaign_id,
+                            party_id=None,
+                            sender_id=caster.id,
+                            sender_name=summon_name_t,
+                            message_type="summon_dismissed",
+                            content=f"💨 {summon_name_t} has been defeated and vanishes!",
+                            extra_data={"summon_id": summon_id, "summon_name": summon_name_t, "reason": "defeated"}
+                        )
+                        db.add(defeat_msg)
+                        db.commit()
                         await manager.broadcast(campaign_id, {
                             "type": "summon_dismissed", "summon_id": summon_id,
                             "summon_name": summon_name_t, "reason": "defeated",
                             "message": f"💨 {summon_name_t} has been defeated and vanishes!",
+                            "message_id": str(defeat_msg.id),
                         })
                     continue
 
@@ -1653,6 +1684,18 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
     ability.uses_remaining -= 1
     db.commit()
 
+    summon_msg = Message(
+        campaign_id=campaign_id,
+        party_id=None,
+        sender_id=caster.id,
+        sender_name=caster.name,
+        message_type="summon_created",
+        content=f"✨ {caster.name} summons {ability.display_name}! (Durability: {durability} hit{'s' if durability > 1 else ''})",
+        extra_data={"caster_name": caster.name, "caster_id": str(caster.id), "summon_name": ability.display_name, "summon_id": str(summon.id), "durability": durability, "ability_name": ability.display_name}
+    )
+    db.add(summon_msg)
+    db.commit()
+
     await manager.broadcast(campaign_id, {
         "type": "summon_created",
         "caster_name": caster.name,
@@ -1662,6 +1705,7 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
         "durability": durability,
         "ability_name": ability.display_name,
         "message": f"✨ {caster.name} summons {ability.display_name}! (Durability: {durability} hit{'s' if durability > 1 else ''})",
+        "message_id": str(summon_msg.id),
     })
 
 
@@ -1836,6 +1880,17 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                         db.query(InitiativeRoll).filter(InitiativeRoll.character_id == target.id).delete()
                         db.delete(target)
                         db.commit()
+                        defeat_msg = Message(
+                            campaign_id=campaign_id,
+                            party_id=None,
+                            sender_id=caster.id,
+                            sender_name=summon_name,
+                            message_type="summon_dismissed",
+                            content=f"💨 {summon_name} has been defeated and vanishes!",
+                            extra_data={"summon_id": summon_id, "summon_name": summon_name, "summoner_id": summoner_id, "reason": "defeated"}
+                        )
+                        db.add(defeat_msg)
+                        db.commit()
                         await manager.broadcast(campaign_id, {
                             "type": "summon_dismissed",
                             "summon_id": summon_id,
@@ -1843,6 +1898,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                             "summoner_id": summoner_id,
                             "reason": "defeated",
                             "message": f"💨 {summon_name} has been defeated and vanishes!",
+                            "message_id": str(defeat_msg.id),
                         })
                         results.append({"target": target_name, "success": True,
                                         "outcome": "summon_defeated", "damage": 1,
@@ -2127,55 +2183,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         # Generate narrative (header already shows caster + ability, so just show outcomes)
         narrative = " ".join(narrative_parts)
 
-        # Broadcast result
-        broadcast = AbilityCastBroadcast(
-            caster=caster.name,
-            ability_name=ability.display_name,
-            ability_die=ability.die,
-            power_source=ability.power_source,
-            effect_type=ability.effect_type,
-            targets=target_names,
-            results=results,
-            narrative=narrative,
-            uses_remaining=ability.uses_remaining,
-            max_uses=ability.max_uses,
-            caster_char_id=str(caster.id)
-        )
-        await manager.broadcast(campaign_id, broadcast.model_dump(mode='json'))
-
-        # If any target triggered The Calling, save and broadcast it now
-        if calling_char_id:
-            calling_msg = Message(
-                campaign_id=campaign_id,
-                party_id=None,
-                sender_id=user_id,
-                sender_name="System",
-                message_type="calling_triggered",
-                content=f"{calling_char_name} has entered The Calling!",
-                extra_data={
-                    "character_id": calling_char_id,
-                    "defender": calling_char_name,
-                    "defender_new_dp": calling_char_dp,
-                    "defender_ip": calling_char_ip,
-                    "defender_sp": calling_char_sp,
-                    "defender_edge": calling_char_edge,
-                    "defender_times_called": calling_char_times
-                }
-            )
-            db.add(calling_msg)
-            db.commit()
-            await manager.broadcast(campaign_id, {
-                "type": "calling_triggered",
-                "character_id": calling_char_id,
-                "defender": calling_char_name,
-                "defender_new_dp": calling_char_dp,
-                "defender_ip": calling_char_ip,
-                "defender_sp": calling_char_sp,
-                "defender_edge": calling_char_edge,
-                "defender_times_called": calling_char_times
-            })
-
-        # Persist to database
+        # Persist to database first so the broadcast can carry a message_id
         ability_message = Message(
             campaign_id=str(campaign_id),
             party_id=None,  # Visible to all tabs
@@ -2199,6 +2207,59 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         )
         db.add(ability_message)
         db.commit()
+        db.refresh(ability_message)
+
+        # Broadcast result
+        broadcast = AbilityCastBroadcast(
+            caster=caster.name,
+            ability_name=ability.display_name,
+            ability_die=ability.die,
+            power_source=ability.power_source,
+            effect_type=ability.effect_type,
+            targets=target_names,
+            results=results,
+            narrative=narrative,
+            uses_remaining=ability.uses_remaining,
+            max_uses=ability.max_uses,
+            caster_char_id=str(caster.id)
+        )
+        _broadcast_payload = broadcast.model_dump(mode='json')
+        _broadcast_payload["message_id"] = str(ability_message.id)
+        await manager.broadcast(campaign_id, _broadcast_payload)
+
+        # If any target triggered The Calling, save and broadcast it now
+        if calling_char_id:
+            calling_msg = Message(
+                campaign_id=campaign_id,
+                party_id=None,
+                sender_id=user_id,
+                sender_name="System",
+                message_type="calling_triggered",
+                content=f"{calling_char_name} has entered The Calling!",
+                extra_data={
+                    "character_id": calling_char_id,
+                    "defender": calling_char_name,
+                    "defender_new_dp": calling_char_dp,
+                    "defender_ip": calling_char_ip,
+                    "defender_sp": calling_char_sp,
+                    "defender_edge": calling_char_edge,
+                    "defender_times_called": calling_char_times
+                }
+            )
+            db.add(calling_msg)
+            db.commit()
+            db.refresh(calling_msg)
+            await manager.broadcast(campaign_id, {
+                "type": "calling_triggered",
+                "character_id": calling_char_id,
+                "defender": calling_char_name,
+                "defender_new_dp": calling_char_dp,
+                "defender_ip": calling_char_ip,
+                "defender_sp": calling_char_sp,
+                "defender_edge": calling_char_edge,
+                "defender_times_called": calling_char_times,
+                "message_id": str(calling_msg.id)
+            })
 
         logger.info(f"[{request_id}] {caster.name} cast {ability.display_name} ({ability.uses_remaining}/{ability.max_uses} uses left)")
 
@@ -2218,11 +2279,31 @@ async def handle_narration(campaign_id: UUID, data: dict, user_id: UUID = None, 
     """Handle GM narration."""
     narration = GMNarration(**data)
 
+    # Persist so the broadcast can carry a message_id (enables Discord mirror correlation)
+    narration_message_id = None
+    if db is not None:
+        narration_message = Message(
+            campaign_id=str(campaign_id),
+            party_id=None,
+            sender_id=str(user_id) if user_id else None,
+            sender_name=manager.get_display_name(campaign_id, user_id) if user_id else "Story Weaver",
+            message_type="narration",
+            content=narration.text,
+            extra_data={"attachment": narration.attachment} if narration.attachment else None
+        )
+        db.add(narration_message)
+        db.commit()
+        db.refresh(narration_message)
+        narration_message_id = str(narration_message.id)
+
     # Broadcast to everyone
-    await manager.broadcast(campaign_id, NarrationBroadcast(
+    _narration_payload = NarrationBroadcast(
         text=narration.text,
         attachment=narration.attachment
-    ).model_dump(mode='json'))
+    ).model_dump(mode='json')
+    if narration_message_id:
+        _narration_payload["message_id"] = narration_message_id
+    await manager.broadcast(campaign_id, _narration_payload)
 
     logger.info(f"Narration push: db={db is not None}, user_id={user_id is not None}")
     if db and user_id:
@@ -2984,24 +3065,27 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     await manager.broadcast(campaign_uuid, result_payload)
 
 
-async def broadcast_level_up(campaign_id: UUID, character_id: str, character_name: str, old_level: int, new_level: int, new_slot_unlocked: bool):
+async def broadcast_level_up(campaign_id: UUID, character_id: str, character_name: str, old_level: int, new_level: int, new_slot_unlocked: bool, message_id: str = None):
     """
     Notify all campaign members that a character leveled up.
     Triggers party panel refresh and celebration message in chat.
     """
-    await manager.broadcast(campaign_id, {
+    payload = {
         "type": "character_leveled_up",
         "character_id": character_id,
         "character_name": character_name,
         "old_level": old_level,
         "new_level": new_level,
         "new_slot_unlocked": new_slot_unlocked
-    })
+    }
+    if message_id:
+        payload["message_id"] = message_id
+    await manager.broadcast(campaign_id, payload)
 
 
-async def broadcast_dp_healed(campaign_id: UUID, character_id: str, character_name: str, old_dp: int, new_dp: int, max_dp: int, healed_by: str):
+async def broadcast_dp_healed(campaign_id: UUID, character_id: str, character_name: str, old_dp: int, new_dp: int, max_dp: int, healed_by: str, message_id: str = None):
     """Notify all campaign members that a character was healed."""
-    await manager.broadcast(campaign_id, {
+    payload = {
         "type": "dp_healed",
         "character_id": character_id,
         "character_name": character_name,
@@ -3009,7 +3093,10 @@ async def broadcast_dp_healed(campaign_id: UUID, character_id: str, character_na
         "new_dp": new_dp,
         "max_dp": max_dp,
         "healed_by": healed_by,
-    })
+    }
+    if message_id:
+        payload["message_id"] = message_id
+    await manager.broadcast(campaign_id, payload)
 
 
 async def broadcast_achievement_awarded(campaign_id: UUID, user_id, newly_awarded: list[str]):
@@ -3057,15 +3144,18 @@ async def broadcast_achievement_awarded(campaign_id: UUID, user_id, newly_awarde
             })
 
 
-async def broadcast_bap_granted(campaign_id: UUID, character_id: str, character_name: str, owner_id: str, token_type: str):
+async def broadcast_bap_granted(campaign_id: UUID, character_id: str, character_name: str, owner_id: str, token_type: str, message_id: str = None):
     """SW granted a BAP token to a character. All clients update the party panel."""
-    await manager.broadcast(campaign_id, {
+    payload = {
         "type": "bap_granted",
         "character_id": character_id,
         "character_name": character_name,
         "owner_id": owner_id,
         "token_type": token_type
-    })
+    }
+    if message_id:
+        payload["message_id"] = message_id
+    await manager.broadcast(campaign_id, payload)
 
 
 async def broadcast_bap_revoked(campaign_id: UUID, character_id: str, character_name: str, owner_id: str):
@@ -3270,20 +3360,7 @@ async def roll_initiative_self(
                     entry["user_id"] = str(c.user_id) if c.user_id else None
             updated_order.append(entry)
 
-        await manager.broadcast(campaign_uuid, {
-            "type": "initiative_roll",
-            "actor": character.name,
-            "roll": roll_total,
-            "die_result": die_result,
-            "pp": char_pp,
-            "edge": char_edge,
-            "is_silent": False,
-            "updated_order": updated_order,
-            "current_turn_index": encounter.current_turn_index,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # Persist message
+        # Persist message first so the broadcast can carry a message_id
         msg = Message(
             campaign_id=campaign_uuid,
             party_id=None,  # Initiative is campaign-wide
@@ -3302,6 +3379,20 @@ async def roll_initiative_self(
         )
         db.add(msg)
         db.commit()
+
+        await manager.broadcast(campaign_uuid, {
+            "type": "initiative_roll",
+            "actor": character.name,
+            "roll": roll_total,
+            "die_result": die_result,
+            "pp": char_pp,
+            "edge": char_edge,
+            "is_silent": False,
+            "updated_order": updated_order,
+            "current_turn_index": encounter.current_turn_index,
+            "timestamp": datetime.now().isoformat(),
+            "message_id": str(msg.id)
+        })
 
     except Exception as e:
         logger.error(f"Initiative self-roll error: {e}")
@@ -3425,40 +3516,7 @@ async def roll_initiative_target(
                     entry["user_id"] = str(c.user_id) if c.user_id else None
             updated_order.append(entry)
 
-        # Broadcast to all players
-        if is_silent:
-            # Silent roll: Send full details + tracker update to SW only — no public notice
-            await websocket.send_json({
-                "type": "initiative_roll",
-                "actor": name,
-                "roll": roll_total,
-                "die_result": die_result,
-                "pp": pp,
-                "edge": edge,
-                "is_silent": True,
-                "rolled_by_sw": True,
-                "sw_only": True,
-                "updated_order": updated_order,
-                "current_turn_index": encounter.current_turn_index,
-                "timestamp": datetime.now().isoformat()
-            })
-        else:
-            # Normal roll: Broadcast full details to everyone
-            await manager.broadcast(campaign_uuid, {
-                "type": "initiative_roll",
-                "actor": name,
-                "roll": roll_total,
-                "die_result": die_result,
-                "pp": pp,
-                "edge": edge,
-                "is_silent": False,
-                "rolled_by_sw": True,
-                "updated_order": updated_order,
-                "current_turn_index": encounter.current_turn_index,
-                "timestamp": datetime.now().isoformat()
-            })
-
-        # Persist message
+        # Persist message first so the broadcast can carry a message_id
         msg = Message(
             campaign_id=campaign_uuid,
             party_id=None,
@@ -3479,6 +3537,41 @@ async def roll_initiative_target(
         )
         db.add(msg)
         db.commit()
+
+        # Broadcast to all players
+        if is_silent:
+            # Silent roll: Send full details + tracker update to SW only — no public notice
+            await websocket.send_json({
+                "type": "initiative_roll",
+                "actor": name,
+                "roll": roll_total,
+                "die_result": die_result,
+                "pp": pp,
+                "edge": edge,
+                "is_silent": True,
+                "rolled_by_sw": True,
+                "sw_only": True,
+                "updated_order": updated_order,
+                "current_turn_index": encounter.current_turn_index,
+                "timestamp": datetime.now().isoformat(),
+                "message_id": str(msg.id)
+            })
+        else:
+            # Normal roll: Broadcast full details to everyone
+            await manager.broadcast(campaign_uuid, {
+                "type": "initiative_roll",
+                "actor": name,
+                "roll": roll_total,
+                "die_result": die_result,
+                "pp": pp,
+                "edge": edge,
+                "is_silent": False,
+                "rolled_by_sw": True,
+                "updated_order": updated_order,
+                "current_turn_index": encounter.current_turn_index,
+                "timestamp": datetime.now().isoformat(),
+                "message_id": str(msg.id)
+            })
 
     except Exception as e:
         logger.error(f"Initiative target-roll error: {e}")
@@ -3522,15 +3615,7 @@ async def start_encounter(
             })
             return
 
-        # Broadcast encounter start
-        await manager.broadcast(campaign_uuid, {
-            "type": "encounter_start",
-            "message": "⚔️ Combat has begun! Roll for initiative!",
-            "encounter_id": str(encounter.id),
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # Persist message
+        # Persist message first so the broadcast can carry a message_id
         sw_character = db.query(Character).filter(
             Character.campaign_id == campaign_uuid,
             Character.user_id == user_uuid
@@ -3549,6 +3634,15 @@ async def start_encounter(
         )
         db.add(msg)
         db.commit()
+
+        # Broadcast encounter start
+        await manager.broadcast(campaign_uuid, {
+            "type": "encounter_start",
+            "message": "⚔️ Combat has begun! Roll for initiative!",
+            "encounter_id": str(encounter.id),
+            "timestamp": datetime.now().isoformat(),
+            "message_id": str(msg.id)
+        })
 
     except Exception as e:
         logger.error(f"Start encounter error: {e}", exc_info=True)
@@ -3723,15 +3817,7 @@ async def end_encounter(
 
         db.commit()
 
-        # Broadcast encounter end
-        await manager.broadcast(campaign_uuid, {
-            "type": "encounter_end",
-            "message": f"Encounter ended. {restored_count} abilities restored.",
-            "encounter_id": str(encounter.id),
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # Persist message
+        # Persist message first so the broadcast can carry a message_id
         sw_character = db.query(Character).filter(
             Character.campaign_id == campaign_uuid,
             Character.user_id == user_uuid
@@ -3751,6 +3837,15 @@ async def end_encounter(
         )
         db.add(msg)
         db.commit()
+
+        # Broadcast encounter end
+        await manager.broadcast(campaign_uuid, {
+            "type": "encounter_end",
+            "message": f"Encounter ended. {restored_count} abilities restored.",
+            "encounter_id": str(encounter.id),
+            "timestamp": datetime.now().isoformat(),
+            "message_id": str(msg.id)
+        })
 
     except Exception as e:
         logger.error(f"End encounter error: {e}", exc_info=True)
@@ -4409,6 +4504,26 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
 
     bond_name = combo.bond.combo_name if combo.bond else "Combo"
     bond_desc = combo.bond.combo_description if combo.bond else ""
+    combo_content = f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + {acceptor_char.name} rolls {acceptor_result['total']}!"
+
+    combo_msg = Message(
+        campaign_id=campaign_uuid,
+        party_id=None,
+        sender_id=proposer_char.id,
+        sender_name=bond_name,
+        message_type="combo_resolved",
+        content=combo_content,
+        extra_data={
+            "combo_id": str(combo.id),
+            "bond_name": bond_name,
+            "bond_description": bond_desc,
+            "proposer": {"character_id": str(proposer_char.id), "name": proposer_char.name, **proposer_result},
+            "acceptor": {"character_id": str(acceptor_char.id), "name": acceptor_char.name, **acceptor_result},
+            "bap_granted": {str(proposer_char.id): proposer_bap, str(acceptor_char.id): acceptor_bap},
+        }
+    )
+    db.add(combo_msg)
+    db.commit()
 
     await manager.broadcast(campaign_uuid, {
         "type": "combo_resolved",
@@ -4431,7 +4546,8 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
             str(proposer_char.id): proposer_bap,
             str(acceptor_char.id): acceptor_bap,
         },
-        "message": f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + {acceptor_char.name} rolls {acceptor_result['total']}!",
+        "message": combo_content,
+        "message_id": str(combo_msg.id),
     })
 
     logger.info(f"Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / {acceptor_char.name} {acceptor_result['total']}")
@@ -4530,15 +4646,7 @@ async def restore_all_abilities(
 
         db.commit()
 
-        # Broadcast restoration
-        await manager.broadcast(campaign_uuid, {
-            "type": "abilities_restored",
-            "message": f"🛏️ The party rests. {restored_count} abilities restored.",
-            "abilities_restored": restored_count,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # Persist message
+        # Persist message first so the broadcast can carry a message_id
         sw_character = db.query(Character).filter(
             Character.campaign_id == campaign_uuid,
             Character.user_id == user_uuid
@@ -4557,6 +4665,15 @@ async def restore_all_abilities(
         )
         db.add(msg)
         db.commit()
+
+        # Broadcast restoration
+        await manager.broadcast(campaign_uuid, {
+            "type": "abilities_restored",
+            "message": f"🛏️ The party rests. {restored_count} abilities restored.",
+            "abilities_restored": restored_count,
+            "timestamp": datetime.now().isoformat(),
+            "message_id": str(msg.id)
+        })
 
     except Exception as e:
         logger.error(f"Restore abilities error: {e}", exc_info=True)

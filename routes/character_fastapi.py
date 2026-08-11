@@ -2127,6 +2127,8 @@ async def resolve_the_calling(
     )
     db.add(result_message)
     db.commit()
+    db.refresh(result_message)
+    result_payload["message_id"] = str(result_message.id)
 
     # Broadcast to campaign
     try:
@@ -2181,12 +2183,23 @@ async def heal_character(
     db.refresh(char)
     healed = char.dp - old_dp
     logger.info(f"[{request_id}] {char.name} healed {healed} DP ({old_dp} -> {char.dp}/{char.max_dp}) by {current_user.username}")
+    heal_msg = Message(
+        campaign_id=char.campaign_id,
+        party_id=None,
+        sender_id=current_user.id,
+        sender_name="Story Weaver",
+        message_type="dp_healed",
+        content=f"❤️ {char.name} healed +{healed} DP ({old_dp} → {char.dp}/{char.max_dp})",
+        extra_data={"character_id": str(char.id), "character_name": char.name, "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp, "healed_by": current_user.username}
+    )
+    db.add(heal_msg)
+    db.commit()
     try:
         from routes.campaign_websocket import broadcast_dp_healed
         import asyncio
         asyncio.create_task(broadcast_dp_healed(
             char.campaign_id, str(char.id), char.name,
-            old_dp, char.dp, char.max_dp, current_user.username
+            old_dp, char.dp, char.max_dp, current_user.username, message_id=str(heal_msg.id)
         ))
     except Exception as _be:
         logger.warning(f"Could not broadcast dp_healed: {_be}")
@@ -2244,7 +2257,8 @@ async def apply_damage(
             "amount": amount,
             "old_dp": old_dp,
             "new_dp": char.dp,
-            "max_dp": char.max_dp
+            "max_dp": char.max_dp,
+            "message_id": str(dmg_msg.id)
         }))
     except Exception as _be:
         logger.warning(f"Could not broadcast damage_applied: {_be}")
@@ -2397,6 +2411,19 @@ async def called_check(
         "narrative": narrative
     }
 
+    called_msg = Message(
+        campaign_id=char.campaign_id,
+        party_id=None,
+        sender_id=current_user.id,
+        sender_name="Story Weaver",
+        message_type="called_check_result",
+        content=narrative,
+        extra_data=result
+    )
+    db.add(called_msg)
+    db.commit()
+    result["message_id"] = str(called_msg.id)
+
     try:
         from routes.campaign_websocket import manager
         import asyncio
@@ -2439,13 +2466,26 @@ async def cleanse_called(
 
     logger.info(f"[{request_id}] 'The Called' status cleared for '{char.name}' (times_called remains {char.times_called})")
 
+    cleanse_msg = Message(
+        campaign_id=char.campaign_id,
+        party_id=None,
+        sender_id=current_user.id,
+        sender_name="Story Weaver",
+        message_type="called_cleansed",
+        content=f"✨ {char.name} has been cleansed — The Called status removed.",
+        extra_data={"character_id": str(char.id), "character_name": char.name}
+    )
+    db.add(cleanse_msg)
+    db.commit()
+
     try:
         from routes.campaign_websocket import manager
         import asyncio
         asyncio.create_task(manager.broadcast(char.campaign_id, {
             "type": "called_cleansed",
             "character_id": str(char.id),
-            "character_name": char.name
+            "character_name": char.name,
+            "message_id": str(cleanse_msg.id)
         }))
     except Exception as _be:
         logger.warning(f"Could not broadcast called_cleansed: {_be}")
@@ -2585,6 +2625,18 @@ async def level_up_character(
         "healed": heal_dp,
     }
 
+    level_msg = Message(
+        campaign_id=char.campaign_id,
+        party_id=None,
+        sender_id=current_user.id,
+        sender_name=char.name,
+        message_type="character_leveled_up",
+        content=f"⭐ {char.name} leveled up! ({current_level} → {new_level})",
+        extra_data={"character_id": str(char.id), "character_name": char.name, "old_level": current_level, "new_level": new_level, "new_slot_unlocked": new_slot_unlocked}
+    )
+    db.add(level_msg)
+    db.commit()
+
     # Broadcast to campaign
     try:
         from routes.campaign_websocket import broadcast_level_up
@@ -2595,7 +2647,8 @@ async def level_up_character(
             char.name,
             current_level,
             new_level,
-            new_slot_unlocked
+            new_slot_unlocked,
+            message_id=str(level_msg.id)
         ))
     except Exception as _be:
         logger.warning(f"Could not broadcast level up: {_be}")
@@ -2752,7 +2805,7 @@ async def grant_bap_token(
         from routes.campaign_websocket import broadcast_bap_granted
         import asyncio
         asyncio.create_task(broadcast_bap_granted(
-            char.campaign_id, str(char.id), char.name, owner_id, token_type
+            char.campaign_id, str(char.id), char.name, owner_id, token_type, message_id=str(bap_msg.id)
         ))
     except Exception as _be:
         logger.warning(f"Could not broadcast bap_granted: {_be}")
@@ -3794,14 +3847,27 @@ async def update_tether(
             from routes.campaign_websocket import manager
             import asyncio
             t = tethers[idx]
+            _tether_type = "tether_activated" if t["is_active"] else "tether_deactivated"
+            _tether_msg = Message(
+                campaign_id=campaign.id,
+                party_id=None,
+                sender_id=current_user.id,
+                sender_name="Story Weaver",
+                message_type=_tether_type,
+                content=f"{'🔗' if t['is_active'] else '⛓️‍💥'} {char.name}'s tether \"{t['description']}\" was {'activated' if t['is_active'] else 'deactivated'}",
+                extra_data={"character_id": str(char.id), "character_name": char.name, "tether_id": tether_id, "description": t["description"], "modifier": t.get("modifier", 0)}
+            )
+            db.add(_tether_msg)
+            db.commit()
             asyncio.create_task(manager.broadcast(str(campaign.id), {
-                "type": "tether_activated" if t["is_active"] else "tether_deactivated",
+                "type": _tether_type,
                 "character_id": str(char.id),
                 "character_name": char.name,
                 "tether_id": tether_id,
                 "description": t["description"],
                 "modifier": t.get("modifier", 0),
                 "active_tether_modifier": char.active_tether_modifier,
+                "message_id": str(_tether_msg.id),
             }))
         except Exception:
             pass
