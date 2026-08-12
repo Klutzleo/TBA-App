@@ -1071,6 +1071,19 @@ def get_campaign_messages(
         status = stat_check_statuses.get(req_id, "resolved")
         return {**msg.extra_data, "status": status}
 
+    # Discord reaction badges are cosmetic and only ever pushed live via WebSocket —
+    # on a page refresh, replay the last-known counts so badges don't vanish.
+    from backend.models import DiscordMirroredMessage, DiscordReactionCount
+    reactions_by_msg = {}
+    msg_ids = [msg.id for msg in messages]
+    if msg_ids:
+        rows = db.query(DiscordMirroredMessage.source_message_id, DiscordReactionCount.emoji_key, DiscordReactionCount.last_count)\
+            .join(DiscordReactionCount, DiscordReactionCount.mirrored_message_id == DiscordMirroredMessage.id)\
+            .filter(DiscordMirroredMessage.source_message_id.in_(msg_ids))\
+            .all()
+        for source_message_id, emoji_key, last_count in rows:
+            reactions_by_msg.setdefault(str(source_message_id), {})[emoji_key] = last_count
+
     return {
         "campaign_id": campaign_id,
         "messages": [
@@ -1086,7 +1099,8 @@ def get_campaign_messages(
                 "mode": msg.mode,                  # Keep for backward compatibility
                 "extra_data": _extra_data(msg),    # Include extra_data (dice roll breakdowns, etc.)
                 "is_edited": msg.is_edited or False,
-                "timestamp": msg.created_at.isoformat() if msg.created_at else None
+                "timestamp": msg.created_at.isoformat() if msg.created_at else None,
+                "reactions": reactions_by_msg.get(str(msg.id), {}),
             }
             for msg in messages
         ]

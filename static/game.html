@@ -9146,6 +9146,30 @@
       if (modeLabel) modeLabel.style.color = hex;
     }
 
+    // Attach/update a cosmetic Discord reaction badge on the card matching message_id.
+    // Used for both the live discord_reaction WS event and replaying saved counts on
+    // history load. Returns true if a matching card was found, false otherwise.
+    function applyDiscordReactionBadge(messageId, emoji, count) {
+      const targetCard = messageId ? document.querySelector(`[data-message-id="${messageId}"]`) : null;
+      if (!targetCard) return false;
+      let bar = targetCard.querySelector('.discord-reactions-bar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'discord-reactions-bar';
+        targetCard.appendChild(bar);
+      }
+      let badge = bar.querySelector(`[data-emoji-key="${CSS.escape(emoji)}"]`);
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'discord-reaction-badge';
+        badge.dataset.emojiKey = emoji;
+        bar.appendChild(badge);
+      }
+      const emojiLabel = (emoji || '').split(':')[0];
+      badge.textContent = `${emojiLabel} ×${count}`;
+      return true;
+    }
+
     // Add message to storage and optionally display
     function storeAndDisplayMessage(element, data, fromHistory = false) {
       // Stamp arrival time if no timestamp — ensures correct sort order relative to history
@@ -11089,6 +11113,15 @@
               }
             }
 
+            // Replay saved Discord reaction counts now that all cards for this batch are in the DOM
+            for (const msg of messagesInOrder) {
+              if (msg.reactions) {
+                for (const [emoji, count] of Object.entries(msg.reactions)) {
+                  applyDiscordReactionBadge(msg.id, emoji, count);
+                }
+              }
+            }
+
             loadingHistory = false;
 
             // Advance offset so next "Load More" gets the next batch of older messages
@@ -12855,24 +12888,7 @@
               addMessage(card, 'message-card', data);
             } else if (data.type === 'discord_reaction') {
               // Cosmetic hype signal from a Discord viewer's reaction — never touches game state.
-              const targetCard = data.message_id ? document.querySelector(`[data-message-id="${data.message_id}"]`) : null;
-              if (targetCard) {
-                let bar = targetCard.querySelector('.discord-reactions-bar');
-                if (!bar) {
-                  bar = document.createElement('div');
-                  bar.className = 'discord-reactions-bar';
-                  targetCard.appendChild(bar);
-                }
-                let badge = bar.querySelector(`[data-emoji-key="${CSS.escape(data.emoji)}"]`);
-                if (!badge) {
-                  badge = document.createElement('span');
-                  badge.className = 'discord-reaction-badge';
-                  badge.dataset.emojiKey = data.emoji;
-                  bar.appendChild(badge);
-                }
-                const emojiLabel = (data.emoji || '').split(':')[0];
-                badge.textContent = `${emojiLabel} ×${data.count}`;
-              } else {
+              if (!applyDiscordReactionBadge(data.message_id, data.emoji, data.count)) {
                 showPanelToast(`${(data.emoji || '').split(':')[0]} ×${data.count} on Discord`, 'info');
               }
             } else {
