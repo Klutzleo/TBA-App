@@ -80,6 +80,7 @@ async def upload_campaign_image(
     campaign_id: str = Form(...),
     sender_name: str = Form(...),
     chat_mode: str = Form("ic"),  # ic or ooc
+    caption: str = Form(""),      # optional text posted with the image
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -116,6 +117,8 @@ async def upload_campaign_image(
         logger.warning(f"campaign image upload to R2 failed: {e}")
         raise HTTPException(status_code=500, detail="Upload failed — please try again")
 
+    caption = (caption or "").strip()[:2000]
+
     # Persist as a message so it appears in history and the images tab
     msg = Message(
         campaign_id=campaign_id,
@@ -123,8 +126,8 @@ async def upload_campaign_image(
         sender_name=sender_name,
         message_type="image_upload",
         mode=chat_mode,
-        content=f"[image] {file.filename or 'image'}",
-        extra_data={"url": url, "filename": file.filename or "image", "key": key}
+        content=caption or f"[image] {file.filename or 'image'}",
+        extra_data={"url": url, "filename": file.filename or "image", "key": key, "caption": caption}
     )
     db.add(msg)
     db.commit()
@@ -143,5 +146,6 @@ async def upload_campaign_image(
         "message_id": str(msg.id),
         "sender_name": sender_name,
         "chat_mode": chat_mode,
+        "caption": caption,
         "filename": file.filename or "image"
     }

@@ -7082,6 +7082,9 @@
       const avatarHtml = portrait
         ? `<img src="${escHtml(portrait)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'">`
         : `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:var(--text-muted);flex-shrink:0;">${(data.sender_name || '?')[0].toUpperCase()}</div>`;
+      const captionHtml = data.caption
+        ? `<div style="margin-top:6px;font-size:0.92rem;color:var(--text-primary);white-space:pre-wrap;">${renderMarkdown(data.caption)}</div>`
+        : '';
       container.innerHTML = `
         <div style="display:flex;gap:10px;align-items:flex-start;">
           ${avatarHtml}
@@ -7091,6 +7094,7 @@
               <img src="${escHtml(data.url)}" alt="${escHtml(data.filename || 'image')}" style="max-width:100%;max-height:280px;border-radius:6px;border:1px solid var(--border-color);cursor:zoom-in;" loading="lazy">
             </a>
             <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">${escHtml(data.filename || 'image')}</div>
+            ${captionHtml}
           </div>
         </div>
       `;
@@ -7337,7 +7341,7 @@
       if (sb && msgInput) sb.disabled = !msgInput.value.trim();
     }
 
-    async function uploadChatImage(file, sendTimestamp) {
+    async function uploadChatImage(file, sendTimestamp, caption) {
       const currentTab = activeTab;
       if (currentTab === 'lore' || currentTab === 'images' || currentTab === 'sw_notes' || currentTab === 'player_notes' || currentTab === 'inventory' || currentTab === 'loot_pool' || currentTab.startsWith('whisper-')) {
         showPanelToast('Images can only be uploaded in Story or OOC chat.', 'error');
@@ -7346,12 +7350,14 @@
       const chatMode = currentTab === 'ooc' ? 'ooc' : 'ic';
       const speakerName = (activeSpeaker ? activeSpeaker.name : currentActor) ||
         (userRole === 'SW' ? 'Narrator' : 'Unknown');
+      caption = (caption || '').trim().slice(0, 2000);
 
       const formData = new FormData();
       formData.append('file', file);
       formData.append('campaign_id', campaignId);
       formData.append('sender_name', speakerName);
       formData.append('chat_mode', chatMode);
+      if (caption) formData.append('caption', caption);
 
       showPanelToast('Uploading image...', 'info');
       try {
@@ -7373,6 +7379,7 @@
             filename: result.filename,
             sender_name: speakerName,
             sender_id: currentUser && currentUser.id,
+            caption: caption || '',
             chat_mode: chatMode,
             message_id: result.message_id,
             timestamp: sendTimestamp || new Date().toISOString(),
@@ -11127,6 +11134,7 @@
                   sender_id: msg.sender_id,      // for the delete button
                   chat_color: mineImg ? myChatColor
                     : (((knownPCs || []).find(c => c.name === msg.sender_name) || {}).chat_color || null),
+                  caption: d.caption || (msg.content && !/^\[image\] /.test(msg.content) ? msg.content : ''),
                   chat_mode: msg.chat_mode,
                   url: d.url || '',
                   filename: d.filename || 'image',
@@ -12998,14 +13006,21 @@
     }
 
     sendBtn.addEventListener('click', async () => {
-      // If there's a staged image, upload it first
+      // If there's a staged image, upload it. Plain typed text rides along as the
+      // image's caption (one message). A slash-command still runs on its own.
       if (_stagedImageFile) {
         const file = _stagedImageFile;
         const sendTimestamp = new Date().toISOString();
+        const pending = msgInput.value.trim();
+        const isCommand = pending.startsWith('/');
         clearStagedImage();
-        await uploadChatImage(file, sendTimestamp);
-        // If no text, stop here
-        if (!msgInput.value.trim()) return;
+        await uploadChatImage(file, sendTimestamp, isCommand ? '' : pending);
+        if (!isCommand) {
+          msgInput.value = '';
+          msgInput.style.height = 'auto';
+          return;
+        }
+        // slash-command: fall through so it processes separately
       }
 
       const text = msgInput.value.trim();
