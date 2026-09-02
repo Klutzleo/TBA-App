@@ -577,6 +577,7 @@ async def campaign_websocket(
                     "url": data.get("url", ""),
                     "filename": data.get("filename", "image"),
                     "sender_name": data.get("sender_name", display_name),
+                    "sender_id": data.get("sender_id") or str(user_uuid),
                     "chat_mode": data.get("chat_mode", "ic"),
                     "message_id": data.get("message_id", ""),
                     "timestamp": data.get("timestamp", ""),

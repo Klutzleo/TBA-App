@@ -7067,6 +7067,15 @@
       const container = document.createElement('div');
       container.className = 'message-card';
       container.style.cssText = 'padding:10px 14px;';
+      // Colour the left border to match the sender's chat colour, like chat/rolls do.
+      const imgHex = data.chat_color
+        || ((knownPCs || []).find(c => c.name === data.sender_name) || {}).chat_color
+        || (data.sender_name && data.sender_name === (activeSpeaker ? activeSpeaker.name : currentActor) ? myChatColor : null);
+      if (imgHex) {
+        container.style.borderLeftColor = imgHex;
+        const bg = hexToRgba(imgHex, 0.1);
+        if (bg) container.style.backgroundColor = bg;
+      }
       const ts = data.timestamp ? fmtTs(data.timestamp) : '';
       const modeLabel = data.chat_mode === 'ooc' ? 'OOC' : 'Story';
       const portrait = getPortraitUrl(data.sender_name);
@@ -7363,6 +7372,7 @@
             url: result.url,
             filename: result.filename,
             sender_name: speakerName,
+            sender_id: currentUser && currentUser.id,
             chat_mode: chatMode,
             message_id: result.message_id,
             timestamp: sendTimestamp || new Date().toISOString(),
@@ -9215,11 +9225,13 @@
 
       // Build action button bar (pin, edit, delete) — hover-revealed
       const isChatMsg = ['chat_ic','chat_ooc','chat_whisper'].includes(data.type);
-      const hasPinTarget = !!(data.text || data.actor);
-      const hasEditTarget = isChatMsg && !!data.message_id;
-      const canEdit = hasEditTarget && (isSW() || (data.sender_id && currentUser && String(data.sender_id) === String(currentUser.id)));
+      const isImageMsg = data.type === 'image_upload';
+      const hasPinTarget = !isImageMsg && !!(data.text || data.actor);
+      const isOwnOrSW = isSW() || (data.sender_id && currentUser && String(data.sender_id) === String(currentUser.id));
+      const canEdit = isChatMsg && !!data.message_id && isOwnOrSW;
+      const canDelete = !!data.message_id && isOwnOrSW && (isChatMsg || isImageMsg);
 
-      if ((isSW() && hasPinTarget) || canEdit) {
+      if ((isSW() && hasPinTarget) || canEdit || canDelete) {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'msg-actions';
         element.style.position = 'relative';
@@ -9244,14 +9256,16 @@
           editBtn.innerHTML = '<i data-lucide="pencil" style="width:12px;height:12px;"></i>';
           editBtn.onclick = (e) => { e.stopPropagation(); startEditMessage(element, data); };
           actionsDiv.appendChild(editBtn);
+        }
 
+        if (canDelete) {
           const delBtn = document.createElement('button');
           delBtn.className = 'msg-action-btn delete-btn';
           delBtn.title = 'Delete';
           delBtn.innerHTML = '<i data-lucide="trash-2" style="width:12px;height:12px;"></i>';
           delBtn.onclick = (e) => {
             e.stopPropagation();
-            if (confirm('Delete this message?')) {
+            if (confirm(isImageMsg ? 'Delete this image?' : 'Delete this message?')) {
               ws.send(JSON.stringify({ type: 'delete_message', message_id: data.message_id }));
             }
           };
@@ -11105,9 +11119,14 @@
               // ✅ Handle image uploads from history
               else if (msg.message_type === 'image_upload') {
                 const d = msg.extra_data || {};
+                const mineImg = msg.sender_id && currentUser && String(msg.sender_id) === String(currentUser.id);
                 const imgData = {
                   type: 'image_upload',
                   sender_name: msg.sender_name,
+                  actor: msg.sender_name,        // for applyMessageColor
+                  sender_id: msg.sender_id,      // for the delete button
+                  chat_color: mineImg ? myChatColor
+                    : (((knownPCs || []).find(c => c.name === msg.sender_name) || {}).chat_color || null),
                   chat_mode: msg.chat_mode,
                   url: d.url || '',
                   filename: d.filename || 'image',
@@ -12789,6 +12808,18 @@
               // Legacy initiative (fallback)
               renderDiceRoll(data, 'compass');
 
+            } else if (data.type === 'image_upload') {
+              // Must come before the chat_mode branches below — an image_upload
+              // carries chat_mode:'ic'/'ooc' and would otherwise be caught as chat.
+              data.actor = data.sender_name;  // so applyMessageColor / renderMessages can colour it
+              if (data.sender_id && currentUser && String(data.sender_id) === String(currentUser.id)) {
+                data.chat_color = myChatColor;  // my own upload — match my chat colour
+              }
+              const imgContainer = renderImageMessage(data);
+              storeAndDisplayMessage(imgContainer, data);
+              const imgTab = data.chat_mode === 'ooc' ? 'ooc' : 'story';
+              if (activeTab === imgTab) renderMessages();
+              if (activeTab === 'images') loadImages();
             } else if (data.type === 'chat_ic' || data.chat_mode === 'ic') {
               const myActor = (activeSpeaker ? activeSpeaker.name : (currentActor.trim() || 'User')).toLowerCase();
               const msgActor = (data.actor || 'Unknown').toLowerCase();
@@ -12874,14 +12905,6 @@
               notice.style.cssText = 'border-left-color:var(--accent-danger);color:var(--text-muted);font-style:italic;';
               notice.textContent = `✋ ${data.caster_name}'s ${data.ability_name} was cancelled.`;
               storeAndDisplayMessage(notice, { type: 'system', actor: 'system' });
-            } else if (data.type === 'image_upload') {
-              // Incoming image broadcast — render in chat and refresh gallery if open
-              const imgContainer = renderImageMessage(data);
-              storeAndDisplayMessage(imgContainer, data);
-              // Re-render to insert at correct sorted position (not just bottom)
-              const imgTab = data.chat_mode === 'ooc' ? 'ooc' : 'story';
-              if (activeTab === imgTab) renderMessages();
-              if (activeTab === 'images') loadImages();
             } else if (data.type === 'online_users') {
               renderOnlineUsers(data.users);
             } else if (data.type === 'effects_sync') {
