@@ -4,22 +4,28 @@ backend/discord_mirror.py
 Live-mirrors campaign activity to a Discord channel and forwards Discord
 reactions back into the campaign as a cosmetic "hype" signal.
 
-Architecture: no persistent Discord Gateway connection — outbound posts and
-inbound reaction polling both go through Discord's plain REST API via httpx,
-paced to stay well under Discord's per-route rate limit (5 req/2s). Two small
-background asyncio tasks, started from backend/app.py's lifespan() only when
-DISCORD_BOT_TOKEN is set (the feature is a no-op without it — no queue is even
-created, and enqueue_outbound() becomes a cheap no-op check).
+Architecture: outbound posts go through Discord's plain REST API via httpx, paced
+to stay well under Discord's per-route rate limit (5 req/2s). Inbound reactions
+arrive in real time over a single Discord Gateway websocket (_gateway_worker);
+each MESSAGE_REACTION_ADD triggers one authoritative REST re-fetch of that
+message. A slow backstop sweep reconciles anything missed during a reconnect gap.
+Set DISCORD_REACTION_MODE=poll to fall back to the legacy 45-minute REST poller
+(escape hatch — no Gateway connection). Background asyncio tasks are started from
+backend/app.py's lifespan() only when DISCORD_BOT_TOKEN is set (the feature is a
+no-op without it — no queue is even created, and enqueue_outbound() becomes a
+cheap no-op check).
 
 HARD CONSTRAINT: nothing in this module may ever write to a game-state table
 (Character, Message, InitiativeRoll, ActiveEffect, etc.). Its only writes are
 to its own bookkeeping tables (discord_mirrored_messages, discord_reaction_counts)
 and its only way back into the app is the narrow `discord_reaction` broadcast
-built in _poll_reactions_for_row(). Reactions are cosmetic by hard requirement.
+built in _sync_message_reactions(). Reactions are cosmetic by hard requirement.
 """
 import asyncio
+import json
 import logging
 import os
+import random
 import time
 from datetime import datetime, timedelta
 from typing import Optional
@@ -35,17 +41,47 @@ logger = logging.getLogger(__name__)
 DISCORD_API_BASE = "https://discord.com/api/v10"
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
+# Inbound reaction transport: "gateway" (websocket, real-time, no time window) or
+# "poll" (legacy 45-min REST polling). Escape hatch for live ops — flip the
+# Railway var + restart, no code deploy needed.
+_REACTION_MODE = os.getenv("DISCORD_REACTION_MODE", "gateway").strip().lower()
+
 _OUTBOUND_PACE_SECONDS = 0.35
-_REACTION_POLL_INTERVAL_SECONDS = 25
-_REACTION_POLL_WINDOW_MINUTES = 45
 _QUEUE_MAXSIZE = 500
 _CHANNEL_CACHE_TTL_SECONDS = 60
+
+# Gateway
+_GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json"
+_INTENTS = 1 << 10  # GUILD_MESSAGE_REACTIONS — NOT privileged, no Dev Portal toggle
+_REACTION_SYNC_DEBOUNCE_SECONDS = 2.0  # coalesce a burst of reactions on one message
+_GATEWAY_BURST_SETTLE_SECONDS = 1.0    # wait this long after a reaction before the authoritative GET
+
+# Backstop sweep — reconciles events missed during a reconnect gap
+_BACKSTOP_SWEEP_SECONDS = 600
+_BACKSTOP_WINDOW_MINUTES = 24 * 60
+
+# Legacy polling (only used when _REACTION_MODE == "poll")
+_LEGACY_POLL_INTERVAL_SECONDS = 25
+_LEGACY_POLL_WINDOW_MINUTES = 45
 
 _outbound_queue: Optional["asyncio.Queue"] = None
 _outbound_task = None
 _reaction_poll_task = None
+_gateway_task = None
+_backstop_task = None
+
+_stopping = False
+_gateway_fatal = False  # set on a close code that won't recover (bad token / bad intents)
+
+# Gateway session state (module-level so a reconnect can RESUME)
+_session_id: Optional[str] = None
+_resume_gateway_url: Optional[str] = None
+_last_seq: Optional[int] = None
+_bot_user_id: str = ""
 
 _channel_cache = {}  # campaign_id (str) -> (channel_id | None, cached_at_monotonic)
+_campaign_by_channel = {}  # channel_id (str) -> (campaign_id | None, cached_at_monotonic)
+_reaction_sync_debounce = {}  # discord_message_id (str) -> monotonic ts of last sync
 
 # Types that must NEVER be mirrored, regardless of the default-mirror policy.
 # Everything else mirrors by default — an allowlist would silently miss new
@@ -117,6 +153,26 @@ def _get_channel_id(campaign_id: str) -> Optional[str]:
         db.close()
     _channel_cache[campaign_id] = (channel_id, time.monotonic())
     return channel_id
+
+
+def _get_campaign_for_channel(channel_id: str) -> Optional[str]:
+    """Reverse of _get_channel_id — which campaign (if any) mirrors to this Discord channel.
+    Used by the Gateway to route inbound reaction events. 60s TTL cache; unknown
+    channels resolve to None and the event is dropped with no further work."""
+    cached = _campaign_by_channel.get(channel_id)
+    if cached and (time.monotonic() - cached[1]) < _CHANNEL_CACHE_TTL_SECONDS:
+        return cached[0]
+    db = SessionLocal()
+    try:
+        campaign = db.query(Campaign).filter(Campaign.discord_channel_id == channel_id).first()
+        campaign_id = str(campaign.id) if campaign else None
+    except Exception as e:
+        logger.warning(f"discord_mirror: channel->campaign lookup failed for {channel_id}: {e}")
+        campaign_id = cached[0] if cached else None
+    finally:
+        db.close()
+    _campaign_by_channel[channel_id] = (campaign_id, time.monotonic())
+    return campaign_id
 
 
 def enqueue_outbound(campaign_id, message: dict):
@@ -276,21 +332,35 @@ async def _outbound_worker():
                 logger.error(f"discord_mirror: outbound worker error: {e}")
 
 
-def _get_pollable_rows() -> list:
+def _row_dict(r: "DiscordMirroredMessage") -> dict:
+    return {
+        "id": str(r.id), "campaign_id": str(r.campaign_id), "channel_id": r.discord_channel_id,
+        "discord_message_id": r.discord_message_id,
+        "source_message_id": str(r.source_message_id) if r.source_message_id else None,
+    }
+
+
+def _get_pollable_rows(window_minutes: int) -> list:
     db = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(minutes=_REACTION_POLL_WINDOW_MINUTES)
+        cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
         rows = db.query(DiscordMirroredMessage).filter(
             DiscordMirroredMessage.posted_at > cutoff,
         ).all()
-        return [
-            {
-                "id": str(r.id), "campaign_id": str(r.campaign_id), "channel_id": r.discord_channel_id,
-                "discord_message_id": r.discord_message_id,
-                "source_message_id": str(r.source_message_id) if r.source_message_id else None,
-            }
-            for r in rows
-        ]
+        return [_row_dict(r) for r in rows]
+    finally:
+        db.close()
+
+
+def _find_mirrored_row_by_discord_id(campaign_id: str, discord_message_id: str) -> Optional[dict]:
+    """Locate the mirrored-message row for an inbound Gateway reaction event."""
+    db = SessionLocal()
+    try:
+        row = db.query(DiscordMirroredMessage).filter(
+            DiscordMirroredMessage.discord_message_id == discord_message_id,
+            DiscordMirroredMessage.campaign_id == campaign_id,
+        ).order_by(DiscordMirroredMessage.posted_at.desc()).first()
+        return _row_dict(row) if row else None
     finally:
         db.close()
 
@@ -322,7 +392,10 @@ def _upsert_reaction_count(mirrored_message_id: str, emoji_key: str, new_count: 
         db.close()
 
 
-async def _poll_reactions_for_row(client: httpx.AsyncClient, row: dict, manager):
+async def _sync_message_reactions(client: httpx.AsyncClient, row: dict, manager):
+    """Authoritative reconcile: GET one message's live reactions from Discord and
+    broadcast a cosmetic hype signal for any emoji whose count went up. Shared by
+    the Gateway event handler and the backstop/legacy sweeps."""
     headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
     resp = await client.get(
         f"{DISCORD_API_BASE}/channels/{row['channel_id']}/messages/{row['discord_message_id']}",
@@ -335,6 +408,10 @@ async def _poll_reactions_for_row(client: httpx.AsyncClient, row: dict, manager)
         _delete_mirrored_row(row)  # deleted on Discord's side directly — stop tracking it
         return
     if resp.status_code != 200:
+        logger.warning(
+            f"discord_mirror: reaction GET {resp.status_code} for msg "
+            f"{row['discord_message_id']}: {resp.text[:150]}"
+        )
         return
 
     for r in (resp.json().get("reactions") or []):
@@ -358,40 +435,213 @@ async def _poll_reactions_for_row(client: httpx.AsyncClient, row: dict, manager)
             await manager.broadcast(UUID(row["campaign_id"]), payload.model_dump(mode='json'))
 
 
-async def _reaction_poll_worker():
+async def _sweep_worker(interval_seconds: int, window_minutes: int, label: str):
+    """Periodic full reconcile over a time window. Used as the Gateway backstop
+    (slow, wide window) and as the legacy standalone poller (fast, narrow window)."""
     from routes.campaign_websocket import manager  # deferred import — avoids circular import at load time
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        while True:
+        while not _stopping:
             try:
-                await asyncio.sleep(_REACTION_POLL_INTERVAL_SECONDS)
-                for row in _get_pollable_rows():
-                    await _poll_reactions_for_row(client, row, manager)
+                await asyncio.sleep(interval_seconds)
+                for row in _get_pollable_rows(window_minutes):
+                    await _sync_message_reactions(client, row, manager)
                     await asyncio.sleep(_OUTBOUND_PACE_SECONDS)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                logger.error(f"discord_mirror: reaction poll worker error: {e}")
+                logger.error(f"discord_mirror: {label} sweep error: {e}")
+
+
+# ============================================================================
+# GATEWAY (real-time inbound reactions — replaces polling when _REACTION_MODE == "gateway")
+# ============================================================================
+
+async def _handle_reaction_event(d: dict):
+    """MESSAGE_REACTION_ADD dispatch → authoritative re-fetch of that one message."""
+    if _bot_user_id and str(d.get("user_id")) == _bot_user_id:
+        return
+    channel_id = str(d.get("channel_id") or "")
+    discord_message_id = str(d.get("message_id") or "")
+    if not channel_id or not discord_message_id:
+        return
+
+    campaign_id = _get_campaign_for_channel(channel_id)
+    if not campaign_id:
+        return  # reaction in a channel no campaign mirrors
+    row = _find_mirrored_row_by_discord_id(campaign_id, discord_message_id)
+    if not row:
+        return  # reaction on a Discord message we never mirrored
+
+    now = time.monotonic()
+    if now - _reaction_sync_debounce.get(discord_message_id, 0.0) < _REACTION_SYNC_DEBOUNCE_SECONDS:
+        return  # a sync for this message just ran / is about to — the GET is authoritative
+    _reaction_sync_debounce[discord_message_id] = now
+
+    from routes.campaign_websocket import manager
+    await asyncio.sleep(_GATEWAY_BURST_SETTLE_SECONDS)  # let a rapid burst settle into one GET
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        await _sync_message_reactions(client, row, manager)
+
+
+async def _dispatch_gateway_event(msg: dict):
+    global _session_id, _resume_gateway_url, _bot_user_id
+    t = msg.get("t")
+    d = msg.get("d") or {}
+    if t == "READY":
+        _session_id = d.get("session_id")
+        base = (d.get("resume_gateway_url") or "").rstrip("/")
+        _resume_gateway_url = f"{base}/?v=10&encoding=json" if base else None
+        _bot_user_id = str((d.get("user") or {}).get("id") or "")
+        logger.info(f"discord_mirror: gateway READY (session {_session_id})")
+    elif t == "RESUMED":
+        logger.info("discord_mirror: gateway resumed")
+    elif t == "MESSAGE_REACTION_ADD":
+        await _handle_reaction_event(d)
+
+
+async def _heartbeat_loop(ws, interval_ms: int, state: dict):
+    from websockets.exceptions import ConnectionClosed
+    try:
+        await asyncio.sleep(interval_ms / 1000 * random.random())  # initial jitter per Discord docs
+        while True:
+            if not state.get("acked", False):
+                logger.warning("discord_mirror: gateway heartbeat not ACKed — forcing reconnect")
+                await ws.close(code=4000)
+                return
+            state["acked"] = False
+            await ws.send(json.dumps({"op": 1, "d": _last_seq}))
+            await asyncio.sleep(interval_ms / 1000)
+    except (asyncio.CancelledError, ConnectionClosed):
+        return
+    except Exception as e:
+        logger.warning(f"discord_mirror: gateway heartbeat error: {e!r}")
+
+
+async def _gateway_worker():
+    global _last_seq, _session_id, _resume_gateway_url, _gateway_fatal
+
+    try:
+        from websockets.asyncio.client import connect as ws_connect  # websockets >= 13
+    except ImportError:  # pragma: no cover — older websockets
+        from websockets import connect as ws_connect
+    from websockets.exceptions import ConnectionClosed
+
+    _FATAL_CLOSE_CODES = {4004, 4010, 4011, 4012, 4013, 4014}
+    backoff = 1
+
+    while not _stopping and not _gateway_fatal:
+        resume = bool(_session_id and _resume_gateway_url)
+        url = _resume_gateway_url if resume else _GATEWAY_URL
+        hb_task = None
+        close_code = None
+        try:
+            async with ws_connect(url, max_size=2 ** 20, ping_interval=None) as ws:
+                hello = json.loads(await ws.recv())
+                interval_ms = hello["d"]["heartbeat_interval"]
+                state = {"acked": True}
+                hb_task = asyncio.create_task(_heartbeat_loop(ws, interval_ms, state))
+
+                if resume:
+                    logger.info("discord_mirror: gateway resuming")
+                    await ws.send(json.dumps({"op": 6, "d": {
+                        "token": DISCORD_BOT_TOKEN, "session_id": _session_id, "seq": _last_seq,
+                    }}))
+                else:
+                    logger.info("discord_mirror: gateway identifying")
+                    await ws.send(json.dumps({"op": 2, "d": {
+                        "token": DISCORD_BOT_TOKEN,
+                        "intents": _INTENTS,
+                        "properties": {"os": "linux", "browser": "tba-app", "device": "tba-app"},
+                    }}))
+
+                backoff = 1  # a successful connect resets backoff
+                async for raw in ws:
+                    msg = json.loads(raw)
+                    if msg.get("s") is not None:
+                        _last_seq = msg["s"]
+                    op = msg.get("op")
+                    if op == 0:
+                        await _dispatch_gateway_event(msg)
+                    elif op == 1:
+                        state["acked"] = False
+                        await ws.send(json.dumps({"op": 1, "d": _last_seq}))
+                    elif op == 7:
+                        logger.info("discord_mirror: gateway requested reconnect")
+                        break
+                    elif op == 9:
+                        resumable = bool(msg.get("d"))
+                        logger.info(f"discord_mirror: gateway invalid session (resumable={resumable})")
+                        if not resumable:
+                            _session_id = None
+                            _resume_gateway_url = None
+                        await asyncio.sleep(random.uniform(1, 5))
+                        break
+                    elif op == 11:
+                        state["acked"] = True
+                close_code = getattr(ws, "close_code", None)
+        except ConnectionClosed as e:
+            close_code = getattr(e, "code", None) or getattr(getattr(e, "rcvd", None), "code", None)
+            logger.warning(f"discord_mirror: gateway connection closed ({close_code})")
+        except Exception as e:
+            logger.warning(f"discord_mirror: gateway connection error: {e!r}")
+        finally:
+            if hb_task:
+                hb_task.cancel()
+                try:
+                    await hb_task
+                except asyncio.CancelledError:
+                    pass
+
+        if close_code in _FATAL_CLOSE_CODES:
+            logger.error(
+                f"discord_mirror: gateway closed with unrecoverable code {close_code} "
+                f"(bad token or intents) — stopping gateway; backstop sweep still runs"
+            )
+            _gateway_fatal = True
+            break
+
+        if _stopping:
+            break
+        await asyncio.sleep(backoff + random.uniform(0, 1))
+        backoff = min(backoff * 2, 60)
 
 
 def start_workers():
     """Call once from backend/app.py's lifespan() startup. No-op if DISCORD_BOT_TOKEN unset."""
-    global _outbound_queue, _outbound_task, _reaction_poll_task
+    global _outbound_queue, _outbound_task, _reaction_poll_task, _gateway_task, _backstop_task
+    global _stopping, _gateway_fatal
     if not DISCORD_BOT_TOKEN:
         logger.info("discord_mirror: DISCORD_BOT_TOKEN not set — mirroring disabled")
         return
+
+    _stopping = False
+    _gateway_fatal = False
     _outbound_queue = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
     _outbound_task = asyncio.create_task(_outbound_worker())
-    _reaction_poll_task = asyncio.create_task(_reaction_poll_worker())
-    logger.info("discord_mirror: workers started")
+
+    if _REACTION_MODE == "poll":
+        _reaction_poll_task = asyncio.create_task(
+            _sweep_worker(_LEGACY_POLL_INTERVAL_SECONDS, _LEGACY_POLL_WINDOW_MINUTES, "legacy-poll")
+        )
+        logger.info("discord_mirror: workers started (legacy reaction polling)")
+    else:
+        _gateway_task = asyncio.create_task(_gateway_worker())
+        _backstop_task = asyncio.create_task(
+            _sweep_worker(_BACKSTOP_SWEEP_SECONDS, _BACKSTOP_WINDOW_MINUTES, "backstop")
+        )
+        logger.info("discord_mirror: workers started (gateway + backstop)")
 
 
 async def stop_workers():
     """Call once from backend/app.py's lifespan() shutdown."""
-    for task in (_outbound_task, _reaction_poll_task):
+    global _stopping
+    _stopping = True
+    tasks = (_outbound_task, _reaction_poll_task, _gateway_task, _backstop_task)
+    for task in tasks:
         if task:
             task.cancel()
-    for task in (_outbound_task, _reaction_poll_task):
+    for task in tasks:
         if task:
             try:
                 await task

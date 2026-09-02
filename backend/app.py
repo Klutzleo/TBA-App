@@ -25,6 +25,12 @@ load_dotenv()
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# HTTP client libraries log full request/response headers at DEBUG — on Railway
+# that's a flood of noise (and log-volume cost) on every outbound call. Keep our
+# own DEBUG, silence theirs.
+for _noisy in ("httpx", "httpcore", "websockets", "websockets.client"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 # Track uptime
 start_time = time.time()
 

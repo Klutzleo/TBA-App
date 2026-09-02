@@ -12,6 +12,10 @@ aiosqlite==0.20.0
 # Data serialization
 pydantic[email]==2.8.2
 python-multipart==0.0.7
+# Ruleset + request-schema validation (schemas/loader.py, routes/schemas/validation.py).
+# Prod already runs this via build-cache carryover; pinning it makes the dep explicit
+# so a clean rebuild can't silently drop campaign_websocket / combat / character routers.
+jsonschema>=4.17,<5
 
 # Authentication
 argon2-cffi>=23.1.0
@@ -27,6 +31,12 @@ boto3==1.35.0
 python-dotenv==1.0.1
 requests==2.32.3
 httpx==0.27.0
+
+# Discord Gateway (inbound reactions). Also ships transitively with
+# uvicorn[standard]; pinned explicitly since discord_mirror imports it directly.
+# Capped <14 — websockets 14+ removes legacy import paths that uvicorn 0.30 still
+# uses for the WS server; 13.x has websockets.asyncio.client and stays compatible.
+websockets>=13.0,<14
 
 # Dev tools
 pytest==8.3.2
