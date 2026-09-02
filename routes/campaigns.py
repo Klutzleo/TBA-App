@@ -608,12 +608,25 @@ def check_campaign_character(
 
 
 @router.get("/{campaign_id}", response_model=CampaignResponse)
-def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
-    """Get campaign details."""
+def get_campaign(
+    campaign_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get campaign details. Public fields for anyone logged in; join_code only for members/SW."""
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
 
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # join_code is a credential — only expose it to members / the SW / the creator.
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    is_insider = bool(membership) or campaign.created_by_user_id == current_user.id
+    visible_join_code = campaign.join_code if is_insider else None
 
     # Get channels
     story_channel = db.query(Party).filter(
@@ -635,7 +648,7 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
         is_active=campaign.is_active,
         story_channel_id=story_channel.id if story_channel else None,
         ooc_channel_id=ooc_channel.id if ooc_channel else None,
-        join_code=campaign.join_code,
+        join_code=visible_join_code,
         is_public=campaign.is_public,
         min_players=campaign.min_players,
         max_players=campaign.max_players,
@@ -973,12 +986,24 @@ async def unpin_message(
 
 
 @router.get("/{campaign_id}/channels")
-def get_campaign_channels(campaign_id: str, db: Session = Depends(get_db)):
-    """Get all channels for a campaign."""
+def get_campaign_channels(
+    campaign_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get all channels for a campaign. Members only."""
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
 
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
+
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None)
+    ).first()
+    if not membership and campaign.created_by_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
 
     channels = db.query(Party).filter(Party.campaign_id == campaign_id).all()
 

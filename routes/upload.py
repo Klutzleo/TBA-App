@@ -2,6 +2,7 @@
 File upload endpoint — stores files in Cloudflare R2.
 Supports character portraits and campaign chat images/maps.
 """
+import logging
 import os
 import uuid
 import boto3
@@ -9,8 +10,10 @@ from botocore.config import Config
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
 from backend.auth.jwt import get_current_user
-from backend.models import User, Message
+from backend.models import User, Message, CampaignMembership
 from backend.db import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/upload", tags=["Upload"])
 
@@ -58,12 +61,15 @@ async def upload_portrait(
         raise HTTPException(status_code=400, detail="File too large — max 10MB")
 
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+    if ext not in {"jpg", "jpeg", "png", "gif", "webp"}:
+        ext = "jpg"
     key = f"portraits/{current_user.id}/{uuid.uuid4()}.{ext}"
 
     try:
         url = upload_to_r2(contents, key, file.content_type)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        logger.warning(f"portrait upload to R2 failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed — please try again")
 
     return {"url": url, "key": key}
 
@@ -82,6 +88,15 @@ async def upload_campaign_image(
     Saves the message to DB and returns the public URL + message record
     so the caller can broadcast via WS.
     """
+    # Caller must belong to the campaign they're posting an image into.
+    membership = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id,
+        CampaignMembership.user_id == current_user.id,
+        CampaignMembership.left_at.is_(None),
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Only JPEG, PNG, GIF, and WebP images are allowed")
 
@@ -89,13 +104,17 @@ async def upload_campaign_image(
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File too large — max 10MB")
 
+    # sender_name is display-only (client-supplied) — never used for authorization.
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+    if ext not in {"jpg", "jpeg", "png", "gif", "webp"}:
+        ext = "jpg"
     key = f"campaigns/{campaign_id}/images/{uuid.uuid4()}.{ext}"
 
     try:
         url = upload_to_r2(contents, key, file.content_type)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        logger.warning(f"campaign image upload to R2 failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed — please try again")
 
     # Persist as a message so it appears in history and the images tab
     msg = Message(

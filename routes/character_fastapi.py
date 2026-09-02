@@ -42,10 +42,17 @@ party_router = APIRouter(prefix="/api/parties", tags=["Parties"])
 # ============================================================================
 
 @character_blp_fastapi.post("", response_model=CharacterResponse, status_code=201)
-async def create_character(req: CharacterCreate, request: Request, db: Session = Depends(get_db)):
+async def create_character(
+    req: CharacterCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Create a new character with auto-calculated level stats.
-    
+    (Legacy — the app uses POST /api/characters/full. Kept for older clients/tests.)
+
+    - Requires auth; the character is owned by the caller
     - Validates stats sum to 6
     - Validates attack style available for level
     - Auto-calculates Edge, BAP, max_dp from CORE_RULESET
@@ -65,10 +72,11 @@ async def create_character(req: CharacterCreate, request: Request, db: Session =
         level_stats = calculate_level_stats(req.level)
         defense_die = get_defense_die(req.level)
         
-        # Create character
+        # Create character — owned by the authenticated caller
         character = Character(
             name=req.name,
             owner_id=req.owner_id,
+            user_id=current_user.id,
             campaign_id=req.campaign_id,  # Link to campaign if provided
             level=req.level,
             pp=req.pp,
@@ -95,7 +103,7 @@ async def create_character(req: CharacterCreate, request: Request, db: Session =
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"[{request_id}] Character creation error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Character creation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Character creation failed")
 
 
 @character_blp_fastapi.post("/full", response_model=FullCharacterResponse, status_code=201)
@@ -400,11 +408,13 @@ async def create_character_full(
 async def list_characters(
     request: Request,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     owner_id: Optional[str] = None,
     campaign_id: Optional[str] = None,
 ):
     """
-    List all characters for a campaign.
+    List characters for a campaign. Caller must be a member of that campaign.
+    Non-SW members get PCs/Allies only (NPCs are SW-only, via /campaigns/{id}/npcs).
 
     Query params:
         owner_id: Campaign ID (characters.owner_id stores campaign_id at creation)
@@ -416,8 +426,14 @@ async def list_characters(
         raise HTTPException(status_code=422, detail="owner_id or campaign_id query parameter is required")
     logger.info(f"[{request_id}] Listing characters for owner/campaign: {filter_id}")
 
-    characters = db.query(Character).filter(Character.owner_id == filter_id).all()
-    return characters
+    is_sw = _is_sw(filter_id, current_user.id, db)
+    if not is_sw and not _is_campaign_member(filter_id, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+
+    q = db.query(Character).filter(Character.owner_id == filter_id)
+    if not is_sw:
+        q = q.filter(Character.is_npc == False)  # noqa: E712 — SQLAlchemy needs ==
+    return q.all()
 
 
 @character_blp_fastapi.get("/{character_id}", response_model=CharacterResponse)
