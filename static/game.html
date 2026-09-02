@@ -7,6 +7,7 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#1a1a2e" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
   <style>
     /* === CSS Variables for Dark Fantasy Theme === */
     :root {
@@ -2333,6 +2334,22 @@
       display: flex;
     }
 
+    /* Tap-to-copy chip for internal browser URLs (brave://…, chrome://…) */
+    .copy-chip {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.76rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      color: var(--text-secondary);
+      padding: 1px 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s, color 0.12s;
+    }
+    .copy-chip:hover { background: rgba(255, 255, 255, 0.13); color: var(--text-primary); }
+    .copy-chip.copied { background: rgba(212, 175, 55, 0.2); color: var(--accent-primary); border-color: rgba(212, 175, 55, 0.5); }
+
     .modal-content {
       background: var(--bg-panel);
       border-radius: var(--radius-lg);
@@ -3883,10 +3900,15 @@
         <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
           Your browser will ask for permission next. Pick <strong>"Allow"</strong> and set the duration to <strong>"forever"</strong> so you're not asked again.
         </p>
-        <div style="margin-bottom:16px; font-size:0.8rem; color:var(--text-muted); line-height:1.6; background:rgba(212,175,55,0.06); border:1px solid rgba(212,175,55,0.25); border-radius:8px; padding:10px 12px;">
-          <div style="color:var(--accent-primary); font-weight:600; margin-bottom:4px;">Already blocked, or nothing happened?</div>
-          <strong>Chrome / Edge:</strong> click the <strong>tune</strong> / lock icon at the left of the address bar → <strong>Site settings</strong> → <strong>Notifications</strong> → <strong>Allow</strong>, then reload.<br>
-          <strong>Brave:</strong> go to <strong>brave://settings/privacy</strong>, turn on <strong>"Use Google services for push messaging"</strong>, restart Brave, then reload and try again.
+        <div style="margin-bottom:16px; font-size:0.8rem; color:var(--text-muted); line-height:1.7; background:rgba(212,175,55,0.06); border:1px solid rgba(212,175,55,0.25); border-radius:8px; padding:10px 12px;">
+          <div style="color:var(--accent-primary); font-weight:600; margin-bottom:6px;">Already blocked, or nothing happened?</div>
+          <div style="margin-bottom:6px;"><strong>Chrome / Edge:</strong> click the tune / lock icon at the left of the address bar → <strong>Site settings</strong> → <strong>Notifications</strong> → <strong>Allow</strong>. Or open
+            <button type="button" class="copy-chip" onclick="_copyText(this, 'chrome://settings/content/notifications')">chrome://settings/content/notifications</button>
+            (Edge: swap <code>chrome://</code> for <code>edge://</code>).</div>
+          <div><strong>Brave:</strong> open
+            <button type="button" class="copy-chip" onclick="_copyText(this, 'brave://settings/privacy')">brave://settings/privacy</button>,
+            turn on <strong>"Use Google services for push messaging"</strong>, then restart Brave. Reload this page and try again.</div>
+          <div style="font-size:0.72rem; opacity:0.7; margin-top:6px;">These are internal browser pages — browsers block sites from opening them, so tap to copy and paste it in your address bar.</div>
         </div>
         <div style="display:flex; gap:10px;">
           <button class="btn" style="flex:1;" onclick="document.getElementById('notifExplainerModal').classList.remove('active'); enablePushNotifications();">
@@ -14224,6 +14246,23 @@
 
   // ─── Push Notifications ──────────────────────────────────────────────────
   let _pushSubscription = null;
+
+  // Copy text (e.g. a brave://… / chrome://… settings path) to the clipboard.
+  // Sites can't navigate to internal browser pages, so the guide offers copy chips.
+  function _copyText(btn, text) {
+    const done = (ok) => {
+      const prev = btn.dataset.label || btn.textContent;
+      btn.dataset.label = prev;
+      btn.textContent = ok ? 'Copied ✓' : 'Press Ctrl+C';
+      btn.classList.toggle('copied', ok);
+      setTimeout(() => { btn.textContent = prev; btn.classList.remove('copied'); delete btn.dataset.label; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true)).catch(() => done(false));
+    } else {
+      done(false);
+    }
+  }
 
   // Convert base64url → Uint8Array (for applicationServerKey)
   function _urlBase64ToUint8Array(base64String) {
