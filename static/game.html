@@ -3883,15 +3883,11 @@
         <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
           Your browser will ask for permission next. Pick <strong>"Allow"</strong> and set the duration to <strong>"forever"</strong> so you're not asked again.
         </p>
-        <details style="margin-bottom:16px; font-size:0.82rem; color:var(--text-muted);">
-          <summary style="cursor:pointer; color:var(--accent-primary);">Using Brave?</summary>
-          <p style="margin-top:8px; line-height:1.6;">
-            Brave blocks push notifications by default. To enable:<br>
-            1. Go to <strong>brave://settings/privacy</strong><br>
-            2. Turn on <strong>"Use Google services for push messaging"</strong><br>
-            3. Restart Brave, then come back and enable notifications.
-          </p>
-        </details>
+        <div style="margin-bottom:16px; font-size:0.8rem; color:var(--text-muted); line-height:1.6; background:rgba(212,175,55,0.06); border:1px solid rgba(212,175,55,0.25); border-radius:8px; padding:10px 12px;">
+          <div style="color:var(--accent-primary); font-weight:600; margin-bottom:4px;">Already blocked, or nothing happened?</div>
+          <strong>Chrome / Edge:</strong> click the <strong>tune</strong> / lock icon at the left of the address bar → <strong>Site settings</strong> → <strong>Notifications</strong> → <strong>Allow</strong>, then reload.<br>
+          <strong>Brave:</strong> go to <strong>brave://settings/privacy</strong>, turn on <strong>"Use Google services for push messaging"</strong>, restart Brave, then reload and try again.
+        </div>
         <div style="display:flex; gap:10px;">
           <button class="btn" style="flex:1;" onclick="document.getElementById('notifExplainerModal').classList.remove('active'); enablePushNotifications();">
             Enable Notifications
@@ -6501,7 +6497,13 @@
     }
 
     function _maybePromptNotifications() {
-      if (!_pushSubscription && Notification.permission !== 'denied' && !localStorage.getItem('tba_notif_prompted')) {
+      if (typeof Notification === 'undefined') return;  // unsupported context (older iOS, etc.)
+      // Don't stack on top of a first-run welcome modal — its dismiss handler
+      // re-calls this once it's closed.
+      if (document.querySelector('#playerWelcomeModal.active, #swWelcomeModal.active')) return;
+      // Only prompt when the browser hasn't decided yet — 'denied' means show the
+      // in-modal guide on demand instead (see toggleNotifications / enablePushNotifications).
+      if (!_pushSubscription && Notification.permission === 'default' && !localStorage.getItem('tba_notif_prompted')) {
         localStorage.setItem('tba_notif_prompted', '1');
         document.getElementById('notifExplainerModal').classList.add('active');
       }
@@ -9519,14 +9521,18 @@
       }
     }
 
+    // '#d3c088' = a light gold tint for an "active" top-bar toggle — softer than
+    // the brand gold (--accent-primary #d4af37) so it doesn't shout over the grey
+    // icons. '#6b7280' = the inactive grey. Kept in sync with _updateNotifBell().
     function _updateSoundIcon() {
       const btn = document.getElementById('soundToggleBtn');
       if (!btn) return;
-      const icon = btn.querySelector('i[data-lucide]');
-      if (icon) {
-        icon.setAttribute('data-lucide', _soundEnabled ? 'volume-2' : 'volume-x');
-        if (window.lucide) lucide.createIcons({ el: btn });
-      }
+      // Lucide replaces the original <i data-lucide> with an inline <svg> on first
+      // render, so we can't mutate it in place — rebuild the icon from scratch.
+      btn.title = _soundEnabled ? 'Message sounds ON — click to mute' : 'Message sounds muted — click to enable';
+      btn.style.color = _soundEnabled ? '#d3c088' : '#6b7280';
+      btn.innerHTML = `<i data-lucide="${_soundEnabled ? 'volume-2' : 'volume-x'}" style="width:18px;height:18px;"></i>`;
+      if (window.lucide) lucide.createIcons({ root: btn });
     }
     function toggleMessageSound() {
       _soundEnabled = !_soundEnabled;
@@ -14261,7 +14267,10 @@
 
     const permission = await Notification.requestPermission();
     if (permission === 'denied') {
-      showPanelToast('Notifications are blocked in your browser. Go to your browser settings and allow notifications for this site, then try again.', 'error');
+      // Brave/Chrome block by default and resolve 'denied' instantly — reopen the
+      // explainer so the per-browser steps are right there, not a fleeting toast.
+      showPanelToast('Notifications are blocked for this site — see the steps to unblock.', 'error');
+      document.getElementById('notifExplainerModal').classList.add('active');
       return false;
     }
     if (permission !== 'granted') return false;
@@ -14311,12 +14320,11 @@
     const bell = document.getElementById('webPushBtn');
     if (!bell) return;
     bell.title = enabled ? 'Push notifications ON — click to disable' : 'Enable push notifications';
-    bell.style.color = enabled ? '#d4af37' : '#6b7280';
-    const icon = bell.querySelector('i');
-    if (icon) {
-      icon.setAttribute('data-lucide', enabled ? 'bell' : 'bell-off');
-      if (window.lucide) lucide.createIcons({ context: bell });
-    }
+    // '#d3c088' light-gold active tint / '#6b7280' inactive grey — matches _updateSoundIcon().
+    bell.style.color = enabled ? '#d3c088' : '#6b7280';
+    // Lucide swapped the <i> for an <svg> on first render — rebuild, don't mutate.
+    bell.innerHTML = `<i data-lucide="${enabled ? 'bell' : 'bell-off'}" style="width:18px;height:18px;"></i>`;
+    if (window.lucide) lucide.createIcons({ root: bell });
   }
 
   async function toggleNotifications() {
@@ -14356,6 +14364,11 @@
         }
       }
     } catch (_) {}
+    // First-run notification explainer. Runs for everyone (not just first-time
+    // spectators/SWs via the welcome-modal path) — a returning player on a fresh
+    // browser should still see why/how to turn notifications on. No-ops once
+    // prompted, or if already granted/denied/subscribed.
+    setTimeout(_maybePromptNotifications, 1500);
   });
 
   // ─── SW Ping a player ────────────────────────────────────────────────────
