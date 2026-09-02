@@ -25,9 +25,12 @@ playtested — treat `main` as production. Rules are at **v3.0**.
 | `backend/app.py` | Canonical app. Defines `application`, registers all routers, middleware (request ID + API key), lifespan (`init_db`, discord mirror workers), health checks, static mount at `/`. |
 | `app.py` (root) | Thin dev wrapper — imports `backend.app` for `uvicorn --reload`. |
 | `main.py` | Vestigial schema-loader script. Not part of the server. |
-| `start.sh` / `Procfile` | Prod startup: run `run_migrations.py`, then `uvicorn backend.app:application`. Railway uses `start.sh` via `railway.toml`. |
+| `Dockerfile` | **The production build.** Railway builds this (`python:3.11-slim` base), not Nixpacks — the `railway.toml` `builder = "NIXPACKS"` line is not in effect. Every build is `pip install --no-cache-dir -r requirements.txt`, so `requirements.txt` is the complete, authoritative dependency list (nothing survives from a previous build). |
+| `start.sh` | **The production start command**, set by `railway.toml`'s `startCommand = "bash start.sh"`, which overrides the Dockerfile `CMD`. Runs `run_migrations.py`, then `uvicorn backend.app:application --port $PORT` (8080 in prod). |
+| `app.py` (root) | Thin dev wrapper — imports `backend.app` for `uvicorn --reload`. |
+| `main.py` | Vestigial schema-loader script. Not part of the server. |
 
-`Dockerfile` + `scripts/docker-entrypoint.sh` are **stale** (reference Flask/gunicorn/port 8080) — Railway builds with Nixpacks, not Docker. Ignore unless resurrecting Docker.
+Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `CMD`, but overridden by `startCommand` so never runs), the Dockerfile's `RUN pip install flasgger` (Flask swagger lib, unused by the FastAPI app), and its Flask-oriented `EXPOSE 8080` / `HEALTHCHECK`. `Procfile` is also unused (Railway uses `startCommand`, not Procfile). `runtime.txt` (python-3.10.8) is **not honored** — the Docker base image pins Python 3.11.
 
 ### Layout
 
@@ -85,7 +88,12 @@ pip install -r requirements.txt
 python app.py            # http://localhost:8000  — Swagger at /docs
 ```
 
-Tests: `pytest tests/ -v`. Runtime pinned to Python 3.10 (`runtime.txt`); local 3.11+ is fine.
+Tests: `pytest tests/ -v`. Prod runs Python 3.11 (Docker base image); `runtime.txt`
+says 3.10 but is ignored. Local 3.11 matches prod.
+
+> `jsonschema` is a real runtime dep (`schemas/loader.py`, `routes/schemas/validation.py`) —
+> it's in `requirements.txt`. If you hit `ModuleNotFoundError` for something a router
+> needs, add it there; the Docker build installs *only* what `requirements.txt` lists.
 
 ## Conventions
 
