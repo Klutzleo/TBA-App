@@ -6501,9 +6501,10 @@
       // Don't stack on top of a first-run welcome modal — its dismiss handler
       // re-calls this once it's closed.
       if (document.querySelector('#playerWelcomeModal.active, #swWelcomeModal.active')) return;
-      // Only prompt when the browser hasn't decided yet — 'denied' means show the
-      // in-modal guide on demand instead (see toggleNotifications / enablePushNotifications).
-      if (!_pushSubscription && Notification.permission === 'default' && !localStorage.getItem('tba_notif_prompted')) {
+      // Prompt unless the browser has hard-blocked us ('denied' → the on-demand
+      // guide in toggleNotifications / enablePushNotifications covers that). Still
+      // worth showing when permission is 'granted' but the user never subscribed.
+      if (!_pushSubscription && Notification.permission !== 'denied' && !localStorage.getItem('tba_notif_prompted')) {
         localStorage.setItem('tba_notif_prompted', '1');
         document.getElementById('notifExplainerModal').classList.add('active');
       }
@@ -14364,12 +14365,14 @@
         }
       }
     } catch (_) {}
-    // First-run notification explainer. Runs for everyone (not just first-time
-    // spectators/SWs via the welcome-modal path) — a returning player on a fresh
-    // browser should still see why/how to turn notifications on. No-ops once
-    // prompted, or if already granted/denied/subscribed.
-    setTimeout(_maybePromptNotifications, 1500);
   });
+
+  // First-run notification explainer — independent of the service-worker check
+  // above (navigator.serviceWorker.ready can hang forever if the SW never
+  // activates, which would strand this). Runs for everyone, not just first-time
+  // spectators/SWs via the welcome-modal path. No-ops once prompted, or if
+  // already subscribed / hard-denied / a welcome modal is up.
+  window.addEventListener('load', () => setTimeout(_maybePromptNotifications, 2500));
 
   // ─── SW Ping a player ────────────────────────────────────────────────────
   async function pingPlayer(targetUserId, charName) {
