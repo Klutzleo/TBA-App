@@ -42,7 +42,11 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
 - `backend/models.py` — **all** SQLAlchemy models in one file (~1140 lines).
 - `routes/` — FastAPI `APIRouter`s. Biggest: `campaign_websocket.py` (~4.3k — the
   real-time hub: chat, combat, dice, initiative, Bonds/Combos), `character_fastapi.py`
-  (~3.4k — character/NPC/Ally/party CRUD), `chat.py`, `campaigns.py`.
+  (~3.4k — character/NPC/Ally CRUD), `campaigns.py`.
+- Unregistered / legacy (kept as files, not mounted — see `backend/app.py` comments):
+  `routes/chat.py` (`chat_blp`; still exports `broadcast_combat_event`), the
+  `party_router` in `character_fastapi.py`, `routes/effects.py`, and the
+  `/api/combat/*-by-id` routes. `routes/roll_blp_fastapi.py` is also commented out.
 - `routes/schemas.py` — Pydantic models (flat file; also `routes/schemas/campaign.py`).
 - `backend/migrations/*.sql` — production migrations, applied by `run_migrations.py`
   (tracks applied files in `schema_migrations`, advisory-locked, idempotent-ish).
@@ -72,7 +76,11 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
 
 - Middleware in `backend/app.py` attaches `request.state.request_id` (echo it in logs)
   and enforces `X-API-Key` **only** for `/api/*` routes that aren't in the JWT-protected
-  or public lists. Most feature routes are JWT (`Authorization: Bearer`), not API key.
+  or public lists. New feature routes must be JWT (`Authorization: Bearer`) + an
+  object-level check (`_is_sw` / `_is_campaign_member` in `character_fastapi.py`) — the
+  shared static `X-API-Key` is legacy and should not gate anything new.
+- The middleware does **not** run on WebSocket connections — WS routes authenticate
+  in-handler (`campaign_websocket.py` decodes the JWT + checks `CampaignMembership`).
 - Public/exempt: `/health`, `/docs`, `/openapi.json`, `/`, `/redoc`, `/api/public/*`,
   the auth endpoints.
 - CORS is currently wide open (`allow_origins=["*"]` with credentials).

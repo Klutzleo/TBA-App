@@ -196,13 +196,12 @@ async def api_info(request: Request):
 
 
 # Register routers
-try:
-    from routes.chat import chat_blp
-
-    application.include_router(chat_blp, prefix="/api", tags=["Chat"])
-    logger.info("✅ Registered chat_blp")
-except Exception as e:
-    logger.warning(f"⚠️ Failed to register chat_blp: {e}")
+#
+# NOT registered (security pass 2026-09): the legacy chat_blp (routes/chat.py —
+# incl. a zero-auth WebSocket /api/chat/party/{id}) and party_router
+# (/api/parties/*, no object-level auth). The live frontend calls neither. The
+# chat.py module stays importable — combat_fastapi imports broadcast_combat_event
+# from it.
 
 try:
     from routes.combat_fastapi import router as combat_router
@@ -214,13 +213,12 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register combat_blp_fastapi: {e}")
 
 try:
-    from routes.character_fastapi import character_blp_fastapi, party_router, npc_router, ally_router
+    from routes.character_fastapi import character_blp_fastapi, npc_router, ally_router
 
     application.include_router(character_blp_fastapi, tags=["Character"])
-    application.include_router(party_router, tags=["Party"])
     application.include_router(npc_router, tags=["NPCs"])
     application.include_router(ally_router, tags=["Allies"])
-    logger.info("✅ Registered character_blp_fastapi, party_router, npc_router, and ally_router")
+    logger.info("✅ Registered character_blp_fastapi, npc_router, and ally_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register character_blp_fastapi: {e}")
 
@@ -232,13 +230,9 @@ except Exception as e:
 # except Exception as e:
 #     logger.warning(f"⚠️ Failed to register roll_blp_fastapi: {e}")
 
-try:
-    from routes.effects import effects_blp
-
-    application.include_router(effects_blp, prefix="/api", tags=["Effects"])
-    logger.info("✅ Registered effects_blp")
-except Exception as e:
-    logger.warning(f"⚠️ Failed to register effects_blp: {e}")
+# NOT registered (security pass 2026-09): effects_blp (routes/effects.py —
+# /api/preview|resolve|undo|custom, stateless, unused by the frontend). Effects in
+# play go through the campaign WebSocket and /api/campaigns/{id}/effects.
 
 try:
     from routes.campaign_websocket import router as campaign_ws_router
