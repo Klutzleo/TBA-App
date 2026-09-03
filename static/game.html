@@ -3080,6 +3080,12 @@
           </div>
         </div>
 
+        <div id="pendingCheckBar" style="display:none; align-items:center; gap:10px; padding:8px 12px; background:rgba(124,58,237,0.14); border-top:1px solid rgba(124,58,237,0.4);">
+          <span id="pendingCheckText" style="flex:1; font-size:0.85rem; color:#c4b5fd; min-width:0;"></span>
+          <button id="pendingCheckBtn" onclick="rollPendingCheck()"
+            style="flex-shrink:0; padding:6px 14px; background:#7c3aed; border:none; border-radius:6px; color:#fff; font-size:0.82rem; font-weight:700; cursor:pointer;"></button>
+        </div>
+
         <div id="typingIndicator" style="display:none; padding:2px 12px 4px; font-size:0.78rem; color:var(--text-muted); font-style:italic; min-height:18px;"></div>
 
         <div class="chat-input-container">
@@ -10808,10 +10814,13 @@
               // ✅ Handle stat rolls from database
               else if (msg.message_type === 'stat_check_request') {
                 const d = msg.extra_data || {};
-                // Backend attaches live `status` (pending/resolved) so a still-open
-                // check keeps its roll button across a page reload.
-                const card = renderStatCheckRequestCard({ ...d, timestamp: msg.timestamp });
-                storeAndDisplayMessage(card, { type: 'stat_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+                // Backend attaches live `status`. A resolved check's result card
+                // is a separate message — skip the (now stale) request card.
+                if (d.status !== 'resolved') {
+                  const card = renderStatCheckRequestCard({ ...d, timestamp: msg.timestamp });
+                  storeAndDisplayMessage(card, { type: 'stat_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+                  trackPendingCheck(d, 'stat', false);
+                }
               }
               else if (msg.message_type === 'stat_check_result') {
                 const d = msg.extra_data || {};
@@ -10820,8 +10829,11 @@
               }
               else if (msg.message_type === 'env_check_request') {
                 const d = msg.extra_data || {};
-                const card = renderEnvCheckRequestCard({ ...d, timestamp: msg.timestamp });
-                storeAndDisplayMessage(card, { type: 'env_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+                if (d.status !== 'resolved') {
+                  const card = renderEnvCheckRequestCard({ ...d, timestamp: msg.timestamp });
+                  storeAndDisplayMessage(card, { type: 'env_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+                  trackPendingCheck(d, 'env', false);
+                }
               }
               else if (msg.message_type === 'env_check_result') {
                 const d = msg.extra_data || {};
@@ -11641,14 +11653,11 @@
               const card = renderStatCheckRequestCard(data);
               const chatEl = document.getElementById('chatMessages');
               if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              trackPendingCheck(data, 'stat');
 
             } else if (data.type === 'stat_check_result') {
-              // Replace pending request card with result if it's still in DOM
-              const pendingBtn = document.getElementById(`stat-check-btn-${data.request_id}`);
-              if (pendingBtn) {
-                const oldCard = pendingBtn.closest('.message-item');
-                if (oldCard) oldCard.remove();
-              }
+              dropCheckCard(data.request_id);  // clear the pending card for everyone
+              clearPendingCheck(data.request_id);
               const card = renderStatCheckResultCard(data);
               const chatEl = document.getElementById('chatMessages');
               if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
@@ -11657,10 +11666,11 @@
               const card = renderEnvCheckRequestCard(data);
               const chatEl = document.getElementById('chatMessages');
               if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              trackPendingCheck(data, 'env');
 
             } else if (data.type === 'env_check_result') {
-              const pendingBtn = document.getElementById(`env-check-btn-${data.request_id}`);
-              if (pendingBtn) { const c = pendingBtn.closest('.message-item'); if (c) c.remove(); }
+              dropCheckCard(data.request_id);
+              clearPendingCheck(data.request_id);
               const card = renderEnvCheckResultCard(data);
               const chatEl = document.getElementById('chatMessages');
               if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
@@ -13994,6 +14004,74 @@
       closeStatCheckModal();
     }
 
+    // ── "A roll is waiting for you" pill above the chat input ────────────────
+    // Map<request_id, {kind:'stat'|'env', stat, flavor}>. Only checks targeting
+    // THIS player's character, still unresolved.
+    const _myPendingChecks = new Map();
+
+    function trackPendingCheck(data, kind, isLive = true) {
+      if (isSW() || !characterId) return;
+      if (String(data.character_id) !== String(characterId)) return;
+      if (data.status === 'resolved') return;
+      _myPendingChecks.set(data.request_id, { kind, stat: data.stat, flavor: data.flavor_text || '' });
+      renderPendingCheckBar();
+      if (!isLive) return;
+      // live arrival: scroll the request card into view + a one-shot glow
+      setTimeout(() => {
+        const el = document.getElementById('check-card-' + data.request_id);
+        if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.animate(
+          [{ boxShadow: '0 0 0 3px rgba(124,58,237,0.6)' }, { boxShadow: '0 0 0 0 transparent' }], { duration: 1400 }); }
+      }, 100);
+    }
+
+    function clearPendingCheck(requestId) {
+      if (_myPendingChecks.delete(requestId)) renderPendingCheckBar();
+    }
+
+    // Remove a resolved check's pending card — from the DOM and from allMessages
+    // (so a tab re-render doesn't resurrect the detached node).
+    function dropCheckCard(requestId) {
+      const cid = 'check-card-' + requestId;
+      document.getElementById(cid)?.remove();
+      const idx = allMessages.findIndex(m => m._element && m._element.id === cid);
+      if (idx !== -1) allMessages.splice(idx, 1);
+    }
+
+    function renderPendingCheckBar() {
+      const bar = document.getElementById('pendingCheckBar');
+      const txt = document.getElementById('pendingCheckText');
+      const btn = document.getElementById('pendingCheckBtn');
+      if (!bar) return;
+      btn.disabled = false;
+      const n = _myPendingChecks.size;
+      if (n === 0) { bar.style.display = 'none'; return; }
+      const first = _myPendingChecks.values().next().value;
+      const isEnv = first.kind === 'env';
+      bar.style.background = isEnv ? 'rgba(249,115,22,0.14)' : 'rgba(124,58,237,0.14)';
+      bar.style.borderTopColor = isEnv ? 'rgba(249,115,22,0.4)' : 'rgba(124,58,237,0.4)';
+      txt.style.color = isEnv ? '#fdba74' : '#c4b5fd';
+      btn.style.background = isEnv ? '#f97316' : '#7c3aed';
+      if (n === 1) {
+        const fl = first.flavor ? ` — "${escHtml(first.flavor.slice(0, 80))}${first.flavor.length > 80 ? '…' : ''}"` : '';
+        txt.textContent = `${isEnv ? '🌍 Resist' : '🎲 Roll'} ${first.stat}${fl}`;
+        btn.textContent = `Roll ${first.stat}`;
+      } else {
+        txt.textContent = `${n} checks waiting for you`;
+        btn.textContent = 'Roll next';
+      }
+      bar.style.display = 'flex';
+    }
+
+    function rollPendingCheck() {
+      const entry = _myPendingChecks.entries().next().value;
+      if (!entry) return;
+      const [rid, info] = entry;
+      const btn = document.getElementById('pendingCheckBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
+      if (info.kind === 'env') rollEnvCheck(rid);
+      else rollStatCheck(rid, info.stat);
+    }
+
     function rollStatCheck(requestId, stat) {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({
@@ -14115,6 +14193,7 @@
 
       const div = document.createElement('div');
       div.className = 'message-item';
+      if (data.request_id) div.id = 'check-card-' + data.request_id;
       div.style.cssText = 'background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.25);border-radius:10px;padding:12px 14px;margin:4px 0;';
       if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
       const outerRow = document.createElement('div');
@@ -14214,6 +14293,7 @@
 
       const div = document.createElement('div');
       div.className = 'message-item';
+      if (data.request_id) div.id = 'check-card-' + data.request_id;
       div.style.cssText = 'background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.25);border-radius:10px;padding:12px 14px;margin:4px 0;';
       if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
 

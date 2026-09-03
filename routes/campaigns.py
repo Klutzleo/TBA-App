@@ -1074,9 +1074,10 @@ def get_campaign_messages(
     # replay can tell a still-pending check apart from a resolved one — the
     # extra_data stored on the message is frozen at send time and never updated.
     from backend.models import StatCheckRequest
+    _check_types = ("stat_check_request", "env_check_request")
     stat_check_ids = []
     for msg in messages:
-        if msg.message_type == "stat_check_request" and msg.extra_data:
+        if msg.message_type in _check_types and msg.extra_data:
             req_id = msg.extra_data.get("request_id")
             if req_id:
                 try:
@@ -1090,7 +1091,7 @@ def get_campaign_messages(
         stat_check_statuses = {str(r.id): r.status for r in rows}
 
     def _extra_data(msg):
-        if msg.message_type != "stat_check_request" or not msg.extra_data:
+        if msg.message_type not in _check_types or not msg.extra_data:
             return msg.extra_data
         req_id = msg.extra_data.get("request_id")
         status = stat_check_statuses.get(req_id, "resolved")
