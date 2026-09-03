@@ -14051,14 +14051,12 @@
       bar.style.borderTopColor = isEnv ? 'rgba(249,115,22,0.4)' : 'rgba(124,58,237,0.4)';
       txt.style.color = isEnv ? '#fdba74' : '#c4b5fd';
       btn.style.background = isEnv ? '#f97316' : '#7c3aed';
-      if (n === 1) {
-        const fl = first.flavor ? ` — "${escHtml(first.flavor.slice(0, 80))}${first.flavor.length > 80 ? '…' : ''}"` : '';
-        txt.textContent = `${isEnv ? '🌍 Resist' : '🎲 Roll'} ${first.stat}${fl}`;
-        btn.textContent = `Roll ${first.stat}`;
-      } else {
-        txt.textContent = `${n} checks waiting for you`;
-        btn.textContent = 'Roll next';
-      }
+      // Always show what the NEXT roll is (stat + flavor) so a queue of checks
+      // is never resolved blind. The counter just says how many are behind it.
+      const counter = n > 1 ? `(1 of ${n}) ` : '';
+      const fl = first.flavor ? ` — "${escHtml(first.flavor.slice(0, 70))}${first.flavor.length > 70 ? '…' : ''}"` : '';
+      txt.textContent = `${counter}${isEnv ? '🌍 Resist' : '🎲 Roll'} ${first.stat}${fl}`;
+      btn.textContent = `Roll ${first.stat}`;
       bar.style.display = 'flex';
     }
 
