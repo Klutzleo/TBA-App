@@ -2739,7 +2739,12 @@
 
         <!-- SW Dashboard Panel -->
         <div id="sidebarDashPanel" style="display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
-          <div style="padding:8px 12px 4px; display:flex; gap:6px; flex-shrink:0;">
+          <div style="padding:8px 12px 4px; display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap;">
+            <button onclick="openEncounterSetupModal()" title="Start an encounter — pick combatants, players get a roll prompt"
+              style="flex:1 1 100%; padding:5px 8px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.4); border-radius:6px; color:#93c5fd; font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.15s;"
+              onmouseover="this.style.background='rgba(59,130,246,0.25)'" onmouseout="this.style.background='rgba(59,130,246,0.15)'">
+              <i data-lucide="swords" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Start Encounter
+            </button>
             <button onclick="openStatCheckModal()" title="Send a stat check to one or more players"
               style="flex:1; padding:5px 8px; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.4); border-radius:6px; color:#a78bfa; font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.15s;"
               onmouseover="this.style.background='rgba(124,58,237,0.25)'" onmouseout="this.style.background='rgba(124,58,237,0.15)'">
@@ -2797,6 +2802,11 @@
               <button id="bondsMgmtBtn" class="btn-sm" onclick="openBondManageModal()" style="display:none; font-size:0.75rem; padding:3px 10px; background:transparent; border:1px solid #a78bfa; color:#a78bfa;">Bonds</button>
               <button id="nextTurnBtn" class="btn-sm" onclick="advanceTurn()" style="display:none; font-size:0.75rem; padding:3px 10px;">Next Turn ▶</button>
             </div>
+          </div>
+          <button id="startEncounterBtn" class="btn-sm" onclick="openEncounterSetupModal()" style="width:100%; margin-bottom:8px; font-size:0.8rem; padding:6px 10px; background:rgba(249,115,22,0.15); border:1px solid rgba(249,115,22,0.5); color:#fb923c;">⚔️ Start Encounter</button>
+          <div id="initiativeCombatBtns" style="display:none; gap:6px; margin-bottom:8px;">
+            <button class="btn-sm" onclick="initiativeCmd('end')" style="flex:1; font-size:0.72rem; padding:4px 8px; background:transparent; border:1px solid var(--border-color); color:var(--text-muted);">End</button>
+            <button class="btn-sm" onclick="initiativeCmd('clear')" style="flex:1; font-size:0.72rem; padding:4px 8px; background:transparent; border:1px solid var(--border-color); color:var(--text-muted);">Clear</button>
           </div>
           <div id="initiativeTracker">
             <div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px;">
@@ -3273,6 +3283,38 @@
     </div>
   </div>
 
+  <!-- Start Encounter Modal (SW): pick combatants, NPCs roll now, PCs get the pill -->
+  <div id="encounterSetupModal" class="modal" onclick="if(event.target===this)closeEncounterSetupModal()">
+    <div class="modal-content" style="max-width:440px;width:95vw;">
+      <div class="modal-header">
+        <h2><i data-lucide="swords" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;color:#fb923c;"></i>Start Encounter</h2>
+        <button class="modal-close" onclick="closeEncounterSetupModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Pick who's in. NPCs roll now (hidden NPCs roll silently — only you see it). Each player gets a "roll initiative" prompt.</p>
+
+        <div>
+          <label style="font-size:0.82rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span>Combatants</span>
+            <button type="button" onclick="encSetupToggleAllPCs()" style="background:none;border:none;color:#fb923c;font-size:0.72rem;cursor:pointer;padding:0;">Select all players</button>
+          </label>
+          <div id="encCombatantList" style="max-height:190px;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:4px;display:flex;flex-direction:column;gap:2px;"></div>
+        </div>
+
+        <div>
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Flavor Text <span style="opacity:0.5;">(optional)</span></label>
+          <input id="encSetupFlavor" type="text" maxlength="300" placeholder="The ambush breaks…"
+            style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button class="btn" style="background:var(--bg-secondary);" onclick="closeEncounterSetupModal()">Cancel</button>
+          <button class="btn btn-primary" style="background:#f97316;border-color:#f97316;" onclick="sendEncounterSetup()">Start Encounter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Expanded Message Editor Modal -->
   <div id="expandedEditorModal" class="modal">
     <div class="modal-content" style="max-width:680px;width:95vw;">
@@ -3584,7 +3626,7 @@
             <div><span style="color:var(--accent-dice);">/sp</span> <span style="color:var(--text-muted);">— Social stat check (1d6 + SP + Edge)</span></div>
             <div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border-color);"><span style="color:#a78bfa;font-style:italic;">When the SW sends you a Stat Check</span> <span style="color:var(--text-muted);">— a card appears with a <strong>Roll</strong> button. Click it and the result resolves against the SW's hidden difficulty.</span></div>
             <div><span style="color:var(--accent-dice);">/defense pp|ip|sp</span> <span style="color:var(--text-muted);">— Manual defense roll (defense die + stat + Edge)</span></div>
-            <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge)</span></div>
+            <div><span style="color:var(--accent-dice);">/initiative</span> <span style="color:var(--text-muted);">— Roll initiative (1d6 + PP + Edge). When the SW starts combat a <strong>⚔️ Roll Initiative</strong> prompt appears above the chat box — the command still works too.</span></div>
             <div><span style="color:var(--accent-dice);">/initiative show</span> <span style="color:var(--text-muted);">— Display current initiative order</span></div>
             <div><span style="color:var(--accent-dice);">/<em>ability</em></span> <span style="color:var(--text-muted);">— Use an ability macro (e.g. /fireball)</span></div>
             <div><span style="color:var(--accent-dice);">/<em>ability</em> @Target</span> <span style="color:var(--text-muted);">— Use ability on a specific target</span></div>
@@ -3601,6 +3643,7 @@
           <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">Commands — Story Weaver</div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-family:monospace;display:grid;gap:4px;">
             <div><span style="color:#a78bfa;">/s XdY</span> <span style="color:var(--text-muted);">— Secret roll — result visible to SW only</span></div>
+            <div style="color:var(--text-muted);font-style:italic;">The <strong style="color:#fb923c;">⚔️ Start Encounter</strong> button in the Initiative tab opens a combatant picker (PCs + NPCs, hidden ones too) — the commands below still work as a fallback.</div>
             <div><span style="color:#a78bfa;">/initiative start</span> <span style="color:var(--text-muted);">— Start encounter without rolling</span></div>
             <div><span style="color:#a78bfa;">/initiative @Name</span> <span style="color:var(--text-muted);">— Roll initiative for a PC or NPC</span></div>
             <div><span style="color:#a78bfa;">/initiative silent @Name</span> <span style="color:var(--text-muted);">— Hidden roll, only SW sees result</span></div>
@@ -7823,16 +7866,22 @@
     function renderInitiativeTracker() {
       const tracker = document.getElementById('initiativeTracker');
       const nextBtn = document.getElementById('nextTurnBtn');
+      const startBtn = document.getElementById('startEncounterBtn');
+      const combatBtns = document.getElementById('initiativeCombatBtns');
       if (!tracker) return;
 
       if (!currentInitiativeOrder.length) {
         tracker.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No active encounter.</div>';
         if (nextBtn) nextBtn.style.display = 'none';
+        if (startBtn) startBtn.style.display = isSW() ? '' : 'none';
+        if (combatBtns) combatBtns.style.display = 'none';
         document.getElementById('initiativeTurnCounter') && (document.getElementById('initiativeTurnCounter').textContent = '');
         return;
       }
 
       if (nextBtn) nextBtn.style.display = '';
+      if (startBtn) startBtn.style.display = 'none';
+      if (combatBtns) combatBtns.style.display = isSW() ? 'flex' : 'none';
 
       tracker.innerHTML = '';
       currentInitiativeOrder.forEach((roll, idx) => {
@@ -7867,6 +7916,23 @@
           nameSpan.appendChild(sparkleIcon);
         }
         entry.appendChild(nameSpan);
+
+        // Not-yet-rolled combatant from the Start Encounter roster
+        if (roll.waiting) {
+          entry.style.opacity = '0.55';
+          const waitLabel = document.createElement('span');
+          waitLabel.style.cssText = 'font-size:0.68rem;color:var(--text-muted);margin-left:6px;flex-shrink:0;';
+          waitLabel.textContent = 'waiting…';
+          entry.appendChild(waitLabel);
+          if (isSW() && !isNpc) {
+            const rollForBtn = document.createElement('button');
+            rollForBtn.title = `Roll initiative for ${roll.name}`;
+            rollForBtn.textContent = 'Roll';
+            rollForBtn.style.cssText = 'font-size:0.66rem;margin-left:auto;padding:1px 7px;border:1px solid rgba(59,130,246,0.4);border-radius:5px;color:#93c5fd;background:none;flex-shrink:0;cursor:pointer;';
+            rollForBtn.onclick = (e) => { e.stopPropagation(); ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative @' + roll.name })); };
+            entry.appendChild(rollForBtn);
+          }
+        }
 
         // Summon: durability dots + summoner label + dismiss button
         if (roll.is_summon) {
@@ -11649,6 +11715,12 @@
               document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
               loadCharacters();
 
+            } else if (data.type === 'initiative_request') {
+              const card = renderInitiativeRequestCard(data);
+              const chatEl = document.getElementById('chatMessages');
+              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              trackPendingCheck(data, 'init');
+
             } else if (data.type === 'stat_check_request') {
               const card = renderStatCheckRequestCard(data);
               const chatEl = document.getElementById('chatMessages');
@@ -12619,6 +12691,12 @@
               }
 
             } else if (data.type === 'initiative_roll') {
+              // My own roll landed → clear the pill + its request card (also fires
+              // if I typed /initiative by hand). request_id == character_id.
+              if (data.character_id && String(data.character_id) === String(characterId)) {
+                dropCheckCard(String(data.character_id));
+                clearPendingCheck(String(data.character_id));
+              }
               // Silent rolls only go to SW — skip display for non-SW
               if (data.is_silent && !isSW()) return;
               playInitiativeSound();
@@ -12642,6 +12720,17 @@
               }
 
             } else if (data.type === 'initiative_order') {
+              // SW-only assembling view (from the Start Encounter modal): just
+              // load the tracker + open the tab, no chat card.
+              if (data.sw_only) {
+                if (userRole === 'SW') {
+                  currentInitiativeOrder = data.rolls || [];
+                  currentTurnIndex = data.current_turn_index ?? 0;
+                  renderInitiativeTracker();
+                  switchSidebarTab('initiative');
+                }
+                return;
+              }
               // Initiative order display
               const container = document.createElement('div');
               container.className = 'message-card initiative-order';
@@ -12671,7 +12760,7 @@
 
                 const position = index + 1;
                 const name = roll.name.padEnd(20, ' ');
-                const rollValue = roll.is_silent ? '???' : roll.roll.toString().padStart(2, ' ');
+                const rollValue = roll.is_silent ? '???' : (roll.roll ?? '·').toString().padStart(2, ' ');
 
                 entry.textContent = `${position}. ${name} [${rollValue}]`;
 
@@ -13918,6 +14007,67 @@
       boxes.forEach(b => { b.checked = anyUnchecked; });
     }
 
+    // ── Start Encounter modal ────────────────────────────────────────────────
+    function _encCombatantRow(id, name, kind, hidden) {
+      const accent = kind === 'npc' ? '#fb923c' : '#a78bfa';
+      const tag = kind === 'npc'
+        ? `<span style="font-size:0.65rem;letter-spacing:0.04em;color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:3px;padding:0 4px;margin-left:4px;">${hidden ? 'HIDDEN' : 'NPC'}</span>`
+        : '';
+      const silentToggle = kind === 'npc'
+        ? `<label style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:0.68rem;color:var(--text-muted);cursor:pointer;white-space:nowrap;">
+             <input type="checkbox" class="enc-silent" ${hidden ? 'checked' : ''} style="width:13px;height:13px;accent-color:#6b7280;">silent</label>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;font-size:0.9rem;color:var(--text-primary);">
+         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+           <input type="checkbox" class="enc-combatant" data-kind="${kind}" value="${escHtml(id)}" style="accent-color:${accent};width:15px;height:15px;">
+           <span>${escHtml(name)}${tag}</span>
+         </label>${silentToggle}</div>`;
+    }
+
+    function openEncounterSetupModal() {
+      const pcs = _statCheckPCList();
+      const npcs = _statCheckNPCList();
+      const rows = [
+        ...pcs.map(p => _encCombatantRow(p.id, p.name, 'pc', false)),
+        ...npcs.map(n => _encCombatantRow(n.id, n.name, 'npc', n.hidden)),
+      ];
+      document.getElementById('encCombatantList').innerHTML = rows.length
+        ? rows.join('')
+        : '<div style="padding:8px;color:var(--text-muted);font-size:0.85rem;">No characters in this campaign.</div>';
+      document.getElementById('encSetupFlavor').value = '';
+      document.getElementById('encounterSetupModal').classList.add('active');
+    }
+    function closeEncounterSetupModal() {
+      document.getElementById('encounterSetupModal').classList.remove('active');
+    }
+    function encSetupToggleAllPCs() {
+      const boxes = document.querySelectorAll('#encCombatantList .enc-combatant[data-kind="pc"]');
+      const anyUnchecked = [...boxes].some(b => !b.checked);
+      boxes.forEach(b => { b.checked = anyUnchecked; });
+    }
+    function sendEncounterSetup() {
+      const combatants = [];
+      document.querySelectorAll('#encCombatantList > div').forEach(row => {
+        const cb = row.querySelector('.enc-combatant');
+        if (!cb || !cb.checked) return;
+        const silentEl = row.querySelector('.enc-silent');
+        combatants.push({ id: cb.value, silent: silentEl ? silentEl.checked : false });
+      });
+      if (combatants.length === 0) { alert('Pick at least one combatant.'); return; }
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        type: 'encounter_setup',
+        combatants,
+        flavor_text: document.getElementById('encSetupFlavor').value.trim() || null,
+      }));
+      closeEncounterSetupModal();
+    }
+    // End / Clear buttons in the initiative tab — same commands as /initiative.
+    function initiativeCmd(sub) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative ' + sub }));
+    }
+
     function openStatCheckModal() {
       const pcs = _statCheckPCList();
 
@@ -14067,16 +14217,20 @@
       const n = _myPendingChecks.size;
       if (n === 0) { bar.style.display = 'none'; return; }
       const first = _myPendingChecks.values().next().value;
-      const isEnv = first.kind === 'env';
-      bar.style.background = isEnv ? 'rgba(249,115,22,0.14)' : 'rgba(124,58,237,0.14)';
-      bar.style.borderTopColor = isEnv ? 'rgba(249,115,22,0.4)' : 'rgba(124,58,237,0.4)';
-      txt.style.color = isEnv ? '#fdba74' : '#c4b5fd';
-      btn.style.background = isEnv ? '#f97316' : '#7c3aed';
+      const palette = first.kind === 'env'
+        ? { bg: 'rgba(249,115,22,0.14)', border: 'rgba(249,115,22,0.4)', txt: '#fdba74', btn: '#f97316', verb: '🌍 Resist' }
+        : first.kind === 'init'
+        ? { bg: 'rgba(59,130,246,0.14)', border: 'rgba(59,130,246,0.4)', txt: '#93c5fd', btn: '#3b82f6', verb: '⚔️ Roll' }
+        : { bg: 'rgba(124,58,237,0.14)', border: 'rgba(124,58,237,0.4)', txt: '#c4b5fd', btn: '#7c3aed', verb: '🎲 Roll' };
+      bar.style.background = palette.bg;
+      bar.style.borderTopColor = palette.border;
+      txt.style.color = palette.txt;
+      btn.style.background = palette.btn;
       // Always show what the NEXT roll is (stat + flavor) so a queue of checks
       // is never resolved blind. The counter just says how many are behind it.
       const counter = n > 1 ? `(1 of ${n}) ` : '';
       const fl = first.flavor ? ` — "${escHtml(first.flavor.slice(0, 70))}${first.flavor.length > 70 ? '…' : ''}"` : '';
-      txt.textContent = `${counter}${isEnv ? '🌍 Resist' : '🎲 Roll'} ${first.stat}${fl}`;
+      txt.textContent = `${counter}${palette.verb} ${first.stat}${fl}`;
       btn.textContent = `Roll ${first.stat}`;
       bar.style.display = 'flex';
     }
@@ -14088,7 +14242,16 @@
       const btn = document.getElementById('pendingCheckBtn');
       if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
       if (info.kind === 'env') rollEnvCheck(rid);
+      else if (info.kind === 'init') rollInitiativeCheck(rid);
       else rollStatCheck(rid, info.stat);
+    }
+
+    // The initiative pill just fires the normal self-roll command.
+    function rollInitiativeCheck(requestId) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative' }));
+      const btn = document.getElementById('pendingCheckBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
     }
 
     function rollStatCheck(requestId, stat) {
@@ -14190,6 +14353,42 @@
       const npc = (campaignNPCs || []).find(c => c.name === name);
       if (npc && npc.chat_color) return npc.chat_color;
       return null;
+    }
+
+    function renderInitiativeRequestCard(data) {
+      const isTarget = characterId && String(characterId) === String(data.character_id);
+      const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
+      const ts = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const chatColor = lookupChatColor(data.character_name);
+      const rollBtn = isTarget
+        ? `<button id="init-check-btn-${data.request_id}" onclick="rollInitiativeCheck('${data.request_id}')"
+              style="margin-top:10px;width:100%;padding:10px;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);border-radius:8px;color:#93c5fd;font-size:0.95rem;font-weight:700;cursor:pointer;">
+              <i data-lucide="dices" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i>Roll Initiative</button>`
+        : '';
+      const div = document.createElement('div');
+      div.className = 'message-item';
+      if (data.request_id) div.id = 'check-card-' + data.request_id;
+      div.style.cssText = 'background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.25);border-radius:10px;padding:12px 14px;margin:4px 0;';
+      if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
+      const outerRow = document.createElement('div');
+      outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+      outerRow.appendChild(buildAvatarEl(data.character_name, chatColor));
+      const col = document.createElement('div');
+      col.style.cssText = 'flex:1;min-width:0;';
+      col.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          <span style="color:var(--text-muted);font-size:0.78rem;">[${ts}]</span>
+          <i data-lucide="swords" style="width:16px;height:16px;vertical-align:middle;color:#3b82f6;"></i>
+          <span style="font-weight:700;color:#93c5fd;font-size:0.88rem;">Initiative</span>
+          <span class="message-tab-indicator">STORY</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
+          <strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong> — roll <strong>1d6 + PP + Edge</strong>
+        </div>
+        ${flavor}${rollBtn}`;
+      outerRow.appendChild(col);
+      div.appendChild(outerRow);
+      return div;
     }
 
     function renderEnvCheckRequestCard(data) {

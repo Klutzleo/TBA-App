@@ -4206,6 +4206,7 @@ async def _handle_encounter_setup(campaign_uuid, sw_user_id, data, websocket, db
     # SW sees the order assembling (NPC rolls in, "waiting…" for the PCs)
     await manager.send_to_user(campaign_uuid, sw_user_id, {
         "type": "initiative_order",
+        "sw_only": True,
         "rolls": _build_updated_order(encounter, db),
         "encounter_id": str(encounter.id),
         "current_turn_index": encounter.current_turn_index,
