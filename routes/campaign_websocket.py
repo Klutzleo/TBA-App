@@ -55,6 +55,14 @@ _aoe_pending: Dict[str, dict] = {}
 # an acceptable edge case.
 _group_summaries_sent: set = set()
 
+# Per-encounter combatant roster from the Start Encounter modal.
+# key: str(encounter_id) -> list of {character_id, name, type: 'pc'|'npc',
+#      silent: bool, user_id: str|None, rolled: bool}
+# Drives the "waiting on X…" rows in the SW tracker and lets a reconnecting
+# player get their initiative pill back. In-process: lost on restart, but the
+# InitiativeRoll rows persist and /initiative show still works.
+_encounter_roster: Dict[str, list] = {}
+
 # ============================================================================
 # CONNECTION MANAGER (Tracks active WebSocket connections per campaign)
 # ============================================================================
@@ -356,6 +364,33 @@ async def campaign_websocket(
     except Exception as _e:
         logger.warning(f"broadcast_online_users on connect failed: {_e}")
 
+    # Re-arm the initiative pill if this player reconnected mid-setup (before rolling).
+    try:
+        if character:
+            active_enc = db.query(Encounter).filter(
+                Encounter.campaign_id == campaign_uuid, Encounter.is_active == True
+            ).first()
+            if active_enc:
+                for slot in _encounter_roster.get(str(active_enc.id), []):
+                    if slot["type"] != "pc" or slot["character_id"] != str(character.id):
+                        continue
+                    already = db.query(InitiativeRoll).filter(
+                        InitiativeRoll.encounter_id == active_enc.id,
+                        InitiativeRoll.character_id == character.id,
+                    ).first()
+                    if not already:
+                        await websocket.send_json({
+                            "type": "initiative_request",
+                            "request_id": slot["character_id"],
+                            "character_id": slot["character_id"],
+                            "character_name": slot["name"],
+                            "stat": "Initiative",
+                            "flavor_text": None,
+                            "encounter_id": str(active_enc.id),
+                        })
+    except Exception as _e:
+        logger.warning(f"initiative pill re-arm on connect failed: {_e}")
+
     try:
         while True:
             # Receive message from client
@@ -616,6 +651,9 @@ async def campaign_websocket(
 
             elif message_type == "env_check_roll":
                 await _handle_env_check_roll(campaign_uuid, user_uuid, data, db)
+
+            elif message_type == "encounter_setup":
+                await _handle_encounter_setup(campaign_uuid, user_uuid, data, websocket, db)
 
             elif message_type == "combo_propose":
                 await _handle_combo_propose(campaign_uuid, user_uuid, data, websocket, db)
@@ -3620,6 +3658,63 @@ def _sort_initiative_rolls(rolls, db):
     return sorted(rolls, key=sort_key)
 
 
+def _build_updated_order(encounter, db):
+    """Sorted initiative order for the SW tracker: the rolls so far, plus a
+    'waiting…' placeholder for every roster combatant who hasn't rolled yet."""
+    all_rolls = _sort_initiative_rolls(
+        db.query(InitiativeRoll).filter(InitiativeRoll.encounter_id == encounter.id).all(), db
+    )
+    order = []
+    rolled_char_ids = set()
+    for r in all_rolls:
+        entry = {
+            "name": r.name,
+            "roll": r.roll_result,
+            "is_silent": r.is_silent,
+            "rolled_by_sw": r.rolled_by_sw,
+            "character_id": str(r.character_id) if r.character_id else None,
+            "is_npc": r.npc_id is not None,
+            "waiting": False,
+            "dp": None,
+            "max_dp": None,
+            "user_id": None,
+        }
+        if r.character_id:
+            rolled_char_ids.add(str(r.character_id))
+            c = db.query(Character).filter(Character.id == r.character_id).first()
+            if c:
+                entry["dp"] = c.dp
+                entry["max_dp"] = c.max_dp
+                entry["user_id"] = str(c.user_id) if c.user_id else None
+                entry["is_npc"] = bool(c.is_npc)
+        order.append(entry)
+
+    for slot in _encounter_roster.get(str(encounter.id), []):
+        if slot.get("rolled") or slot["character_id"] in rolled_char_ids:
+            continue
+        order.append({
+            "name": slot["name"],
+            "roll": None,
+            "is_silent": bool(slot.get("silent")),
+            "rolled_by_sw": False,
+            "character_id": slot["character_id"],
+            "is_npc": slot.get("type") == "npc",
+            "waiting": True,
+            "dp": None,
+            "max_dp": None,
+            "user_id": slot.get("user_id"),
+        })
+    return order
+
+
+def _mark_roster_rolled(encounter_id, character_id):
+    """Flip a roster slot to rolled once its InitiativeRoll lands."""
+    for slot in _encounter_roster.get(str(encounter_id), []):
+        if slot["character_id"] == str(character_id):
+            slot["rolled"] = True
+            break
+
+
 async def roll_initiative_self(
     campaign_uuid: UUID,
     user_uuid: UUID,
@@ -3693,31 +3788,8 @@ async def roll_initiative_self(
         db.add(initiative_roll)
         db.commit()
 
-        # Build updated order with tiebreaker sort so SW tracker refreshes immediately
-        all_rolls = db.query(InitiativeRoll).filter(
-            InitiativeRoll.encounter_id == encounter.id
-        ).all()
-        all_rolls = _sort_initiative_rolls(all_rolls, db)
-        updated_order = []
-        for r in all_rolls:
-            entry = {
-                "name": r.name,
-                "roll": r.roll_result,
-                "is_silent": r.is_silent,
-                "rolled_by_sw": r.rolled_by_sw,
-                "character_id": str(r.character_id) if r.character_id else None,
-                "is_npc": r.npc_id is not None,
-                "dp": None,
-                "max_dp": None,
-                "user_id": None
-            }
-            if r.character_id:
-                c = db.query(Character).filter(Character.id == r.character_id).first()
-                if c:
-                    entry["dp"] = c.dp
-                    entry["max_dp"] = c.max_dp
-                    entry["user_id"] = str(c.user_id) if c.user_id else None
-            updated_order.append(entry)
+        _mark_roster_rolled(encounter.id, character.id)
+        updated_order = _build_updated_order(encounter, db)
 
         # Persist message first so the broadcast can carry a message_id
         msg = Message(
@@ -3742,6 +3814,7 @@ async def roll_initiative_self(
         await manager.broadcast(campaign_uuid, {
             "type": "initiative_roll",
             "actor": character.name,
+            "character_id": str(character.id),
             "roll": roll_total,
             "die_result": die_result,
             "pp": char_pp,
@@ -3849,31 +3922,9 @@ async def roll_initiative_target(
         db.add(initiative_roll)
         db.commit()
 
-        # Build updated order for tracker refresh
-        all_rolls = db.query(InitiativeRoll).filter(
-            InitiativeRoll.encounter_id == encounter.id
-        ).all()
-        all_rolls = _sort_initiative_rolls(all_rolls, db)
-        updated_order = []
-        for r in all_rolls:
-            entry = {
-                "name": r.name,
-                "roll": r.roll_result,
-                "is_silent": r.is_silent,
-                "rolled_by_sw": r.rolled_by_sw,
-                "character_id": str(r.character_id) if r.character_id else None,
-                "is_npc": r.npc_id is not None,
-                "dp": None,
-                "max_dp": None,
-                "user_id": None
-            }
-            if r.character_id:
-                c = db.query(Character).filter(Character.id == r.character_id).first()
-                if c:
-                    entry["dp"] = c.dp
-                    entry["max_dp"] = c.max_dp
-                    entry["user_id"] = str(c.user_id) if c.user_id else None
-            updated_order.append(entry)
+        if character:
+            _mark_roster_rolled(encounter.id, character.id)
+        updated_order = _build_updated_order(encounter, db)
 
         # Persist message first so the broadcast can carry a message_id
         msg = Message(
@@ -3903,6 +3954,7 @@ async def roll_initiative_target(
             await websocket.send_json({
                 "type": "initiative_roll",
                 "actor": name,
+                "character_id": str(character.id) if character else None,
                 "roll": roll_total,
                 "die_result": die_result,
                 "pp": pp,
@@ -3920,6 +3972,7 @@ async def roll_initiative_target(
             await manager.broadcast(campaign_uuid, {
                 "type": "initiative_roll",
                 "actor": name,
+                "character_id": str(character.id) if character else None,
                 "roll": roll_total,
                 "die_result": die_result,
                 "pp": pp,
@@ -3938,6 +3991,34 @@ async def roll_initiative_target(
             "type": "error",
             "message": "❌ Initiative roll failed. Please try again."
         })
+
+
+def _notify_encounter_started(campaign_uuid, user_uuid, db):
+    """Campaign-wide 'roll for initiative' push, throttled to once per 10 min.
+    Shared by /initiative start and the Start Encounter modal."""
+    try:
+        from backend.notifications import send_push_to_campaign
+        from datetime import timedelta
+        campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+        if not campaign_obj:
+            return
+        now = datetime.utcnow()
+        last = campaign_obj.last_notified_at
+        if last is not None and (now - last) < timedelta(minutes=10):
+            return
+        sender = manager.get_display_name(campaign_uuid, user_uuid) or "Story Weaver"
+        send_push_to_campaign(
+            db,
+            campaign_id=str(campaign_uuid),
+            exclude_user_id=str(user_uuid),
+            title=f"⚔️ {sender}",
+            body="Combat has begun — it's time to roll initiative!",
+            url=f"/game.html?campaign_id={campaign_uuid}",
+        )
+        campaign_obj.last_notified_at = now
+        db.commit()
+    except Exception as _pe:
+        logger.warning(f"Initiative push notification failed: {_pe}")
 
 
 async def start_encounter(
@@ -4013,6 +4094,123 @@ async def start_encounter(
             "type": "error",
             "message": "❌ Failed to start encounter. Please try again."
         })
+
+
+async def _handle_encounter_setup(campaign_uuid, sw_user_id, data, websocket, db):
+    """Start Encounter modal: SW picks combatants. NPCs roll now (silent if hidden
+    or per the row toggle); each PC gets the 'waiting on you' initiative pill."""
+    from backend.roll_logic import roll_dice
+    from uuid import UUID as _UUID
+
+    if not await is_story_weaver(campaign_uuid, sw_user_id, db):
+        return
+
+    combatants = data.get("combatants") or []
+    flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
+
+    encounter = await get_or_create_active_encounter(campaign_uuid, db)
+    if db.query(InitiativeRoll).filter(InitiativeRoll.encounter_id == encounter.id).count() > 0:
+        await websocket.send_json({
+            "type": "info",
+            "message": "An encounter is already rolling. Use the initiative tab's Clear, or /initiative show.",
+        })
+        return
+
+    roster = []
+    for entry in combatants:
+        cid = entry.get("id") if isinstance(entry, dict) else entry
+        try:
+            c = db.query(Character).filter(
+                Character.id == _UUID(str(cid)),
+                Character.campaign_id == campaign_uuid,
+            ).first()
+        except Exception:
+            c = None
+        if not c:
+            continue
+        if c.is_npc:
+            override = entry.get("silent") if isinstance(entry, dict) else None
+            silent = bool(override) if override is not None else (not c.visible_to_players)
+            die_result = roll_dice("1d6")[0]
+            total = die_result + (c.pp or 0) + (c.edge or 0)
+            db.add(InitiativeRoll(
+                encounter_id=encounter.id, character_id=c.id, name=c.name,
+                roll_result=total, is_silent=silent, rolled_by_sw=True,
+            ))
+            roster.append({
+                "character_id": str(c.id), "name": c.name, "type": "npc",
+                "silent": silent, "user_id": None, "rolled": True,
+            })
+        else:
+            roster.append({
+                "character_id": str(c.id), "name": c.name, "type": "pc",
+                "silent": False,
+                "user_id": str(c.user_id) if c.user_id else None,
+                "rolled": False,
+            })
+    db.commit()
+
+    if not roster:
+        await websocket.send_json({"type": "error", "message": "Pick at least one combatant."})
+        return
+
+    _encounter_roster[str(encounter.id)] = roster
+
+    # encounter_start card + campaign push (same as /initiative start)
+    sw_character = db.query(Character).filter(
+        Character.campaign_id == campaign_uuid, Character.user_id == sw_user_id
+    ).first()
+    start_text = "⚔️ Combat has begun! Roll for initiative!"
+    msg = Message(
+        campaign_id=campaign_uuid, party_id=None,
+        sender_id=str(sw_character.id) if sw_character else str(sw_user_id),
+        sender_name=sw_character.name if sw_character else "Story Weaver",
+        message_type="encounter_start", content=start_text,
+        extra_data={"encounter_id": str(encounter.id)},
+    )
+    db.add(msg)
+    db.commit()
+    await manager.broadcast(campaign_uuid, {
+        "type": "encounter_start", "message": start_text,
+        "encounter_id": str(encounter.id),
+        "timestamp": datetime.now().isoformat(), "message_id": str(msg.id),
+    })
+    _notify_encounter_started(campaign_uuid, sw_user_id, db)
+
+    # Each PC gets the initiative pill (+ a personal push)
+    for slot in roster:
+        if slot["type"] != "pc" or not slot["user_id"]:
+            continue
+        await manager.send_to_user(campaign_uuid, _UUID(slot["user_id"]), {
+            "type": "initiative_request",
+            "request_id": slot["character_id"],
+            "character_id": slot["character_id"],
+            "character_name": slot["name"],
+            "stat": "Initiative",
+            "flavor_text": flavor_text,
+            "encounter_id": str(encounter.id),
+        })
+        try:
+            from backend.notifications import send_push
+            fs = f' "{flavor_text}"' if flavor_text else ""
+            send_push(
+                db, user_id=slot["user_id"],
+                title="⚔️ Roll Initiative!",
+                body=f"{slot['name']}, combat has started — roll initiative.{fs}",
+                url=f"/game.html?campaign_id={campaign_uuid}&character_id={slot['character_id']}",
+                campaign_id=str(campaign_uuid),
+            )
+        except Exception as _pe:
+            logger.warning(f"Initiative pill push failed: {_pe}")
+
+    # SW sees the order assembling (NPC rolls in, "waiting…" for the PCs)
+    await manager.send_to_user(campaign_uuid, sw_user_id, {
+        "type": "initiative_order",
+        "rolls": _build_updated_order(encounter, db),
+        "encounter_id": str(encounter.id),
+        "current_turn_index": encounter.current_turn_index,
+        "timestamp": datetime.now().isoformat(),
+    })
 
 
 async def show_initiative_order(
@@ -4150,6 +4348,7 @@ async def end_encounter(
         encounter.is_active = False
         encounter.ended_at = datetime.now()
         db.commit()
+        _encounter_roster.pop(str(encounter.id), None)
 
         # Restore all ability uses for characters in this campaign
         # Get all characters in the campaign
@@ -4261,6 +4460,7 @@ async def clear_initiative(
 
         encounter.current_turn_index = 0
         db.commit()
+        _encounter_roster.pop(str(encounter.id), None)
 
         # Broadcast clear
         await manager.broadcast(campaign_uuid, {
@@ -5094,28 +5294,7 @@ async def handle_initiative_command(
         # /initiative start
         if subcommand == "start":
             await start_encounter(campaign_uuid, user_uuid, db, websocket)
-            try:
-                from backend.notifications import send_push_to_campaign
-                from datetime import timedelta
-                campaign_obj = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
-                if campaign_obj:
-                    cooldown = timedelta(minutes=10)
-                    now = datetime.utcnow()
-                    last = campaign_obj.last_notified_at
-                    if last is None or (now - last) >= cooldown:
-                        sender = manager.get_display_name(campaign_uuid, user_uuid) or "Story Weaver"
-                        send_push_to_campaign(
-                            db,
-                            campaign_id=str(campaign_uuid),
-                            exclude_user_id=str(user_uuid),
-                            title=f"⚔️ {sender}",
-                            body="Combat has begun — it's time to roll initiative!",
-                            url=f"/game.html?campaign_id={campaign_uuid}",
-                        )
-                        campaign_obj.last_notified_at = now
-                        db.commit()
-            except Exception as _pe:
-                logger.warning(f"Initiative push notification failed: {_pe}")
+            _notify_encounter_started(campaign_uuid, user_uuid, db)
             return
 
         # /initiative end
