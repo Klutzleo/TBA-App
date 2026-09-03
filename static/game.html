@@ -13894,8 +13894,26 @@
       return out;
     }
 
+    // [{id, name, hidden}] of the campaign's NPCs — the SW sees hidden ones too.
+    function _statCheckNPCList() {
+      return (campaignNPCs || []).map(n => ({
+        id: n.id, name: n.name, hidden: n.visible_to_players === false
+      }));
+    }
+
+    // One checkbox row for the target list. kind: 'pc' | 'npc'.
+    function _targetRow(id, name, kind, hidden, pcAccent = '#a78bfa') {
+      const accent = kind === 'npc' ? '#fb923c' : pcAccent;
+      const tag = kind === 'npc'
+        ? `<span style="font-size:0.65rem;letter-spacing:0.04em;color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:3px;padding:0 4px;margin-left:4px;">${hidden ? 'HIDDEN' : 'NPC'}</span>`
+        : '';
+      return `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+             <input type="checkbox" data-kind="${kind}" value="${escHtml(id)}" style="accent-color:${accent};width:15px;height:15px;">
+             <span>${escHtml(name)}${tag}</span></label>`;
+    }
+
     function statCheckToggleAll() {
-      const boxes = document.querySelectorAll('#statCheckCharList input[type="checkbox"]');
+      const boxes = document.querySelectorAll('#statCheckCharList input[data-kind="pc"]');
       const anyUnchecked = [...boxes].some(b => !b.checked);
       boxes.forEach(b => { b.checked = anyUnchecked; });
     }
@@ -13903,12 +13921,15 @@
     function openStatCheckModal() {
       const pcs = _statCheckPCList();
 
-      // Multi-select checkbox list (character mode)
+      // Multi-select checkbox list (character mode) — PCs first, then NPCs (incl. hidden).
+      const npcs = _statCheckNPCList();
       const list = document.getElementById('statCheckCharList');
-      list.innerHTML = pcs.length
-        ? pcs.map(p => `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-             <input type="checkbox" value="${escHtml(p.id)}" style="accent-color:#a78bfa;width:15px;height:15px;">
-             <span>${escHtml(p.name)}</span></label>`).join('')
+      const rows = [
+        ...pcs.map(p => _targetRow(p.id, p.name, 'pc', false)),
+        ...npcs.map(n => _targetRow(n.id, n.name, 'npc', n.hidden)),
+      ];
+      list.innerHTML = rows.length
+        ? rows.join('')
         : '<div style="padding:8px;color:var(--text-muted);font-size:0.85rem;">No characters in this campaign.</div>';
 
       // Single dropdown (vs mode)
@@ -14094,10 +14115,13 @@
 
     function openEnvCheckModal() {
       const pcs = _statCheckPCList();
-      document.getElementById('envCheckCharList').innerHTML = pcs.length
-        ? pcs.map(p => `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-             <input type="checkbox" value="${escHtml(p.id)}" style="accent-color:#f97316;width:15px;height:15px;">
-             <span>${escHtml(p.name)}</span></label>`).join('')
+      const npcs = _statCheckNPCList();
+      const rows = [
+        ...pcs.map(p => _targetRow(p.id, p.name, 'pc', false, '#f97316')),
+        ...npcs.map(n => _targetRow(n.id, n.name, 'npc', n.hidden)),
+      ];
+      document.getElementById('envCheckCharList').innerHTML = rows.length
+        ? rows.join('')
         : '<div style="padding:8px;color:var(--text-muted);font-size:0.85rem;">No characters in this campaign.</div>';
 
       document.getElementById('envCheckTiers').innerHTML = _ENV_TIERS.map(x => `
@@ -14133,7 +14157,7 @@
       });
     }
     function envCheckToggleAll() {
-      const boxes = document.querySelectorAll('#envCheckCharList input[type="checkbox"]');
+      const boxes = document.querySelectorAll('#envCheckCharList input[data-kind="pc"]');
       const anyUnchecked = [...boxes].some(b => !b.checked);
       boxes.forEach(b => { b.checked = anyUnchecked; });
     }

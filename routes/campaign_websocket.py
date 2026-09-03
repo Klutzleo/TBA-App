@@ -2720,6 +2720,45 @@ async def broadcast_player_joined(campaign_id: UUID, username: str):
     })
 
 
+async def _resolve_npc_stat_check(campaign_uuid, sw_user_id, npc, stat, sw_roll,
+                                 difficulty_label, flavor_text, silent, db):
+    """Auto-resolve a stat check for an NPC target — the SW rolls for them right now,
+    no request row, no player pill. A hidden NPC's result goes to the SW only."""
+    from backend.roll_logic import roll_dice
+    npc_stat_val = getattr(npc, stat.lower(), 1) or 1
+    npc_die_roll = roll_dice("1d6")[0]
+    npc_edge = npc.edge or 0
+    npc_total = npc_die_roll + npc_stat_val + npc_edge
+    outcome = "win" if npc_total > sw_roll else "loss"
+
+    result = {
+        "type": "stat_check_result",
+        "mode": "npc",
+        "npc_id": str(npc.id),
+        "npc_name": npc.name,
+        "stat": stat,
+        "flavor_text": flavor_text,
+        "difficulty_label": difficulty_label,
+        "die_roll": npc_die_roll,
+        "stat_value": npc_stat_val,
+        "edge": npc_edge,
+        "debuff_modifier": 0,
+        "player_total": npc_total,
+        "sw_roll": sw_roll,
+        "sw_total": sw_roll,
+        "outcome": outcome,
+        "margin": npc_total - sw_roll,
+        "bap_granted": False,
+        "character_name": npc.name,
+        "character_id": str(npc.id),
+    }
+    if silent:
+        await manager.send_to_user(campaign_uuid, sw_user_id, result)
+    else:
+        await manager.broadcast(campaign_uuid, result)
+    return outcome
+
+
 async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data: dict, db: Session):
     """SW sends a stat check request — Character, Character VS NPC, or NPC modes."""
     from backend.models import StatCheckRequest
@@ -2744,16 +2783,22 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
     char = None
     npc = None
 
-    # Character mode may target 1..N PCs (character_ids); vs/npc stay 1:1.
+    # Character mode may target 1..N PCs (character_ids) and/or NPCs; vs/npc stay 1:1.
+    # NPC ids in the list are auto-resolved SW-side after the PC request rows go out.
     from uuid import uuid4 as _uuid4
     _raw_ids = data.get("character_ids") or ([character_id] if character_id else [])
     target_chars = []
+    npc_targets = []
     for _cid in _raw_ids:
         try:
             _c = db.query(Character).filter(Character.id == _UUID(str(_cid))).first()
         except Exception:
             _c = None
-        if _c and not _c.is_npc:
+        if not _c:
+            continue
+        if _c.is_npc:
+            npc_targets.append(_c)
+        else:
             target_chars.append(_c)
     char = target_chars[0] if target_chars else None
     group_id = _uuid4() if len(target_chars) >= 2 else None
@@ -2764,7 +2809,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
         if not npc:
             return
 
-    if mode == "character" and not target_chars:
+    if mode == "character" and not target_chars and not npc_targets:
         return
     if mode == "npc" and not npc:
         return
@@ -2785,39 +2830,11 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
         difficulty_die = "1d6"
     elif mode == "npc":
         # NPC solo: NPC rolls immediately, result shown (optionally hidden)
-        npc_stat_val = getattr(npc, stat.lower(), 1) or 1
-        npc_die_roll = roll_dice("1d6")[0]
-        npc_edge = npc.edge or 0
-        npc_total = npc_die_roll + npc_stat_val + npc_edge
-        sw_roll_for_npc = roll_dice(difficulty_die)
-        sw_difficulty_total = sum(sw_roll_for_npc)
-        outcome = "win" if npc_total > sw_difficulty_total else "loss"
-
-        result = {
-            "type": "stat_check_result",
-            "mode": "npc",
-            "npc_id": str(npc.id),
-            "npc_name": npc.name,
-            "stat": stat,
-            "flavor_text": flavor_text,
-            "difficulty_label": difficulty_label,
-            "die_roll": npc_die_roll,
-            "stat_value": npc_stat_val,
-            "edge": npc_edge,
-            "debuff_modifier": 0,
-            "player_total": npc_total,
-            "sw_roll": sw_difficulty_total,
-            "sw_total": sw_difficulty_total,
-            "outcome": outcome,
-            "margin": npc_total - sw_difficulty_total,
-            "bap_granted": False,
-            "character_name": npc.name,
-            "character_id": str(npc.id),
-        }
-        if hidden:
-            await manager.send_to_user(campaign_uuid, sw_user_id, result)
-        else:
-            await manager.broadcast(campaign_uuid, result)
+        sw_difficulty_total = sum(roll_dice(difficulty_die))
+        await _resolve_npc_stat_check(
+            campaign_uuid, sw_user_id, npc, stat, sw_difficulty_total,
+            difficulty_label, flavor_text, silent=hidden, db=db,
+        )
         return
     else:
         # Character mode: pre-roll SW difficulty die hidden
@@ -2908,6 +2925,19 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
                 )
             except Exception as _pe:
                 logger.warning(f"Stat check push notification failed: {_pe}")
+
+    # NPC targets picked from the same multi-select list auto-resolve now (SW's
+    # roll, no pill). Hidden NPCs (or a hidden check) resolve to the SW only.
+    if mode == "character":
+        for _npc in npc_targets:
+            try:
+                await _resolve_npc_stat_check(
+                    campaign_uuid, sw_user_id, _npc, stat, sw_roll,
+                    difficulty_label, flavor_text,
+                    silent=(not _npc.visible_to_players or hidden), db=db,
+                )
+            except Exception as _ne:
+                logger.warning(f"NPC stat check resolve failed: {_ne}")
 
 
 async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
@@ -3145,9 +3175,62 @@ async def _trigger_the_calling(defender, campaign_id, db: Session, actor_user_id
             logger.warning(f"Push notification failed (calling_triggered): {_pe}")
 
 
+async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tier_die,
+                                flavor_text, silent, db):
+    """Auto-resolve an environmental hazard against an NPC — SW rolls resist for them,
+    damage floored at 0 (NPCs can't enter The Calling), no request row, no pill.
+    A hidden NPC's result goes to the SW only."""
+    from backend.roll_logic import roll_dice
+    from backend.models import ActiveEffect
+
+    die_roll = roll_dice("1d6")[0]
+    stat_value = getattr(npc, stat.lower(), 1) or 1
+    edge = npc.edge or 0
+    effects = db.query(ActiveEffect).filter(ActiveEffect.character_id == npc.id).all()
+    debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
+    resist_total = die_roll + stat_value + edge + debuff_modifier
+
+    hazard_total = sum(roll_dice(tier_die))
+    damage = max(0, hazard_total - resist_total)
+    outcome = "win" if damage == 0 else "loss"
+
+    old_dp = npc.dp
+    if damage > 0:
+        npc.dp = max(0, (npc.dp or 0) - damage)  # NPCs floor at 0 — no Calling
+        db.commit()
+        db.refresh(npc)
+
+    result_payload = {
+        "type": "env_check_result", "request_id": f"npc-{npc.id}",
+        "character_id": str(npc.id), "character_name": npc.name,
+        "stat": stat, "tier": tier, "flavor_text": flavor_text,
+        "die_roll": die_roll, "stat_value": stat_value, "edge": edge,
+        "debuff_modifier": debuff_modifier, "resist_total": resist_total,
+        "hazard_total": hazard_total, "hazard_die": tier_die,
+        "damage": damage, "outcome": outcome,
+        "old_dp": old_dp, "new_dp": npc.dp, "max_dp": npc.max_dp,
+        "calling_triggered": False, "rolled_by_sw": True,
+    }
+    if silent:
+        await manager.send_to_user(campaign_uuid, sw_user_id, result_payload)
+    else:
+        result_msg = Message(
+            campaign_id=str(campaign_uuid), party_id=None, sender_id=str(sw_user_id),
+            sender_name=npc.name,
+            content=f"Env Check — {stat} — {npc.name} — {'Resisted' if outcome == 'win' else f'{damage} dmg'}",
+            message_type="env_check_result", extra_data=result_payload,
+        )
+        db.add(result_msg)
+        db.commit()
+        result_payload["message_id"] = str(result_msg.id)
+        await manager.broadcast(campaign_uuid, result_payload)
+    return outcome
+
+
 async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data: dict, db: Session):
-    """SW fires an environmental hazard at 1..N PCs. Each target rolls the SW-chosen
-    stat to resist; the tier die minus their resist is the damage. v3.0 rules."""
+    """SW fires an environmental hazard at 1..N PCs (and/or NPCs). Each PC target rolls
+    the SW-chosen stat to resist; the tier die minus their resist is the damage.
+    NPC targets are auto-resolved SW-side. v3.0 rules."""
     from backend.models import StatCheckRequest
     from backend.roll_logic import roll_dice
     from uuid import UUID as _UUID, uuid4 as _uuid4
@@ -3169,14 +3252,19 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
     flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
     raw_ids = data.get("character_ids") or ([data.get("character_id")] if data.get("character_id") else [])
     targets = []
+    npc_targets = []
     for cid in raw_ids:
         try:
             c = db.query(Character).filter(Character.id == _UUID(str(cid))).first()
         except Exception:
             c = None
-        if c and not c.is_npc and c.status == "active":
+        if not c or c.status != "active":
+            continue
+        if c.is_npc:
+            npc_targets.append(c)
+        else:
             targets.append(c)
-    if not targets:
+    if not targets and not npc_targets:
         return
 
     group_id = _uuid4() if len(targets) >= 2 else None
@@ -3235,6 +3323,17 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
                 )
             except Exception as _pe:
                 logger.warning(f"env push failed: {_pe}")
+
+    # NPC targets auto-resolve now (SW rolls resist for them, damage floored at 0).
+    # Hidden NPCs resolve to the SW only.
+    for _npc in npc_targets:
+        try:
+            await _resolve_npc_env_check(
+                campaign_uuid, sw_user_id, _npc, stat, tier, tier_die, flavor_text,
+                silent=not _npc.visible_to_players, db=db,
+            )
+        except Exception as _ne:
+            logger.warning(f"NPC env check resolve failed: {_ne}")
 
 
 async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
