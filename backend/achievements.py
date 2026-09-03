@@ -1387,8 +1387,38 @@ ACHIEVEMENTS = {
     },
     "sw_good_bad_ugly": {
         "name": "The Good, the Bad, and the Ugly",
-        "description": "Use 3 different environmental damage tiers in one campaign.",
+        "description": "Use 3 different environmental damage tiers.",
         "icon": "layers",
+        "section": "sw",
+        "difficulty": "medium",
+        "category": "sw",
+        "broadcast": "campaign",
+        "points": 20,
+    },
+    "sw_group_check": {
+        "name": "Roll Call",
+        "description": "Send a group check to two or more players at once.",
+        "icon": "users",
+        "section": "sw",
+        "difficulty": "easy",
+        "category": "sw",
+        "broadcast": "campaign",
+        "points": 10,
+    },
+    "sw_total_wipe": {
+        "name": "Not Great, Bob",
+        "description": "A group check where every player failed.",
+        "icon": "trending-down",
+        "section": "sw",
+        "difficulty": "medium",
+        "category": "sw",
+        "broadcast": "campaign",
+        "points": 20,
+    },
+    "sw_flawless": {
+        "name": "Flawless Victory",
+        "description": "A group check where every player succeeded.",
+        "icon": "trophy",
         "section": "sw",
         "difficulty": "medium",
         "category": "sw",
@@ -1660,7 +1690,6 @@ _FUTURE_IDS: set[str] = {
     # SW data gaps
     "sw_all_work_no_play", "sw_up_to_eleven", "sw_another_brick",
     "sw_i_can_do_this", "sw_bohemian_rhapsody",
-    "sw_thunderstruck", "sw_good_bad_ugly",
     "sw_i_have_a_secret", "sw_pay_no_attention",
     "sw_evil_triumph", "sw_hes_dead_jim", "sw_im_still_standing",
     "sw_neverending_story", "sw_roads", "sw_for_those_about_to_rock",
@@ -1903,6 +1932,16 @@ def check_and_award(user_id, db: Session, character_id=None, silent=False) -> li
         award("sw_every_picture")
     if stats.battles_initiated >= 10:
         award("sw_good_to_be_king")
+    if (stats.env_damage_used or 0) >= 1:
+        award("sw_thunderstruck")
+    if bin(stats.env_tiers_mask or 0).count("1") >= 3:
+        award("sw_good_bad_ugly")
+    if (stats.group_checks_sent or 0) >= 1:
+        award("sw_group_check")
+    if (stats.group_wipes or 0) >= 1:
+        award("sw_total_wipe")
+    if (stats.group_flawless or 0) >= 1:
+        award("sw_flawless")
 
     # ── BADGE SHOWCASE UNLOCK ─────────────────────────────────────────────────
     # Calculate total points from all earned achievements (including this session)

@@ -2740,10 +2740,15 @@
         <!-- SW Dashboard Panel -->
         <div id="sidebarDashPanel" style="display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
           <div style="padding:8px 12px 4px; display:flex; gap:6px; flex-shrink:0;">
-            <button onclick="openStatCheckModal()" title="Send a stat check to a player"
+            <button onclick="openStatCheckModal()" title="Send a stat check to one or more players"
               style="flex:1; padding:5px 8px; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.4); border-radius:6px; color:#a78bfa; font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.15s;"
               onmouseover="this.style.background='rgba(124,58,237,0.25)'" onmouseout="this.style.background='rgba(124,58,237,0.15)'">
               <i data-lucide="target" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Stat Check
+            </button>
+            <button onclick="openEnvCheckModal()" title="Fire an environmental hazard — players roll to resist"
+              style="flex:1; padding:5px 8px; background:rgba(249,115,22,0.15); border:1px solid rgba(249,115,22,0.4); border-radius:6px; color:#f97316; font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.15s;"
+              onmouseover="this.style.background='rgba(249,115,22,0.25)'" onmouseout="this.style.background='rgba(249,115,22,0.15)'">
+              <i data-lucide="globe" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Env Check
             </button>
           </div>
           <div id="swDashboardList" style="flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px;">
@@ -3130,10 +3135,17 @@
             style="flex:1;padding:6px 4px;border-radius:6px;border:none;background:transparent;color:var(--text-muted);font-size:0.75rem;font-weight:700;cursor:pointer;">NPC</button>
         </div>
 
-        <!-- Character dropdown (Character + VS modes) -->
+        <!-- Character picker (Character + VS modes) -->
         <div id="scCharacterRow">
-          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Character</label>
-          <select id="statCheckCharacter" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
+          <label style="font-size:0.82rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span id="scCharacterLabel">Characters</span>
+            <button type="button" id="scSelectAllBtn" onclick="statCheckToggleAll()"
+              style="background:none;border:none;color:var(--accent-primary);font-size:0.72rem;cursor:pointer;padding:0;">Select all</button>
+          </label>
+          <!-- multi-select (character mode) -->
+          <div id="statCheckCharList" style="max-height:150px;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:4px;display:flex;flex-direction:column;gap:2px;"></div>
+          <!-- single select (vs mode) -->
+          <select id="statCheckCharacter" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;display:none;">
             <option value="">— Select character —</option>
           </select>
         </div>
@@ -3195,6 +3207,61 @@
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
           <button class="btn" style="background:var(--bg-secondary);" onclick="closeStatCheckModal()">Cancel</button>
           <button class="btn btn-primary" onclick="sendStatCheckRequest()">Send Check</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Env Check Modal (SW): environmental hazard, players roll to resist -->
+  <div id="envCheckModal" class="modal" onclick="if(event.target===this)closeEnvCheckModal()">
+    <div class="modal-content" style="max-width:460px;width:95vw;">
+      <div class="modal-header">
+        <h2><i data-lucide="globe" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;color:#f97316;"></i>Env Check</h2>
+        <button class="modal-close" onclick="closeEnvCheckModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Set the severity and the resistance stat. Each target rolls that stat; the hazard die minus their roll is the damage.</p>
+
+        <!-- Resistance stat -->
+        <div>
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Resistance stat</label>
+          <div style="display:flex;gap:8px;">
+            <button class="ec-stat-btn active" data-stat="PP" onclick="selectEnvCheckStat('PP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(249,115,22,0.5);background:rgba(249,115,22,0.15);color:#f97316;font-weight:700;cursor:pointer;">PP</button>
+            <button class="ec-stat-btn" data-stat="IP" onclick="selectEnvCheckStat('IP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-weight:700;cursor:pointer;">IP</button>
+            <button class="ec-stat-btn" data-stat="SP" onclick="selectEnvCheckStat('SP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-weight:700;cursor:pointer;">SP</button>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;line-height:1.5;">
+            <strong>PP</strong> heat · cold · pressure · gas · exhaustion &nbsp;·&nbsp;
+            <strong>IP</strong> psychic · disorienting · mental &nbsp;·&nbsp;
+            <strong>SP</strong> panic · social · morale
+          </div>
+        </div>
+
+        <!-- Tier -->
+        <div>
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Severity tier</label>
+          <div id="envCheckTiers" style="display:flex;flex-direction:column;gap:4px;"></div>
+        </div>
+
+        <!-- Flavor -->
+        <div>
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Flavor Text <span style="opacity:0.5;">(optional)</span></label>
+          <input id="envCheckFlavor" type="text" maxlength="300" placeholder="The bridge gave way beneath you…"
+            style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
+        </div>
+
+        <!-- Targets -->
+        <div>
+          <label style="font-size:0.82rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span>Targets</span>
+            <button type="button" onclick="envCheckToggleAll()" style="background:none;border:none;color:#f97316;font-size:0.72rem;cursor:pointer;padding:0;">Select all</button>
+          </label>
+          <div id="envCheckCharList" style="max-height:150px;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:4px;display:flex;flex-direction:column;gap:2px;"></div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button class="btn" style="background:var(--bg-secondary);" onclick="closeEnvCheckModal()">Cancel</button>
+          <button class="btn btn-primary" style="background:#f97316;border-color:#f97316;" onclick="sendEnvCheckRequest()">Send Hazard</button>
         </div>
       </div>
     </div>
@@ -3535,9 +3602,9 @@
             <div><span style="color:#a78bfa;">/initiative end</span> <span style="color:var(--text-muted);">— End encounter & restore all ability uses</span></div>
             <div><span style="color:#a78bfa;">/initiative clear</span> <span style="color:var(--text-muted);">— Clear rolls without ending encounter</span></div>
             <div><span style="color:#a78bfa;">/rest</span> <span style="color:var(--text-muted);">— Short rest — restore ability uses only</span></div>
-            <div><span style="color:#a78bfa;">/env [tier] @Target [source]</span> <span style="color:var(--text-muted);">— Environmental attack (tier 1–5)</span></div>
             <div><span style="color:#a78bfa;">/scene [title]</span> <span style="color:var(--text-muted);">— Post a scene transition card and save to Lore</span></div>
-            <div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border-color);"><span style="color:#a78bfa;">🎯 Stat Check</span> <span style="color:var(--text-muted);">— In the 📊 dashboard tab, open the Stat Check panel. Pick a player (or NPC), stat, difficulty, and optional flavor text. Three modes: <strong>Character</strong> (vs hidden difficulty die), <strong>Character VS NPC</strong> (contested roll), <strong>NPC</strong> (auto-resolves, optional hidden).</span></div>
+            <div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border-color);"><span style="color:#a78bfa;">🎯 Stat Check</span> <span style="color:var(--text-muted);">— In the 📊 dashboard tab. Pick one or more players, a stat, difficulty, optional flavor. Modes: <strong>Character</strong> (vs hidden difficulty), <strong>Character VS NPC</strong> (contested), <strong>NPC</strong> (auto-resolves).</span></div>
+            <div><span style="color:#f97316;">🌍 Env Check</span> <span style="color:var(--text-muted);">— In the 📊 dashboard tab. Set a severity tier + the resistance stat, pick targets. Each rolls that stat; hazard die minus their roll is the damage (can trigger The Calling).</span></div>
           </div>
         </div>
 
@@ -5346,7 +5413,6 @@
       { cmd: '/sp',          desc: 'Social stat check (1d6 + SP + Edge)',      roles: ['player','SW'] },
       { cmd: '/roll',        desc: 'Roll dice — e.g. /roll 2d6',              roles: ['player','SW'] },
       { cmd: '/attack',      desc: 'Attack a target — e.g. /attack @Target',  roles: ['player','SW'] },
-      { cmd: '/env',         desc: 'Environmental attack — /env [tier 1-5] @Target [source]', roles: ['SW'] },
       { cmd: '/defense pp',  desc: 'Manual defense roll (Physical)',           roles: ['player','SW'] },
       { cmd: '/defense ip',  desc: 'Manual defense roll (Intellect)',          roles: ['player','SW'] },
       { cmd: '/defense sp',  desc: 'Manual defense roll (Social)',             roles: ['player','SW'] },
@@ -10752,6 +10818,21 @@
                 const card = renderStatCheckResultCard({ ...d, timestamp: msg.timestamp });
                 storeAndDisplayMessage(card, { type: 'stat_check_result', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
               }
+              else if (msg.message_type === 'env_check_request') {
+                const d = msg.extra_data || {};
+                const card = renderEnvCheckRequestCard({ ...d, timestamp: msg.timestamp });
+                storeAndDisplayMessage(card, { type: 'env_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+              }
+              else if (msg.message_type === 'env_check_result') {
+                const d = msg.extra_data || {};
+                const card = renderEnvCheckResultCard({ ...d, timestamp: msg.timestamp });
+                storeAndDisplayMessage(card, { type: 'env_check_result', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
+              }
+              else if (msg.message_type === 'group_check_summary') {
+                const d = msg.extra_data || {};
+                const card = renderGroupCheckSummaryCard({ ...d, timestamp: msg.timestamp });
+                storeAndDisplayMessage(card, { type: 'group_check_summary', timestamp: msg.timestamp, message_id: msg.id, actor: 'system' });
+              }
               else if (msg.message_type === 'stat_roll') {
                 console.log('📊 Loading stat roll from history:', msg);
                 const data = msg.extra_data || {};
@@ -11569,6 +11650,24 @@
                 if (oldCard) oldCard.remove();
               }
               const card = renderStatCheckResultCard(data);
+              const chatEl = document.getElementById('chatMessages');
+              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+
+            } else if (data.type === 'env_check_request') {
+              const card = renderEnvCheckRequestCard(data);
+              const chatEl = document.getElementById('chatMessages');
+              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+
+            } else if (data.type === 'env_check_result') {
+              const pendingBtn = document.getElementById(`env-check-btn-${data.request_id}`);
+              if (pendingBtn) { const c = pendingBtn.closest('.message-item'); if (c) c.remove(); }
+              const card = renderEnvCheckResultCard(data);
+              const chatEl = document.getElementById('chatMessages');
+              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              if (data.new_dp !== undefined) updateCharacterSheet(data.character_name, data.new_dp);
+
+            } else if (data.type === 'group_check_summary') {
+              const card = renderGroupCheckSummaryCard(data);
               const chatEl = document.getElementById('chatMessages');
               if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
 
@@ -13063,7 +13162,9 @@
 
         ws.send(JSON.stringify(payload));
       } else if (textLower.startsWith('/env')) {
-        ws.send(JSON.stringify({ type: 'combat_command', raw_command: text }));
+        showPanelToast('The /env command was replaced by the Env Check tool in the SW dashboard.', 'info');
+        msgInput.value = '';
+        return;
 
       } else if (textLower.startsWith('/attack') || textLower.startsWith('/defense')) {
         // Combat command - send to combat handler
@@ -13772,20 +13873,38 @@
     let _statCheckSelectedStat = 'PP';
     let _statCheckMode = 'character';
 
-    function openStatCheckModal() {
-      // Populate character dropdown from party cards
-      const charSel = document.getElementById('statCheckCharacter');
-      charSel.innerHTML = '<option value="">— Select character —</option>';
+    // [{id, name}] of the campaign's PCs, from the party cards.
+    function _statCheckPCList() {
+      const out = [];
       document.querySelectorAll('.character-card:not(.story-weaver-card)').forEach(card => {
-        const charId = card.querySelector('[data-effect-char-id]')?.dataset.effectCharId;
-        const charName = card.querySelector('strong')?.textContent?.trim();
-        if (charId && charName) {
-          const opt = document.createElement('option');
-          opt.value = charId;
-          opt.textContent = charName;
-          charSel.appendChild(opt);
-        }
+        const id = card.querySelector('[data-effect-char-id]')?.dataset.effectCharId;
+        const name = card.querySelector('strong')?.textContent?.trim();
+        if (id && name) out.push({ id, name });
       });
+      return out;
+    }
+
+    function statCheckToggleAll() {
+      const boxes = document.querySelectorAll('#statCheckCharList input[type="checkbox"]');
+      const anyUnchecked = [...boxes].some(b => !b.checked);
+      boxes.forEach(b => { b.checked = anyUnchecked; });
+    }
+
+    function openStatCheckModal() {
+      const pcs = _statCheckPCList();
+
+      // Multi-select checkbox list (character mode)
+      const list = document.getElementById('statCheckCharList');
+      list.innerHTML = pcs.length
+        ? pcs.map(p => `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+             <input type="checkbox" value="${escHtml(p.id)}" style="accent-color:#a78bfa;width:15px;height:15px;">
+             <span>${escHtml(p.name)}</span></label>`).join('')
+        : '<div style="padding:8px;color:var(--text-muted);font-size:0.85rem;">No characters in this campaign.</div>';
+
+      // Single dropdown (vs mode)
+      const charSel = document.getElementById('statCheckCharacter');
+      charSel.innerHTML = '<option value="">— Select character —</option>' +
+        pcs.map(p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('');
 
       // Populate NPC dropdown from initiative tracker / known NPCs
       const npcSel = document.getElementById('statCheckNpc');
@@ -13818,6 +13937,11 @@
         btn.style.color = active ? '#d4af37' : 'var(--text-muted)';
       });
       document.getElementById('scCharacterRow').style.display = mode === 'npc' ? 'none' : '';
+      // character mode = multi checkbox list; vs mode = single dropdown
+      document.getElementById('statCheckCharList').style.display = mode === 'character' ? 'flex' : 'none';
+      document.getElementById('statCheckCharacter').style.display = mode === 'vs' ? 'block' : 'none';
+      document.getElementById('scSelectAllBtn').style.display = mode === 'character' ? '' : 'none';
+      document.getElementById('scCharacterLabel').textContent = mode === 'vs' ? 'Character' : 'Characters';
       document.getElementById('scVsDivider').style.display = mode === 'vs' ? '' : 'none';
       document.getElementById('scNpcRow').style.display = mode === 'npc' || mode === 'vs' ? '' : 'none';
       document.getElementById('scDifficultyRow').style.display = mode === 'vs' ? 'none' : '';
@@ -13837,13 +13961,17 @@
 
     function sendStatCheckRequest() {
       const mode = _statCheckMode;
-      const characterId = document.getElementById('statCheckCharacter').value;
       const npcId = document.getElementById('statCheckNpc').value;
       const flavor = document.getElementById('statCheckFlavor').value.trim();
       const bapGranted = document.getElementById('statCheckBAP').checked;
       const hidden = document.getElementById('statCheckHidden').checked;
 
-      if ((mode === 'character' || mode === 'vs') && !characterId) { alert('Select a character.'); return; }
+      // character mode → 1..N from the checkbox list; vs mode → the single dropdown
+      const checkedIds = [...document.querySelectorAll('#statCheckCharList input:checked')].map(b => b.value);
+      const vsCharId = document.getElementById('statCheckCharacter').value;
+
+      if (mode === 'character' && checkedIds.length === 0) { alert('Pick at least one character.'); return; }
+      if (mode === 'vs' && !vsCharId) { alert('Select a character.'); return; }
       if ((mode === 'npc' || mode === 'vs') && !npcId) { alert('Select an NPC.'); return; }
 
       const diffVal = document.getElementById('statCheckDifficulty').value;
@@ -13853,7 +13981,8 @@
       ws.send(JSON.stringify({
         type: 'stat_check_request',
         mode,
-        character_id: characterId || null,
+        character_ids: mode === 'character' ? checkedIds : null,
+        character_id: mode === 'vs' ? vsCharId : null,
         npc_id: npcId || null,
         stat: _statCheckSelectedStat,
         difficulty_die: mode === 'vs' ? null : diffDie,
@@ -13876,6 +14005,82 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
     }
 
+    // ── Env Check (SW hazard, players resist) ────────────────────────────────
+    let _envCheckStat = 'PP';
+    let _envCheckTier = 3;
+    const _ENV_TIERS = [
+      { t: 1, die: '1d6',  ex: 'mild heat · shallow water · light smoke' },
+      { t: 2, die: '1d8',  ex: 'open flame · strong current · toxic fumes' },
+      { t: 3, die: '1d10', ex: 'inferno · crushing pressure · severe poison' },
+      { t: 4, die: '2d6',  ex: 'volcanic · deep sea · lethal gas' },
+      { t: 5, die: '2d8',  ex: 'world-ending · divine wrath' },
+    ];
+
+    function openEnvCheckModal() {
+      const pcs = _statCheckPCList();
+      document.getElementById('envCheckCharList').innerHTML = pcs.length
+        ? pcs.map(p => `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+             <input type="checkbox" value="${escHtml(p.id)}" style="accent-color:#f97316;width:15px;height:15px;">
+             <span>${escHtml(p.name)}</span></label>`).join('')
+        : '<div style="padding:8px;color:var(--text-muted);font-size:0.85rem;">No characters in this campaign.</div>';
+
+      document.getElementById('envCheckTiers').innerHTML = _ENV_TIERS.map(x => `
+        <button type="button" class="ec-tier-btn" data-tier="${x.t}" onclick="selectEnvCheckTier(${x.t})"
+          style="display:flex;align-items:baseline;gap:8px;text-align:left;padding:7px 9px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;">
+          <strong style="color:var(--text-primary);">Tier ${x.t}</strong>
+          <span style="font-family:monospace;color:#f97316;">${x.die}</span>
+          <span style="font-size:0.74rem;color:var(--text-muted);">${x.ex}</span>
+        </button>`).join('');
+
+      selectEnvCheckStat('PP');
+      selectEnvCheckTier(3);
+      document.getElementById('envCheckFlavor').value = '';
+      document.getElementById('envCheckModal').classList.add('active');
+    }
+    function closeEnvCheckModal() { document.getElementById('envCheckModal').classList.remove('active'); }
+
+    function selectEnvCheckStat(stat) {
+      _envCheckStat = stat;
+      document.querySelectorAll('.ec-stat-btn').forEach(b => {
+        const a = b.dataset.stat === stat;
+        b.style.background = a ? 'rgba(249,115,22,0.15)' : 'var(--bg-secondary)';
+        b.style.color = a ? '#f97316' : 'var(--text-muted)';
+        b.style.borderColor = a ? 'rgba(249,115,22,0.5)' : 'var(--border-color)';
+      });
+    }
+    function selectEnvCheckTier(t) {
+      _envCheckTier = t;
+      document.querySelectorAll('.ec-tier-btn').forEach(b => {
+        const a = Number(b.dataset.tier) === t;
+        b.style.background = a ? 'rgba(249,115,22,0.15)' : 'var(--bg-secondary)';
+        b.style.borderColor = a ? 'rgba(249,115,22,0.6)' : 'var(--border-color)';
+      });
+    }
+    function envCheckToggleAll() {
+      const boxes = document.querySelectorAll('#envCheckCharList input[type="checkbox"]');
+      const anyUnchecked = [...boxes].some(b => !b.checked);
+      boxes.forEach(b => { b.checked = anyUnchecked; });
+    }
+    function sendEnvCheckRequest() {
+      const ids = [...document.querySelectorAll('#envCheckCharList input:checked')].map(b => b.value);
+      if (ids.length === 0) { alert('Pick at least one target.'); return; }
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        type: 'env_check_request',
+        stat: _envCheckStat,
+        tier: _envCheckTier,
+        flavor_text: document.getElementById('envCheckFlavor').value.trim() || null,
+        character_ids: ids,
+      }));
+      closeEnvCheckModal();
+    }
+    function rollEnvCheck(requestId) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'env_check_roll', request_id: requestId }));
+      const btn = document.getElementById(`env-check-btn-${requestId}`) || document.getElementById(`env-check-sw-btn-${requestId}`);
+      if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
+    }
+
     // Look up a character/NPC's assigned chat color by name, for the left accent
     // stripe convention used on every other message card in the feed.
     function lookupChatColor(name) {
@@ -13885,6 +14090,95 @@
       const npc = (campaignNPCs || []).find(c => c.name === name);
       if (npc && npc.chat_color) return npc.chat_color;
       return null;
+    }
+
+    function renderEnvCheckRequestCard(data) {
+      const isTarget = characterId && String(characterId) === String(data.character_id);
+      const isPending = data.status !== 'resolved';
+      const showBtn = isTarget && !isSW() && isPending;
+      const showSwBackup = isSW() && !isTarget && isPending;
+      const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
+      const ts = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const chatColor = lookupChatColor(data.character_name);
+
+      const rollBtn = showBtn
+        ? `<button id="env-check-btn-${data.request_id}" onclick="rollEnvCheck('${data.request_id}')"
+              style="margin-top:10px;width:100%;padding:10px;background:rgba(249,115,22,0.2);border:1px solid rgba(249,115,22,0.5);border-radius:8px;color:#f97316;font-size:0.95rem;font-weight:700;cursor:pointer;">
+              <i data-lucide="dices" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i>Roll ${data.stat} to resist</button>`
+        : isPending
+          ? `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);text-align:center;">
+               Waiting for ${escHtml(data.character_name || '')} to resist…
+               ${showSwBackup ? `<button id="env-check-sw-btn-${data.request_id}" onclick="rollEnvCheck('${data.request_id}')"
+                 style="margin-left:6px;padding:2px 8px;background:none;border:1px solid rgba(249,115,22,0.4);border-radius:5px;color:#f97316;font-size:0.72rem;cursor:pointer;">Roll for them</button>` : ''}
+             </div>`
+          : '';
+
+      const div = document.createElement('div');
+      div.className = 'message-item';
+      div.style.cssText = 'background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.25);border-radius:10px;padding:12px 14px;margin:4px 0;';
+      if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
+      const outerRow = document.createElement('div');
+      outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+      outerRow.appendChild(buildAvatarEl(data.character_name, chatColor));
+      const col = document.createElement('div');
+      col.style.cssText = 'flex:1;min-width:0;';
+      col.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          <span style="color:var(--text-muted);font-size:0.78rem;">[${ts}]</span>
+          <i data-lucide="globe" style="width:16px;height:16px;vertical-align:middle;color:#f97316;"></i>
+          <span style="font-weight:700;color:#f97316;font-size:0.88rem;">Env Check — Tier ${data.tier} (${data.tier_die}) — ${data.stat}</span>
+          <span class="message-tab-indicator">STORY</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
+          <strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong> must resist with <strong>${data.stat}</strong>
+        </div>
+        ${flavor}${rollBtn}`;
+      outerRow.appendChild(col);
+      div.appendChild(outerRow);
+      return div;
+    }
+
+    function renderEnvCheckResultCard(data) {
+      const safe = data.outcome === 'win';
+      const color = safe ? '#34d399' : '#f87171';
+      const ts = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const chatColor = lookupChatColor(data.character_name);
+      const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.82rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
+      const callingBadge = data.calling_triggered ? `<span style="font-size:0.72rem;color:#e9d5ff;background:rgba(147,51,234,0.15);border:1px solid rgba(147,51,234,0.4);border-radius:4px;padding:1px 6px;">The Calling</span>` : '';
+
+      const div = document.createElement('div');
+      div.className = 'message-item';
+      div.style.cssText = `background:rgba(${safe ? '52,211,153' : '248,113,113'},0.06);border:1px solid rgba(${safe ? '52,211,153' : '248,113,113'},0.25);border-radius:10px;padding:12px 14px;margin:4px 0;`;
+      if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
+      const outerRow = document.createElement('div');
+      outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+      outerRow.appendChild(buildAvatarEl(data.character_name, chatColor));
+      const col = document.createElement('div');
+      col.style.cssText = 'flex:1;min-width:0;';
+      col.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          <span style="color:var(--text-muted);font-size:0.78rem;">[${ts}]</span>
+          <i data-lucide="globe" style="width:16px;height:16px;vertical-align:middle;color:#f97316;"></i>
+          <span style="font-weight:700;color:${color};font-size:0.88rem;">Env Check — ${data.stat} — ${safe ? 'Resisted' : `−${data.damage} DP`}</span>
+          ${callingBadge}
+          <span class="message-tab-indicator">STORY</span>
+        </div>
+        ${flavor}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')} resists</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}</div>
+            <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.resist_total}</div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">Hazard — Tier ${data.tier} (${data.hazard_die})</div>
+            <div style="font-size:1.1rem;font-weight:700;color:#f97316;">${data.hazard_total}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">DP ${data.old_dp} → ${data.new_dp}</div>
+          </div>
+        </div>`;
+      outerRow.appendChild(col);
+      div.appendChild(outerRow);
+      return div;
     }
 
     function renderStatCheckRequestCard(data) {
@@ -14010,6 +14304,41 @@
       `;
       outerRow.appendChild(contentCol);
       div.appendChild(outerRow);
+      return div;
+    }
+
+    // Group check rollup — one card when every target in a multi-send has resolved.
+    function renderGroupCheckSummaryCard(data) {
+      const isEnv = data.kind === 'env';
+      const accent = isEnv ? '249,115,22' : '124,58,237';   // orange / purple
+      const icon = isEnv ? 'globe' : 'users';
+      const allPass = data.passed === data.total;
+      const allFail = data.passed === 0;
+      const headline = allPass ? 'Everyone held' : allFail ? 'Nobody made it' : `${data.passed} / ${data.total} held`;
+      const ts = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.82rem;margin:2px 0 8px;">"${escHtml(data.flavor_text)}"</div>` : '';
+
+      const rows = (data.targets || []).map(t => {
+        const ok = t.outcome === 'win';
+        const dmg = (isEnv && !ok && t.damage) ? ` <span style="color:#f87171;">−${t.damage} DP</span>` : '';
+        return `<div style="display:flex;align-items:center;gap:6px;font-size:0.85rem;padding:2px 0;">
+          <i data-lucide="${ok ? 'check' : 'x'}" style="width:13px;height:13px;color:${ok ? '#34d399' : '#f87171'};"></i>
+          <span style="color:var(--text-primary);">${escHtml(t.name)}</span>${dmg}</div>`;
+      }).join('');
+
+      const div = document.createElement('div');
+      div.className = 'message-item';
+      div.style.cssText = `background:rgba(${accent},0.07);border:1px solid rgba(${accent},0.3);border-left-width:4px;border-radius:10px;padding:12px 14px;margin:4px 0;`;
+      div.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
+          <span style="color:var(--text-muted);font-size:0.78rem;">[${ts}]</span>
+          <i data-lucide="${icon}" style="width:15px;height:15px;vertical-align:middle;color:rgb(${accent});"></i>
+          <span style="font-weight:700;color:rgb(${accent});font-size:0.88rem;">${isEnv ? 'Env Check' : 'Group Check'} — ${data.stat} — ${headline}</span>
+          <span class="message-tab-indicator">STORY</span>
+        </div>
+        ${flavor}
+        <div style="margin-top:4px;">${rows}</div>
+      `;
       return div;
     }
   </script>

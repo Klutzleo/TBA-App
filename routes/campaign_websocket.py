@@ -49,6 +49,12 @@ router = APIRouter(prefix="/api/campaign", tags=["Campaign"])
 # key: f"{campaign_id}:{caster_char_id}"
 _aoe_pending: Dict[str, dict] = {}
 
+# group_id (str) of group checks whose summary card has already been broadcast —
+# guards against a double summary when two players resolve near-simultaneously.
+# In-process is fine: single worker, and a mid-flight group surviving a restart is
+# an acceptable edge case.
+_group_summaries_sent: set = set()
+
 # ============================================================================
 # CONNECTION MANAGER (Tracks active WebSocket connections per campaign)
 # ============================================================================
@@ -605,6 +611,12 @@ async def campaign_websocket(
             elif message_type == "stat_check_roll":
                 await _handle_stat_check_roll(campaign_uuid, user_uuid, data, db)
 
+            elif message_type == "env_check_request":
+                await _handle_env_check_request(campaign_uuid, user_uuid, data, db)
+
+            elif message_type == "env_check_roll":
+                await _handle_env_check_roll(campaign_uuid, user_uuid, data, db)
+
             elif message_type == "combo_propose":
                 await _handle_combo_propose(campaign_uuid, user_uuid, data, websocket, db)
 
@@ -1016,106 +1028,8 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             })
             return
 
-        # Parse /env [tier] @TargetName [source] — environmental attack (SW only)
-        if command_text.lower().startswith("/env"):
-            # SW only
-            sw_check = db.query(CampaignMembership).filter(
-                CampaignMembership.campaign_id == campaign_id,
-                CampaignMembership.user_id == user_id,
-                CampaignMembership.left_at.is_(None)
-            ).first()
-            if not sw_check or sw_check.role != "story_weaver":
-                await manager.broadcast(campaign_id, {"type": "system", "text": "❌ Only the Story Weaver can use /env"})
-                return
-
-            # Parse: /env <tier> @<target> <source>
-            env_match = re.match(r'/env\s+(\d+)\s+@?\[?([^\]]+)\]?\s*(.*)', command_text, re.IGNORECASE)
-            if not env_match:
-                await manager.broadcast(campaign_id, {"type": "system", "text": "❌ Usage: /env [tier 1-5] @Target [source name]"})
-                return
-
-            tier = int(env_match.group(1))
-            target_name = env_match.group(2).strip()
-            source_name = env_match.group(3).strip() or "Environmental Hazard"
-
-            tier_dice = {1: "1d4", 2: "1d6", 3: "1d8", 4: "1d10", 5: "1d12"}
-            if tier not in tier_dice:
-                await manager.broadcast(campaign_id, {"type": "system", "text": "❌ Tier must be 1-5"})
-                return
-            atk_die = tier_dice[tier]
-
-            # Look up target
-            target = db.query(Character).filter(
-                Character.campaign_id == campaign_id,
-                Character.status == "active"
-            ).all()
-            target_char = next((c for c in target if c.name.lower() == target_name.lower()), None)
-            if not target_char:
-                await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ Target '{target_name}' not found."})
-                return
-
-            # Roll attack (no attacker edge)
-            atk_rolls = roll_dice(atk_die)
-            atk_total = sum(atk_rolls)
-
-            # Target defends with PP
-            def_rolls = roll_dice(target_char.defense_die or "1d4")
-            def_total = sum(def_rolls) + (target_char.pp or 0) + (target_char.edge or 0)
-
-            margin = atk_total - def_total
-            damage = max(0, margin)
-            old_dp = target_char.dp
-            if damage > 0 and not (target_char.dp is not None and target_char.dp <= 0):
-                target_char.dp = max(0, target_char.dp - damage)
-                db.commit()
-                db.refresh(target_char)
-
-            atk_str = f"{atk_die} = [{' + '.join(str(r) for r in atk_rolls)}] = {atk_total}"
-            def_str = f"{target_char.defense_die} = [{' + '.join(str(r) for r in def_rolls)}] + PP({target_char.pp}) + Edge({target_char.edge or 0}) = {def_total}"
-
-            result_text = f"💥 {damage} dmg (DP {old_dp} → {target_char.dp})" if damage > 0 else "🛡️ Blocked!"
-
-            env_msg = Message(
-                campaign_id=campaign_id,
-                sender_id=user_id,
-                sender_name="Story Weaver",
-                message_type="combat_result",
-                content=f"🌍 {source_name} → {target_char.name}: {result_text}",
-                extra_data={
-                    "attacker": source_name,
-                    "defender": target_char.name,
-                    "defender_id": str(target_char.id),
-                    "damage": damage,
-                    "old_dp": old_dp,
-                    "new_dp": target_char.dp,
-                    "atk_breakdown": atk_str,
-                    "def_breakdown": def_str,
-                    "is_env": True,
-                    "tier": tier
-                }
-            )
-            db.add(env_msg)
-            db.commit()
-
-            await manager.broadcast(campaign_id, {
-                "type": "env_attack",
-                "source": source_name,
-                "tier": tier,
-                "atk_die": atk_die,
-                "target_name": target_char.name,
-                "target_id": str(target_char.id),
-                "atk_total": atk_total,
-                "def_total": def_total,
-                "damage": damage,
-                "old_dp": old_dp,
-                "new_dp": target_char.dp,
-                "max_dp": target_char.max_dp,
-                "atk_breakdown": atk_str,
-                "def_breakdown": def_str,
-                "result_text": result_text,
-                "message_id": str(env_msg.id),
-            })
-            return
+        # /env was removed in the 2026-09 Env Check work — hazards now go
+        # through the Env Check modal (env_check_request WS message).
 
         # Parse /attack @TargetName
         if not command_text.startswith("/attack"):
@@ -2830,17 +2744,27 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
     char = None
     npc = None
 
-    if mode in ("character", "vs") and character_id:
-        char = db.query(Character).filter(Character.id == _UUID(character_id)).first()
-        if not char:
-            return
+    # Character mode may target 1..N PCs (character_ids); vs/npc stay 1:1.
+    from uuid import uuid4 as _uuid4
+    _raw_ids = data.get("character_ids") or ([character_id] if character_id else [])
+    target_chars = []
+    for _cid in _raw_ids:
+        try:
+            _c = db.query(Character).filter(Character.id == _UUID(str(_cid))).first()
+        except Exception:
+            _c = None
+        if _c and not _c.is_npc:
+            target_chars.append(_c)
+    char = target_chars[0] if target_chars else None
+    group_id = _uuid4() if len(target_chars) >= 2 else None
+    group_size = len(target_chars)
 
     if mode in ("npc", "vs") and npc_id:
         npc = db.query(Character).filter(Character.id == _UUID(npc_id), Character.is_npc == True).first()
         if not npc:
             return
 
-    if mode == "character" and not char:
+    if mode == "character" and not target_chars:
         return
     if mode == "npc" and not npc:
         return
@@ -2900,73 +2824,90 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
         rolls = roll_dice(difficulty_die)
         sw_roll = sum(rolls)
 
-    # Grant BAP token if requested (character or vs modes)
-    if bap_granted and char:
-        char.bap_token_active = True
-        char.bap_token_type = "sw_choice"
-        db.commit()
+    # One request per target. Character mode may be a group; vs mode is the single char.
+    loop_chars = target_chars if mode == "character" else [char]
 
-    req = StatCheckRequest(
-        campaign_id=campaign_uuid,
-        character_id=char.id if char else npc.id,
-        stat=stat,
-        difficulty_die=difficulty_die,
-        difficulty_label=difficulty_label,
-        sw_roll=sw_roll,
-        flavor_text=flavor_text,
-        bap_granted=bap_granted,
-        status="pending",
-    )
-    db.add(req)
-    db.commit()
-    db.refresh(req)
-
-    # Store NPC result in extra field for VS mode resolution
-    if mode == "vs":
-        req.flavor_text = (flavor_text or "") + f"\n__npc_id:{npc.id}__npc_name:{npc.name}__npc_roll:{sw_roll}__"
-        db.commit()
-
-    broadcast_payload = {
-        "type": "stat_check_request",
-        "mode": mode,
-        "request_id": str(req.id),
-        "character_id": str(char.id) if char else None,
-        "character_name": char.name if char else None,
-        "npc_name": npc.name if npc else None,
-        "stat": stat,
-        "flavor_text": flavor_text,
-        "bap_granted": bap_granted,
-        "difficulty_label": difficulty_label,
-    }
-    msg = Message(
-        campaign_id=str(campaign_uuid),
-        party_id=None,
-        sender_id=str(sw_user_id),
-        sender_name=manager.get_display_name(campaign_uuid, sw_user_id),
-        content=f"Stat Check — {stat} — {char.name if char else npc.name if npc else ''}",
-        message_type="stat_check_request",
-        extra_data=broadcast_payload,
-    )
-    db.add(msg)
-    db.commit()
-    broadcast_payload["message_id"] = str(msg.id)
-    await manager.broadcast(campaign_uuid, broadcast_payload)
-
-    # Push notification to the targeted player
-    if char and char.user_id:
+    if group_id:
         try:
-            from backend.notifications import send_push
-            flavor_snippet = f' "{flavor_text[:60]}…"' if flavor_text and len(flavor_text) > 60 else (f' "{flavor_text}"' if flavor_text else '')
-            send_push(
-                db,
-                user_id=str(char.user_id),
-                title=f"🎯 Stat Check — Roll {stat}!",
-                body=f"The Story Weaver called a {stat} check for {char.name}.{flavor_snippet}",
-                url=f"/game.html?campaign_id={campaign_uuid}&character_id={char.id}",
-                campaign_id=str(campaign_uuid),
-            )
-        except Exception as _pe:
-            logger.warning(f"Stat check push notification failed: {_pe}")
+            from backend.stats_tracker import track_group_check_sent
+            track_group_check_sent(db, str(sw_user_id))
+            db.commit()
+        except Exception as _se:
+            logger.warning(f"track_group_check_sent failed: {_se}")
+
+    for _tc in loop_chars:
+        if bap_granted:
+            _tc.bap_token_active = True
+            _tc.bap_token_type = "sw_choice"
+            db.commit()
+
+        req = StatCheckRequest(
+            campaign_id=campaign_uuid,
+            character_id=_tc.id,
+            kind="stat",
+            mode=mode,
+            stat=stat,
+            difficulty_die=difficulty_die,
+            difficulty_label=difficulty_label,
+            sw_roll=sw_roll,
+            flavor_text=flavor_text,
+            bap_granted=bap_granted,
+            status="pending",
+            group_id=group_id if mode == "character" else None,
+            sw_user_id=sw_user_id,
+        )
+        db.add(req)
+        db.commit()
+        db.refresh(req)
+
+        # Store NPC result in extra field for VS mode resolution
+        if mode == "vs":
+            req.flavor_text = (flavor_text or "") + f"\n__npc_id:{npc.id}__npc_name:{npc.name}__npc_roll:{sw_roll}__"
+            db.commit()
+
+        broadcast_payload = {
+            "type": "stat_check_request",
+            "mode": mode,
+            "request_id": str(req.id),
+            "character_id": str(_tc.id),
+            "character_name": _tc.name,
+            "npc_name": npc.name if npc else None,
+            "stat": stat,
+            "flavor_text": flavor_text,
+            "bap_granted": bap_granted,
+            "difficulty_label": difficulty_label,
+            "group_id": str(group_id) if (group_id and mode == "character") else None,
+            "group_size": group_size if mode == "character" else 1,
+        }
+        msg = Message(
+            campaign_id=str(campaign_uuid),
+            party_id=None,
+            sender_id=str(sw_user_id),
+            sender_name=manager.get_display_name(campaign_uuid, sw_user_id),
+            content=f"Stat Check — {stat} — {_tc.name}",
+            message_type="stat_check_request",
+            extra_data=broadcast_payload,
+        )
+        db.add(msg)
+        db.commit()
+        broadcast_payload["message_id"] = str(msg.id)
+        await manager.broadcast(campaign_uuid, broadcast_payload)
+
+        # Push notification to the targeted player
+        if _tc.user_id:
+            try:
+                from backend.notifications import send_push
+                flavor_snippet = f' "{flavor_text[:60]}…"' if flavor_text and len(flavor_text) > 60 else (f' "{flavor_text}"' if flavor_text else '')
+                send_push(
+                    db,
+                    user_id=str(_tc.user_id),
+                    title=f"🎯 Stat Check — Roll {stat}!",
+                    body=f"The Story Weaver called a {stat} check for {_tc.name}.{flavor_snippet}",
+                    url=f"/game.html?campaign_id={campaign_uuid}&character_id={_tc.id}",
+                    campaign_id=str(campaign_uuid),
+                )
+            except Exception as _pe:
+                logger.warning(f"Stat check push notification failed: {_pe}")
 
 
 async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
@@ -3080,6 +3021,303 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     db.commit()
     result_payload["message_id"] = str(result_msg.id)
     await manager.broadcast(campaign_uuid, result_payload)
+
+    if req.group_id:
+        await _maybe_finish_group_check(campaign_uuid, req.group_id, req.kind or "stat", db)
+
+
+async def _maybe_finish_group_check(campaign_uuid: UUID, group_id, kind: str, db: Session):
+    """When every check in a group is resolved, broadcast one summary card and
+    credit the SW's group-check achievements. Runs once per group."""
+    from backend.models import StatCheckRequest, Character
+
+    gid = str(group_id)
+    if gid in _group_summaries_sent:
+        return
+    rows = db.query(StatCheckRequest).filter(StatCheckRequest.group_id == group_id).all()
+    if not rows or any(r.status != "resolved" for r in rows):
+        return
+    _group_summaries_sent.add(gid)
+
+    total = len(rows)
+    passed = sum(1 for r in rows if r.outcome == "win")
+    sw_uid = rows[0].sw_user_id
+
+    if total >= 2 and sw_uid:
+        try:
+            from backend.stats_tracker import track_group_check_result, commit_stats
+            track_group_check_result(db, str(sw_uid), all_win=(passed == total), all_loss=(passed == 0))
+            _new = commit_stats(db, str(sw_uid))
+            await broadcast_achievement_awarded(campaign_uuid, sw_uid, _new)
+        except Exception as _se:
+            logger.warning(f"track_group_check_result failed: {_se}")
+
+    targets = []
+    for r in rows:
+        c = db.query(Character).filter(Character.id == r.character_id).first()
+        targets.append({
+            "name": c.name if c else "?",
+            "outcome": r.outcome,
+            "damage": r.damage_dealt or 0,
+        })
+    summary = {
+        "type": "group_check_summary",
+        "group_id": gid,
+        "kind": kind,
+        "stat": rows[0].stat,
+        "flavor_text": (rows[0].flavor_text or "").split("\n__npc_id")[0] or None,
+        "passed": passed,
+        "total": total,
+        "targets": targets,
+    }
+    smsg = Message(
+        campaign_id=str(campaign_uuid), party_id=None,
+        sender_id=str(rows[0].sw_user_id) if rows[0].sw_user_id else str(campaign_uuid),
+        sender_name="System",
+        content=f"{'Env Check' if kind == 'env' else 'Group Check'} — {passed}/{total} passed",
+        message_type="group_check_summary", extra_data=summary,
+    )
+    db.add(smsg)
+    db.commit()
+    summary["message_id"] = str(smsg.id)
+    await manager.broadcast(campaign_uuid, summary)
+
+
+async def _trigger_the_calling(defender, campaign_id, db: Session, actor_user_id=None):
+    """Run The Calling trigger for a PC that just dropped to <= -10 DP:
+    5th-Calling permadeath, otherwise set in_calling + track + broadcast + push.
+    Caller checks `defender.dp <= -10 and not defender.is_npc and not defender.in_calling`
+    first. Mirrors the inline logic in the combat handler (which can adopt this later)."""
+    if (defender.times_called or 0) >= 4:
+        defender.status = 'archived'
+        defender.times_called = (defender.times_called or 0) + 1
+        db.commit()
+        await manager.broadcast(campaign_id, {
+            "type": "permadeath", "character_id": str(defender.id),
+            "character_name": defender.name, "times_called": defender.times_called,
+        })
+        await manager.broadcast(campaign_id, {
+            "type": "character_archived", "character_id": str(defender.id),
+            "character_name": defender.name,
+        })
+        return
+
+    defender.in_calling = True
+    try:
+        from backend.stats_tracker import track_calling, commit_stats
+        if defender.user_id:
+            track_calling(db, str(defender.user_id), str(defender.id), campaign_id=str(campaign_id))
+            _new = commit_stats(db, str(defender.user_id))
+            await broadcast_achievement_awarded(campaign_id, defender.user_id, _new)
+    except Exception as _se:
+        logger.warning(f"Stats track_calling failed: {_se}")
+
+    calling_extra = {
+        "character_id": str(defender.id), "defender": defender.name,
+        "defender_new_dp": defender.dp, "defender_ip": defender.ip,
+        "defender_sp": defender.sp, "defender_edge": defender.edge or 0,
+        "defender_times_called": defender.times_called or 0,
+    }
+    calling_msg = Message(
+        campaign_id=campaign_id, party_id=None,
+        sender_id=str(actor_user_id) if actor_user_id else str(campaign_id),
+        sender_name="System", message_type="calling_triggered",
+        content=f"{defender.name} has entered The Calling!", extra_data=calling_extra,
+    )
+    db.add(calling_msg)
+    db.commit()
+    await manager.broadcast(campaign_id, {"type": "calling_triggered", **calling_extra})
+    if defender.user_id:
+        try:
+            from backend.notifications import send_push
+            send_push(
+                db, str(defender.user_id), "💀 You've entered The Calling!",
+                f"{defender.name} has reached the threshold — return to the game.",
+                url=f"/game.html?campaign_id={campaign_id}&character_id={defender.id}",
+                campaign_id=str(campaign_id),
+            )
+        except Exception as _pe:
+            logger.warning(f"Push notification failed (calling_triggered): {_pe}")
+
+
+async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data: dict, db: Session):
+    """SW fires an environmental hazard at 1..N PCs. Each target rolls the SW-chosen
+    stat to resist; the tier die minus their resist is the damage. v3.0 rules."""
+    from backend.models import StatCheckRequest
+    from backend.roll_logic import roll_dice
+    from uuid import UUID as _UUID, uuid4 as _uuid4
+
+    if not await is_story_weaver(campaign_uuid, sw_user_id, db):
+        return
+
+    stat = (data.get("stat") or "").upper()
+    if stat not in ("PP", "IP", "SP"):
+        return
+    try:
+        tier = int(data.get("tier"))
+    except (TypeError, ValueError):
+        return
+    tier_die = {1: "1d6", 2: "1d8", 3: "1d10", 4: "2d6", 5: "2d8"}.get(tier)
+    if not tier_die:
+        return
+
+    flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
+    raw_ids = data.get("character_ids") or ([data.get("character_id")] if data.get("character_id") else [])
+    targets = []
+    for cid in raw_ids:
+        try:
+            c = db.query(Character).filter(Character.id == _UUID(str(cid))).first()
+        except Exception:
+            c = None
+        if c and not c.is_npc and c.status == "active":
+            targets.append(c)
+    if not targets:
+        return
+
+    group_id = _uuid4() if len(targets) >= 2 else None
+    group_size = len(targets)
+
+    try:
+        from backend.stats_tracker import track_env_damage, track_group_check_sent, commit_stats
+        track_env_damage(db, str(sw_user_id), tier)
+        if group_id:
+            track_group_check_sent(db, str(sw_user_id))
+        _new = commit_stats(db, str(sw_user_id))
+        await broadcast_achievement_awarded(campaign_uuid, sw_user_id, _new)
+    except Exception as _se:
+        logger.warning(f"env track failed: {_se}")
+
+    for char in targets:
+        req = StatCheckRequest(
+            campaign_id=campaign_uuid, character_id=char.id,
+            kind="env", mode="character", stat=stat,
+            difficulty_die=tier_die, difficulty_label=f"Tier {tier}",
+            tier=tier, sw_roll=0, flavor_text=flavor_text,
+            status="pending", group_id=group_id, sw_user_id=sw_user_id,
+        )
+        db.add(req)
+        db.commit()
+        db.refresh(req)
+
+        payload = {
+            "type": "env_check_request", "request_id": str(req.id),
+            "character_id": str(char.id), "character_name": char.name,
+            "stat": stat, "tier": tier, "tier_die": tier_die,
+            "flavor_text": flavor_text,
+            "group_id": str(group_id) if group_id else None, "group_size": group_size,
+        }
+        msg = Message(
+            campaign_id=str(campaign_uuid), party_id=None, sender_id=str(sw_user_id),
+            sender_name=manager.get_display_name(campaign_uuid, sw_user_id),
+            content=f"Env Check — {stat} — Tier {tier} — {char.name}",
+            message_type="env_check_request", extra_data=payload,
+        )
+        db.add(msg)
+        db.commit()
+        payload["message_id"] = str(msg.id)
+        await manager.broadcast(campaign_uuid, payload)
+
+        if char.user_id:
+            try:
+                from backend.notifications import send_push
+                fs = f' "{flavor_text[:60]}…"' if flavor_text and len(flavor_text) > 60 else (f' "{flavor_text}"' if flavor_text else '')
+                send_push(
+                    db, user_id=str(char.user_id),
+                    title=f"🌍 Environmental hazard — Roll {stat}!",
+                    body=f"{char.name} must resist a Tier {tier} hazard.{fs}",
+                    url=f"/game.html?campaign_id={campaign_uuid}&character_id={char.id}",
+                    campaign_id=str(campaign_uuid),
+                )
+            except Exception as _pe:
+                logger.warning(f"env push failed: {_pe}")
+
+
+async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
+    """Player (or SW backup) resists an env check. damage = max(0, hazard - resist)."""
+    from backend.models import StatCheckRequest, ActiveEffect
+    from backend.roll_logic import roll_dice
+    from uuid import UUID as _UUID
+    from datetime import datetime as _dt
+
+    request_id = data.get("request_id")
+    if not request_id:
+        return
+    req = db.query(StatCheckRequest).filter(
+        StatCheckRequest.id == _UUID(request_id),
+        StatCheckRequest.status == "pending",
+        StatCheckRequest.kind == "env",
+    ).first()
+    if not req:
+        return
+
+    char = db.query(Character).filter(Character.id == req.character_id).first()
+    if not char:
+        return
+
+    is_owner = str(char.user_id) == str(user_id)
+    rolled_by_sw = False
+    if not is_owner:
+        if not await is_story_weaver(campaign_uuid, user_id, db):
+            return
+        rolled_by_sw = True
+
+    die_roll = roll_dice("1d6")[0]
+    stat_value = getattr(char, req.stat.lower(), 1) or 1
+    edge = char.edge or 0
+    effects = db.query(ActiveEffect).filter(ActiveEffect.character_id == char.id).all()
+    debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
+    resist_total = die_roll + stat_value + edge + debuff_modifier
+
+    hazard_total = sum(roll_dice(req.difficulty_die))
+    damage = max(0, hazard_total - resist_total)
+    outcome = "win" if damage == 0 else "loss"
+
+    old_dp = char.dp
+    calling_triggered = False
+    if damage > 0:
+        char.dp = char.dp - damage  # no floor — env damage can down a PC
+        db.commit()
+        db.refresh(char)
+        if char.dp <= -10 and not char.is_npc and not char.in_calling:
+            await _trigger_the_calling(char, campaign_uuid, db, actor_user_id=user_id)
+            db.refresh(char)
+            calling_triggered = char.in_calling or char.status == "archived"
+
+    req.player_roll = die_roll
+    req.player_total = resist_total
+    req.sw_roll = hazard_total
+    req.outcome = outcome
+    req.margin = resist_total - hazard_total
+    req.damage_dealt = damage
+    req.status = "resolved"
+    req.rolled_by_sw = rolled_by_sw
+    req.resolved_at = _dt.utcnow()
+    db.commit()
+
+    result_payload = {
+        "type": "env_check_result", "request_id": str(req.id),
+        "character_id": str(char.id), "character_name": char.name,
+        "stat": req.stat, "tier": req.tier, "flavor_text": (req.flavor_text or "").split("\n__npc_id")[0] or None,
+        "die_roll": die_roll, "stat_value": stat_value, "edge": edge,
+        "debuff_modifier": debuff_modifier, "resist_total": resist_total,
+        "hazard_total": hazard_total, "hazard_die": req.difficulty_die,
+        "damage": damage, "outcome": outcome,
+        "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp,
+        "calling_triggered": calling_triggered, "rolled_by_sw": rolled_by_sw,
+    }
+    result_msg = Message(
+        campaign_id=str(campaign_uuid), party_id=None, sender_id=str(user_id),
+        sender_name=char.name,
+        content=f"Env Check — {req.stat} — {char.name} — {'Resisted' if outcome == 'win' else f'{damage} dmg'}",
+        message_type="env_check_result", extra_data=result_payload,
+    )
+    db.add(result_msg)
+    db.commit()
+    result_payload["message_id"] = str(result_msg.id)
+    await manager.broadcast(campaign_uuid, result_payload)
+
+    if req.group_id:
+        await _maybe_finish_group_check(campaign_uuid, req.group_id, "env", db)
 
 
 async def broadcast_level_up(campaign_id: UUID, character_id: str, character_name: str, old_level: int, new_level: int, new_slot_unlocked: bool, message_id: str = None):

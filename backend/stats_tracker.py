@@ -323,6 +323,33 @@ def track_npc_created(db: Session, user_id: str):
     _upsert_user_stats(db, user_id, npcs_created=1)
 
 
+def track_env_damage(db: Session, sw_user_id: str, tier: int):
+    """SW fired an environmental hazard. Counts uses + OR-s the tier bit."""
+    _upsert_user_stats(db, sw_user_id, env_damage_used=1)
+    if 1 <= (tier or 0) <= 5:
+        from backend.models import UserStats
+        try:
+            row = db.query(UserStats).filter(UserStats.user_id == sw_user_id).first()
+            if row:
+                row.env_tiers_mask = (row.env_tiers_mask or 0) | (1 << tier)
+        except Exception as e:
+            logger.warning(f"env_tiers_mask update failed: {e}")
+
+
+def track_group_check_sent(db: Session, sw_user_id: str):
+    _upsert_user_stats(db, sw_user_id, group_checks_sent=1)
+
+
+def track_group_check_result(db: Session, sw_user_id: str, all_win: bool, all_loss: bool):
+    inc = {}
+    if all_win:
+        inc["group_flawless"] = 1
+    if all_loss:
+        inc["group_wipes"] = 1
+    if inc:
+        _upsert_user_stats(db, sw_user_id, **inc)
+
+
 def track_stat_check_outcome(
     db: Session, user_id: str, character_id: str | None,
     stat: str, die_roll: int, stat_value: int, edge: int,

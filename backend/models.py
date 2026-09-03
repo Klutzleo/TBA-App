@@ -874,6 +874,13 @@ class UserStats(Base):
     battles_initiated     = Column(Integer, nullable=False, default=0)
     npc_damage_dealt      = Column(Integer, nullable=False, default=0)
 
+    # Environmental damage + group checks (SW)
+    env_damage_used       = Column(Integer, nullable=False, default=0)
+    env_tiers_mask        = Column(Integer, nullable=False, default=0)   # bits 1-5
+    group_checks_sent     = Column(Integer, nullable=False, default=0)
+    group_wipes           = Column(Integer, nullable=False, default=0)   # group of 2+, all failed
+    group_flawless        = Column(Integer, nullable=False, default=0)   # group of 2+, all passed
+
     updated_at          = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -1005,9 +1012,11 @@ class StatCheckRequest(Base):
     character_id    = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=True)
     npc_id          = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)
     mode            = Column(String(10), nullable=False, default='character')  # character, vs, npc
+    kind            = Column(String(8), nullable=False, default='stat')        # stat | env
     stat            = Column(String(2), nullable=False)
     difficulty_die  = Column(String(8), nullable=True)
     difficulty_label= Column(String(50), nullable=True)
+    tier            = Column(Integer, nullable=True)               # env only, 1-5
     sw_roll         = Column(Integer, nullable=False, default=0)
     flavor_text     = Column(Text, nullable=True)
     bap_granted     = Column(Boolean, nullable=False, default=False)
@@ -1017,7 +1026,10 @@ class StatCheckRequest(Base):
     player_total    = Column(Integer, nullable=True)
     outcome         = Column(String(4), nullable=True)            # win, loss
     margin          = Column(Integer, nullable=True)
+    damage_dealt    = Column(Integer, nullable=True)              # env only
     rolled_by_sw    = Column(Boolean, nullable=False, default=False)
+    group_id        = Column(UUID(as_uuid=True), nullable=True, index=True)  # shared across one multi-target send
+    sw_user_id      = Column(UUID(as_uuid=True), nullable=True)   # SW who created it (achievement credit)
     created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
     resolved_at     = Column(DateTime(timezone=True), nullable=True)
 
