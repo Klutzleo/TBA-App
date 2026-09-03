@@ -2492,18 +2492,50 @@
         right: -100%;
       }
 
+      /* Compact horizontal bubbles on mobile — avatar beside name, one short row */
       .bubble-bar {
-        padding: 8px 12px;
+        padding: 4px 8px;
+        gap: 4px;
       }
 
       .character-bubble {
-        min-width: 70px;
-        padding: 6px 10px;
+        flex-direction: row;
+        min-width: 0;
+        padding: 4px 9px;
+        gap: 5px;
+        border-width: 1.5px;
       }
+
+      .bubble-avatar {
+        width: 20px;
+        height: 20px;
+        font-size: 13px;
+      }
+      .bubble-avatar i { width: 13px !important; height: 13px !important; }
+
+      .bubble-name {
+        font-size: 11px;
+        max-width: 88px;
+      }
+      /* the "hidden" eye-off badge sits inline next to the name instead of wrapping */
+      .bubble-name span { display: inline !important; margin-left: 3px; }
     }
     @media (max-width: 600px) {
       .portrait-hide { display: none !important; }
       #campaignNameBar { display: block !important; }
+
+      /* tighten the header icon cluster so it doesn't wrap / crowd */
+      .header { padding: 8px 10px !important; }
+      .connection-status button,
+      .connection-status > a { padding: 4px !important; margin-left: 0 !important; }
+      .connection-status { gap: 2px; }
+      .header-title img { width: 26px !important; height: 26px !important; }
+      .header-title h1 { font-size: 16px !important; }
+
+      /* reclaim vertical space around the message feed + input */
+      .chat-messages { padding: 8px 10px; }
+      .chat-input-container { padding: 6px 10px; padding-bottom: max(6px, calc(6px + env(safe-area-inset-bottom))); }
+      #chatToolbar { gap: 4px; margin-bottom: 3px; }
     }
 
     .install-banner {
@@ -2682,7 +2714,7 @@
         <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener"
           title="Free rulebook on itch.io"
           style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem; color:#a78bfa; text-decoration:none; margin-right:8px; opacity:0.8;">
-          <i data-lucide="book-open" style="width:14px;height:14px;"></i>Rules</a>
+          <i data-lucide="book-open" style="width:14px;height:14px;"></i><span class="portrait-hide">Rules</span></a>
         <span class="status-indicator disconnected portrait-hide" id="statusIndicator"></span>
         <span id="statusText" class="portrait-hide">Disconnected</span>
         <div class="notif-bell-target"></div>
@@ -2702,6 +2734,7 @@
           style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;opacity:0.6;color:inherit;display:flex;align-items:center;">
           <i data-lucide="book-open" style="width:18px;height:18px;"></i></button>
         <a href="https://ko-fi.com/gameoctane" target="_blank" title="Support TBA on Ko-fi"
+          class="portrait-hide"
           style="display:inline-flex;align-items:center;padding:2px 6px;margin-left:2px;opacity:0.45;text-decoration:none;color:inherit;">
           <i data-lucide="coffee" style="width:18px;height:18px;"></i></a>
       </div>
