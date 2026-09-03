@@ -49,7 +49,9 @@ Shipping the remaining Combo rules (cancellation, triple) and grief tether fixes
 - [ ] Social & friends — follow players, friend activity feed
 - [ ] Discord integration — account linking, community server role
 - [ ] Age-gated experience — dual-mode (Tools for the Bad Ass / Tools for Being Awesome)
-- [ ] Environmental damage tier system — SW hazard damage tool
+- [x] Environmental damage tier system — SW "Env Check" tool (v3.0 tiers, players
+      roll to resist, can trigger The Calling). Replaced the /env command. Also
+      shipped: multi-target Stat Checks. Achievement placeholder names still TBD.
 - [ ] Lore & asset library — taggable homebrew content
 
 ## Blockers
