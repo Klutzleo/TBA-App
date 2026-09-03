@@ -2761,8 +2761,66 @@ async def broadcast_player_joined(campaign_id: UUID, username: str):
     })
 
 
+_FAIL_EFFECT_TYPES = {"custom", "attack", "defense", "initiative"}
+
+
+def _sanitize_fail_effect(spec):
+    """Normalise a modal's fail-effect spec to {name, modifier, modifier_type,
+    duration_rounds} or None. Modifier clamped -3..+3, duration 1..20 or None."""
+    if not isinstance(spec, dict):
+        return None
+    name = (spec.get("name") or "").strip()[:100]
+    if not name:
+        return None
+    try:
+        modifier = max(-3, min(3, int(spec.get("modifier", 0))))
+    except (TypeError, ValueError):
+        modifier = 0
+    mtype = str(spec.get("modifier_type") or "custom").lower()
+    if mtype not in _FAIL_EFFECT_TYPES:
+        mtype = "custom"
+    dur = spec.get("duration_rounds")
+    try:
+        dur = max(1, min(20, int(dur))) if dur not in (None, "", 0) else None
+    except (TypeError, ValueError):
+        dur = None
+    return {"name": name, "modifier": modifier, "modifier_type": mtype, "duration_rounds": dur}
+
+
+async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
+    """Attach the SW-defined effect to a character who just failed a check, then
+    push the refreshed effect list to everyone (same shape as effects_sync)."""
+    from backend.models import ActiveEffect
+    if not spec:
+        return
+    db.add(ActiveEffect(
+        campaign_id=campaign_uuid,
+        character_id=char.id,
+        name=spec["name"],
+        modifier=spec.get("modifier", 0),
+        modifier_type=spec.get("modifier_type", "custom"),
+        duration_rounds=spec.get("duration_rounds"),
+        applied_by=applied_by or "Check",
+    ))
+    db.commit()
+    effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_uuid).all()
+    await manager.broadcast(campaign_uuid, {
+        "type": "effects_sync",
+        "effects": [{
+            "id": str(e.id),
+            "character_id": str(e.character_id) if e.character_id else None,
+            "name": e.name,
+            "modifier": e.modifier,
+            "modifier_type": e.modifier_type,
+            "duration_rounds": e.duration_rounds,
+            "applied_by": e.applied_by,
+        } for e in effects],
+    })
+
+
 async def _resolve_npc_stat_check(campaign_uuid, sw_user_id, npc, stat, sw_roll,
-                                 difficulty_label, flavor_text, silent, db):
+                                 difficulty_label, flavor_text, silent, db,
+                                 fail_effect=None):
     """Auto-resolve a stat check for an NPC target — the SW rolls for them right now,
     no request row, no player pill. A hidden NPC's result goes to the SW only."""
     from backend.roll_logic import roll_dice
@@ -2797,6 +2855,8 @@ async def _resolve_npc_stat_check(campaign_uuid, sw_user_id, npc, stat, sw_roll,
         await manager.send_to_user(campaign_uuid, sw_user_id, result)
     else:
         await manager.broadcast(campaign_uuid, result)
+    if outcome == "loss" and fail_effect:
+        await _apply_fail_effect(campaign_uuid, npc, fail_effect, "Stat Check", db)
     return outcome
 
 
@@ -2820,6 +2880,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
     flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
     bap_granted = bool(data.get("bap_granted", False))
     hidden = bool(data.get("hidden", False))
+    fail_effect = _sanitize_fail_effect(data.get("fail_effect"))
 
     char = None
     npc = None
@@ -2874,7 +2935,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
         sw_difficulty_total = sum(roll_dice(difficulty_die))
         await _resolve_npc_stat_check(
             campaign_uuid, sw_user_id, npc, stat, sw_difficulty_total,
-            difficulty_label, flavor_text, silent=hidden, db=db,
+            difficulty_label, flavor_text, silent=hidden, db=db, fail_effect=fail_effect,
         )
         return
     else:
@@ -2913,6 +2974,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             status="pending",
             group_id=group_id if mode == "character" else None,
             sw_user_id=sw_user_id,
+            fail_effect=fail_effect,
         )
         db.add(req)
         db.commit()
@@ -2936,6 +2998,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             "difficulty_label": difficulty_label,
             "group_id": str(group_id) if (group_id and mode == "character") else None,
             "group_size": group_size if mode == "character" else 1,
+            "fail_effect": fail_effect,
         }
         msg = Message(
             campaign_id=str(campaign_uuid),
@@ -2976,6 +3039,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
                     campaign_uuid, sw_user_id, _npc, stat, sw_roll,
                     difficulty_label, flavor_text,
                     silent=(not _npc.visible_to_players or hidden), db=db,
+                    fail_effect=fail_effect,
                 )
             except Exception as _ne:
                 logger.warning(f"NPC stat check resolve failed: {_ne}")
@@ -3078,6 +3142,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "margin": margin,
         "bap_granted": req.bap_granted,
         "rolled_by_sw": rolled_by_sw,
+        "fail_effect": req.fail_effect if outcome == "loss" else None,
     }
     result_msg = Message(
         campaign_id=str(campaign_uuid),
@@ -3092,6 +3157,9 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     db.commit()
     result_payload["message_id"] = str(result_msg.id)
     await manager.broadcast(campaign_uuid, result_payload)
+
+    if outcome == "loss" and req.fail_effect:
+        await _apply_fail_effect(campaign_uuid, char, req.fail_effect, "Stat Check", db)
 
     if req.group_id:
         await _maybe_finish_group_check(campaign_uuid, req.group_id, req.kind or "stat", db)
@@ -3257,7 +3325,7 @@ async def _trigger_the_calling(defender, campaign_id, db: Session, actor_user_id
 
 
 async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tier_die,
-                                flavor_text, silent, db):
+                                flavor_text, silent, db, fail_effect=None):
     """Auto-resolve an environmental hazard against an NPC — SW rolls resist for them,
     damage floored at 0 (NPCs can't enter The Calling), no request row, no pill.
     A hidden NPC's result goes to the SW only."""
@@ -3291,6 +3359,7 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
         "damage": damage, "outcome": outcome,
         "old_dp": old_dp, "new_dp": npc.dp, "max_dp": npc.max_dp,
         "calling_triggered": False, "rolled_by_sw": True,
+        "fail_effect": fail_effect if outcome == "loss" else None,
     }
     if silent:
         await manager.send_to_user(campaign_uuid, sw_user_id, result_payload)
@@ -3305,6 +3374,8 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
         db.commit()
         result_payload["message_id"] = str(result_msg.id)
         await manager.broadcast(campaign_uuid, result_payload)
+    if outcome == "loss" and fail_effect:
+        await _apply_fail_effect(campaign_uuid, npc, fail_effect, "Env Check", db)
     return outcome
 
 
@@ -3331,6 +3402,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
         return
 
     flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
+    fail_effect = _sanitize_fail_effect(data.get("fail_effect"))
     raw_ids = data.get("character_ids") or ([data.get("character_id")] if data.get("character_id") else [])
     targets = []
     npc_targets = []
@@ -3368,6 +3440,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
             difficulty_die=tier_die, difficulty_label=f"Tier {tier}",
             tier=tier, sw_roll=0, flavor_text=flavor_text,
             status="pending", group_id=group_id, sw_user_id=sw_user_id,
+            fail_effect=fail_effect,
         )
         db.add(req)
         db.commit()
@@ -3379,6 +3452,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
             "stat": stat, "tier": tier, "tier_die": tier_die,
             "flavor_text": flavor_text,
             "group_id": str(group_id) if group_id else None, "group_size": group_size,
+            "fail_effect": fail_effect,
         }
         msg = Message(
             campaign_id=str(campaign_uuid), party_id=None, sender_id=str(sw_user_id),
@@ -3411,7 +3485,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
         try:
             await _resolve_npc_env_check(
                 campaign_uuid, sw_user_id, _npc, stat, tier, tier_die, flavor_text,
-                silent=not _npc.visible_to_players, db=db,
+                silent=not _npc.visible_to_players, db=db, fail_effect=fail_effect,
             )
         except Exception as _ne:
             logger.warning(f"NPC env check resolve failed: {_ne}")
@@ -3489,6 +3563,7 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
         "damage": damage, "outcome": outcome,
         "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp,
         "calling_triggered": calling_triggered, "rolled_by_sw": rolled_by_sw,
+        "fail_effect": req.fail_effect if outcome == "loss" else None,
     }
     result_msg = Message(
         campaign_id=str(campaign_uuid), party_id=None, sender_id=str(user_id),
@@ -3500,6 +3575,9 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
     db.commit()
     result_payload["message_id"] = str(result_msg.id)
     await manager.broadcast(campaign_uuid, result_payload)
+
+    if outcome == "loss" and req.fail_effect:
+        await _apply_fail_effect(campaign_uuid, char, req.fail_effect, "Env Check", db)
 
     if req.group_id:
         await _maybe_finish_group_check(campaign_uuid, req.group_id, "env", db)

@@ -3241,6 +3241,9 @@
             style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
         </div>
 
+        <!-- On-failure effect -->
+        <div id="scFailFxSlot"></div>
+
         <!-- BAP grant (Character + VS modes) -->
         <div id="scBapRow" style="display:flex;align-items:center;gap:8px;">
           <input type="checkbox" id="statCheckBAP" style="accent-color:#d4af37;width:16px;height:16px;">
@@ -3298,6 +3301,9 @@
           <input id="envCheckFlavor" type="text" maxlength="300" placeholder="The bridge gave way beneath you…"
             style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
         </div>
+
+        <!-- On-failure effect -->
+        <div id="ecFailFxSlot"></div>
 
         <!-- Targets -->
         <div>
@@ -14077,6 +14083,53 @@
       boxes.forEach(b => { b.checked = anyUnchecked; });
     }
 
+    // ── "Apply an effect on a failed roll" — shared by the Stat + Env modals ──
+    // Damage stays automatic (the difference). This is for a named buff/debuff.
+    function _failFxHtml(prefix, accent) {
+      const opt = [-3,-2,-1,1,2,3].map(n =>
+        `<option value="${n}"${n === -1 ? ' selected' : ''}>${n > 0 ? '+' : '−'}${Math.abs(n)}</option>`).join('');
+      return `<div style="border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;">
+          <input type="checkbox" id="${prefix}FailFxOn" onchange="_toggleFailFx('${prefix}')" style="accent-color:${accent};width:15px;height:15px;">
+          Apply an effect on a failed roll
+        </label>
+        <div id="${prefix}FailFxFields" style="display:none;margin-top:8px;flex-direction:column;gap:6px;">
+          <input id="${prefix}FailFxName" type="text" maxlength="60" placeholder="Effect name — e.g. Scorched, Rattled"
+            style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.88rem;">
+          <div style="display:flex;gap:6px;">
+            <select id="${prefix}FailFxMod" title="Modifier applied to their rolls"
+              style="flex:1;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.88rem;">${opt}</select>
+            <input id="${prefix}FailFxDur" type="number" min="1" max="20" placeholder="rounds (blank = until removed)"
+              style="flex:2;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.88rem;">
+          </div>
+        </div>
+      </div>`;
+    }
+    function _toggleFailFx(prefix) {
+      const on = document.getElementById(prefix + 'FailFxOn').checked;
+      document.getElementById(prefix + 'FailFxFields').style.display = on ? 'flex' : 'none';
+    }
+    function _resetFailFx(prefix, accent) {
+      document.getElementById(prefix + 'FailFxSlot').innerHTML = _failFxHtml(prefix, accent);
+    }
+    function _readFailFx(prefix) {
+      const onEl = document.getElementById(prefix + 'FailFxOn');
+      if (!onEl || !onEl.checked) return null;
+      const name = document.getElementById(prefix + 'FailFxName').value.trim();
+      if (!name) return null;
+      const mod = parseInt(document.getElementById(prefix + 'FailFxMod').value, 10) || 0;
+      const durRaw = document.getElementById(prefix + 'FailFxDur').value.trim();
+      const dur = durRaw ? parseInt(durRaw, 10) : null;
+      return { name, modifier: mod, modifier_type: 'custom', duration_rounds: (dur && dur > 0 ? dur : null) };
+    }
+    // "Scorched −1 · 2r" for a fail-effect spec on a check card
+    function _failFxLabel(fx) {
+      if (!fx || !fx.name) return '';
+      const m = fx.modifier ? (fx.modifier > 0 ? ` +${fx.modifier}` : ` −${Math.abs(fx.modifier)}`) : '';
+      const d = fx.duration_rounds ? ` · ${fx.duration_rounds}r` : '';
+      return `${escHtml(fx.name)}${m}${d}`;
+    }
+
     // ── Start Encounter modal ────────────────────────────────────────────────
     function _encCombatantRow(id, name, kind, hidden) {
       const accent = kind === 'npc' ? '#fb923c' : '#a78bfa';
@@ -14173,6 +14226,7 @@
       document.getElementById('statCheckFlavor').value = '';
       document.getElementById('statCheckBAP').checked = false;
       document.getElementById('statCheckHidden').checked = false;
+      _resetFailFx('sc', '#a78bfa');
       document.getElementById('statCheckModal').classList.add('active');
     }
 
@@ -14241,6 +14295,7 @@
         flavor_text: flavor || null,
         bap_granted: bapGranted,
         hidden,
+        fail_effect: _readFailFx('sc'),
       }));
       closeStatCheckModal();
     }
@@ -14368,6 +14423,7 @@
       selectEnvCheckStat('PP');
       selectEnvCheckTier(3);
       document.getElementById('envCheckFlavor').value = '';
+      _resetFailFx('ec', '#f97316');
       document.getElementById('envCheckModal').classList.add('active');
     }
     function closeEnvCheckModal() { document.getElementById('envCheckModal').classList.remove('active'); }
@@ -14404,6 +14460,7 @@
         tier: _envCheckTier,
         flavor_text: document.getElementById('envCheckFlavor').value.trim() || null,
         character_ids: ids,
+        fail_effect: _readFailFx('ec'),
       }));
       closeEnvCheckModal();
     }
@@ -14517,6 +14574,7 @@
         <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
           <strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong> must resist with <strong>${data.stat}</strong>
         </div>
+        ${data.fail_effect ? `<div style="font-size:0.74rem;color:#f87171;margin-bottom:4px;">On a failed roll: <strong>${_failFxLabel(data.fail_effect)}</strong></div>` : ''}
         ${flavor}${rollBtn}${_swCancelChip(data.request_id, isPending)}`;
       outerRow.appendChild(col);
       div.appendChild(outerRow);
@@ -14560,7 +14618,8 @@
             <div style="font-size:1.1rem;font-weight:700;color:#f97316;">${data.hazard_total}</div>
             <div style="font-size:0.75rem;color:var(--text-muted);">DP ${data.old_dp} → ${data.new_dp}</div>
           </div>
-        </div>`;
+        </div>
+        ${data.fail_effect ? `<div style="margin-top:6px;font-size:0.76rem;color:#f87171;"><i data-lucide="alert-triangle" style="width:12px;height:12px;vertical-align:middle;"></i> <strong>${_failFxLabel(data.fail_effect)}</strong> applied</div>` : ''}`;
       outerRow.appendChild(col);
       div.appendChild(outerRow);
       return div;
@@ -14621,6 +14680,7 @@
           <strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong> has been called to roll <strong>${data.stat}</strong>
           ${data.mode === 'vs' ? `against <strong style="color:var(--accent-danger);">${escHtml(data.npc_name || '')}</strong>` : ''}
         </div>
+        ${data.fail_effect ? `<div style="font-size:0.74rem;color:#f87171;margin-bottom:4px;">On a failed roll: <strong>${_failFxLabel(data.fail_effect)}</strong></div>` : ''}
         ${flavor}
         ${rollBtn}
         ${_swCancelChip(data.request_id, isPending)}
@@ -14688,6 +14748,7 @@
         <div style="text-align:center;margin-top:8px;font-size:0.82rem;color:${color};font-weight:600;">
           Margin: ${marginText}
         </div>
+        ${data.fail_effect ? `<div style="margin-top:6px;font-size:0.76rem;color:#f87171;text-align:center;"><i data-lucide="alert-triangle" style="width:12px;height:12px;vertical-align:middle;"></i> <strong>${_failFxLabel(data.fail_effect)}</strong> applied</div>` : ''}
       `;
       outerRow.appendChild(contentCol);
       div.appendChild(outerRow);
