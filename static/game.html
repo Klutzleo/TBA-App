@@ -11462,6 +11462,19 @@
 
             // Handle welcome message - update Actor field with character name
             if (data.type === 'welcome') {
+              // Self-heal a URL that's missing character_id: the server found a
+              // character for this user in this campaign, but the client only ever
+              // reads characterId from the URL. Without it, every check card / pill /
+              // "is this me?" test silently no-ops. Reload once with it appended.
+              if (!characterId && data.character_id && data.role !== 'SW'
+                  && data.character_name && data.character_name !== 'Unknown'
+                  && urlRoleParam !== 'player') {
+                const _u = new URL(window.location.href);
+                _u.searchParams.set('character_id', data.character_id);
+                window.location.replace(_u.toString());
+                return;
+              }
+
               // Update user role from server — but never override Spectator (role=player in URL
               // without character_id). Also never demote a player to SW when they have a
               // character_id in the URL (server may miss the character if it was recently
@@ -14388,7 +14401,9 @@
     function renderEnvCheckRequestCard(data) {
       const isTarget = characterId && String(characterId) === String(data.character_id);
       const isPending = data.status !== 'resolved';
-      const showBtn = isTarget && !isSW() && isPending;
+      // The target always gets the primary button (even an SW targeting their own
+      // character); the SW gets a backup only when they're not the target.
+      const showBtn = isTarget && isPending;
       const showSwBackup = isSW() && !isTarget && isPending;
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
       const ts = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -14480,7 +14495,7 @@
       // Live requests carry no `status` field (they were just created, always pending).
       // History replay attaches the live status from the DB — only 'resolved' hides the button.
       const isPending = data.status !== 'resolved';
-      const showBtn = isTarget && !isSW() && isPending;
+      const showBtn = isTarget && isPending;
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
       const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP Granted</span>` : '';
       const vsLabel = data.mode === 'vs' ? ` <span style="color:var(--text-muted);font-size:0.78rem;">vs ${escHtml(data.npc_name || '')}</span>` : '';
