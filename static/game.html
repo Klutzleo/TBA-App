@@ -11717,41 +11717,35 @@
 
             } else if (data.type === 'initiative_request') {
               const card = renderInitiativeRequestCard(data);
-              const chatEl = document.getElementById('chatMessages');
-              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              storeAndDisplayMessage(card, { type: 'initiative_request', timestamp: data.timestamp, message_id: data.message_id, actor: data.character_name || 'system' });
               trackPendingCheck(data, 'init');
 
             } else if (data.type === 'stat_check_request') {
               const card = renderStatCheckRequestCard(data);
-              const chatEl = document.getElementById('chatMessages');
-              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              storeAndDisplayMessage(card, { type: 'stat_check_request', timestamp: data.timestamp, message_id: data.message_id, actor: data.character_name || 'system' });
               trackPendingCheck(data, 'stat');
 
             } else if (data.type === 'stat_check_result') {
               dropCheckCard(data.request_id);  // clear the pending card for everyone
               clearPendingCheck(data.request_id);
               const card = renderStatCheckResultCard(data);
-              const chatEl = document.getElementById('chatMessages');
-              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              storeAndDisplayMessage(card, { type: 'stat_check_result', timestamp: data.timestamp, message_id: data.message_id, actor: data.character_name || 'system' });
 
             } else if (data.type === 'env_check_request') {
               const card = renderEnvCheckRequestCard(data);
-              const chatEl = document.getElementById('chatMessages');
-              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              storeAndDisplayMessage(card, { type: 'env_check_request', timestamp: data.timestamp, message_id: data.message_id, actor: data.character_name || 'system' });
               trackPendingCheck(data, 'env');
 
             } else if (data.type === 'env_check_result') {
               dropCheckCard(data.request_id);
               clearPendingCheck(data.request_id);
               const card = renderEnvCheckResultCard(data);
-              const chatEl = document.getElementById('chatMessages');
-              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              storeAndDisplayMessage(card, { type: 'env_check_result', timestamp: data.timestamp, message_id: data.message_id, actor: data.character_name || 'system' });
               if (data.new_dp !== undefined) updateCharacterSheet(data.character_name, data.new_dp);
 
             } else if (data.type === 'group_check_summary') {
               const card = renderGroupCheckSummaryCard(data);
-              const chatEl = document.getElementById('chatMessages');
-              if (chatEl) { chatEl.appendChild(card); chatEl.scrollTop = chatEl.scrollHeight; }
+              storeAndDisplayMessage(card, { type: 'group_check_summary', timestamp: data.timestamp, message_id: data.message_id, actor: 'system' });
 
             } else if (data.type === 'character_deleted') {
               loadCharacters();
