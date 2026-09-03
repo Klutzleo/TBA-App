@@ -11225,18 +11225,16 @@
     }
 
     // === WebSocket Connection ===
-    function buildWSUrl(campaignId, token) {
-      const baseUrl = 'https://tba-app-production.up.railway.app';
-      const url = new URL(baseUrl);
-      url.protocol = 'wss';
-      url.pathname = `/api/campaign/ws/${campaignId}`;
-      url.searchParams.append('token', token);
-      return url.toString();
+    // Token goes in the Sec-WebSocket-Protocol header (['bearer', <jwt>]), not the
+    // URL — a token in the query string gets written to the server access logs.
+    function buildWSUrl(campaignId) {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${location.host}/api/campaign/ws/${campaignId}`;
     }
 
     // Auto-connect on page load
     async function connectToCampaign(isReconnect = false) {
-      const wsUrl = buildWSUrl(campaignId, authToken);
+      const wsUrl = buildWSUrl(campaignId);
 
       // Only show the full-screen spinner on the initial connect, not on auto-reconnects
       if (!isReconnect) {
@@ -11252,7 +11250,7 @@
       addMessage(statusMsg, 'message-card message-system', {}, true);
 
       try {
-        ws = new WebSocket(wsUrl);
+        ws = new WebSocket(wsUrl, ['bearer', authToken]);
 
         ws.onopen = async () => {
           // Hide loading spinner

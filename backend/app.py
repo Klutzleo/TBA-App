@@ -21,13 +21,13 @@ from backend.db import engine, init_db
 # Load .env vars
 load_dotenv()
 
-# Setup logging
-logging.basicConfig(level=logging.DEBUG)
+# Setup logging. Default INFO; set LOG_LEVEL=DEBUG in the environment to turn it
+# up. DEBUG in prod floods the logs (and Railway bills log volume) and made
+# httpx/httpcore dump full request/response headers.
+logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO))
 logger = logging.getLogger(__name__)
 
-# HTTP client libraries log full request/response headers at DEBUG — on Railway
-# that's a flood of noise (and log-volume cost) on every outbound call. Keep our
-# own DEBUG, silence theirs.
+# Keep these quiet regardless — their DEBUG output is header dumps on every call.
 for _noisy in ("httpx", "httpcore", "websockets", "websockets.client"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 

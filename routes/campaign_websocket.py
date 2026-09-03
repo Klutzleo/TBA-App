@@ -60,9 +60,10 @@ class CampaignConnectionManager:
         # campaign_id → list of (websocket, user_id, display_name, username)
         self.active_connections: Dict[UUID, List[tuple[WebSocket, UUID, str, str]]] = {}
     
-    async def connect(self, campaign_id: UUID, websocket: WebSocket, user_id: UUID, display_name: str, username: str):
+    async def connect(self, campaign_id: UUID, websocket: WebSocket, user_id: UUID, display_name: str, username: str,
+                      subprotocol: str = None):
         """Accept WebSocket connection and add to campaign room."""
-        await websocket.accept()
+        await websocket.accept(subprotocol=subprotocol)
 
         if campaign_id not in self.active_connections:
             self.active_connections[campaign_id] = []
@@ -197,13 +198,15 @@ manager = CampaignConnectionManager()
 async def campaign_websocket(
     websocket: WebSocket,
     campaign_id: UUID,
-    token: str = Query(...),  # JWT token passed as query param
+    token: str = Query(None),  # legacy: JWT as query param (still accepted)
     db: Session = Depends(get_db)
 ):
     """
     WebSocket endpoint for campaign chat room.
 
-    URL: ws://localhost:8000/api/campaign/ws/{campaign_id}?token={jwt_token}
+    Auth: the JWT is sent in the Sec-WebSocket-Protocol header as
+    ["bearer", "<jwt>"] (a query-string token is logged by uvicorn — avoid it).
+    URL: wss://<host>/api/campaign/ws/{campaign_id}
 
     Requires JWT authentication. Verifies user is a member of the campaign.
 
@@ -215,8 +218,19 @@ async def campaign_websocket(
     - Dice rolls
     - System notifications
     """
+    # Token from the Sec-WebSocket-Protocol header (preferred) or ?token= (legacy).
+    accept_subprotocol = None
+    offered = list(websocket.scope.get("subprotocols", []) or [])
+    if not token and len(offered) >= 2 and offered[0] == "bearer":
+        token = offered[1]
+        accept_subprotocol = "bearer"  # must echo the negotiated subprotocol back
+
     # ===== JWT AUTHENTICATION (BEFORE accepting WebSocket) =====
     try:
+        if not token:
+            await websocket.close(code=1008, reason="Missing auth token")
+            return
+
         # Decode and verify JWT token
         payload = decode_access_token(token)
         if not payload:
@@ -297,7 +311,8 @@ async def campaign_websocket(
     # ===== AUTHENTICATION PASSED - Continue with existing logic =====
     campaign_uuid = campaign_id
 
-    await manager.connect(campaign_uuid, websocket, user_uuid, display_name, user.username)
+    await manager.connect(campaign_uuid, websocket, user_uuid, display_name, user.username,
+                          subprotocol=accept_subprotocol)
 
     # Send welcome message directly to the connecting user with in_calling state
     try:
