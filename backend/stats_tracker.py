@@ -340,14 +340,15 @@ def track_group_check_sent(db: Session, sw_user_id: str):
     _upsert_user_stats(db, sw_user_id, group_checks_sent=1)
 
 
-def track_group_check_result(db: Session, sw_user_id: str, all_win: bool, all_loss: bool):
+def track_group_check_result(db: Session, player_user_id: str, all_win: bool, all_loss: bool):
+    """Credited to each player who rolled in a group of 2+, not the SW."""
     inc = {}
     if all_win:
         inc["group_flawless"] = 1
     if all_loss:
         inc["group_wipes"] = 1
     if inc:
-        _upsert_user_stats(db, sw_user_id, **inc)
+        _upsert_user_stats(db, player_user_id, **inc)
 
 
 def track_stat_check_outcome(

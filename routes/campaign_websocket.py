@@ -3041,25 +3041,30 @@ async def _maybe_finish_group_check(campaign_uuid: UUID, group_id, kind: str, db
 
     total = len(rows)
     passed = sum(1 for r in rows if r.outcome == "win")
-    sw_uid = rows[0].sw_user_id
-
-    if total >= 2 and sw_uid:
-        try:
-            from backend.stats_tracker import track_group_check_result, commit_stats
-            track_group_check_result(db, str(sw_uid), all_win=(passed == total), all_loss=(passed == 0))
-            _new = commit_stats(db, str(sw_uid))
-            await broadcast_achievement_awarded(campaign_uuid, sw_uid, _new)
-        except Exception as _se:
-            logger.warning(f"track_group_check_result failed: {_se}")
+    all_win, all_loss = (passed == total), (passed == 0)
 
     targets = []
+    player_uids = set()
     for r in rows:
         c = db.query(Character).filter(Character.id == r.character_id).first()
+        if c and c.user_id:
+            player_uids.add(str(c.user_id))
         targets.append({
             "name": c.name if c else "?",
             "outcome": r.outcome,
             "damage": r.damage_dealt or 0,
         })
+
+    # "whole party passed / failed" credits the players who rolled, not the SW.
+    if total >= 2 and (all_win or all_loss):
+        try:
+            from backend.stats_tracker import track_group_check_result, commit_stats
+            for uid in player_uids:
+                track_group_check_result(db, uid, all_win=all_win, all_loss=all_loss)
+                _new = commit_stats(db, uid)
+                await broadcast_achievement_awarded(campaign_uuid, uid, _new)
+        except Exception as _se:
+            logger.warning(f"track_group_check_result failed: {_se}")
     summary = {
         "type": "group_check_summary",
         "group_id": gid,

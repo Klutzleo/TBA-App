@@ -867,6 +867,26 @@ ACHIEVEMENTS = {
         "broadcast": "personal",
         "points": 5,
     },
+    "party_look_at_us": {
+        "name": "Look at Us",
+        "description": "Be in a group check where every player succeeded.",
+        "icon": "party-popper",
+        "section": "dice",
+        "difficulty": "medium",
+        "category": "standard",
+        "broadcast": "campaign",
+        "points": 20,
+    },
+    "party_this_is_fine": {
+        "name": "This Is Fine",
+        "description": "Be in a group check where every player failed.",
+        "icon": "flame",
+        "section": "dice",
+        "difficulty": "medium",
+        "category": "standard",
+        "broadcast": "campaign",
+        "points": 20,
+    },
     "brute_force": {
         "name": "Brute Force",
         "description": "Roll your first PP (Physical) check.",
@@ -1396,7 +1416,7 @@ ACHIEVEMENTS = {
         "points": 20,
     },
     "sw_group_check": {
-        "name": "Roll Call",
+        "name": "Places, Everyone",
         "description": "Send a group check to two or more players at once.",
         "icon": "users",
         "section": "sw",
@@ -1404,26 +1424,6 @@ ACHIEVEMENTS = {
         "category": "sw",
         "broadcast": "campaign",
         "points": 10,
-    },
-    "sw_total_wipe": {
-        "name": "Not Great, Bob",
-        "description": "A group check where every player failed.",
-        "icon": "trending-down",
-        "section": "sw",
-        "difficulty": "medium",
-        "category": "sw",
-        "broadcast": "campaign",
-        "points": 20,
-    },
-    "sw_flawless": {
-        "name": "Flawless Victory",
-        "description": "A group check where every player succeeded.",
-        "icon": "trophy",
-        "section": "sw",
-        "difficulty": "medium",
-        "category": "sw",
-        "broadcast": "campaign",
-        "points": 20,
     },
     "sw_let_there_be_light": {
         "name": "Let There Be Light",
@@ -1851,6 +1851,10 @@ def check_and_award(user_id, db: Session, character_id=None, silent=False) -> li
     # ── DICE & ROLLS ──────────────────────────────────────────────────────────
     if stats.total_stat_checks >= 1:
         award("you_had_me_at_roll")
+    if (stats.group_flawless or 0) >= 1:
+        award("party_look_at_us")
+    if (stats.group_wipes or 0) >= 1:
+        award("party_this_is_fine")
     if stats.total_pp_checks >= 1:
         award("brute_force")
     if stats.total_ip_checks >= 1:
@@ -1938,10 +1942,6 @@ def check_and_award(user_id, db: Session, character_id=None, silent=False) -> li
         award("sw_good_bad_ugly")
     if (stats.group_checks_sent or 0) >= 1:
         award("sw_group_check")
-    if (stats.group_wipes or 0) >= 1:
-        award("sw_total_wipe")
-    if (stats.group_flawless or 0) >= 1:
-        award("sw_flawless")
 
     # ── BADGE SHOWCASE UNLOCK ─────────────────────────────────────────────────
     # Calculate total points from all earned achievements (including this session)
