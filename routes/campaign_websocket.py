@@ -655,6 +655,9 @@ async def campaign_websocket(
             elif message_type == "encounter_setup":
                 await _handle_encounter_setup(campaign_uuid, user_uuid, data, websocket, db)
 
+            elif message_type == "check_cancel":
+                await _handle_check_cancel(campaign_uuid, user_uuid, data, db)
+
             elif message_type == "combo_propose":
                 await _handle_combo_propose(campaign_uuid, user_uuid, data, websocket, db)
 
@@ -3094,6 +3097,42 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         await _maybe_finish_group_check(campaign_uuid, req.group_id, req.kind or "stat", db)
 
 
+async def _handle_check_cancel(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
+    """SW cancels a pending stat/env check — clears the card for everyone and frees
+    the target's pill. Used when a player genuinely can't roll."""
+    from backend.models import StatCheckRequest
+    from uuid import UUID as _UUID
+    from datetime import datetime as _dt
+
+    if not await is_story_weaver(campaign_uuid, user_id, db):
+        return
+    request_id = data.get("request_id")
+    if not request_id:
+        return
+    try:
+        req = db.query(StatCheckRequest).filter(
+            StatCheckRequest.id == _UUID(str(request_id)),
+            StatCheckRequest.campaign_id == campaign_uuid,
+            StatCheckRequest.status == "pending",
+        ).first()
+    except Exception:
+        req = None
+    if not req:
+        return
+    req.status = "cancelled"
+    req.resolved_at = _dt.utcnow()
+    db.commit()
+
+    await manager.broadcast(campaign_uuid, {
+        "type": "check_cancelled",
+        "request_id": str(req.id),
+        "kind": req.kind or "stat",
+        "group_id": str(req.group_id) if req.group_id else None,
+    })
+    if req.group_id:
+        await _maybe_finish_group_check(campaign_uuid, req.group_id, req.kind or "stat", db)
+
+
 async def _maybe_finish_group_check(campaign_uuid: UUID, group_id, kind: str, db: Session):
     """When every check in a group is resolved, broadcast one summary card and
     credit the SW's group-check achievements. Runs once per group."""
@@ -3102,10 +3141,14 @@ async def _maybe_finish_group_check(campaign_uuid: UUID, group_id, kind: str, db
     gid = str(group_id)
     if gid in _group_summaries_sent:
         return
-    rows = db.query(StatCheckRequest).filter(StatCheckRequest.group_id == group_id).all()
-    if not rows or any(r.status != "resolved" for r in rows):
+    all_rows = db.query(StatCheckRequest).filter(StatCheckRequest.group_id == group_id).all()
+    if not all_rows or any(r.status == "pending" for r in all_rows):
         return
     _group_summaries_sent.add(gid)
+    # SW-cancelled targets drop out of the tally entirely.
+    rows = [r for r in all_rows if r.status == "resolved"]
+    if not rows:
+        return
 
     total = len(rows)
     passed = sum(1 for r in rows if r.outcome == "win")
@@ -4502,6 +4545,66 @@ async def clear_initiative(
         })
 
 
+async def remove_initiative_roll(campaign_uuid: UUID, user_uuid: UUID, target_name: str,
+                                 db: Session, websocket: WebSocket):
+    """SW pulls one combatant out of the initiative order.
+    Command: /initiative remove @Name (or the ✕ on a tracker row)."""
+    try:
+        if not await is_story_weaver(campaign_uuid, user_uuid, db):
+            await websocket.send_json({"type": "error",
+                "message": "Only the Story Weaver can remove initiative rolls"})
+            return
+        encounter = db.query(Encounter).filter(
+            Encounter.campaign_id == campaign_uuid, Encounter.is_active == True
+        ).first()
+        if not encounter:
+            await websocket.send_json({"type": "error", "message": "No active encounter"})
+            return
+        roll = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id,
+            InitiativeRoll.name.ilike(f"%{target_name}%"),
+        ).first()
+        if not roll:
+            await websocket.send_json({"type": "error",
+                "message": f"'{target_name}' is not in the initiative order"})
+            return
+
+        removed_name = roll.name
+        removed_cid = str(roll.character_id) if roll.character_id else None
+        db.delete(roll)
+        db.commit()
+
+        remaining = db.query(InitiativeRoll).filter(
+            InitiativeRoll.encounter_id == encounter.id
+        ).count()
+        if remaining and encounter.current_turn_index >= remaining:
+            encounter.current_turn_index = 0
+            db.commit()
+
+        roster = _encounter_roster.get(str(encounter.id))
+        if roster and removed_cid:
+            _encounter_roster[str(encounter.id)] = [
+                s for s in roster if s["character_id"] != removed_cid
+            ]
+
+        await manager.broadcast(campaign_uuid, {
+            "type": "initiative_removed",
+            "name": removed_name,
+            "updated_order": _build_updated_order(encounter, db),
+            "current_turn_index": encounter.current_turn_index,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    except Exception as e:
+        logger.error(f"Remove initiative roll error: {e}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        await websocket.send_json({"type": "error",
+            "message": "❌ Failed to remove that combatant. Please try again."})
+
+
 async def advance_turn(
     campaign_uuid: UUID,
     user_uuid: UUID,
@@ -5313,6 +5416,19 @@ async def handle_initiative_command(
             await advance_turn(campaign_uuid, user_uuid, db, websocket)
             return
 
+        # /initiative remove @Target
+        if subcommand == "remove":
+            if len(parts) < 3:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Usage: /initiative remove @TargetName"
+                })
+                return
+            await remove_initiative_roll(
+                campaign_uuid, user_uuid, parts[2].lstrip("@"), db, websocket
+            )
+            return
+
         # /initiative silent @Target
         if subcommand == "silent":
             if len(parts) < 3:
@@ -5339,7 +5455,7 @@ async def handle_initiative_command(
         # Unknown subcommand
         await websocket.send_json({
             "type": "error",
-            "message": f"Unknown initiative command: {subcommand}\nUse: /initiative, /initiative show, /initiative end, /initiative clear, /initiative @Target, /initiative silent @Target"
+            "message": f"Unknown initiative command: {subcommand}\nUse: /initiative, /initiative show, /initiative end, /initiative clear, /initiative @Target, /initiative silent @Target, /initiative remove @Target"
         })
 
     except Exception as e:

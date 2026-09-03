@@ -3683,6 +3683,7 @@
             <div><span style="color:#a78bfa;">/initiative next</span> <span style="color:var(--text-muted);">— Advance to the next turn</span></div>
             <div><span style="color:#a78bfa;">/initiative end</span> <span style="color:var(--text-muted);">— End encounter & restore all ability uses</span></div>
             <div><span style="color:#a78bfa;">/initiative clear</span> <span style="color:var(--text-muted);">— Clear rolls without ending encounter</span></div>
+            <div><span style="color:#a78bfa;">/initiative remove @Name</span> <span style="color:var(--text-muted);">— Pull one combatant out (or the ✕ on a tracker row)</span></div>
             <div><span style="color:#a78bfa;">/rest</span> <span style="color:var(--text-muted);">— Short rest — restore ability uses only</span></div>
             <div><span style="color:#a78bfa;">/scene [title]</span> <span style="color:var(--text-muted);">— Post a scene transition card and save to Lore</span></div>
             <div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border-color);"><span style="color:#a78bfa;">🎯 Stat Check</span> <span style="color:var(--text-muted);">— In the 📊 dashboard tab. Pick one or more players, a stat, difficulty, optional flavor. Modes: <strong>Character</strong> (vs hidden difficulty), <strong>Character VS NPC</strong> (contested), <strong>NPC</strong> (auto-resolves).</span></div>
@@ -8032,6 +8033,22 @@
           entry.appendChild(pingBtn);
         }
 
+        // SW: pull this combatant out of the order
+        if (isSW()) {
+          const rmBtn = document.createElement('button');
+          rmBtn.className = 'btn-icon';
+          rmBtn.title = `Remove ${roll.name} from initiative`;
+          rmBtn.innerHTML = '<i data-lucide="x" style="width:12px;height:12px;"></i>';
+          rmBtn.style.cssText = 'font-size:0.8rem;opacity:0.4;padding:0 2px;flex-shrink:0;color:#ef4444;display:inline-flex;align-items:center;';
+          rmBtn.onmouseenter = () => rmBtn.style.opacity = '1';
+          rmBtn.onmouseleave = () => rmBtn.style.opacity = '0.4';
+          rmBtn.onclick = (e) => {
+            e.stopPropagation();
+            ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative remove @' + roll.name }));
+          };
+          entry.appendChild(rmBtn);
+        }
+
         tracker.appendChild(entry);
       });
       if (window.lucide) lucide.createIcons({ el: tracker });
@@ -10913,9 +10930,9 @@
               // ✅ Handle stat rolls from database
               else if (msg.message_type === 'stat_check_request') {
                 const d = msg.extra_data || {};
-                // Backend attaches live `status`. A resolved check's result card
-                // is a separate message — skip the (now stale) request card.
-                if (d.status !== 'resolved') {
+                // Backend attaches live `status`. A resolved (result card is a
+                // separate message) or SW-cancelled check drops its request card.
+                if (d.status !== 'resolved' && d.status !== 'cancelled') {
                   const card = renderStatCheckRequestCard({ ...d, timestamp: msg.timestamp });
                   storeAndDisplayMessage(card, { type: 'stat_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
                   trackPendingCheck(d, 'stat', false);
@@ -10928,7 +10945,7 @@
               }
               else if (msg.message_type === 'env_check_request') {
                 const d = msg.extra_data || {};
-                if (d.status !== 'resolved') {
+                if (d.status !== 'resolved' && d.status !== 'cancelled') {
                   const card = renderEnvCheckRequestCard({ ...d, timestamp: msg.timestamp });
                   storeAndDisplayMessage(card, { type: 'env_check_request', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
                   trackPendingCheck(d, 'env', false);
@@ -11792,6 +11809,19 @@
             } else if (data.type === 'group_check_summary') {
               const card = renderGroupCheckSummaryCard(data);
               storeAndDisplayMessage(card, { type: 'group_check_summary', timestamp: data.timestamp, message_id: data.message_id, actor: 'system' });
+
+            } else if (data.type === 'check_cancelled') {
+              // SW cancelled a pending stat/env check — pull the card + pill for everyone
+              dropCheckCard(data.request_id);
+              clearPendingCheck(data.request_id);
+
+            } else if (data.type === 'initiative_removed') {
+              if (isSW() && data.updated_order) {
+                currentInitiativeOrder = data.updated_order;
+                currentTurnIndex = data.current_turn_index ?? 0;
+                renderInitiativeTracker();
+              }
+              showToast(`⚔️ ${data.name} removed from initiative`);
 
             } else if (data.type === 'character_deleted') {
               loadCharacters();
@@ -14384,6 +14414,19 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
     }
 
+    // SW-only: a small "Cancel" chip for a pending check card. Removes it for everyone.
+    function _swCancelChip(requestId, isPending) {
+      if (!isSW() || !isPending) return '';
+      return `<div style="margin-top:8px;"><button onclick="cancelCheck('${requestId}')" title="Cancel this check for everyone"
+        style="padding:3px 10px;background:none;border:1px solid rgba(248,113,113,0.4);border-radius:5px;color:#f87171;font-size:0.72rem;cursor:pointer;">
+        <i data-lucide="x" style="width:11px;height:11px;vertical-align:middle;margin-right:2px;"></i>Cancel check</button></div>`;
+    }
+    function cancelCheck(requestId) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      if (!confirm('Cancel this check? It disappears for everyone and the player can no longer roll it.')) return;
+      ws.send(JSON.stringify({ type: 'check_cancel', request_id: requestId }));
+    }
+
     // Look up a character/NPC's assigned chat color by name, for the left accent
     // stripe convention used on every other message card in the feed.
     function lookupChatColor(name) {
@@ -14474,7 +14517,7 @@
         <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
           <strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong> must resist with <strong>${data.stat}</strong>
         </div>
-        ${flavor}${rollBtn}`;
+        ${flavor}${rollBtn}${_swCancelChip(data.request_id, isPending)}`;
       outerRow.appendChild(col);
       div.appendChild(outerRow);
       return div;
@@ -14580,6 +14623,7 @@
         </div>
         ${flavor}
         ${rollBtn}
+        ${_swCancelChip(data.request_id, isPending)}
       `;
       outerRow.appendChild(contentCol);
       div.appendChild(outerRow);
