@@ -7641,7 +7641,11 @@
     }
 
     function escHtml(str) {
-      return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      // Also escapes quotes — this is used inside `attr="${escHtml(x)}"` all over the
+      // app (names, flavor text, etc.), so an unescaped " or ' lets user-controlled
+      // text break out of the attribute and inject markup/script.
+      return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
     function hexToRgba(hex, alpha) {

@@ -270,8 +270,17 @@ async def campaign_websocket(
         ).first()
 
         if not membership:
-            # Self-heal: if the user has an active character in this campaign, restore their membership.
-            # This handles cases where left_at got set erroneously (migration, re-join bug, etc.)
+            # Self-heal ONLY the true data-integrity case: no membership row has ever
+            # existed for this user in this campaign (legacy character predates the
+            # membership model, a migration gap, etc.) but they still have an active
+            # character here. If a membership row DOES exist with left_at set, that's
+            # a recorded, intentional departure (leave_campaign) — never resurrect it,
+            # or "leaving" a campaign would get silently undone on the next reconnect.
+            stale = db.query(CampaignMembership).filter(
+                CampaignMembership.campaign_id == campaign_id,
+                CampaignMembership.user_id == user.id
+            ).first()
+
             active_char = db.query(Character).filter(
                 Character.user_id == user.id,
                 Character.campaign_id == campaign_id,
@@ -279,26 +288,20 @@ async def campaign_websocket(
                 Character.status == 'active'
             ).first()
 
-            if active_char:
-                # Update existing stale membership or create a new one
-                stale = db.query(CampaignMembership).filter(
-                    CampaignMembership.campaign_id == campaign_id,
-                    CampaignMembership.user_id == user.id
-                ).first()
-                if stale:
-                    stale.left_at = None
-                    membership = stale
-                else:
-                    membership = CampaignMembership(
-                        campaign_id=campaign_id,
-                        user_id=user.id,
-                        role="player"
-                    )
-                    db.add(membership)
+            if not stale and active_char:
+                membership = CampaignMembership(
+                    campaign_id=campaign_id,
+                    user_id=user.id,
+                    role="player"
+                )
+                db.add(membership)
                 db.commit()
-                logger.warning(f"Auto-restored membership for {user.username} in campaign {campaign_id} (had active character but no active membership)")
+                logger.warning(f"Auto-restored membership for {user.username} in campaign {campaign_id} (had active character, no membership row at all)")
             else:
-                logger.warning(f"WS rejected: user {user.username} ({user.id}) has no active membership or character in campaign {campaign_id}")
+                if stale:
+                    logger.info(f"WS rejected: user {user.username} ({user.id}) left campaign {campaign_id} at {stale.left_at} — not re-admitting")
+                else:
+                    logger.warning(f"WS rejected: user {user.username} ({user.id}) has no membership or character in campaign {campaign_id}")
                 await websocket.close(code=1008, reason="You are not a member of this campaign")
                 return
 

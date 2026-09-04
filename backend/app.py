@@ -98,9 +98,22 @@ application.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handle
 
 
 # Add CORS middleware
+# Auth is Bearer-token-only (no cookies anywhere in the app), so a wildcard origin
+# was never strictly a credential-leak vector — but it's still needlessly wide open
+# for a live app. CORS_ALLOWED_ORIGINS (comma-separated) lets Railway widen this
+# without a code change if another origin legitimately needs API access.
+_default_cors_origins = [
+    "https://tba-rpg.com",
+    "https://www.tba-rpg.com",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+_cors_env = os.getenv("CORS_ALLOWED_ORIGINS")
+_cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()] if _cors_env else _default_cors_origins
+
 application.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

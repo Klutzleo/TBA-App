@@ -15,12 +15,18 @@ from slowapi.util import get_remote_address
 from uuid import UUID
 
 from backend.db import get_db
-from backend.models import User, PasswordResetToken
+from backend.models import User, PasswordResetToken, pwd_hasher
 from backend.auth.jwt import create_access_token, get_current_user
 from backend.email_service import send_password_reset_email
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
+
+# Burned on every login where the email isn't found, so that response takes
+# roughly the same Argon2-verify time as a "wrong password" response for a
+# real account — otherwise the near-instant reply on a nonexistent email is a
+# timing side-channel an attacker can use to enumerate registered addresses.
+_DUMMY_PASSWORD_HASH = pwd_hasher.hash("not-a-real-account-password-check")
 
 # Create router
 auth_router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -207,8 +213,18 @@ async def login(
     # Find user by email
     user = db.query(User).filter(User.email == email_lower).first()
 
-    # Verify password (use constant-time comparison to prevent timing attacks)
-    if not user or not user.verify_password(data.password):
+    # Always run a full Argon2 verify — even for an email that doesn't exist —
+    # so the response time doesn't reveal whether the account exists.
+    if user:
+        password_ok = user.verify_password(data.password)
+    else:
+        try:
+            pwd_hasher.verify(_DUMMY_PASSWORD_HASH, data.password)
+        except Exception:
+            pass
+        password_ok = False
+
+    if not user or not password_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -316,12 +332,16 @@ async def forgot_password(
 
 
 @auth_router.post("/reset-password", response_model=MessageResponse)
+@limiter.limit("10/hour")
 async def reset_password(
+    request: Request,
     data: ResetPasswordRequest,
     db: Session = Depends(get_db)
 ):
     """
     Reset password using a reset token.
+
+    Rate limit: 10 attempts per hour per IP.
 
     Returns:
         Success message
