@@ -3272,10 +3272,22 @@
         <button class="modal-close" onclick="closeEnvCheckModal()">&times;</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
-        <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Set the severity and the resistance stat. Each target rolls that stat; the hazard die minus their roll is the damage.</p>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Set the severity and what the hazard does. The tier's die and the rulebook tables decide the size — you just pick the category.</p>
 
-        <!-- Resistance stat -->
+        <!-- What the hazard does -->
         <div>
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">What does the hazard do?</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;" id="ecCategoryBtns">
+            <button class="ec-cat-btn active" data-cat="damage" onclick="selectEnvCategory('damage')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:6px;border:1px solid rgba(249,115,22,0.5);background:rgba(249,115,22,0.15);color:#f97316;font-weight:700;font-size:0.82rem;cursor:pointer;">💥 Damage</button>
+            <button class="ec-cat-btn" data-cat="debuff" onclick="selectEnvCategory('debuff')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-weight:700;font-size:0.82rem;cursor:pointer;">⬇️ Debuff</button>
+            <button class="ec-cat-btn" data-cat="buff" onclick="selectEnvCategory('buff')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-weight:700;font-size:0.82rem;cursor:pointer;">⬆️ Buff</button>
+            <button class="ec-cat-btn" data-cat="healing" onclick="selectEnvCategory('healing')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-weight:700;font-size:0.82rem;cursor:pointer;">💚 Healing</button>
+          </div>
+          <div id="ecCategoryHint" style="font-size:0.72rem;color:var(--text-muted);margin-top:5px;line-height:1.5;"></div>
+        </div>
+
+        <!-- Resistance stat (Damage + Debuff only — Buff/Healing need no roll) -->
+        <div id="ecStatSection">
           <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Resistance stat</label>
           <div style="display:flex;gap:8px;">
             <button class="ec-stat-btn active" data-stat="PP" onclick="selectEnvCheckStat('PP')" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(249,115,22,0.5);background:rgba(249,115,22,0.15);color:#f97316;font-weight:700;cursor:pointer;">PP</button>
@@ -3301,9 +3313,6 @@
           <input id="envCheckFlavor" type="text" maxlength="300" placeholder="The bridge gave way beneath you…"
             style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
         </div>
-
-        <!-- On-failure effect -->
-        <div id="ecFailFxSlot"></div>
 
         <!-- Targets -->
         <div>
@@ -14390,9 +14399,10 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
     }
 
-    // ── Env Check (SW hazard, players resist) ────────────────────────────────
+    // ── Env Check (SW hazard) — Damage/Debuff resist; Buff/Healing apply instantly ──
     let _envCheckStat = 'PP';
     let _envCheckTier = 3;
+    let _envCheckCategory = 'damage';
     const _ENV_TIERS = [
       { t: 1, die: '1d6',  ex: 'mild heat · shallow water · light smoke' },
       { t: 2, die: '1d8',  ex: 'open flame · strong current · toxic fumes' },
@@ -14400,6 +14410,8 @@
       { t: 4, die: '2d6',  ex: 'volcanic · deep sea · lethal gas' },
       { t: 5, die: '2d8',  ex: 'world-ending · divine wrath' },
     ];
+    // Rulebook Buff/Debuff Table — die → modifier, which also sets the duration in rounds.
+    const _BUFF_DEBUFF_TABLE = { '1d6': 1, '1d8': 2, '1d10': 3, '1d12': 4, '2d6': 5, '2d8': 6 };
 
     function openEnvCheckModal() {
       const pcs = _statCheckPCList();
@@ -14420,14 +14432,39 @@
           <span style="font-size:0.74rem;color:var(--text-muted);">${x.ex}</span>
         </button>`).join('');
 
+      selectEnvCategory('damage');
       selectEnvCheckStat('PP');
       selectEnvCheckTier(3);
       document.getElementById('envCheckFlavor').value = '';
-      _resetFailFx('ec', '#f97316');
       document.getElementById('envCheckModal').classList.add('active');
     }
     function closeEnvCheckModal() { document.getElementById('envCheckModal').classList.remove('active'); }
 
+    function selectEnvCategory(cat) {
+      _envCheckCategory = cat;
+      document.querySelectorAll('.ec-cat-btn').forEach(b => {
+        const a = b.dataset.cat === cat;
+        b.style.background = a ? 'rgba(249,115,22,0.15)' : 'var(--bg-secondary)';
+        b.style.color = a ? '#f97316' : 'var(--text-muted)';
+        b.style.borderColor = a ? 'rgba(249,115,22,0.5)' : 'var(--border-color)';
+      });
+      // Buff/Healing "just happen" per the rulebook — no resist roll, so no stat needed.
+      document.getElementById('ecStatSection').style.display = (cat === 'damage' || cat === 'debuff') ? '' : 'none';
+      _updateEnvCategoryHint();
+    }
+    function _updateEnvCategoryHint() {
+      const hint = document.getElementById('ecCategoryHint');
+      if (!hint) return;
+      const die = (_ENV_TIERS.find(x => x.t === _envCheckTier) || {}).die || '1d6';
+      const n = _BUFF_DEBUFF_TABLE[die] || 1;
+      const texts = {
+        damage: 'Each target rolls to resist; the hazard die minus their roll is the DP damage.',
+        debuff: `Each target rolls to resist. On a failed roll: −${n} for ${n} round${n === 1 ? '' : 's'} (Tier ${_envCheckTier}).`,
+        buff: `No roll needed — applies to every target immediately: +${n} for ${n} round${n === 1 ? '' : 's'} (Tier ${_envCheckTier}).`,
+        healing: `No roll needed — applies to every target immediately: restores a fresh ${die} roll of DP.`,
+      };
+      hint.textContent = texts[_envCheckCategory] || '';
+    }
     function selectEnvCheckStat(stat) {
       _envCheckStat = stat;
       document.querySelectorAll('.ec-stat-btn').forEach(b => {
@@ -14444,6 +14481,7 @@
         b.style.background = a ? 'rgba(249,115,22,0.15)' : 'var(--bg-secondary)';
         b.style.borderColor = a ? 'rgba(249,115,22,0.6)' : 'var(--border-color)';
       });
+      _updateEnvCategoryHint();
     }
     function envCheckToggleAll() {
       const boxes = document.querySelectorAll('#envCheckCharList input[data-kind="pc"]');
@@ -14458,9 +14496,9 @@
         type: 'env_check_request',
         stat: _envCheckStat,
         tier: _envCheckTier,
+        effect_category: _envCheckCategory,
         flavor_text: document.getElementById('envCheckFlavor').value.trim() || null,
         character_ids: ids,
-        fail_effect: _readFailFx('ec'),
       }));
       closeEnvCheckModal();
     }
@@ -14574,7 +14612,7 @@
         <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
           <strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong> must resist with <strong>${data.stat}</strong>
         </div>
-        ${data.fail_effect ? `<div style="font-size:0.74rem;color:#f87171;margin-bottom:4px;">On a failed roll: <strong>${_failFxLabel(data.fail_effect)}</strong></div>` : ''}
+        ${data.env_effect === 'debuff' ? `<div style="font-size:0.74rem;color:#f87171;margin-bottom:4px;">On a failed roll: <strong>−${_BUFF_DEBUFF_TABLE[data.tier_die] || 1} for ${_BUFF_DEBUFF_TABLE[data.tier_die] || 1} rounds</strong></div>` : ''}
         ${flavor}${rollBtn}${_swCancelChip(data.request_id, isPending)}`;
       outerRow.appendChild(col);
       div.appendChild(outerRow);
@@ -14582,12 +14620,50 @@
     }
 
     function renderEnvCheckResultCard(data) {
-      const safe = data.outcome === 'win';
-      const color = safe ? '#34d399' : '#f87171';
+      const cat = data.env_effect || 'damage';
       const ts = new Date(data.timestamp || Date.now()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       const chatColor = lookupChatColor(data.character_name);
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.82rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
+
+      // Buff / Healing: no roll happened — a simple "applied" card, always positive.
+      if (cat === 'buff' || cat === 'healing') {
+        const color = '#34d399';
+        const headline = cat === 'healing'
+          ? `Env Check — Healing — +${data.roll_total} DP`
+          : `Env Check — Buff — +${data.magnitude} for ${data.duration_rounds} round${data.duration_rounds === 1 ? '' : 's'}`;
+        const body = cat === 'healing'
+          ? `<div style="font-size:0.78rem;color:var(--text-secondary);">DP ${data.old_dp} → ${data.new_dp}</div>`
+          : `<div style="font-size:0.78rem;color:var(--text-secondary);">${escHtml(data.effect_name || 'Environmental Buff')} applied for ${data.duration_rounds} round${data.duration_rounds === 1 ? '' : 's'}</div>`;
+        const div = document.createElement('div');
+        div.className = 'message-item';
+        div.style.cssText = 'background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.25);border-radius:10px;padding:12px 14px;margin:4px 0;';
+        if (chatColor) { div.style.borderLeftWidth = '4px'; div.style.borderLeftColor = chatColor; }
+        const outerRow = document.createElement('div');
+        outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+        outerRow.appendChild(buildAvatarEl(data.character_name, chatColor));
+        const col = document.createElement('div');
+        col.style.cssText = 'flex:1;min-width:0;';
+        col.innerHTML = `
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+            <span style="color:var(--text-muted);font-size:0.78rem;">[${ts}]</span>
+            <i data-lucide="globe" style="width:16px;height:16px;vertical-align:middle;color:#f97316;"></i>
+            <span style="font-weight:700;color:${color};font-size:0.88rem;">${headline}</span>
+            <span class="message-tab-indicator">STORY</span>
+          </div>
+          ${flavor}
+          <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:2px;"><strong style="color:var(--text-primary);">${escHtml(data.character_name || '')}</strong></div>
+          ${body}`;
+        outerRow.appendChild(col);
+        div.appendChild(outerRow);
+        return div;
+      }
+
+      // Damage / Debuff: the usual resist-vs-hazard grid.
+      const safe = data.outcome === 'win';
+      const color = safe ? '#34d399' : '#f87171';
+      const isDebuff = cat === 'debuff';
       const callingBadge = data.calling_triggered ? `<span style="font-size:0.72rem;color:#e9d5ff;background:rgba(147,51,234,0.15);border:1px solid rgba(147,51,234,0.4);border-radius:4px;padding:1px 6px;">The Calling</span>` : '';
+      const headline = safe ? 'Resisted' : (isDebuff ? `${escHtml(data.effect_name || 'Debuffed')} applied` : `−${data.damage} DP`);
 
       const div = document.createElement('div');
       div.className = 'message-item';
@@ -14598,11 +14674,14 @@
       outerRow.appendChild(buildAvatarEl(data.character_name, chatColor));
       const col = document.createElement('div');
       col.style.cssText = 'flex:1;min-width:0;';
+      const rightCol = isDebuff
+        ? `<div style="font-size:0.75rem;color:var(--text-muted);">${safe ? 'No effect' : `${data.duration_rounds || ''} round${data.duration_rounds === 1 ? '' : 's'}`}</div>`
+        : `<div style="font-size:0.75rem;color:var(--text-muted);">DP ${data.old_dp} → ${data.new_dp}</div>`;
       col.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
           <span style="color:var(--text-muted);font-size:0.78rem;">[${ts}]</span>
           <i data-lucide="globe" style="width:16px;height:16px;vertical-align:middle;color:#f97316;"></i>
-          <span style="font-weight:700;color:${color};font-size:0.88rem;">Env Check — ${data.stat} — ${safe ? 'Resisted' : `−${data.damage} DP`}</span>
+          <span style="font-weight:700;color:${color};font-size:0.88rem;">Env Check — ${data.stat} — ${headline}</span>
           ${callingBadge}
           <span class="message-tab-indicator">STORY</span>
         </div>
@@ -14616,10 +14695,9 @@
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">Hazard — Tier ${data.tier} (${data.hazard_die})</div>
             <div style="font-size:1.1rem;font-weight:700;color:#f97316;">${data.hazard_total}</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);">DP ${data.old_dp} → ${data.new_dp}</div>
+            ${rightCol}
           </div>
-        </div>
-        ${data.fail_effect ? `<div style="margin-top:6px;font-size:0.76rem;color:#f87171;"><i data-lucide="alert-triangle" style="width:12px;height:12px;vertical-align:middle;"></i> <strong>${_failFxLabel(data.fail_effect)}</strong> applied</div>` : ''}`;
+        </div>`;
       outerRow.appendChild(col);
       div.appendChild(outerRow);
       return div;

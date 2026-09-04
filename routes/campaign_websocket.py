@@ -3325,10 +3325,11 @@ async def _trigger_the_calling(defender, campaign_id, db: Session, actor_user_id
 
 
 async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tier_die,
-                                flavor_text, silent, db, fail_effect=None):
-    """Auto-resolve an environmental hazard against an NPC — SW rolls resist for them,
-    damage floored at 0 (NPCs can't enter The Calling), no request row, no pill.
-    A hidden NPC's result goes to the SW only."""
+                                flavor_text, silent, db, category="damage"):
+    """Auto-resolve a Damage or Debuff environmental hazard against an NPC — SW rolls
+    resist for them, no request row, no pill. Damage floors at 0 (NPCs can't enter
+    The Calling). A hidden NPC's result goes to the SW only. Buff/Healing never reach
+    here — see _apply_env_effect_now, used for every target on those categories."""
     from backend.roll_logic import roll_dice
     from backend.models import ActiveEffect
 
@@ -3340,8 +3341,9 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
     resist_total = die_roll + stat_value + edge + debuff_modifier
 
     hazard_total = sum(roll_dice(tier_die))
-    damage = max(0, hazard_total - resist_total)
-    outcome = "win" if damage == 0 else "loss"
+    is_debuff = category == "debuff"
+    outcome = "win" if resist_total >= hazard_total else "loss"
+    damage = 0 if is_debuff else max(0, hazard_total - resist_total)
 
     old_dp = npc.dp
     if damage > 0:
@@ -3349,42 +3351,107 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
         db.commit()
         db.refresh(npc)
 
+    magnitude = BUFF_DEBUFF_TABLE.get(tier_die, 1)
+    effect_name = (flavor_text or "Environmental Debuff")[:60] if is_debuff else None
+
     result_payload = {
         "type": "env_check_result", "request_id": f"npc-{npc.id}",
         "character_id": str(npc.id), "character_name": npc.name,
         "stat": stat, "tier": tier, "flavor_text": flavor_text,
+        "env_effect": category,
         "die_roll": die_roll, "stat_value": stat_value, "edge": edge,
         "debuff_modifier": debuff_modifier, "resist_total": resist_total,
         "hazard_total": hazard_total, "hazard_die": tier_die,
         "damage": damage, "outcome": outcome,
         "old_dp": old_dp, "new_dp": npc.dp, "max_dp": npc.max_dp,
+        "duration_rounds": magnitude if is_debuff else None,
+        "effect_name": effect_name,
         "calling_triggered": False, "rolled_by_sw": True,
-        "fail_effect": fail_effect if outcome == "loss" else None,
     }
     if silent:
         await manager.send_to_user(campaign_uuid, sw_user_id, result_payload)
     else:
+        loss_label = f"{effect_name} applied" if is_debuff else f"{damage} dmg"
         result_msg = Message(
             campaign_id=str(campaign_uuid), party_id=None, sender_id=str(sw_user_id),
             sender_name=npc.name,
-            content=f"Env Check — {stat} — {npc.name} — {'Resisted' if outcome == 'win' else f'{damage} dmg'}",
+            content=f"Env Check — {stat} — {npc.name} — {'Resisted' if outcome == 'win' else loss_label}",
             message_type="env_check_result", extra_data=result_payload,
         )
         db.add(result_msg)
         db.commit()
         result_payload["message_id"] = str(result_msg.id)
         await manager.broadcast(campaign_uuid, result_payload)
-    if outcome == "loss" and fail_effect:
-        await _apply_fail_effect(campaign_uuid, npc, fail_effect, "Env Check", db)
+    if is_debuff and outcome == "loss":
+        await _apply_fail_effect(campaign_uuid, npc, {
+            "name": effect_name, "modifier": -magnitude, "modifier_type": "custom",
+            "duration_rounds": magnitude,
+        }, "Env Check", db)
     return outcome
 
 
-async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data: dict, db: Session):
-    """SW fires an environmental hazard at 1..N PCs (and/or NPCs). Each PC target rolls
-    the SW-chosen stat to resist; the tier die minus their resist is the damage.
-    NPC targets are auto-resolved SW-side. v3.0 rules."""
-    from backend.models import StatCheckRequest
+async def _apply_env_effect_now(campaign_uuid, sw_user_id, char, category, tier, tier_die,
+                                flavor_text, silent, db):
+    """Buff / Healing environmental effects need no resist roll — the rulebook says
+    a Buff 'just happens', and Healing is 'no contested roll needed'. Applied
+    immediately to one target, PC or NPC alike, no request row, no pill."""
     from backend.roll_logic import roll_dice
+
+    old_dp = char.dp
+    new_dp = old_dp
+    roll_total = None
+    magnitude = None
+    duration = None
+    effect_name = None
+
+    if category == "healing":
+        roll_total = sum(roll_dice(tier_die))
+        new_dp = min(char.max_dp, (char.dp or 0) + roll_total)
+        char.dp = new_dp
+        db.commit()
+        db.refresh(char)
+    else:  # buff
+        magnitude = BUFF_DEBUFF_TABLE.get(tier_die, 1)
+        duration = magnitude
+        effect_name = (flavor_text or "Environmental Buff")[:60]
+        await _apply_fail_effect(campaign_uuid, char, {
+            "name": effect_name, "modifier": magnitude, "modifier_type": "custom",
+            "duration_rounds": duration,
+        }, "Env Check", db)
+
+    result_payload = {
+        "type": "env_check_result", "request_id": f"instant-{char.id}",
+        "character_id": str(char.id), "character_name": char.name,
+        "stat": None, "tier": tier, "flavor_text": flavor_text,
+        "env_effect": category,
+        "roll_total": roll_total, "magnitude": magnitude, "duration_rounds": duration,
+        "effect_name": effect_name,
+        "old_dp": old_dp, "new_dp": new_dp, "max_dp": char.max_dp,
+        "outcome": "win", "calling_triggered": False, "rolled_by_sw": True,
+    }
+    if silent:
+        await manager.send_to_user(campaign_uuid, sw_user_id, result_payload)
+    else:
+        label = f"+{roll_total} DP" if category == "healing" else f"{effect_name} applied"
+        result_msg = Message(
+            campaign_id=str(campaign_uuid), party_id=None, sender_id=str(sw_user_id),
+            sender_name=char.name,
+            content=f"Env Check — {'Healing' if category == 'healing' else 'Buff'} — {char.name} — {label}",
+            message_type="env_check_result", extra_data=result_payload,
+        )
+        db.add(result_msg)
+        db.commit()
+        result_payload["message_id"] = str(result_msg.id)
+        await manager.broadcast(campaign_uuid, result_payload)
+
+
+async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data: dict, db: Session):
+    """SW fires an environmental hazard at 1..N PCs (and/or NPCs). v3.0 rules: the
+    tier sets the die, the die sets the size via the rulebook tables — the SW just
+    picks what the hazard DOES. Damage/Debuff are contested (target rolls to
+    resist); Buff/Healing "just happen" (rulebook) and apply instantly to every
+    target, PC or NPC, no roll."""
+    from backend.models import StatCheckRequest
     from uuid import UUID as _UUID, uuid4 as _uuid4
 
     if not await is_story_weaver(campaign_uuid, sw_user_id, db):
@@ -3400,9 +3467,11 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
     tier_die = {1: "1d6", 2: "1d8", 3: "1d10", 4: "2d6", 5: "2d8"}.get(tier)
     if not tier_die:
         return
+    category = (data.get("effect_category") or "damage").lower()
+    if category not in ("damage", "debuff", "buff", "healing"):
+        category = "damage"
 
     flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
-    fail_effect = _sanitize_fail_effect(data.get("fail_effect"))
     raw_ids = data.get("character_ids") or ([data.get("character_id")] if data.get("character_id") else [])
     targets = []
     npc_targets = []
@@ -3420,12 +3489,48 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
     if not targets and not npc_targets:
         return
 
+    try:
+        from backend.stats_tracker import track_env_damage
+        track_env_damage(db, str(sw_user_id), tier)
+    except Exception as _se:
+        logger.warning(f"env track failed: {_se}")
+
+    if category in ("buff", "healing"):
+        # No roll needed — applies immediately to every selected target, PC or NPC.
+        for char in targets + npc_targets:
+            try:
+                await _apply_env_effect_now(
+                    campaign_uuid, sw_user_id, char, category, tier, tier_die, flavor_text,
+                    silent=bool(char.is_npc and not char.visible_to_players), db=db,
+                )
+            except Exception as _ie:
+                logger.warning(f"instant env effect failed: {_ie}")
+            if not char.is_npc and char.user_id:
+                try:
+                    from backend.notifications import send_push
+                    verb = "restores DP" if category == "healing" else "grants a buff"
+                    send_push(
+                        db, user_id=str(char.user_id),
+                        title=f"🌍 Environmental {category.capitalize()}",
+                        body=f"{char.name} {verb} from a Tier {tier} effect.",
+                        url=f"/game.html?campaign_id={campaign_uuid}&character_id={char.id}",
+                        campaign_id=str(campaign_uuid),
+                    )
+                except Exception as _pe:
+                    logger.warning(f"env push failed: {_pe}")
+        try:
+            from backend.stats_tracker import commit_stats
+            _new = commit_stats(db, str(sw_user_id))
+            await broadcast_achievement_awarded(campaign_uuid, sw_user_id, _new)
+        except Exception as _se:
+            logger.warning(f"env commit_stats failed: {_se}")
+        return
+
+    # Damage / Debuff — contested. PCs get a Roll-to-resist card + pill.
     group_id = _uuid4() if len(targets) >= 2 else None
     group_size = len(targets)
-
     try:
-        from backend.stats_tracker import track_env_damage, track_group_check_sent, commit_stats
-        track_env_damage(db, str(sw_user_id), tier)
+        from backend.stats_tracker import track_group_check_sent, commit_stats
         if group_id:
             track_group_check_sent(db, str(sw_user_id))
         _new = commit_stats(db, str(sw_user_id))
@@ -3440,7 +3545,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
             difficulty_die=tier_die, difficulty_label=f"Tier {tier}",
             tier=tier, sw_roll=0, flavor_text=flavor_text,
             status="pending", group_id=group_id, sw_user_id=sw_user_id,
-            fail_effect=fail_effect,
+            env_effect=category,
         )
         db.add(req)
         db.commit()
@@ -3452,7 +3557,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
             "stat": stat, "tier": tier, "tier_die": tier_die,
             "flavor_text": flavor_text,
             "group_id": str(group_id) if group_id else None, "group_size": group_size,
-            "fail_effect": fail_effect,
+            "env_effect": category,
         }
         msg = Message(
             campaign_id=str(campaign_uuid), party_id=None, sender_id=str(sw_user_id),
@@ -3479,20 +3584,22 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
             except Exception as _pe:
                 logger.warning(f"env push failed: {_pe}")
 
-    # NPC targets auto-resolve now (SW rolls resist for them, damage floored at 0).
-    # Hidden NPCs resolve to the SW only.
+    # NPC targets auto-resolve now (SW rolls resist for them). Hidden NPCs → SW only.
     for _npc in npc_targets:
         try:
             await _resolve_npc_env_check(
                 campaign_uuid, sw_user_id, _npc, stat, tier, tier_die, flavor_text,
-                silent=not _npc.visible_to_players, db=db, fail_effect=fail_effect,
+                silent=not _npc.visible_to_players, db=db, category=category,
             )
         except Exception as _ne:
             logger.warning(f"NPC env check resolve failed: {_ne}")
 
 
 async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict, db: Session):
-    """Player (or SW backup) resists an env check. damage = max(0, hazard - resist)."""
+    """Player (or SW backup) resists an env check. Damage: max(0, hazard − resist)
+    DP lost. Debuff: same roll, but on a fail apply the rulebook Buff/Debuff Table
+    magnitude (by tier die) instead of DP loss. (Buff/Healing never reach here —
+    they're applied instantly with no roll, see _apply_env_effect_now.)"""
     from backend.models import StatCheckRequest, ActiveEffect
     from backend.roll_logic import roll_dice
     from uuid import UUID as _UUID
@@ -3528,8 +3635,9 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
     resist_total = die_roll + stat_value + edge + debuff_modifier
 
     hazard_total = sum(roll_dice(req.difficulty_die))
-    damage = max(0, hazard_total - resist_total)
-    outcome = "win" if damage == 0 else "loss"
+    is_debuff = (req.env_effect or "damage") == "debuff"
+    outcome = "win" if resist_total >= hazard_total else "loss"
+    damage = 0 if is_debuff else max(0, hazard_total - resist_total)
 
     old_dp = char.dp
     calling_triggered = False
@@ -3542,6 +3650,9 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
             db.refresh(char)
             calling_triggered = char.in_calling or char.status == "archived"
 
+    magnitude = BUFF_DEBUFF_TABLE.get(req.difficulty_die, 1)
+    effect_name = (req.flavor_text or "Environmental Debuff")[:60] if is_debuff else None
+
     req.player_roll = die_roll
     req.player_total = resist_total
     req.sw_roll = hazard_total
@@ -3553,22 +3664,25 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
     req.resolved_at = _dt.utcnow()
     db.commit()
 
+    loss_label = f"{effect_name} applied" if is_debuff else f"{damage} dmg"
     result_payload = {
         "type": "env_check_result", "request_id": str(req.id),
         "character_id": str(char.id), "character_name": char.name,
         "stat": req.stat, "tier": req.tier, "flavor_text": (req.flavor_text or "").split("\n__npc_id")[0] or None,
+        "env_effect": req.env_effect or "damage",
         "die_roll": die_roll, "stat_value": stat_value, "edge": edge,
         "debuff_modifier": debuff_modifier, "resist_total": resist_total,
         "hazard_total": hazard_total, "hazard_die": req.difficulty_die,
         "damage": damage, "outcome": outcome,
         "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp,
+        "duration_rounds": magnitude if is_debuff else None,
+        "effect_name": effect_name,
         "calling_triggered": calling_triggered, "rolled_by_sw": rolled_by_sw,
-        "fail_effect": req.fail_effect if outcome == "loss" else None,
     }
     result_msg = Message(
         campaign_id=str(campaign_uuid), party_id=None, sender_id=str(user_id),
         sender_name=char.name,
-        content=f"Env Check — {req.stat} — {char.name} — {'Resisted' if outcome == 'win' else f'{damage} dmg'}",
+        content=f"Env Check — {req.stat} — {char.name} — {'Resisted' if outcome == 'win' else loss_label}",
         message_type="env_check_result", extra_data=result_payload,
     )
     db.add(result_msg)
@@ -3576,8 +3690,11 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
     result_payload["message_id"] = str(result_msg.id)
     await manager.broadcast(campaign_uuid, result_payload)
 
-    if outcome == "loss" and req.fail_effect:
-        await _apply_fail_effect(campaign_uuid, char, req.fail_effect, "Env Check", db)
+    if is_debuff and outcome == "loss":
+        await _apply_fail_effect(campaign_uuid, char, {
+            "name": effect_name, "modifier": -magnitude, "modifier_type": "custom",
+            "duration_rounds": magnitude,
+        }, "Env Check", db)
 
     if req.group_id:
         await _maybe_finish_group_check(campaign_uuid, req.group_id, "env", db)
