@@ -10977,6 +10977,11 @@
                 const card = renderGroupCheckSummaryCard({ ...d, timestamp: msg.timestamp });
                 storeAndDisplayMessage(card, { type: 'group_check_summary', timestamp: msg.timestamp, message_id: msg.id, actor: 'system' });
               }
+              else if (msg.message_type === 'achievement_announced') {
+                const d = msg.extra_data || {};
+                const card = makeAchievementChatCard(d);
+                storeAndDisplayMessage(card, { type: 'achievement_announced', timestamp: msg.timestamp, message_id: msg.id, actor: d.earner_name || 'system' });
+              }
               else if (msg.message_type === 'stat_roll') {
                 console.log('📊 Loading stat roll from history:', msg);
                 const data = msg.extra_data || {};

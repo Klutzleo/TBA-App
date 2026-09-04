@@ -482,7 +482,7 @@ async def campaign_websocket(
                     from backend.stats_tracker import track_scene_update, commit_stats
                     track_scene_update(db, str(user_id))
                     _new = commit_stats(db, str(user_id))
-                    await broadcast_achievement_awarded(campaign_id, user_id, _new)
+                    await broadcast_achievement_awarded(campaign_id, user_id, _new, db)
                 except Exception as _se:
                     logger.warning(f"Stats track_scene_update failed: {_se}")
 
@@ -834,7 +834,7 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
             _char = db.query(Character).filter(Character.user_id == str(user_id)).first() if db else None
             track_message(db, str(user_id), str(_char.id) if _char else None, campaign_id=str(campaign_id))
             _new = commit_stats(db, str(user_id))
-            await broadcast_achievement_awarded(campaign_id, user_id, _new)
+            await broadcast_achievement_awarded(campaign_id, user_id, _new, db)
         except Exception as _se:
             logger.warning(f"Stats track_message failed: {_se}")
 
@@ -1327,7 +1327,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             if not defender.is_npc and defender.user_id:
                 track_damage_taken(db, str(defender.user_id), str(defender.id), result["total_damage"])
             _new = commit_stats(db, _atk_user)
-            await broadcast_achievement_awarded(campaign_id, _atk_user, _new)
+            await broadcast_achievement_awarded(campaign_id, _atk_user, _new, db)
         except Exception as _se:
             logger.warning(f"Stats track_attack failed: {_se}")
 
@@ -1360,7 +1360,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                         if defender.user_id:
                             track_calling(db, str(defender.user_id), str(defender.id), campaign_id=str(campaign_id))
                             _new = commit_stats(db, str(defender.user_id))
-                            await broadcast_achievement_awarded(campaign_id, defender.user_id, _new)
+                            await broadcast_achievement_awarded(campaign_id, defender.user_id, _new, db)
                     except Exception as _se:
                         logger.warning(f"Stats track_calling failed: {_se}")
                     calling_msg = Message(
@@ -1625,7 +1625,7 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
         if caster.user_id:
             track_summon_fired(db, str(caster.user_id), str(caster.id))
             _new = _cs(db, str(caster.user_id))
-            await broadcast_achievement_awarded(campaign_id, caster.user_id, _new)
+            await broadcast_achievement_awarded(campaign_id, caster.user_id, _new, db)
     except Exception as _se:
         logger.warning(f"Stats track_summon_fired failed: {_se}")
 
@@ -2403,7 +2403,7 @@ async def handle_dice_roll(campaign_id: UUID, data: dict, user_id: UUID, db: Ses
             from backend.stats_tracker import track_dice_roll, commit_stats
             track_dice_roll(db, str(user_id), str(_roll_char.id) if _roll_char else None, breakdown, _die_size, campaign_id=str(campaign_id))
             _new = commit_stats(db, str(user_id))
-            await broadcast_achievement_awarded(campaign_id, user_id, _new)
+            await broadcast_achievement_awarded(campaign_id, user_id, _new, db)
         except Exception as _se:
             logger.warning(f"Stats track_dice_roll failed: {_se}")
 
@@ -2613,7 +2613,7 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
         from backend.stats_tracker import track_stat_check, commit_stats
         track_stat_check(db, str(user_id), str(character.id), stat_type, die_roll, campaign_id=str(campaign_id))
         _new = commit_stats(db, str(user_id))
-        await broadcast_achievement_awarded(campaign_id, user_id, _new)
+        await broadcast_achievement_awarded(campaign_id, user_id, _new, db)
     except Exception as _se:
         logger.warning(f"Stats track_stat_check failed: {_se}")
 
@@ -3092,7 +3092,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
             outcome=outcome,
         )
         _new = commit_stats(db, str(char.user_id))
-        await broadcast_achievement_awarded(campaign_uuid, char.user_id, _new)
+        await broadcast_achievement_awarded(campaign_uuid, char.user_id, _new, db)
     except Exception as _se:
         logger.warning(f"Stats track_stat_check_outcome failed: {_se}")
 
@@ -3210,7 +3210,7 @@ async def _maybe_finish_group_check(campaign_uuid: UUID, group_id, kind: str, db
             for uid in player_uids:
                 track_group_check_result(db, uid, all_win=all_win, all_loss=all_loss)
                 _new = commit_stats(db, uid)
-                await broadcast_achievement_awarded(campaign_uuid, uid, _new)
+                await broadcast_achievement_awarded(campaign_uuid, uid, _new, db)
         except Exception as _se:
             logger.warning(f"track_group_check_result failed: {_se}")
     summary = {
@@ -3261,7 +3261,7 @@ async def _trigger_the_calling(defender, campaign_id, db: Session, actor_user_id
         if defender.user_id:
             track_calling(db, str(defender.user_id), str(defender.id), campaign_id=str(campaign_id))
             _new = commit_stats(db, str(defender.user_id))
-            await broadcast_achievement_awarded(campaign_id, defender.user_id, _new)
+            await broadcast_achievement_awarded(campaign_id, defender.user_id, _new, db)
     except Exception as _se:
         logger.warning(f"Stats track_calling failed: {_se}")
 
@@ -3490,7 +3490,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
         try:
             from backend.stats_tracker import commit_stats
             _new = commit_stats(db, str(sw_user_id))
-            await broadcast_achievement_awarded(campaign_uuid, sw_user_id, _new)
+            await broadcast_achievement_awarded(campaign_uuid, sw_user_id, _new, db)
         except Exception as _se:
             logger.warning(f"env commit_stats failed: {_se}")
         return
@@ -3503,7 +3503,7 @@ async def _handle_env_check_request(campaign_uuid: UUID, sw_user_id: UUID, data:
         if group_id:
             track_group_check_sent(db, str(sw_user_id))
         _new = commit_stats(db, str(sw_user_id))
-        await broadcast_achievement_awarded(campaign_uuid, sw_user_id, _new)
+        await broadcast_achievement_awarded(campaign_uuid, sw_user_id, _new, db)
     except Exception as _se:
         logger.warning(f"env track failed: {_se}")
 
@@ -3703,14 +3703,26 @@ async def broadcast_dp_healed(campaign_id: UUID, character_id: str, character_na
     await manager.broadcast(campaign_id, payload)
 
 
-async def broadcast_achievement_awarded(campaign_id: UUID, user_id, newly_awarded: list[str]):
+# Achievements worth a permanent chat-feed moment even though their routine
+# "campaign" broadcast scope wouldn't otherwise qualify — the shared group-check
+# outcomes, since the whole table earned these together. Keep in sync with any
+# future "the whole party did something" achievement.
+_BIG_CHAT_ACHIEVEMENTS = {"party_look_at_us", "party_this_is_fine"}
+
+
+async def broadcast_achievement_awarded(campaign_id: UUID, user_id, newly_awarded: list[str], db: Session):
     """Route each newly-earned achievement by its broadcast scope.
 
-    personal — private slide-up toast to the earner only.
-    campaign — earner gets a slide-up toast AND a compact expandable card
-               is injected into every connected player's chat feed.
-    global   — same as campaign but the earner's toast uses a gold 'Legendary'
-               label instead of 'Achievement Unlocked'.
+    Every achievement gets the earner's private slide-up toast (personal,
+    ephemeral) — the notification-center entry is handled separately, per-earner,
+    inside check_and_award.
+
+    Only the BIG ones also get a chat-feed card, and that card is persisted as a
+    real Message so it survives a refresh instead of vanishing the moment it
+    scrolls off: global-scope (Legendary tier) achievements, plus the two shared
+    group-check outcomes (_BIG_CHAT_ACHIEVEMENTS). Routine campaign-scope
+    achievements — most of them — never touch the story feed at all; the toast +
+    notification is enough, and keeps the feed from flooding with routine pings.
     """
     if not newly_awarded:
         return
@@ -3733,9 +3745,9 @@ async def broadcast_achievement_awarded(campaign_id: UUID, user_id, newly_awarde
         }
         # Always send the personal slide-up to the earner
         await manager.send_to_user(campaign_id, user_id, payload)
-        # Campaign and global also broadcast an expandable chat card to everyone
-        if scope in ("campaign", "global"):
-            await manager.broadcast(campaign_id, {
+
+        if scope == "global" or aid in _BIG_CHAT_ACHIEVEMENTS:
+            announce_payload = {
                 "type": "achievement_announced",
                 "achievement_id": aid,
                 "name": meta["name"],
@@ -3745,7 +3757,25 @@ async def broadcast_achievement_awarded(campaign_id: UUID, user_id, newly_awarde
                 "rarity_label": meta.get("rarity", "common"),
                 "earner_name": display_name,
                 "scope": scope,
-            })
+            }
+            try:
+                msg = Message(
+                    campaign_id=str(campaign_id), party_id=None,
+                    sender_id=str(user_id), sender_name=display_name,
+                    content=f'🏆 {display_name} earned "{meta["name"]}"',
+                    message_type="achievement_announced",
+                    extra_data=announce_payload,
+                )
+                db.add(msg)
+                db.commit()
+                announce_payload["message_id"] = str(msg.id)
+            except Exception as _me:
+                logger.warning(f"Failed to persist achievement_announced message: {_me}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+            await manager.broadcast(campaign_id, announce_payload)
 
 
 async def broadcast_bap_granted(campaign_id: UUID, character_id: str, character_name: str, owner_id: str, token_type: str, message_id: str = None):
@@ -3839,7 +3869,7 @@ async def get_or_create_active_encounter(campaign_uuid: UUID, db: Session) -> En
                 from backend.stats_tracker import track_battle_initiated, commit_stats
                 track_battle_initiated(db, str(sw_membership.user_id))
                 _new = commit_stats(db, str(sw_membership.user_id))
-                await broadcast_achievement_awarded(campaign_uuid, sw_membership.user_id, _new)
+                await broadcast_achievement_awarded(campaign_uuid, sw_membership.user_id, _new, db)
         except Exception as _se:
             logger.warning(f"Stats track_battle_initiated failed: {_se}")
 
