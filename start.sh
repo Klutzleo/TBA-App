@@ -20,4 +20,9 @@ python run_migrations.py
 # echo ""
 
 echo "🚀 Starting web server..."
-exec uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000}
+# --proxy-headers/--forwarded-allow-ips: Railway's edge proxy is the only thing
+# that can reach this container, so trust its X-Forwarded-For. Without this,
+# uvicorn leaves request.client.host as the proxy hop, not the real client IP —
+# slowapi's get_remote_address() (used for every @limiter.limit()) keys off
+# that, so rate limiting was silently non-functional in prod.
+exec uvicorn backend.app:application --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'
