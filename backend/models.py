@@ -1030,7 +1030,7 @@ class StatCheckRequest(Base):
     rolled_by_sw    = Column(Boolean, nullable=False, default=False)
     group_id        = Column(UUID(as_uuid=True), nullable=True, index=True)  # shared across one multi-target send
     sw_user_id      = Column(UUID(as_uuid=True), nullable=True)   # SW who created it (achievement credit)
-    fail_effect     = Column(JSON, nullable=True)                 # Stat Check only: {name, modifier, modifier_type, duration_rounds} applied on a loss
+    fail_effect     = Column(JSON, nullable=True)                 # Unused (Stat Check's free-form fail-effect box was removed) — kept, never written
     env_effect      = Column(String(10), nullable=False, default='damage')  # Env Check only: damage | debuff (buff/healing apply instantly, no row)
     created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
     resolved_at     = Column(DateTime(timezone=True), nullable=True)

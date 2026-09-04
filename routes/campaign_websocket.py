@@ -2761,35 +2761,12 @@ async def broadcast_player_joined(campaign_id: UUID, username: str):
     })
 
 
-_FAIL_EFFECT_TYPES = {"custom", "attack", "defense", "initiative"}
-
-
-def _sanitize_fail_effect(spec):
-    """Normalise a modal's fail-effect spec to {name, modifier, modifier_type,
-    duration_rounds} or None. Modifier clamped -3..+3, duration 1..20 or None."""
-    if not isinstance(spec, dict):
-        return None
-    name = (spec.get("name") or "").strip()[:100]
-    if not name:
-        return None
-    try:
-        modifier = max(-3, min(3, int(spec.get("modifier", 0))))
-    except (TypeError, ValueError):
-        modifier = 0
-    mtype = str(spec.get("modifier_type") or "custom").lower()
-    if mtype not in _FAIL_EFFECT_TYPES:
-        mtype = "custom"
-    dur = spec.get("duration_rounds")
-    try:
-        dur = max(1, min(20, int(dur))) if dur not in (None, "", 0) else None
-    except (TypeError, ValueError):
-        dur = None
-    return {"name": name, "modifier": modifier, "modifier_type": mtype, "duration_rounds": dur}
-
-
 async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
-    """Attach the SW-defined effect to a character who just failed a check, then
-    push the refreshed effect list to everyone (same shape as effects_sync)."""
+    """Attach an effect to a character (e.g. a failed Env Check debuff/buff), then
+    push the refreshed effect list to everyone (same shape as effects_sync).
+    `spec` is always server-computed now — {name, modifier, modifier_type,
+    duration_rounds} — never SW-typed input (Stat Check's old free-form box was
+    removed; see the rulebook-table-driven Env Check categories instead)."""
     from backend.models import ActiveEffect
     if not spec:
         return
@@ -2819,8 +2796,7 @@ async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
 
 
 async def _resolve_npc_stat_check(campaign_uuid, sw_user_id, npc, stat, sw_roll,
-                                 difficulty_label, flavor_text, silent, db,
-                                 fail_effect=None):
+                                 difficulty_label, flavor_text, silent, db):
     """Auto-resolve a stat check for an NPC target — the SW rolls for them right now,
     no request row, no player pill. A hidden NPC's result goes to the SW only."""
     from backend.roll_logic import roll_dice
@@ -2855,8 +2831,6 @@ async def _resolve_npc_stat_check(campaign_uuid, sw_user_id, npc, stat, sw_roll,
         await manager.send_to_user(campaign_uuid, sw_user_id, result)
     else:
         await manager.broadcast(campaign_uuid, result)
-    if outcome == "loss" and fail_effect:
-        await _apply_fail_effect(campaign_uuid, npc, fail_effect, "Stat Check", db)
     return outcome
 
 
@@ -2880,7 +2854,6 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
     flavor_text = (data.get("flavor_text") or "").strip()[:300] or None
     bap_granted = bool(data.get("bap_granted", False))
     hidden = bool(data.get("hidden", False))
-    fail_effect = _sanitize_fail_effect(data.get("fail_effect"))
 
     char = None
     npc = None
@@ -2935,7 +2908,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
         sw_difficulty_total = sum(roll_dice(difficulty_die))
         await _resolve_npc_stat_check(
             campaign_uuid, sw_user_id, npc, stat, sw_difficulty_total,
-            difficulty_label, flavor_text, silent=hidden, db=db, fail_effect=fail_effect,
+            difficulty_label, flavor_text, silent=hidden, db=db,
         )
         return
     else:
@@ -2974,7 +2947,6 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             status="pending",
             group_id=group_id if mode == "character" else None,
             sw_user_id=sw_user_id,
-            fail_effect=fail_effect,
         )
         db.add(req)
         db.commit()
@@ -2998,7 +2970,6 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             "difficulty_label": difficulty_label,
             "group_id": str(group_id) if (group_id and mode == "character") else None,
             "group_size": group_size if mode == "character" else 1,
-            "fail_effect": fail_effect,
         }
         msg = Message(
             campaign_id=str(campaign_uuid),
@@ -3039,7 +3010,6 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
                     campaign_uuid, sw_user_id, _npc, stat, sw_roll,
                     difficulty_label, flavor_text,
                     silent=(not _npc.visible_to_players or hidden), db=db,
-                    fail_effect=fail_effect,
                 )
             except Exception as _ne:
                 logger.warning(f"NPC stat check resolve failed: {_ne}")
@@ -3142,7 +3112,6 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "margin": margin,
         "bap_granted": req.bap_granted,
         "rolled_by_sw": rolled_by_sw,
-        "fail_effect": req.fail_effect if outcome == "loss" else None,
     }
     result_msg = Message(
         campaign_id=str(campaign_uuid),
@@ -3157,9 +3126,6 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     db.commit()
     result_payload["message_id"] = str(result_msg.id)
     await manager.broadcast(campaign_uuid, result_payload)
-
-    if outcome == "loss" and req.fail_effect:
-        await _apply_fail_effect(campaign_uuid, char, req.fail_effect, "Stat Check", db)
 
     if req.group_id:
         await _maybe_finish_group_check(campaign_uuid, req.group_id, req.kind or "stat", db)
