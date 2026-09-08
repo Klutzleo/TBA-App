@@ -236,6 +236,7 @@
 
     /* how it works */
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; counter-reset: step; }
+    .steps[hidden] { display: none; }
     .step { position: relative; padding: 24px 20px; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 14px; }
     .step .num {
       counter-increment: step;
@@ -394,20 +395,20 @@
     <div class="wrap">
       <div class="duel bap">
         <div class="duel-viz bap-viz" aria-hidden="true">
-          <span class="dv-label">Scalelord, level 7 — carries a +4 BAP</span>
+          <span class="dv-label">Scalelord, level 7 — his BAP bonus is +4</span>
           <div class="bap-line">1d6 <span class="op">+</span> PP 3 <span class="op">+</span> Edge 3 <span class="op">+</span> <span class="bap-tok">BAP&nbsp;4</span></div>
-          <div class="dv-out">Story Weaver: <em>"Ran through the fire for a stranger? Take it."</em></div>
+          <div class="dv-out">Story Weaver: <em>"Ran through the fire for a stranger? Yeah. That counts."</em></div>
         </div>
         <div class="duel-copy">
           <div class="tag">Why it's called that</div>
-          <h2>Do something cool. <span class="accent">Cash it in.</span></h2>
+          <h2>Play it bold. <span class="accent">The dice notice.</span></h2>
           <p>
-            <strong>BAP — Bad-Ass Power.</strong> It's a bonus set by your level, climbing from
-            +1 at the start to +5 by level 10. You don't spend it whenever you like — the
-            Story Weaver has to see the moment: run through the fire for a stranger, take the
-            hit meant for a friend, land the line before the shot. Call it, earn the nod, and
-            your full BAP rides on that roll. The system is built to reward the story, not
-            just the tactics.
+            <strong>BAP — Bad-Ass Power.</strong> Do something bold, clever, or straight-up
+            cinematic in the moment — run through the fire for a stranger, take the hit meant
+            for a friend, pull off the plan nobody saw coming. If the Story Weaver buys it,
+            your BAP counts on that roll. It's not currency you hoard and spend — it's the
+            game rewarding you for thinking sideways and making a memory. How much it's worth
+            climbs with your level, from +1 early to +5 by level 10.
           </p>
         </div>
       </div>
@@ -541,7 +542,7 @@
     <div class="wrap">
       <div class="cta-band">
         <h2>Your party's waiting.</h2>
-        <p>Create a campaign in a minute. It's free.</p>
+        <p>Create or join a campaign in a minute. It's free.</p>
         <a class="btn btn-primary btn-lg" href="/auth.html?tab=register">Start playing</a>
       </div>
     </div>
