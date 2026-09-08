@@ -7,6 +7,8 @@
   <meta name="description" content="TBA is a real-time platform for playing the TBA tabletop RPG in your browser. Roll dice, run combat, and narrate the story with your party — live, from anywhere, no virtual tabletop to wrestle.">
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1a1a2e" />
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="TBA — Run your tabletop RPG in the browser">
@@ -199,6 +201,25 @@
     .voice.awesome h3 { color: var(--green); }
     .voice p { color: var(--text-mut); font-size: 0.95rem; }
 
+    /* install band */
+    .install-band {
+      display: flex; align-items: center; gap: 28px;
+      background: linear-gradient(120deg, rgba(167,139,250,0.08), rgba(212,175,55,0.06));
+      border: 1px solid var(--border-soft); border-radius: 18px; padding: 34px 32px;
+    }
+    .install-copy { flex: 1; }
+    .install-copy .tag { font-size: 0.76rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--purple); margin-bottom: 10px; }
+    .install-copy h2 { font-size: clamp(1.5rem, 3.2vw, 2rem); font-weight: 800; margin-bottom: 10px; }
+    .install-copy p { color: var(--text-mut); font-size: 0.98rem; max-width: 54ch; }
+    .install-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 18px; }
+    .install-hint { font-size: 0.82rem; color: var(--text-dim); max-width: 40ch; }
+    .install-hint strong { color: var(--text-mut); }
+    .install-glyph {
+      width: 84px; height: 84px; border-radius: 20px; flex-shrink: 0;
+      display: grid; place-items: center; color: var(--purple);
+      background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.25);
+    }
+
     /* final cta */
     .cta-band { text-align: center; background: linear-gradient(180deg, var(--panel), var(--bg-2)); border: 1px solid var(--border-soft); border-radius: 20px; padding: 56px 28px; }
     .cta-band h2 { font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 800; margin-bottom: 12px; }
@@ -215,6 +236,9 @@
       .features { grid-template-columns: repeat(2, 1fr); }
       .steps { grid-template-columns: 1fr; }
       .voice { grid-template-columns: 1fr; }
+      .install-band { flex-direction: column; text-align: center; align-items: center; }
+      .install-actions { justify-content: center; }
+      .install-glyph { order: -1; }
       section { padding: 60px 0; }
     }
     @media (max-width: 460px) {
@@ -379,6 +403,32 @@
     </div>
   </section>
 
+  <section id="install">
+    <div class="wrap">
+      <div class="install-band">
+        <div class="install-copy">
+          <div class="tag">Install it</div>
+          <h2>Keep the table in your pocket</h2>
+          <p>
+            TBA is a Progressive Web App — add it to your home screen or desktop and it
+            runs in its own window, launches from an icon, and can push you a notification
+            the moment it's your roll. No app store, no download size.
+          </p>
+          <div class="install-actions">
+            <button id="installBtn" class="btn btn-primary" hidden>
+              <i data-lucide="download" style="width:16px;height:16px"></i> Install TBA
+            </button>
+            <span class="install-hint" id="installHint">
+              On <strong>iPhone/iPad</strong>: tap Share <i data-lucide="share" style="width:13px;height:13px;vertical-align:middle"></i>
+              then <strong>Add to Home Screen</strong>. On <strong>Android/desktop Chrome</strong>: menu → <strong>Install app</strong>.
+            </span>
+          </div>
+        </div>
+        <div class="install-glyph"><i data-lucide="smartphone" style="width:40px;height:40px"></i></div>
+      </div>
+    </div>
+  </section>
+
   <section>
     <div class="wrap">
       <div class="cta-band">
@@ -402,12 +452,39 @@
 
   <script>
     if (window.lucide) lucide.createIcons();
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
     // If a returning player is already signed in, send them to their campaigns.
     try {
       if (localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token')) {
         location.replace('/campaigns.html');
       }
     } catch (_) {}
+
+    // PWA install: show a real "Install" button on browsers that support the prompt
+    // (Chromium desktop + Android). iOS Safari never fires this — the text hint covers it.
+    (function () {
+      var deferred = null;
+      var btn = document.getElementById('installBtn');
+      var hint = document.getElementById('installHint');
+      var installed = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+      if (installed) { if (hint) hint.textContent = "You've already installed TBA — nice."; return; }
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault(); deferred = e;
+        if (btn) btn.hidden = false;
+        if (hint) hint.hidden = true;
+      });
+      if (btn) btn.addEventListener('click', async function () {
+        if (!deferred) return;
+        deferred.prompt();
+        await deferred.userChoice;
+        deferred = null; btn.hidden = true;
+        if (hint) hint.hidden = false;
+      });
+      window.addEventListener('appinstalled', function () {
+        if (btn) btn.hidden = true;
+        if (hint) { hint.hidden = false; hint.textContent = 'Installed. Look for the TBA icon.'; }
+      });
+    })();
   </script>
 </body>
 </html>
