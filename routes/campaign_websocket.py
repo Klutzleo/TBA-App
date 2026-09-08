@@ -1030,9 +1030,13 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             def_die = defender.defense_die or "1d4"
             def_rolls = roll_dice(def_die)
             def_roll_total = sum(def_rolls)
-            defense_total = def_roll_total + stat_value + edge
+            _def_tether_mod, _def_active_tethers = _active_tethers(defender)
+            defense_total = def_roll_total + stat_value + edge + _def_tether_mod
             rolls_str = " + ".join(str(r) for r in def_rolls)
-            breakdown = f"{def_die} = [{rolls_str}] + {stat_label}({stat_value}) + Edge({edge}) = {defense_total}"
+            breakdown = f"{def_die} = [{rolls_str}] + {stat_label}({stat_value}) + Edge({edge})"
+            if _def_tether_mod:
+                breakdown += f" + Tether({_def_tether_mod:+d})"
+            breakdown += f" = {defense_total}"
 
             # Persist to message history
             _def_tethers = [t for t in (defender.tethers or []) if t.get("modifier", 0) != 0]
@@ -1249,6 +1253,9 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             attacker.bap_token_expires_at = None
             db.commit()
 
+        # Active Tethers ride every roll while the SW has them switched on.
+        attacker_tether_modifier, attacker_tether_rows = _active_tethers(attacker)
+
         # Resolve multi-die attack
         result = resolve_multi_die_attack(
             attacker={"name": attacker.name},
@@ -1265,6 +1272,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             weapon_bonus=weapon_bonus,
             armor_bonus=armor_bonus,
             defender_edge=defender.edge,
+            tether_bonus=attacker_tether_modifier,
         )
         
         # =====================================================================
@@ -1325,6 +1333,8 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             defender_id=str(defender.id),
             attacker_bap=attacker.bap or 1,
             attacker_tethers=[t for t in (attacker.tethers or []) if t.get("modifier", 0) != 0],
+            tether_modifier=attacker_tether_modifier or None,
+            active_tethers=attacker_tether_rows or None,
         )
         await manager.broadcast(campaign_id, combat_broadcast.model_dump(mode='json'))
 
@@ -2542,9 +2552,10 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
     roll_result = roll_dice("1d6")
     die_roll = sum(roll_result)  # Sum the list to get the roll value
 
-    # Calculate total: 1d6 + stat + edge
+    # Calculate total: 1d6 + stat + edge + active tethers
     edge = character.edge
-    total = die_roll + stat_value + edge
+    _stat_tether_mod, _stat_active_tethers = _active_tethers(character)
+    total = die_roll + stat_value + edge + _stat_tether_mod
 
     # BAP token usage
     use_bap = data.get("use_bap", False)
@@ -2559,7 +2570,8 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
 
     # Build breakdown text showing the math
     bap_part = f" + BAP({bap_bonus})" if bap_bonus else ""
-    breakdown_text = f"1d6({die_roll}) + {stat_type}({stat_value}) + Edge({edge}){bap_part} = {total}"
+    tether_part = f" + Tether({_stat_tether_mod:+d})" if _stat_tether_mod else ""
+    breakdown_text = f"1d6({die_roll}) + {stat_type}({stat_value}) + Edge({edge}){tether_part}{bap_part} = {total}"
     result_text = f"{stat_name} Check: {total}"
 
     # Persist to database first so we have the message_id
@@ -2825,6 +2837,18 @@ async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
             "applied_by": e.applied_by,
         } for e in effects],
     })
+
+
+def _active_tethers(char):
+    """A character's currently-active Tethers: (total modifier, [{"description","modifier"}]).
+    Recomputed from char.tethers so a stale active_tether_modifier cache can't drift.
+    The SW toggles is_active when the fiction triggers the tether (and clears it after)."""
+    rows = [
+        {"description": (t.get("description") or "Tether")[:60], "modifier": int(t.get("modifier") or 0)}
+        for t in (getattr(char, "tethers", None) or [])
+        if t.get("is_active") and (t.get("modifier") or 0) != 0
+    ]
+    return sum(t["modifier"] for t in rows), rows
 
 
 async def _defeat_object(campaign_uuid, obj, db, *, actor_user_id, source="check"):
@@ -3168,8 +3192,9 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         ActiveEffect.character_id == char.id,
     ).all()
     debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
+    tether_modifier, tether_rows = _active_tethers(char)
 
-    player_total = die_roll + stat_value + edge + debuff_modifier
+    player_total = die_roll + stat_value + edge + debuff_modifier + tether_modifier
     sw_total = req.sw_roll
     outcome = "win" if player_total > sw_total else "loss"
     margin = player_total - sw_total
@@ -3216,6 +3241,8 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "stat_value": stat_value,
         "edge": edge,
         "debuff_modifier": debuff_modifier,
+        "tether_modifier": tether_modifier,
+        "tethers": tether_rows,
         "player_total": player_total,
         "sw_roll": req.sw_roll,
         "sw_total": sw_total,
@@ -3727,7 +3754,8 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
     edge = char.edge or 0
     effects = db.query(ActiveEffect).filter(ActiveEffect.character_id == char.id).all()
     debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
-    resist_total = die_roll + stat_value + edge + debuff_modifier
+    tether_modifier, tether_rows = _active_tethers(char)
+    resist_total = die_roll + stat_value + edge + debuff_modifier + tether_modifier
 
     hazard_total = sum(roll_dice(req.difficulty_die))
     is_debuff = (req.env_effect or "damage") == "debuff"
@@ -3767,6 +3795,7 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
         "env_effect": req.env_effect or "damage",
         "die_roll": die_roll, "stat_value": stat_value, "edge": edge,
         "debuff_modifier": debuff_modifier, "resist_total": resist_total,
+        "tether_modifier": tether_modifier, "tethers": tether_rows,
         "hazard_total": hazard_total, "hazard_die": req.difficulty_die,
         "damage": damage, "outcome": outcome,
         "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp,

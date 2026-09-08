@@ -831,6 +831,8 @@ async def get_campaign_members(
                 "uses_remaining": total_uses_remaining,
                 "max_uses": max_uses,
                 "ability_count": len(abilities),
+                "tethers": character.tethers or [],
+                "active_tether_modifier": character.active_tether_modifier or 0,
             }
 
         result.append({

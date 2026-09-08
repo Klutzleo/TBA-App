@@ -9565,6 +9565,18 @@
       } catch (e) { alert('Failed to toggle tether: ' + e.message); }
     }
 
+    // Quick "release" from the party-panel active-tether chip — deactivate, no modal.
+    async function swReleaseTether(charId, tetherId) {
+      try {
+        await fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: false })
+        });
+        // the tether_deactivated broadcast reloads the party panel for everyone
+      } catch (e) { showPanelToast('Could not release tether', 'error'); }
+    }
+
     async function swRemoveTether(charId, tetherId) {
       if (!confirm('Remove this tether?')) return;
       try {
@@ -10745,8 +10757,9 @@
       if (roll.base_roll !== undefined) {
         const bapPart = roll.bap_bonus ? ` + BAP(${roll.bap_bonus})` : '';
         const atkFx = roll.attacker_effect_bonus ? ` + Fx(${roll.attacker_effect_bonus > 0 ? '+' : ''}${roll.attacker_effect_bonus})` : '';
+        const atkTether = roll.tether_bonus ? ` + 🔗(${roll.tether_bonus > 0 ? '+' : ''}${roll.tether_bonus})` : '';
         const defFx = roll.defender_effect_bonus ? ` + Fx(${roll.defender_effect_bonus > 0 ? '+' : ''}${roll.defender_effect_bonus})` : '';
-        const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0})${atkFx}${bapPart} = ${roll.attacker_roll}`;
+        const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0})${atkFx}${atkTether}${bapPart} = ${roll.attacker_roll}`;
         const rawDef = roll.raw_defense_roll ?? roll.defense_roll;
         const defStr = `die(${rawDef}) + Stat(${roll.def_stat_bonus ?? 0}) + Edge(${roll.def_edge_bonus ?? 0}) + Arm(${roll.armor_bonus ?? 0})${defFx} = ${roll.defense_roll}`;
         return `[${idx+1}] ATK: ${atkStr}   |   DEF: ${defStr}   →  ${marginStr} = ${dmg}`;
@@ -14320,8 +14333,20 @@
             const isCalledBadge = char.is_called
               ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;margin-left:4px;" title="The Called — haunted by visions and nightmares">The Called</span>`
               : '';
-            const tetherBadge = (char.active_tether_modifier && char.active_tether_modifier !== 0)
-              ? `<span style="font-size:0.7rem;color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};background:rgba(147,197,253,0.08);border:1px solid rgba(147,197,253,0.25);border-radius:4px;padding:1px 5px;margin-left:4px;display:inline-flex;align-items:center;gap:2px;" title="Active Tether modifier"><i data-lucide="link" style="width:10px;height:10px;"></i>${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>`
+            const tetherBadge = '';
+            // Active Tethers ride every roll this character makes until released. Loud on
+            // purpose so the SW remembers to switch them off when the moment passes.
+            const _activeTethers = (char.tethers || []).filter(t => t.is_active && (t.modifier || 0) !== 0);
+            const tetherRow = _activeTethers.length
+              ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;">
+                   ${_activeTethers.map(t => `
+                     <div style="display:flex;align-items:center;gap:6px;font-size:0.72rem;background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.4);border-radius:5px;padding:2px 7px;">
+                       <i data-lucide="link" style="width:11px;height:11px;color:#f59e0b;flex-shrink:0;"></i>
+                       <span style="flex:1;min-width:0;color:#fbbf24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(t.description || '')}">${escHtml(t.description || 'Tether')}</span>
+                       <strong style="color:${t.modifier > 0 ? '#34d399' : '#f87171'};">${t.modifier > 0 ? '+' : ''}${t.modifier}</strong>
+                       ${isSW() ? `<button title="Release this tether" style="background:none;border:none;color:#f59e0b;cursor:pointer;padding:0 2px;line-height:1;font-size:0.9rem;" onclick="swReleaseTether('${char.id}','${t.id}')">&times;</button>` : ''}
+                     </div>`).join('')}
+                 </div>`
               : '';
             const scars = Array.isArray(char.battle_scars) ? char.battle_scars : [];
             const scarsHtml = scars.length > 0
@@ -14354,6 +14379,7 @@
                   <span class="hp-text">${char.dp}/${char.max_dp} DP</span>
                 </div>
                 ${scarsHtml}
+                ${tetherRow}
                 <div data-effect-char-id="${char.id}" data-effect-editable="${isSW()}">${buildEffectChipsHtml(char.id, isSW())}</div>
               </div>
             `;
@@ -15212,7 +15238,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')} resists</div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}${data.tether_modifier ? ` <span style="color:#a78bfa;">🔗 ${data.tether_modifier > 0 ? '+' : ''}${data.tether_modifier}</span>` : ''}</div>
             <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.resist_total}</div>
           </div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
@@ -15336,7 +15362,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')}</div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}${data.tether_modifier ? ` <span style="color:#a78bfa;">🔗 ${data.tether_modifier > 0 ? '+' : ''}${data.tether_modifier}</span>` : ''}</div>
             <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.player_total}</div>
             ${debuffLine}
           </div>

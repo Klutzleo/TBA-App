@@ -739,7 +739,8 @@ def resolve_multi_die_attack(
     weapon_bonus=0,
     armor_bonus=0,
     defender_edge=0,
-    defender_dp=None
+    defender_dp=None,
+    tether_bonus=0
 ):
     """
     TBA v1.5 Multi-Die Attack Resolution.
@@ -810,8 +811,8 @@ def resolve_multi_die_attack(
 
         defense_total = raw_defense_roll + defender_stat_value + defender_edge + armor_bonus + defender_effect_bonus
 
-        # Attack total = die + stat + edge + weapon bonus + BAP + active effects
-        effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus + bap_bonus + attacker_effect_bonus
+        # Attack total = die + stat + edge + weapon bonus + BAP + active effects + active tethers
+        effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus + bap_bonus + attacker_effect_bonus + tether_bonus
 
         # Margin = attack total - defense total
         margin = effective_roll - defense_total
@@ -832,6 +833,7 @@ def resolve_multi_die_attack(
             "weapon_bonus": weapon_bonus,
             "bap_bonus": bap_bonus,
             "attacker_effect_bonus": attacker_effect_bonus,
+            "tether_bonus": tether_bonus,
             "defense_roll": defense_total,
             "raw_defense_roll": raw_defense_roll,
             "def_stat_bonus": defender_stat_value,

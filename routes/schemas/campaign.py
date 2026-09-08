@@ -104,6 +104,8 @@ class CombatResultBroadcast(BaseModel):
     defender_id: Optional[str] = None  # Defender character/NPC UUID
     attacker_bap: Optional[int] = None
     attacker_tethers: Optional[List[Dict[str, Any]]] = None
+    tether_modifier: Optional[int] = None                      # sum of the attacker's ACTIVE tethers, already in the roll
+    active_tethers: Optional[List[Dict[str, Any]]] = None       # which ones fired: [{"description","modifier"}]
 
 
 class AbilityCastBroadcast(BaseModel):
