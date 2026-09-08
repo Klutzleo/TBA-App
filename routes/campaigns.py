@@ -663,7 +663,7 @@ def get_campaign(
 
 @router.patch("/{campaign_id}", response_model=CampaignResponse)
 @router.put("/{campaign_id}", response_model=CampaignResponse)
-def update_campaign(
+async def update_campaign(
     campaign_id: str,
     updates: CampaignUpdate,
     db: Session = Depends(get_db),
@@ -716,10 +716,9 @@ def update_campaign(
     if updates.name is not None:
         try:
             from routes.campaign_websocket import manager
-            import asyncio
-            asyncio.create_task(manager.broadcast(str(campaign.id), {
+            await manager.broadcast(str(campaign.id), {
                 "type": "campaign_renamed", "name": campaign.name,
-            }))
+            })
         except Exception as _e:
             logger.warning(f"campaign_renamed broadcast failed: {_e}")
 
