@@ -172,13 +172,16 @@
       background: var(--panel); border: 1px solid var(--border-soft); border-radius: 14px; padding: 22px;
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
-    .dv-side { display: flex; flex-direction: column; gap: 3px; }
+    .dv-side { display: flex; flex-direction: column; gap: 2px; }
     .dv-label { font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.03em; }
-    .dv-roll { font-size: 1.5rem; font-weight: 800; color: var(--gold); letter-spacing: 0.08em; }
-    .dv-side.def .dv-roll { color: var(--red); }
-    .dv-vs { text-align: center; font-size: 0.8rem; color: var(--text-dim); letter-spacing: 0.2em; }
+    .dv-roll { font-size: 1.15rem; font-weight: 800; color: var(--gold); }
+    .dv-roll .dv-plus { font-size: 0.82rem; font-weight: 600; color: var(--text-dim); letter-spacing: 0; }
+    .dv-tot { font-size: 1.35rem; font-weight: 800; color: var(--gold); }
+    .dv-side.def .dv-roll, .dv-side.def .dv-tot { color: var(--red); }
+    .dv-vs { text-align: center; font-size: 0.74rem; color: var(--text-dim); letter-spacing: 0.2em; text-transform: uppercase; }
     .dv-out { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border-soft); font-size: 0.92rem; color: var(--text-mut); }
     .dv-out strong { color: var(--green); }
+    .duel-note { font-size: 0.9rem !important; color: var(--text-dim) !important; margin-top: 12px; }
     .duel.bap { background: linear-gradient(120deg, rgba(212,175,55,0.10), rgba(167,139,250,0.05)); }
     .duel.bap .duel-copy { flex: 1.4; }
     .bap-viz { justify-content: center; font-family: inherit; }
@@ -216,6 +219,20 @@
       padding: 1px 6px; border-radius: 5px;
       color: var(--purple); background: rgba(167,139,250,0.14); border: 1px solid rgba(167,139,250,0.32);
     }
+
+    /* audience toggle */
+    .aud-seg {
+      display: flex; gap: 6px; justify-content: center; margin: 0 auto 34px;
+      background: var(--panel); border: 1px solid var(--border-soft); border-radius: 12px;
+      padding: 5px; width: fit-content; max-width: 100%; flex-wrap: wrap;
+    }
+    .aud-btn {
+      border: none; background: transparent; color: var(--text-mut);
+      font-size: 0.92rem; font-weight: 700; padding: 9px 18px; border-radius: 8px; cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .aud-btn:hover { color: var(--text); }
+    .aud-btn.active { background: var(--gold); color: #14161f; }
 
     /* how it works */
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; counter-reset: step; }
@@ -323,22 +340,18 @@
           <span>The Ashfall Expedition · Story channel</span>
         </div>
         <div class="mock-body">
-          <div class="line narr">The bridge groans. Below, the river of embers moves like something alive.</div>
-          <div class="line"><span class="who" style="color:#a78bfa">Story Weaver</span> — Kesh, the cultist lunges at you as you cross.</div>
-          <div class="card attack">
-            <div class="head"><i class="ico" data-lucide="swords"></i> Kesh attacks the Cultist — Hit</div>
-            <div class="roll-detail">3d6 → [5 + 2 + 6] vs defense 1d6 → [3]&nbsp;&nbsp;·&nbsp;&nbsp;damage 4 + 0 + 3</div>
-            <div class="roll-total hit">7 damage · Cultist DP 11 → 4</div>
-          </div>
-          <div class="line"><span class="who" style="color:#34d399">Rell</span> — I grab the falling rope, swing under the flame, and shove them off the edge.</div>
+          <div class="line narr">The hall is a wall of fire. On the far side, a woman is pinned under a fallen beam, screaming.</div>
+          <div class="line"><span class="who" style="color:#34d399">Scalelord</span> — I'm going through the flames to get her. No hesitation.</div>
           <div class="card bapcard">
-            <div class="head"><i class="ico" data-lucide="sparkles"></i> Story Weaver granted Rell +4 BAP</div>
-            <div class="roll-detail">"That's the move." Adds to Rell's roll this turn.</div>
+            <div class="head"><i class="ico" data-lucide="sparkles"></i> Story Weaver — "That's a Bad-Ass move. Take your BAP."</div>
+            <div class="roll-detail">Scalelord's Tether of Sacrifice pulls him forward, too.</div>
           </div>
           <div class="card stat">
             <div class="head"><i class="ico" data-lucide="target"></i> Stat Check — PP <span class="pill">Hidden difficulty</span></div>
-            <div class="roll-detail">Rell 1d6 → [5] + PP 3 + Edge 1 + BAP 4 = <span class="roll-total hit">13</span>&nbsp;&nbsp;vs&nbsp;&nbsp;the SW's 1d10 → [8]</div>
+            <div class="roll-detail">Scalelord 1d6 [5] + PP 3 + Edge 3 + BAP 4 + Tether 2 = <span class="roll-total hit">17</span>&nbsp;&nbsp;vs&nbsp;&nbsp;the Story Weaver's 2d6 → [9]</div>
           </div>
+          <div class="line narr">He comes out the far side smoking, the beam heaved off her chest.</div>
+          <div class="line"><span class="who" style="color:#a78bfa">Kesh</span> — okay. <em>okay.</em> that was awesome.</div>
         </div>
       </div>
     </div>
@@ -353,17 +366,23 @@
           <div class="tag">The core of the system</div>
           <h2>No flat numbers. <span class="accent">Every roll is a duel.</span></h2>
           <p>
-            Nothing in TBA has a static difficulty. Your attack die rolls against the defender's
-            die. A hidden Stat Check is your die against the world's. A locked door rolls back at
-            you. Damage is the <em>gap</em> between the two rolls — so a big swing against a weak
-            one is a rout, and luck cuts both ways. Every contest has a heartbeat.
+            Nothing in TBA has a fixed difficulty. When you act, your die meets an opposing
+            die — a defender's guard, the Story Weaver's roll for the world, a locked door
+            pushing back. Each side adds what it's bringing: your stat, your Edge, your
+            weapon or armor, a Tether pulling you on, BAP if you earned it. Whoever comes
+            out ahead wins <em>by the gap</em> — and in a fight, that gap is the damage.
+          </p>
+          <p class="duel-note">
+            Attacks throw several dice at once, and every one of them fights its own fresh
+            roll of the defender's guard. A flurry can partly land. One lucky die can still
+            bite.
           </p>
         </div>
         <div class="duel-viz" aria-hidden="true">
-          <div class="dv-side"><span class="dv-label">Attacker · 3d6</span><span class="dv-roll">5 · 2 · 6</span></div>
-          <div class="dv-vs">vs</div>
-          <div class="dv-side def"><span class="dv-label">Defender · 1d6</span><span class="dv-roll">3</span></div>
-          <div class="dv-out">→ 4 + 0 + 3 = <strong>7 damage</strong></div>
+          <div class="dv-side"><span class="dv-label">One of your attack dice</span><span class="dv-roll">6 <span class="dv-plus">+ stat 3 + Edge 3</span></span><span class="dv-tot">= 12</span></div>
+          <div class="dv-vs">beats</div>
+          <div class="dv-side def"><span class="dv-label">A fresh roll of their guard</span><span class="dv-roll">3 <span class="dv-plus">+ stat 2 + Edge 2</span></span><span class="dv-tot">= 7</span></div>
+          <div class="dv-out">by 5 → <strong>5 damage</strong> from this die alone</div>
         </div>
       </div>
     </div>
@@ -375,19 +394,20 @@
     <div class="wrap">
       <div class="duel bap">
         <div class="duel-viz bap-viz" aria-hidden="true">
-          <span class="dv-label">Rell slides under the closing blast door, firing backward</span>
-          <div class="bap-line">1d6 <span class="op">+</span> PP 3 <span class="op">+</span> Edge 1 <span class="op">+</span> <span class="bap-tok">BAP&nbsp;4</span></div>
-          <div class="dv-out">Story Weaver: <em>"Hell yes. Take the BAP."</em></div>
+          <span class="dv-label">Scalelord, level 7 — carries a +4 BAP</span>
+          <div class="bap-line">1d6 <span class="op">+</span> PP 3 <span class="op">+</span> Edge 3 <span class="op">+</span> <span class="bap-tok">BAP&nbsp;4</span></div>
+          <div class="dv-out">Story Weaver: <em>"Ran through the fire for a stranger? Take it."</em></div>
         </div>
         <div class="duel-copy">
           <div class="tag">Why it's called that</div>
-          <h2>Do something cool. <span class="accent">The dice pay you back.</span></h2>
+          <h2>Do something cool. <span class="accent">Cash it in.</span></h2>
           <p>
-            <strong>BAP — Bad-Ass Power.</strong> Describe an action that's bold, clever, or
-            straight-up cinematic — swing from the chandelier, take the hit meant for someone
-            else, land the one-liner before the shot — and the Story Weaver hands you a bonus
-            that rides on your roll. The bigger the moment, the bigger the swing. The whole
-            system is built to reward the story, not just the tactics.
+            <strong>BAP — Bad-Ass Power.</strong> It's a bonus set by your level, climbing from
+            +1 at the start to +5 by level 10. You don't spend it whenever you like — the
+            Story Weaver has to see the moment: run through the fire for a stranger, take the
+            hit meant for a friend, land the line before the shot. Call it, earn the nod, and
+            your full BAP rides on that roll. The system is built to reward the story, not
+            just the tactics.
           </p>
         </div>
       </div>
@@ -399,39 +419,11 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <h2>Built for the way people actually play now</h2>
-        <p>Everyone's in a different city. TBA keeps the table feeling like a table.</p>
-      </div>
-      <div class="props">
-        <div class="prop">
-          <div class="badge"><i data-lucide="zap" style="width:20px;height:20px"></i></div>
-          <h3>Real-time by default</h3>
-          <p>Every roll, attack, and ability is broadcast to the whole party the instant it happens, over a live connection — with a persistent log you can scroll back through mid-session or weeks later.</p>
-        </div>
-        <div class="prop">
-          <div class="badge"><i data-lucide="dices" style="width:20px;height:20px"></i></div>
-          <h3>The mechanics do the talking</h3>
-          <p>Multi-die attacks, Edge, BAP, hidden-difficulty Stat Checks, environmental hazards, Objects to pick or smash, the death spiral of The Calling — each one rolled and narrated for you as it resolves.</p>
-        </div>
-        <div class="prop">
-          <div class="badge"><i data-lucide="smartphone" style="width:20px;height:20px"></i></div>
-          <h3>Play from your pocket</h3>
-          <p>Install it like an app and get a push notification the moment it's your roll. Session-to-Discord mirroring is on the way.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="divider"></div>
-
-  <section>
-    <div class="wrap">
-      <div class="section-head">
         <h2>Everything the ruleset needs, already wired up</h2>
-        <p>You bring the story. The app handles the bookkeeping.</p>
+        <p>You bring the story. The app rolls the dice, does the math, and keeps the log.</p>
       </div>
       <div class="features">
-        <div class="feat"><i class="fi" data-lucide="swords"></i><h4>Real-time combat &amp; dice</h4><p>Roll macros, multi-die attacks, live combat broadcast to the party.</p></div>
+        <div class="feat"><i class="fi" data-lucide="swords"></i><h4>Real-time combat &amp; dice</h4><p>Multi-die attacks and roll macros, broadcast to the whole party the instant they land, with a log you can scroll back weeks later.</p></div>
         <div class="feat"><i class="fi" data-lucide="link"></i><h4>Bonds &amp; Combo attacks <span class="soon">Coming soon</span></h4><p>Story-earned bonds between characters chain into shared Combo strikes.</p></div>
         <div class="feat"><i class="fi" data-lucide="target"></i><h4>Stat &amp; Env Checks</h4><p>The Story Weaver sends hidden-difficulty checks and environmental hazards.</p></div>
         <div class="feat"><i class="fi" data-lucide="puzzle"></i><h4>Objects</h4><p>Locks, doors, chests and traps the party rolls against, smashes, or burns down.</p></div>
@@ -439,6 +431,8 @@
         <div class="feat"><i class="fi" data-lucide="wand-2"></i><h4>Custom ability macros</h4><p>Per-character abilities, six effect types, usage tracking, PP/IP/SP sources.</p></div>
         <div class="feat"><i class="fi" data-lucide="trophy"></i><h4>150+ achievements</h4><p>Rarity tiers, live toasts, a badge showcase, retroactive unlocks.</p></div>
         <div class="feat"><i class="fi" data-lucide="user-round"></i><h4>Public profiles</h4><p>A shareable page for your characters, stats and achievements — no login to view.</p></div>
+        <div class="feat"><i class="fi" data-lucide="smartphone"></i><h4>Install &amp; push</h4><p>Runs as an app on your phone or desktop, and pings you the moment it's your roll.</p></div>
+        <div class="feat"><i class="fi" data-lucide="message-circle"></i><h4>Discord mirror <span class="soon">Coming soon</span></h4><p>Pipe the whole session into your group's Discord so nobody misses a beat.</p></div>
       </div>
     </div>
   </section>
@@ -448,24 +442,47 @@
   <section id="how">
     <div class="wrap">
       <div class="section-head">
-        <h2>From nothing to playing in three steps</h2>
-        <p>No installs for your players. No accounts to wrangle. A link and a code.</p>
+        <h2>Getting started</h2>
+        <p>Whether you're joining a table or running one.</p>
       </div>
-      <div class="steps">
+      <div class="aud-seg" role="tablist">
+        <button class="aud-btn active" data-aud="player" role="tab">I want to play in a game</button>
+        <button class="aud-btn" data-aud="sw" role="tab">I want to run one</button>
+      </div>
+
+      <div class="steps for-player">
+        <div class="step">
+          <div class="num"></div>
+          <h4>Find a game</h4>
+          <p>Grab a join code from a friend running a table, or browse the public games looking for players.</p>
+        </div>
+        <div class="step">
+          <div class="num"></div>
+          <h4>Build a character</h4>
+          <p>A few minutes, no classes or races — be who you want. Your Story Weaver waves you in.</p>
+        </div>
+        <div class="step">
+          <div class="num"></div>
+          <h4>Jump in</h4>
+          <p>Roll, fight, and shape the story live in your browser — desktop or phone. The log keeps every beat.</p>
+        </div>
+      </div>
+
+      <div class="steps for-sw" hidden>
         <div class="step">
           <div class="num"></div>
           <h4>Create a campaign</h4>
-          <p>Sign up, name your world, and you're the Story Weaver — the app sets up the channels and tools.</p>
+          <p>Name your world and you're the Story Weaver — the app sets up the channels, dice, and tools.</p>
         </div>
         <div class="step">
           <div class="num"></div>
-          <h4>Share the join code</h4>
-          <p>Send your players one code. They make a character, you approve it, and they're in.</p>
+          <h4>Bring your players</h4>
+          <p>Share one join code, or list the game publicly. Approve characters as they come in.</p>
         </div>
         <div class="step">
           <div class="num"></div>
-          <h4>Play in the browser</h4>
-          <p>Desktop or phone. Roll, fight, narrate — everyone sees it live, and the log keeps the history.</p>
+          <h4>Run it live</h4>
+          <p>Send checks, fire hazards, drop in Objects, track initiative — the app does the math, you tell the story.</p>
         </div>
       </div>
     </div>
@@ -544,6 +561,19 @@
   <script>
     if (window.lucide) lucide.createIcons();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
+
+    // Audience toggle — swap the "Getting started" steps between player and SW.
+    (function () {
+      var btns = document.querySelectorAll('.aud-btn');
+      var player = document.querySelector('.steps.for-player');
+      var sw = document.querySelector('.steps.for-sw');
+      function set(aud) {
+        btns.forEach(function (b) { b.classList.toggle('active', b.dataset.aud === aud); });
+        if (player) player.hidden = aud !== 'player';
+        if (sw) sw.hidden = aud !== 'sw';
+      }
+      btns.forEach(function (b) { b.addEventListener('click', function () { set(b.dataset.aud); }); });
+    })();
     // If a returning player is already signed in, send them to their campaigns.
     try {
       if (localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token')) {
