@@ -745,6 +745,7 @@ class InventoryItem(Base):
     bonus_type   = Column(String(20),  nullable=True)   # 'attack' | 'defense' | None
     is_equipped  = Column(Boolean,     nullable=False,  default=False)
     given_by_sw  = Column(Boolean,     nullable=False,  default=False)
+    secret       = Column(Boolean,     nullable=False,  default=False)  # SW stashed it quietly — mute add/give announcements (migration 025)
     created_at   = Column(DateTime,    default=datetime.utcnow)
 
     def __repr__(self):

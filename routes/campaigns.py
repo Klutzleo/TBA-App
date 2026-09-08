@@ -1367,6 +1367,7 @@ def _item_dict(item: InventoryItem) -> dict:
         "bonus_type":   item.bonus_type,
         "is_equipped":  item.is_equipped,
         "given_by_sw":  item.given_by_sw,
+        "secret":       bool(getattr(item, "secret", False)),
         "created_at":   item.created_at.isoformat() if item.created_at else None,
     }
 
@@ -1515,6 +1516,7 @@ async def award_loot_pool_item(
         bonus        = source.bonus,
         bonus_type   = source.bonus_type,
         given_by_sw  = True,
+        secret       = bool(getattr(source, "secret", False)),
     )
     db.add(clone)
     db.commit()

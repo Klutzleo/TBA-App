@@ -3445,6 +3445,9 @@
                 style="width:52px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:5px;color:var(--text-primary);padding:5px 7px;font-size:0.82rem;">
               <button class="btn" style="padding:4px 10px;font-size:0.78rem;background:var(--bg-secondary);" onclick="addObjectItem()">+ Add</button>
             </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-secondary);cursor:pointer;">
+              <input type="checkbox" id="objItemSecret" checked> 🤫 Secret — no toast or chat line when it's picked up
+            </label>
             <button class="btn" id="objDumpBtn" style="padding:4px 10px;font-size:0.76rem;background:var(--bg-secondary);align-self:flex-start;" onclick="dumpObjectToLoot()">Dump all to loot pool</button>
           </div>
         </div>
@@ -4828,7 +4831,7 @@
         const items = data.items || [];
         wrap.innerHTML = items.length ? items.map(it => `
           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:0.82rem;background:var(--bg-secondary);border-radius:5px;padding:4px 7px;">
-            <span>${escHtml(it.name)}${it.quantity > 1 ? ` ×${it.quantity}` : ''} <span style="opacity:0.5;">${escHtml(it.item_type || '')}</span></span>
+            <span>${it.secret ? '🤫 ' : ''}${escHtml(it.name)}${it.quantity > 1 ? ` ×${it.quantity}` : ''} <span style="opacity:0.5;">${escHtml(it.item_type || '')}</span></span>
             <button style="background:none;border:none;color:#f87171;cursor:pointer;padding:0 3px;" title="Remove" onclick="removeObjectItem('${it.id}')">&times;</button>
           </div>`).join('') : '<div style="font-size:0.78rem;color:var(--text-muted);">Empty — add items below.</div>';
       } catch (_) { wrap.innerHTML = '<div style="font-size:0.78rem;color:#f87171;">Could not load contents.</div>'; }
@@ -4842,6 +4845,7 @@
         name,
         item_type: document.getElementById('objItemType').value,
         quantity: parseInt(document.getElementById('objItemQty').value, 10) || 1,
+        secret: document.getElementById('objItemSecret').checked,
       };
       try {
         const r = await fetch(`/api/characters/${_objContentsId}/inventory`, {
@@ -7314,7 +7318,7 @@
         div.innerHTML = `
           <span style="font-size:1.1rem;"><i data-lucide="${icon}" style="width:16px;height:16px;vertical-align:middle;"></i></span>
           <div class="loot-item-body">
-            <div class="loot-item-name">${escHtml(item.name)} <span style="color:var(--text-muted);font-size:0.75rem;">×${item.quantity}</span></div>
+            <div class="loot-item-name">${item.secret ? '🤫 ' : ''}${escHtml(item.name)} <span style="color:var(--text-muted);font-size:0.75rem;">×${item.quantity}</span></div>
             <div class="loot-item-meta">${meta.join(' · ')}</div>
           </div>
           <div class="loot-item-actions">
@@ -12549,8 +12553,9 @@
               await loadCharacters();
 
             } else if (data.type === 'item_added') {
-              // Public chat announcement (SW opted in)
-              if (data.announce_in_chat) {
+              const _secret = data.item && data.item.secret;
+              // Public chat announcement (SW opted in) — never for a secret item
+              if (data.announce_in_chat && !_secret) {
                 const el = document.createElement('div');
                 el.className = 'message-card message-system';
                 const desc = data.item.description ? ` — <em style="color:var(--text-muted);font-size:0.85rem;">${escHtml(data.item.description)}</em>` : '';
@@ -12558,9 +12563,9 @@
                 el.innerHTML = `🎁 The Story Weaver gifted <strong>${escHtml(data.given_to)}</strong>: <strong>${escHtml(data.item.name)}${qty}</strong>${desc}`;
                 addMessage(el, '', data, true);
               }
-              // Notify + refresh the recipient
+              // Notify + refresh the recipient (secret items refresh silently)
               if (data.given_by_sw && data.character_id === characterId) {
-                showPanelToast(`🎁 You received: ${data.item.name}!`, 'success');
+                if (!_secret) showPanelToast(`🎁 You received: ${data.item.name}!`, 'success');
                 loadInventory();
               } else if (userRole === 'Player' && data.character_id === characterId) {
                 loadInventory();
@@ -14534,9 +14539,11 @@
 
     // One checkbox row for the target list. kind: 'pc' | 'npc'.
     function _targetRow(id, name, kind, hidden, pcAccent = '#a78bfa') {
-      const accent = kind === 'npc' ? '#fb923c' : pcAccent;
+      const accent = kind === 'npc' ? '#fb923c' : kind === 'object' ? '#94a3b8' : pcAccent;
       const tag = kind === 'npc'
         ? `<span style="font-size:0.65rem;letter-spacing:0.04em;color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:3px;padding:0 4px;margin-left:4px;">${hidden ? 'HIDDEN' : 'NPC'}</span>`
+        : kind === 'object'
+        ? `<span style="font-size:0.65rem;letter-spacing:0.04em;color:#94a3b8;border:1px solid var(--border-subtle);border-radius:3px;padding:0 4px;margin-left:4px;">${hidden ? 'HIDDEN' : 'OBJECT'}</span>`
         : '';
       return `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
              <input type="checkbox" data-kind="${kind}" value="${escHtml(id)}" style="accent-color:${accent};width:15px;height:15px;">
@@ -14865,9 +14872,11 @@
     function openEnvCheckModal() {
       const pcs = _statCheckPCList();
       const npcs = _statCheckNPCList();
+      const objs = (campaignObjects || []).filter(o => (o.max_dp || 0) > 0 && !o.object_revealed);
       const rows = [
         ...pcs.map(p => _targetRow(p.id, p.name, 'pc', false, '#f97316')),
         ...npcs.map(n => _targetRow(n.id, n.name, 'npc', n.hidden)),
+        ...objs.map(o => _targetRow(o.id, o.name, 'object', o.visible_to_players === false)),
       ];
       document.getElementById('envCheckCharList').innerHTML = rows.length
         ? rows.join('')
@@ -15146,7 +15155,8 @@
             <div style="font-size:1.1rem;font-weight:700;color:#f97316;">${data.hazard_total}</div>
             ${rightCol}
           </div>
-        </div>`;
+        </div>
+        ${data.object_defeated ? `<div style="text-align:center;margin-top:8px;font-size:0.85rem;color:#cbd5e1;font-weight:700;">🔓 ${escHtml(data.character_name || 'The object')} gives way!</div>` : ''}`;
       outerRow.appendChild(col);
       div.appendChild(outerRow);
       return div;
@@ -16047,7 +16057,7 @@
                   style="flex:1;min-width:0;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 7px;color:var(--text-primary);font-size:0.85rem;">
                 <input id="swItem_qty_${i}" type="number" min="1" value="${item.quantity || 1}"
                   style="width:44px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 4px;color:var(--text-primary);font-size:0.85rem;text-align:center;">
-                <span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">${item.item_type || ''}</span>
+                <span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">${item.secret ? '🤫 ' : ''}${item.item_type || ''}</span>
                 <button title="Save name/qty" style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" onclick="saveItemEdits(${i})"><i data-lucide="save" style="width:14px;height:14px;"></i></button>
                 <button title="Transfer to another character" style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" onclick="startItemTransfer(${i})"><i data-lucide="arrow-right-left" style="width:14px;height:14px;"></i></button>
                 <button id="swRemoveBtn_${i}" title="Silently remove — player not notified" style="background:none;border:none;cursor:pointer;padding:0 2px;display:inline-flex;" onclick="promptRemoveItem(${i})"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>

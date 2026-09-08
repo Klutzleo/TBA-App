@@ -3441,6 +3441,8 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
         db.commit()
         db.refresh(npc)
 
+    obj_defeated = bool(getattr(npc, "is_object", False)) and (npc.dp or 0) <= 0 and not npc.object_revealed
+
     magnitude = BUFF_DEBUFF_TABLE.get(tier_die, 1)
     effect_name = (flavor_text or "Environmental Debuff")[:60] if is_debuff else None
 
@@ -3457,6 +3459,7 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
         "duration_rounds": magnitude if is_debuff else None,
         "effect_name": effect_name,
         "calling_triggered": False, "rolled_by_sw": True,
+        "object_defeated": obj_defeated,
     }
     if silent:
         await manager.send_to_user(campaign_uuid, sw_user_id, result_payload)
@@ -3477,6 +3480,8 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
             "name": effect_name, "modifier": -magnitude, "modifier_type": "custom",
             "duration_rounds": magnitude,
         }, "Env Check", db)
+    if obj_defeated:
+        await _defeat_object(campaign_uuid, npc, db, actor_user_id=sw_user_id, source="env")
     return outcome
 
 

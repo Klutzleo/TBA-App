@@ -3633,6 +3633,7 @@ def _item_dict(item: InventoryItem) -> dict:
         "bonus_type":   item.bonus_type,
         "is_equipped":  item.is_equipped,
         "given_by_sw":  item.given_by_sw,
+        "secret":       bool(getattr(item, "secret", False)),
         "created_at":   item.created_at.isoformat() if item.created_at else None,
     }
 
@@ -3697,6 +3698,7 @@ async def add_inventory_item(
     if not name:
         raise HTTPException(status_code=422, detail="Item name is required")
 
+    secret = bool(req.get("secret")) and sw
     item = InventoryItem(
         character_id = char.id,
         campaign_id  = char.campaign_id,
@@ -3708,6 +3710,7 @@ async def add_inventory_item(
         effect_type  = req.get("effect_type"),
         bonus        = req.get("bonus"),
         given_by_sw  = sw,
+        secret       = secret,
     )
     db.add(item)
     db.commit()
@@ -3722,7 +3725,7 @@ async def add_inventory_item(
             "item":             _item_dict(item),
             "given_by_sw":      sw,
             "given_to":         char.name,
-            "announce_in_chat": bool(req.get("announce_in_chat")) and sw,
+            "announce_in_chat": bool(req.get("announce_in_chat")) and sw and not secret,
         }))
     except Exception:
         pass
@@ -3908,6 +3911,8 @@ async def edit_inventory_item(
     if "effect_type" in req: item.effect_type = req["effect_type"]
     if "bonus"       in req: item.bonus       = req["bonus"]
     if "bonus_type"  in req: item.bonus_type  = req["bonus_type"]
+    if "secret"      in req and _is_sw(char.campaign_id, current_user.id, db):
+        item.secret = bool(req["secret"])
     db.commit()
     db.refresh(item)
     return _item_dict(item)
