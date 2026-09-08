@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TBA — the TBA tabletop RPG, live in your browser</title>
-  <meta name="description" content="TBA runs the TBA tabletop RPG live in your browser. Every roll is a duel — attacker die versus defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
+  <title>TBA: the tabletop RPG, live in your browser</title>
+  <meta name="description" content="TBA runs the TBA tabletop RPG live in your browser. Every roll is a duel: attacker die versus defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#1a1a2e" />
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="TBA — the TBA tabletop RPG, live in your browser">
+  <meta property="og:title" content="TBA: the tabletop RPG, live in your browser">
   <meta property="og:description" content="Every roll is a duel, attacker die versus defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <meta property="og:image" content="/icons/icon-512.png">
   <meta property="og:url" content="https://tba-rpg.com/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="TBA - the TBA tabletop RPG, live in your browser">
+  <meta name="twitter:title" content="TBA: the tabletop RPG, live in your browser">
   <meta name="twitter:description" content="Every roll is a duel, attacker die vs defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <meta name="twitter:image" content="/icons/icon-512.png">
 
@@ -368,10 +368,10 @@
           <h2>No flat numbers. <span class="accent">Every roll is a duel.</span></h2>
           <p>
             Nothing in TBA has a fixed difficulty. When you act, your die meets an opposing
-            die — a defender's guard, the Story Weaver's roll for the world, a locked door
+            die: a defender's guard, the Story Weaver's roll for the world, a locked door
             pushing back. Each side adds what it's bringing: your stat, your Edge, your
             weapon or armor, a Tether pulling you on, BAP if you earned it. Whoever comes
-            out ahead wins <em>by the gap</em> - and in a fight, that gap is the damage.
+            out ahead wins <em>by the gap</em>, and in a fight, that gap is the damage.
           </p>
           <p class="duel-note">
             Attacks throw several dice at once, and every one of them fights its own fresh
@@ -395,7 +395,7 @@
     <div class="wrap">
       <div class="duel bap">
         <div class="duel-viz bap-viz" aria-hidden="true">
-          <span class="dv-label">Scalelord, level 7 — his BAP bonus is +4</span>
+          <span class="dv-label">Scalelord, level 7. His BAP bonus is +4</span>
           <div class="bap-line">1d6 <span class="op">+</span> PP 3 <span class="op">+</span> Edge 3 <span class="op">+</span> <span class="bap-tok">BAP&nbsp;4</span></div>
           <div class="dv-out">Story Weaver: <em>"Ran through the fire for a stranger? Yeah. That counts."</em></div>
         </div>
@@ -403,10 +403,10 @@
           <div class="tag">Why it's called that</div>
           <h2>Play it bold. <span class="accent">The dice notice.</span></h2>
           <p>
-            <strong>BAP — Bad-Ass Power.</strong> Do something bold, clever, or straight-up
-            cinematic in the moment, run through the fire for a stranger, take the hit meant
+            <strong>BAP is Bad-Ass Power.</strong> Do something bold, clever, or straight-up
+            cinematic in the moment: run through the fire for a stranger, take the hit meant
             for a friend, pull off the plan nobody saw coming. If the Story Weaver buys it,
-            your BAP counts on that roll. It's not currency you hoard and spend — it's the
+            your BAP counts on that roll. It's not currency you hoard and spend. It's the
             game rewarding you for thinking sideways and making a memory. How much it's worth
             climbs with your level, from +1 early to +5 by level 10.
           </p>
@@ -431,7 +431,7 @@
         <div class="feat"><i class="fi" data-lucide="list-ordered"></i><h4>Initiative &amp; encounters</h4><p>Turn order, encounter setup, auto-restore when the fight ends.</p></div>
         <div class="feat"><i class="fi" data-lucide="wand-2"></i><h4>Custom ability macros</h4><p>Per-character abilities, six effect types, usage tracking, PP/IP/SP sources.</p></div>
         <div class="feat"><i class="fi" data-lucide="trophy"></i><h4>150+ achievements</h4><p>Rarity tiers, live toasts, a badge showcase, retroactive unlocks.</p></div>
-        <div class="feat"><i class="fi" data-lucide="user-round"></i><h4>Public profiles</h4><p>A shareable page for your characters, stats and achievements — no login to view.</p></div>
+        <div class="feat"><i class="fi" data-lucide="user-round"></i><h4>Public profiles</h4><p>A shareable page for your characters, stats and achievements. No login to view.</p></div>
         <div class="feat"><i class="fi" data-lucide="smartphone"></i><h4>Install &amp; push</h4><p>Runs as an app on your phone or desktop, and pings you the moment it's your roll.</p></div>
         <div class="feat"><i class="fi" data-lucide="message-circle"></i><h4>Discord mirror <span class="soon">Coming soon</span></h4><p>Pipe the whole session into your group's Discord so nobody misses a beat.</p></div>
       </div>
@@ -550,7 +550,7 @@
 
   <footer>
     <div class="wrap">
-      <span>TBA — Tools for the Bad-Ass / Tools for Being Awesome</span>
+      <span>TBA &nbsp;·&nbsp; Tools for the Bad-Ass / Tools for Being Awesome</span>
       <div class="links">
         <a href="/auth.html">Log in</a>
         <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener">Rulebook</a>
@@ -595,7 +595,7 @@
       var btn = document.getElementById('installBtn');
       var hint = document.getElementById('installHint');
       var installed = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-      if (installed) { if (hint) hint.textContent = "You've already installed TBA — nice."; return; }
+      if (installed) { if (hint) hint.textContent = "You've already installed TBA. Nice."; return; }
       window.addEventListener('beforeinstallprompt', function (e) {
         e.preventDefault(); deferred = e;
         if (btn) btn.hidden = false;
