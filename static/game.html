@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TBA Chat - Tabletop Adventure</title>
+  <title>TBA</title>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#1a1a2e" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -71,25 +71,43 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
     }
 
-    .header-title .icon {
-      font-size: 24px;
+    .header-logo-link { display: inline-flex; flex-shrink: 0; }
+    .header-logo {
+      width: 36px; height: 36px; border-radius: 9px; display: block;
+      transition: transform 0.15s;
+    }
+    .header-logo-link:hover .header-logo { transform: scale(1.05); }
+
+    .header-titles {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      line-height: 1.1;
+    }
+
+    .header-title .brand-kicker {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      opacity: 0.65;
     }
 
     .header-title h1 {
-      font-size: 24px;
-      font-weight: 700;
+      font-size: 23px;
+      font-weight: 800;
       color: var(--accent-primary);
-      letter-spacing: 0.5px;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      letter-spacing: 0.3px;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
       margin: 0;
-    }
-
-    .header-title .subtitle {
-      font-size: 12px;
-      color: var(--text-muted);
-      font-style: italic;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 44vw;
     }
 
     .user-menu {
@@ -2136,10 +2154,7 @@
 
       .header-title h1 {
         font-size: 18px;
-      }
-
-      .header-title .subtitle {
-        display: none;
+        max-width: 52vw;
       }
 
 .chat-input-container input,
@@ -2522,15 +2537,15 @@
     }
     @media (max-width: 600px) {
       .portrait-hide { display: none !important; }
-      #campaignNameBar { display: block !important; }
 
       /* tighten the header icon cluster so it doesn't wrap / crowd */
       .header { padding: 8px 10px !important; }
       .connection-status button,
       .connection-status > a { padding: 4px !important; margin-left: 0 !important; }
       .connection-status { gap: 2px; }
-      .header-title img { width: 26px !important; height: 26px !important; }
-      .header-title h1 { font-size: 16px !important; }
+      .header-logo { width: 28px !important; height: 28px !important; }
+      .header-title .brand-kicker { display: none; }
+      .header-title h1 { font-size: 16px !important; max-width: 60vw; }
 
       /* reclaim vertical space around the message feed + input */
       .chat-messages { padding: 8px 10px; }
@@ -2703,9 +2718,13 @@
       </button>
       
       <div class="header-title">
-        <img src="/icons/icon-192.png" alt="TBA" style="width:32px;height:32px;border-radius:8px;flex-shrink:0;">
-        <h1>TBA Chat</h1>
-        <span class="subtitle" id="campaignSubtitle">Tabletop Adventure Platform</span>
+        <a href="/campaigns.html" title="My campaigns" class="header-logo-link">
+          <img src="/icons/icon-192.png" alt="TBA" class="header-logo">
+        </a>
+        <div class="header-titles">
+          <span class="brand-kicker">TBA</span>
+          <h1 id="campaignSubtitle">&hairsp;</h1>
+        </div>
       </div>
       <div class="connection-status">
         <a href="/profile.html" title="My Profile"
@@ -14471,6 +14490,7 @@
         if (c && c.name) {
           document.getElementById('campaignSubtitle').textContent = c.name;
           document.getElementById('campaignNameBar').textContent = c.name;
+          document.title = `${c.name} — TBA`;
         }
       }).catch(() => {});
 
