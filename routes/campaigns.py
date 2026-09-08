@@ -713,6 +713,16 @@ def update_campaign(
 
     logger.info(f"Campaign updated: mode={campaign.character_creation_mode}, max_chars={campaign.max_characters_per_player}")
 
+    if updates.name is not None:
+        try:
+            from routes.campaign_websocket import manager
+            import asyncio
+            asyncio.create_task(manager.broadcast(str(campaign.id), {
+                "type": "campaign_renamed", "name": campaign.name,
+            }))
+        except Exception as _e:
+            logger.warning(f"campaign_renamed broadcast failed: {_e}")
+
     return campaign
 
 

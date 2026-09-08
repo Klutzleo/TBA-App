@@ -2841,8 +2841,8 @@
         <div class="sidebar-section" id="sidebarPartyPanel">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
             <h2 style="margin:0;">Party Members</h2>
-            <button id="campaignSettingsBtn" style="display:none; background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; border-radius:var(--radius-sm); line-height:1;" title="Campaign Settings" onclick="openCampaignSettings()">
-              <i data-lucide="settings" style="width:16px;height:16px;"></i></button>
+            <button id="campaignSettingsBtn" style="display:none; align-items:center; gap:5px; background:none; border:1px solid var(--border-color); color:var(--text-muted); cursor:pointer; padding:3px 9px; border-radius:var(--radius-sm); line-height:1; font-size:0.72rem; font-weight:600;" title="Rename, join code, currency, character creation…" onclick="openCampaignSettings()">
+              <i data-lucide="settings" style="width:13px;height:13px;"></i>Campaign</button>
           </div>
           <div id="charactersContainer">
             <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">
@@ -3982,6 +3982,15 @@
         <button class="modal-close" onclick="closeCampaignSettings()">&times;</button>
       </div>
       <div class="modal-body" style="display:flex; flex-direction:column; gap:20px;">
+        <!-- Campaign Name -->
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Campaign Name</label>
+          <div style="display:flex; gap:8px;">
+            <input id="settingsCampaignName" type="text" maxlength="80" placeholder="Campaign name"
+              style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 10px; font-size:0.9rem;">
+            <button class="btn" style="padding:6px 14px; font-size:0.85rem;" onclick="saveCampaignName()">Save</button>
+          </div>
+        </div>
         <!-- Currency Name -->
         <div>
           <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Currency Name</label>
@@ -7005,6 +7014,7 @@
         }
         if (campResp.ok) {
           const camp = await campResp.json();
+          document.getElementById('settingsCampaignName').value = camp.name || '';
           document.getElementById('settingsCharMode').value = camp.character_creation_mode || 'open';
           document.getElementById('settingsJoinCode').textContent = camp.join_code || '—';
         }
@@ -7236,6 +7246,27 @@
       }).catch(() => {
         showPanelToast('Could not copy — code is: ' + code, 'info');
       });
+    }
+
+    async function saveCampaignName() {
+      const name = document.getElementById('settingsCampaignName').value.trim();
+      if (name.length < 3) { showPanelToast('Campaign name needs at least 3 characters', 'error'); return; }
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        if (!resp.ok) throw new Error('Failed to save');
+        const h = document.getElementById('campaignSubtitle');
+        if (h) h.textContent = name;
+        const bar = document.getElementById('campaignNameBar');
+        if (bar) bar.textContent = name;
+        document.title = `${name} — TBA`;
+        showPanelToast('Campaign renamed', 'success');
+      } catch (e) {
+        showPanelToast('Could not rename campaign', 'error');
+      }
     }
 
     async function saveCurrencyName() {
@@ -13702,6 +13733,12 @@
               if (i !== -1) campaignObjects[i].object_revealed = true;
             } else if (data.type === 'loot_pool_changed') {
               if (typeof loadLootPool === 'function' && document.getElementById('lootPoolPane')) loadLootPool();
+            } else if (data.type === 'campaign_renamed') {
+              if (data.name) {
+                const h = document.getElementById('campaignSubtitle'); if (h) h.textContent = data.name;
+                const bar = document.getElementById('campaignNameBar'); if (bar) bar.textContent = data.name;
+                document.title = `${data.name} — TBA`;
+              }
             } else if (data.type === 'achievement_awarded') {
               showAchievementToast(data);
               if (window.notificationCenterRefresh) notificationCenterRefresh();
@@ -14409,9 +14446,17 @@
 
     // SW-only UI setup
     if (userRole === 'SW') {
-      // Show campaign settings gear button
+      // Show campaign settings button
       const settingsBtn = document.getElementById('campaignSettingsBtn');
-      if (settingsBtn) settingsBtn.style.display = '';
+      if (settingsBtn) settingsBtn.style.display = 'inline-flex';
+
+      // Header campaign name doubles as a shortcut into Campaign Settings
+      const hdrName = document.getElementById('campaignSubtitle');
+      if (hdrName) {
+        hdrName.style.cursor = 'pointer';
+        hdrName.title = 'Campaign settings';
+        hdrName.addEventListener('click', openCampaignSettings);
+      }
 
       // Show sidebar tab bar with initiative button for SW
       const tabBar = document.getElementById('sidebarTabBar');
