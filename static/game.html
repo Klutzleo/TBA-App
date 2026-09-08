@@ -14500,9 +14500,9 @@
           `<option value="${escHtml(o.id)}">${escHtml(o.name)} — ${escHtml((o.check_difficulty || '').split('|')[1] || '')}</option>`).join('');
 
       selectStatCheckMode('character');
-      selectStatCheckStat('PP');
       document.getElementById('statCheckDifficulty').value = '1d8|Moderate';
-      onStatCheckObjectChange();
+      onStatCheckObjectChange();   // clears any stale disabled state from a prior open
+      selectStatCheckStat('PP');
       document.getElementById('statCheckFlavor').value = '';
       document.getElementById('statCheckBAP').checked = false;
       document.getElementById('statCheckHidden').checked = false;
