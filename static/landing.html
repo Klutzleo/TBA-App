@@ -12,12 +12,12 @@
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="TBA — the TBA tabletop RPG, live in your browser">
-  <meta property="og:description" content="Every roll is a duel — attacker die versus defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
+  <meta property="og:description" content="Every roll is a duel, attacker die versus defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <meta property="og:image" content="/icons/icon-512.png">
   <meta property="og:url" content="https://tba-rpg.com/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="TBA — the TBA tabletop RPG, live in your browser">
-  <meta name="twitter:description" content="Every roll is a duel — attacker die vs defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
+  <meta name="twitter:title" content="TBA - the TBA tabletop RPG, live in your browser">
+  <meta name="twitter:description" content="Every roll is a duel, attacker die vs defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <meta name="twitter:image" content="/icons/icon-512.png">
 
   <script src="/js/lucide.min.js"></script>
@@ -122,7 +122,38 @@
       margin-left: 10px; font-size: 0.78rem; color: var(--text-dim);
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
-    .shot img { display: block; width: 100%; height: auto; }
+    .shot img { display: block; width: 100%; height: auto; cursor: zoom-in; }
+    .shot-cap {
+      text-align: center; font-size: 0.74rem; letter-spacing: 0.04em;
+      color: var(--text-dim); padding: 8px; background: var(--bg-2);
+      border-top: 1px solid var(--border-soft);
+    }
+    @media (min-width: 720px) { .shot-cap { display: none; } }
+
+    /* fullscreen screenshot */
+    [hidden] { display: none !important; }
+    .lightbox {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(8, 9, 13, 0.94);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px; overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .lightbox img {
+      width: auto; height: auto;
+      max-width: min(2556px, 96vw);
+      min-width: 1200px;               /* on a phone: renders bigger than the screen so you can pan */
+      border-radius: 8px; border: 1px solid var(--border);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      margin: auto;
+    }
+    .lightbox-close {
+      position: fixed; top: 12px; right: 16px; z-index: 1;
+      background: rgba(255,255,255,0.1); border: 1px solid var(--border);
+      color: var(--text); font-size: 24px; line-height: 1;
+      width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,0.18); }
 
     /* ── Sections ────────────────────────────────────────── */
     section { padding: 78px 0; }
@@ -296,7 +327,7 @@
       <span class="eyebrow">The TBA Tabletop RPG</span>
       <h1>Tell <span class="accent">your</span> story.</h1>
       <p class="lede">
-        A cyberpunk heist, high fantasy, a monster-of-the-week comedy — TBA runs the TBA
+        A cyberpunk heist, high fantasy, a monster-of-the-week comedy - TBA runs the TBA
         ruleset live in your browser for any genre your table's into. Dice, combat, and
         narration in one shared window, playable from anywhere. No virtual tabletop to
         fight, no table to book.
@@ -316,10 +347,16 @@
           <span class="dot" style="background:#34d399"></span>
           <span class="shot-url">tba-rpg.com</span>
         </div>
-        <img src="/img/session.png" width="2556" height="873" alt="A live TBA session: the party sidebar with DP bars, the Story Weaver's NPC bar, and a Stat Check resolving in the story feed.">
+        <img src="/img/session.png" width="2556" height="873" alt="A live TBA session: the party sidebar with DP bars, the Story Weaver's NPC bar, and a Stat Check resolving in the story feed." onclick="openShot()">
+        <figcaption class="shot-cap">Tap to enlarge</figcaption>
       </figure>
     </div>
   </header>
+
+  <div id="shotLightbox" class="lightbox" hidden onclick="closeShot()">
+    <button class="lightbox-close" aria-label="Close" onclick="closeShot()">&times;</button>
+    <img src="/img/session.png" alt="" onclick="event.stopPropagation()">
+  </div>
 
   <div class="divider"></div>
 
@@ -334,7 +371,7 @@
             die — a defender's guard, the Story Weaver's roll for the world, a locked door
             pushing back. Each side adds what it's bringing: your stat, your Edge, your
             weapon or armor, a Tether pulling you on, BAP if you earned it. Whoever comes
-            out ahead wins <em>by the gap</em> — and in a fight, that gap is the damage.
+            out ahead wins <em>by the gap</em> - and in a fight, that gap is the damage.
           </p>
           <p class="duel-note">
             Attacks throw several dice at once, and every one of them fights its own fresh
@@ -367,7 +404,7 @@
           <h2>Play it bold. <span class="accent">The dice notice.</span></h2>
           <p>
             <strong>BAP — Bad-Ass Power.</strong> Do something bold, clever, or straight-up
-            cinematic in the moment — run through the fire for a stranger, take the hit meant
+            cinematic in the moment, run through the fire for a stranger, take the hit meant
             for a friend, pull off the plan nobody saw coming. If the Story Weaver buys it,
             your BAP counts on that roll. It's not currency you hoard and spend — it's the
             game rewarding you for thinking sideways and making a memory. How much it's worth
@@ -423,12 +460,12 @@
         <div class="step">
           <div class="num"></div>
           <h4>Build a character</h4>
-          <p>A few minutes, no classes or races — be who you want. Your Story Weaver waves you in.</p>
+          <p>A few minutes, no classes or races, be who you want. Your Story Weaver waves you in.</p>
         </div>
         <div class="step">
           <div class="num"></div>
           <h4>Jump in</h4>
-          <p>Roll, fight, and shape the story live in your browser — desktop or phone. The log keeps every beat.</p>
+          <p>Roll, fight, and shape the story live in your browser, desktop, or phone. The log keeps every beat.</p>
         </div>
       </div>
 
@@ -436,7 +473,7 @@
         <div class="step">
           <div class="num"></div>
           <h4>Create a campaign</h4>
-          <p>Name your world and you're the Story Weaver — the app sets up the channels, dice, and tools.</p>
+          <p>Name your world and you're the Story Weaver, the app sets up the channels, dice, and tools.</p>
         </div>
         <div class="step">
           <div class="num"></div>
@@ -446,7 +483,7 @@
         <div class="step">
           <div class="num"></div>
           <h4>Run it live</h4>
-          <p>Send checks, fire hazards, drop in Objects, track initiative — the app does the math, you tell the story.</p>
+          <p>Send checks, fire hazards, drop in Objects, track initiative, the app does the math, you tell the story.</p>
         </div>
       </div>
     </div>
@@ -469,7 +506,7 @@
         <div class="awesome">
           <div class="tag">Tools for Being Awesome <span class="soon">Coming soon</span></div>
           <h3>Gentle and welcoming</h3>
-          <p>The same mechanics in kinder words — a ruleset a family can learn together and grow into. The in-app kid-friendly mode is on the way.</p>
+          <p>The same mechanics in kinder words, a ruleset a family can learn together and grow into. The in-app kid-friendly mode is on the way.</p>
         </div>
       </div>
     </div>
@@ -482,7 +519,7 @@
           <div class="tag">Install it</div>
           <h2>Keep the table in your pocket</h2>
           <p>
-            TBA is a Progressive Web App — add it to your home screen or desktop and it
+            TBA is a Progressive Web App, add it to your home screen or desktop and it
             runs in its own window, launches from an icon, and can push you a notification
             the moment it's your roll. No app store, no download size.
           </p>
@@ -525,6 +562,12 @@
   <script>
     if (window.lucide) lucide.createIcons();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
+
+    // Tap the product screenshot to view it full-size.
+    var _lb = document.getElementById('shotLightbox');
+    function openShot() { if (_lb) { _lb.hidden = false; document.body.style.overflow = 'hidden'; } }
+    function closeShot() { if (_lb) { _lb.hidden = true; document.body.style.overflow = ''; _lb.scrollTop = 0; } }
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeShot(); });
 
     // Audience toggle — swap the "Getting started" steps between player and SW.
     (function () {
