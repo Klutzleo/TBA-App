@@ -1645,13 +1645,15 @@ async def delete_object(
     if not obj:
         raise HTTPException(status_code=404, detail="Object not found")
 
-    db.query(InventoryItem).filter(InventoryItem.character_id == obj.id).update(
+    moved = db.query(InventoryItem).filter(InventoryItem.character_id == obj.id).update(
         {"character_id": None, "is_equipped": False}, synchronize_session=False
     )
     oid = str(obj.id)
     db.delete(obj)
     db.commit()
     _broadcast_object(campaign_uuid, {"type": "object_deleted", "object_id": oid})
+    if moved:
+        _broadcast_object(campaign_uuid, {"type": "loot_pool_changed", "reason": "object_deleted", "object_id": oid})
     return None
 
 

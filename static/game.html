@@ -3430,6 +3430,23 @@
             <button class="btn btn-primary" id="objSaveBtn" style="flex:1;background:#94a3b8;border-color:#94a3b8;" onclick="saveObject()">Add Object</button>
             <button class="btn" id="objCancelEditBtn" style="display:none;background:var(--bg-secondary);" onclick="resetObjectForm()">Cancel edit</button>
           </div>
+
+          <div id="objContentsPanel" hidden style="border-top:1px solid var(--border-color);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
+            <div style="font-size:0.76rem;font-weight:700;color:#94a3b8;">Contents <span style="opacity:0.5;font-weight:400;">(revealed when the party beats it)</span></div>
+            <div id="objContentsList" style="display:flex;flex-direction:column;gap:4px;"></div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+              <input id="objItemName" type="text" maxlength="80" placeholder="Item name"
+                style="flex:2 1 120px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:5px;color:var(--text-primary);padding:5px 7px;font-size:0.82rem;">
+              <select id="objItemType" style="flex:1 1 90px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:5px;color:var(--text-primary);padding:5px 7px;font-size:0.82rem;">
+                <option value="treasure">Treasure</option><option value="consumable">Consumable</option>
+                <option value="weapon">Weapon</option><option value="armor">Armor</option><option value="misc">Misc</option>
+              </select>
+              <input id="objItemQty" type="number" min="1" max="99" value="1"
+                style="width:52px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:5px;color:var(--text-primary);padding:5px 7px;font-size:0.82rem;">
+              <button class="btn" style="padding:4px 10px;font-size:0.78rem;background:var(--bg-secondary);" onclick="addObjectItem()">+ Add</button>
+            </div>
+            <button class="btn" id="objDumpBtn" style="padding:4px 10px;font-size:0.76rem;background:var(--bg-secondary);align-self:flex-start;" onclick="dumpObjectToLoot()">Dump all to loot pool</button>
+          </div>
         </div>
 
         <div>
@@ -4728,6 +4745,7 @@
 
     // ── Objects modal (SW): create / edit / re-arm / hide / delete ───────────
     let _editingObjectId = null;
+    let _objContentsId = null;   // object whose Contents sub-panel is currently shown
 
     function openObjectsModal() {
       resetObjectForm();
@@ -4741,6 +4759,7 @@
 
     function resetObjectForm() {
       _editingObjectId = null;
+      _objContentsId = null;
       document.getElementById('objFormTitle').textContent = 'New Object';
       document.getElementById('objName').value = '';
       document.getElementById('objDifficulty').value = '';
@@ -4751,6 +4770,7 @@
       document.getElementById('objNotes').value = '';
       document.getElementById('objSaveBtn').textContent = 'Add Object';
       document.getElementById('objCancelEditBtn').style.display = 'none';
+      document.getElementById('objContentsPanel').hidden = true;
     }
 
     function refreshObjectsModal() {
@@ -4793,7 +4813,70 @@
       document.getElementById('objNotes').value = o.notes || '';
       document.getElementById('objSaveBtn').textContent = 'Save Changes';
       document.getElementById('objCancelEditBtn').style.display = '';
+      document.getElementById('objContentsPanel').hidden = false;
+      _objContentsId = id;
+      loadObjectContents(id);
       document.getElementById('objName').scrollIntoView({ block: 'nearest' });
+    }
+
+    async function loadObjectContents(id) {
+      const wrap = document.getElementById('objContentsList');
+      if (!wrap || _objContentsId !== id) return;
+      try {
+        const r = await fetch(`/api/characters/${id}/inventory`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = r.ok ? await r.json() : { items: [] };
+        const items = data.items || [];
+        wrap.innerHTML = items.length ? items.map(it => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:0.82rem;background:var(--bg-secondary);border-radius:5px;padding:4px 7px;">
+            <span>${escHtml(it.name)}${it.quantity > 1 ? ` ×${it.quantity}` : ''} <span style="opacity:0.5;">${escHtml(it.item_type || '')}</span></span>
+            <button style="background:none;border:none;color:#f87171;cursor:pointer;padding:0 3px;" title="Remove" onclick="removeObjectItem('${it.id}')">&times;</button>
+          </div>`).join('') : '<div style="font-size:0.78rem;color:var(--text-muted);">Empty — add items below.</div>';
+      } catch (_) { wrap.innerHTML = '<div style="font-size:0.78rem;color:#f87171;">Could not load contents.</div>'; }
+    }
+
+    async function addObjectItem() {
+      if (!_objContentsId) return;
+      const name = document.getElementById('objItemName').value.trim();
+      if (!name) { alert('Item name?'); return; }
+      const body = {
+        name,
+        item_type: document.getElementById('objItemType').value,
+        quantity: parseInt(document.getElementById('objItemQty').value, 10) || 1,
+      };
+      try {
+        const r = await fetch(`/api/characters/${_objContentsId}/inventory`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error('Add failed');
+        document.getElementById('objItemName').value = '';
+        document.getElementById('objItemQty').value = '1';
+        loadObjectContents(_objContentsId);
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function removeObjectItem(itemId) {
+      if (!_objContentsId) return;
+      try {
+        const r = await fetch(`/api/characters/${_objContentsId}/inventory/${itemId}`, {
+          method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        if (!r.ok && r.status !== 204) throw new Error('Remove failed');
+        loadObjectContents(_objContentsId);
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function dumpObjectToLoot() {
+      if (!_objContentsId) return;
+      if (!confirm('Move every item in this object to the loot pool?')) return;
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects/${_objContentsId}/dump-to-loot`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        if (!r.ok) throw new Error('Dump failed');
+        loadObjectContents(_objContentsId);
+      } catch (e) { alert('Error: ' + e.message); }
     }
 
     function _readObjectForm() {
@@ -4886,20 +4969,67 @@
     }
 
     // Flavor card posted when an Object is beaten (stat-check win, smashed, or env).
+    // SW view gets a per-item "Give →" picker + a dump-to-loot shortcut.
     function renderObjectRevealedCard(data) {
       const card = document.createElement('div');
       card.className = 'message-card';
       const contents = Array.isArray(data.contents) ? data.contents : [];
-      const list = contents.length
-        ? '<ul style="margin:6px 0 0;padding-left:18px;font-size:0.85rem;">' +
-            contents.map(c => `<li>${escHtml(c.name)}${c.quantity > 1 ? ` ×${c.quantity}` : ''}</li>`).join('') + '</ul>'
-        : '<div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Nothing inside.</div>';
+      const sw = isSW();
+      const objId = data.object_id;
+      let body;
+      if (!contents.length) {
+        body = '<div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Nothing inside.</div>';
+      } else if (sw && objId) {
+        const pcOpts = (knownPCs || []).map(p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('');
+        body = '<div style="display:flex;flex-direction:column;gap:5px;margin-top:6px;">' + contents.map(c => `
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:0.84rem;">
+            <span style="flex:1 1 auto;">${escHtml(c.name)}${c.quantity > 1 ? ` ×${c.quantity}` : ''}</span>
+            <select class="obj-give-sel" data-item="${escHtml(c.id)}" style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:0.78rem;padding:2px 4px;">
+              <option value="">— give to —</option>${pcOpts}
+            </select>
+            <button class="btn" style="padding:2px 8px;font-size:0.74rem;background:var(--bg-secondary);" onclick="giveRevealedItem('${escHtml(objId)}', this)">Give</button>
+          </div>`).join('') + `</div>
+          <button class="btn" style="margin-top:6px;padding:3px 9px;font-size:0.74rem;background:var(--bg-secondary);" onclick="dumpRevealedToLoot('${escHtml(objId)}', this)">Dump all to loot pool</button>`;
+      } else {
+        body = '<ul style="margin:6px 0 0;padding-left:18px;font-size:0.85rem;">' +
+          contents.map(c => `<li>${escHtml(c.name)}${c.quantity > 1 ? ` ×${c.quantity}` : ''}</li>`).join('') + '</ul>';
+      }
       card.innerHTML = `<div style="border-left:3px solid #94a3b8;padding:8px 12px;background:rgba(148,163,184,0.08);border-radius:4px;">
         <div style="font-weight:700;color:#cbd5e1;">🔓 ${escHtml(data.object_name || 'The object')} gives way</div>
         ${data.revealed_text ? `<div style="font-size:0.88rem;margin-top:3px;">${escHtml(data.revealed_text)}</div>` : ''}
-        ${list}
+        ${body}
       </div>`;
       return card;
+    }
+
+    async function giveRevealedItem(objectId, btn) {
+      const sel = btn.parentElement.querySelector('.obj-give-sel');
+      const target = sel && sel.value;
+      const itemId = sel && sel.dataset.item;
+      if (!target) { alert('Pick a character.'); return; }
+      btn.disabled = true;
+      try {
+        const r = await fetch(`/api/characters/${objectId}/inventory/${itemId}/give`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_character_id: target }),
+        });
+        if (!r.ok) throw new Error('Give failed');
+        btn.textContent = 'Given ✓';
+        btn.parentElement.style.opacity = '0.5';
+      } catch (e) { btn.disabled = false; alert('Error: ' + e.message); }
+    }
+
+    async function dumpRevealedToLoot(objectId, btn) {
+      if (!confirm('Move everything left in this object to the loot pool?')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects/${objectId}/dump-to-loot`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        if (!r.ok) throw new Error('Dump failed');
+        btn.textContent = 'Dumped ✓';
+      } catch (e) { btn.disabled = false; alert('Error: ' + e.message); }
     }
     let campaignPCs = [];  // Real player characters only (no Narrator/NPC) — for SW puppet bubbles
     const visibleNPCNames = new Set(); // NPCs revealed to players via non-silent initiative
@@ -10927,7 +11057,7 @@
       if (!append && historyLoaded[tab]) return;
 
       try {
-        const historyUrl = `https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/messages?limit=${messagesLimit}&offset=${messagesOffset[tab]}&tab=${tab}`;
+        const historyUrl = `/api/campaigns/${campaignId}/messages?limit=${messagesLimit}&offset=${messagesOffset[tab]}&tab=${tab}`;
         const response = await fetch(historyUrl, {
           headers: {
             'Authorization': `Bearer ${authToken}`
@@ -12438,6 +12568,22 @@
               // If NPC edit panel is open and this item was added to that NPC, refresh it
               const openNpcId = document.getElementById('editNpcId')?.value;
               if (openNpcId && data.character_id === openNpcId) loadNpcInventory(openNpcId);
+              // If the Object contents panel is open for this object, refresh it
+              if (typeof _objContentsId !== 'undefined' && _objContentsId && data.character_id === _objContentsId) loadObjectContents(_objContentsId);
+
+            } else if (data.type === 'item_given') {
+              // Live reflect a char→char (or object→PC) transfer
+              if (data.to_id === characterId || data.from_id === characterId) loadInventory();
+              if (!data.item || !data.item.secret) {
+                if (isSW()) showPanelToast(`📦 ${data.item ? data.item.name : 'Item'} → ${data.to_name}`, 'info');
+                if (data.to_id === characterId && !isSW()) showPanelToast(`🎁 You received: ${data.item.name}`, 'success');
+              }
+              const gNpcId = document.getElementById('editNpcId')?.value;
+              if (gNpcId && (data.from_id === gNpcId || data.to_id === gNpcId)) loadNpcInventory(gNpcId);
+              if (typeof _swSheetCharId !== 'undefined' && _swSheetCharId && (data.from_id === _swSheetCharId || data.to_id === _swSheetCharId)) {
+                openSwSheetModal(_swSheetCharId, document.getElementById('swSheetCharName')?.textContent);
+              }
+              if (typeof _objContentsId !== 'undefined' && _objContentsId && (data.from_id === _objContentsId || data.to_id === _objContentsId)) loadObjectContents(_objContentsId);
 
             } else if (data.type === 'item_used') {
               console.log('🎒 item_used received:', data);
@@ -14022,7 +14168,7 @@
     // === Load and Display Character Cards ===
     async function loadCharacters() {
       try {
-        const response = await fetch(`https://tba-app-production.up.railway.app/api/campaigns/${campaignId}/members`, {
+        const response = await fetch(`/api/campaigns/${campaignId}/members`, {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
@@ -15816,7 +15962,7 @@
     document.getElementById('swSheetBody').innerHTML = '<p style="color:var(--text-muted);">Loading...</p>';
     document.getElementById('swSheetModal').classList.add('active');
 
-    const base = 'https://tba-app-production.up.railway.app';
+    const base = '';
     const headers = { 'Authorization': `Bearer ${authToken}` };
 
     try {
@@ -16059,7 +16205,7 @@
     const debuffStatEl = document.getElementById(`swAb_debuff_stat_${idx}`);
     const debuffStat = debuffStatEl ? debuffStatEl.value : null;
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/abilities/${ab.id}`, {
+      const res = await fetch(`/api/characters/${_swSheetCharId}/abilities/${ab.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ display_name: name, power_source: src, macro_command: macro, debuff_stat: debuffStat }),
@@ -16104,7 +16250,7 @@
     const name = document.getElementById(`swItem_name_${idx}`)?.value.trim();
     const qty  = parseInt(document.getElementById(`swItem_qty_${idx}`)?.value) || 1;
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory/${item.id}`, {
+      const res = await fetch(`/api/characters/${_swSheetCharId}/inventory/${item.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ name, quantity: qty }),
@@ -16127,7 +16273,7 @@
     panel.style.display = 'flex';
 
     if (!_swSheetCharList) {
-      const base = 'https://tba-app-production.up.railway.app';
+      const base = '';
       const headers = { 'Authorization': `Bearer ${authToken}` };
       try {
         const [memRes, npcRes] = await Promise.all([
@@ -16169,7 +16315,7 @@
     if (!targetId) return;
     const targetName = _swSheetCharList?.find(c => c.id === targetId)?.label || targetId;
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory/${item.id}/give`, {
+      const res = await fetch(`/api/characters/${_swSheetCharId}/inventory/${item.id}/give`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ target_character_id: targetId }),
@@ -16215,7 +16361,7 @@
     const item = _swSheetItems[idx];
     if (!item) return;
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory/${item.id}`, {
+      const res = await fetch(`/api/characters/${_swSheetCharId}/inventory/${item.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
@@ -16239,7 +16385,7 @@
   async function swSaveCurrency() {
     const val = parseInt(document.getElementById('swEdit_currency')?.value) || 0;
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/currency`, {
+      const res = await fetch(`/api/characters/${_swSheetCharId}/currency`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ currency: val }),
@@ -16288,7 +16434,7 @@
     const qty  = parseInt(document.getElementById('swNewItemQty')?.value) || 1;
     if (!name) { showToast('Item needs a name.', 'error'); return; }
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}/inventory`, {
+      const res = await fetch(`/api/characters/${_swSheetCharId}/inventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ name, item_type: type, quantity: qty, given_by_sw: true }),
@@ -16317,7 +16463,7 @@
     }
 
     try {
-      const res = await fetch(`https://tba-app-production.up.railway.app/api/characters/${_swSheetCharId}`, {
+      const res = await fetch(`/api/characters/${_swSheetCharId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ pp, ip, sp }),
@@ -16353,7 +16499,7 @@
     if (editBtn) editBtn.style.display = (charId === characterId) ? '' : 'none';
     document.getElementById('playerSheetModal').classList.add('active');
 
-    const base = 'https://tba-app-production.up.railway.app';
+    const base = '';
     const headers = { 'Authorization': `Bearer ${authToken}` };
 
     try {
