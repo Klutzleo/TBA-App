@@ -4,7 +4,7 @@
  */
 
 const AUTH_CONFIG = {
-    API_URL: 'https://tba-app-production.up.railway.app/api',
+    API_URL: '/api',
     TOKEN_KEY: 'tba_token',
     USER_KEY: 'tba_user'
 };

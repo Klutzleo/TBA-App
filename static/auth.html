@@ -273,8 +273,10 @@
     <div id="installBanner" class="install-banner" style="display:none;"></div>
     <div class="auth-container">
         <div class="logo">
-            <img src="/icons/icon-192.png" alt="TBA" style="width:72px;height:72px;border-radius:16px;margin-bottom:8px;">
-            <h1>TBA</h1>
+            <a href="/landing.html" style="text-decoration:none;color:inherit;display:inline-block;">
+                <img src="/icons/icon-192.png" alt="TBA" style="width:72px;height:72px;border-radius:16px;margin-bottom:8px;">
+                <h1>TBA</h1>
+            </a>
             <p>Tools for the Bad Ass</p>
         </div>
 
@@ -355,25 +357,23 @@
     </div>
 
     <script>
-        const API_URL = 'https://tba-app-production.up.railway.app/api';
+        const API_URL = '/api';
+
+        function selectTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const el = document.getElementById(`${tabName}-tab`);
+            if (el) el.classList.add('active');
+            hideMessages();
+        }
 
         // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const tabName = btn.dataset.tab;
-                
-                // Update buttons
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                
-                // Update content
-                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                document.getElementById(`${tabName}-tab`).classList.add('active');
-                
-                // Clear messages
-                hideMessages();
-            });
+            btn.addEventListener('click', () => selectTab(btn.dataset.tab));
         });
+
+        // Deep link: /auth.html?tab=register opens the sign-up tab
+        if (new URLSearchParams(location.search).get('tab') === 'register') selectTab('register');
 
         // Password toggle
         document.querySelectorAll('.password-toggle').forEach(btn => {

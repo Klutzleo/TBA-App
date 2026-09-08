@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TBA — Run your tabletop RPG in the browser</title>
+  <meta name="description" content="TBA is a real-time platform for playing the TBA tabletop RPG in your browser. Roll dice, run combat, and narrate the story with your party — live, from anywhere, no virtual tabletop to wrestle.">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="TBA — Run your tabletop RPG in the browser">
+  <meta property="og:description" content="A real-time platform for the TBA tabletop RPG. Roll dice, run combat, and narrate the story with your party — live, from anywhere.">
+  <meta property="og:image" content="/icons/icon-512.png">
+  <meta property="og:url" content="https://tba-rpg.com/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="TBA — Run your tabletop RPG in the browser">
+  <meta name="twitter:description" content="A real-time platform for the TBA tabletop RPG. Roll dice, run combat, narrate the story — live, from anywhere.">
+  <meta name="twitter:image" content="/icons/icon-512.png">
+
+  <script src="/js/lucide.min.js"></script>
+  <script defer src="https://umami-production-8274.up.railway.app/script.js" data-website-id="9ce7e74b-49d0-4998-aedc-f68165024010"></script>
+  <style>
+    :root {
+      --bg:        #101219;
+      --bg-2:      #161a26;
+      --panel:     #1c2130;
+      --panel-2:   #232838;
+      --border:    #333a52;
+      --border-soft:#2a3048;
+      --gold:      #d4af37;
+      --gold-dim:  #9d7c2f;
+      --purple:    #a78bfa;
+      --orange:    #f97316;
+      --green:     #34d399;
+      --red:       #f87171;
+      --text:      #e7e9f0;
+      --text-mut:  #a2a7b8;
+      --text-dim:  #6a7086;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; }
+
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Nav ─────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(16, 18, 25, 0.82);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-soft);
+    }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.04em; }
+    .brand img { width: 30px; height: 30px; border-radius: 7px; }
+    .brand span { font-size: 1.25rem; color: var(--gold); }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 9px; font-weight: 700; font-size: 0.95rem;
+      cursor: pointer; border: 1px solid transparent; transition: transform .15s, background .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--gold); color: #14161f; }
+    .btn-primary:hover { background: #e6c14e; transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+    .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-lg { padding: 14px 26px; font-size: 1.05rem; border-radius: 11px; }
+
+    /* ── Hero ────────────────────────────────────────────── */
+    .hero { position: relative; padding: 84px 0 64px; text-align: center; }
+    .hero::before {
+      content: ""; position: absolute; inset: -20% 0 auto 0; height: 620px; z-index: -1;
+      background: radial-gradient(ellipse 60% 60% at 50% 0%, rgba(212,175,55,0.16), transparent 70%),
+                  radial-gradient(ellipse 50% 50% at 80% 10%, rgba(167,139,250,0.10), transparent 70%);
+    }
+    .eyebrow {
+      display: inline-block; font-size: 0.8rem; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--gold); border: 1px solid var(--border); border-radius: 999px;
+      padding: 5px 14px; margin-bottom: 26px;
+    }
+    .hero h1 {
+      font-size: clamp(2.1rem, 5.4vw, 3.6rem); line-height: 1.12; font-weight: 800; letter-spacing: -0.02em;
+      margin: 0 auto 20px; max-width: 16ch;
+    }
+    .hero h1 .accent { color: var(--gold); }
+    .hero p.lede {
+      font-size: clamp(1.02rem, 2.1vw, 1.22rem); color: var(--text-mut);
+      max-width: 60ch; margin: 0 auto 34px;
+    }
+    .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .hero-sub { margin-top: 18px; font-size: 0.86rem; color: var(--text-dim); }
+    .hero-sub a { color: var(--purple); border-bottom: 1px solid transparent; }
+    .hero-sub a:hover { border-color: var(--purple); }
+
+    /* ── Chat mockup ─────────────────────────────────────── */
+    .mock {
+      margin: 56px auto 0; max-width: 760px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+      box-shadow: 0 30px 80px -30px rgba(0,0,0,0.7);
+      overflow: hidden;
+    }
+    .mock-bar {
+      display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+      background: var(--bg-2); border-bottom: 1px solid var(--border-soft);
+      font-size: 0.82rem; color: var(--text-dim);
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mock-bar .spacer { flex: 1; }
+    .mock-body { padding: 18px; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+
+    .line { font-size: 0.92rem; }
+    .line .who { font-weight: 700; }
+    .line.narr { color: var(--text-mut); font-style: italic; border-left: 2px solid var(--border); padding-left: 12px; }
+
+    .card {
+      border-radius: 10px; padding: 12px 14px; border: 1px solid var(--border-soft);
+      background: var(--panel-2); font-size: 0.88rem;
+    }
+    .card .head { display: flex; align-items: center; gap: 7px; font-weight: 700; margin-bottom: 6px; }
+    .card .head .ico { width: 15px; height: 15px; }
+    .card.attack { border-left: 3px solid var(--gold); }
+    .card.attack .head { color: var(--gold); }
+    .card.stat   { border-left: 3px solid var(--purple); }
+    .card.stat .head { color: var(--purple); }
+    .card.combo  { border-left: 3px solid var(--orange); }
+    .card.combo .head { color: var(--orange); }
+    .roll-detail { color: var(--text-mut); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
+    .roll-total { font-weight: 800; font-size: 1.05rem; }
+    .roll-total.hit { color: var(--green); }
+    .pill {
+      display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em;
+      padding: 1px 7px; border-radius: 5px; background: rgba(167,139,250,0.14);
+      color: var(--purple); border: 1px solid rgba(167,139,250,0.3); margin-left: 6px;
+    }
+
+    /* ── Sections ────────────────────────────────────────── */
+    section { padding: 78px 0; }
+    .section-head { text-align: center; max-width: 60ch; margin: 0 auto 48px; }
+    .section-head h2 { font-size: clamp(1.7rem, 3.6vw, 2.4rem); font-weight: 800; letter-spacing: -0.01em; margin-bottom: 12px; }
+    .section-head p { color: var(--text-mut); font-size: 1.04rem; }
+
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border-soft), transparent); }
+
+    /* value props */
+    .props { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .prop {
+      background: var(--panel); border: 1px solid var(--border-soft); border-radius: 14px; padding: 26px 22px;
+    }
+    .prop .badge {
+      width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center;
+      background: rgba(212,175,55,0.12); color: var(--gold); margin-bottom: 16px;
+    }
+    .prop:nth-child(2) .badge { background: rgba(167,139,250,0.12); color: var(--purple); }
+    .prop:nth-child(3) .badge { background: rgba(249,115,22,0.12); color: var(--orange); }
+    .prop h3 { font-size: 1.12rem; margin-bottom: 8px; }
+    .prop p { color: var(--text-mut); font-size: 0.95rem; }
+
+    /* feature grid */
+    .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .feat {
+      background: var(--panel); border: 1px solid var(--border-soft); border-radius: 12px; padding: 20px 18px;
+      transition: border-color .15s, transform .15s;
+    }
+    .feat:hover { border-color: var(--border); transform: translateY(-2px); }
+    .feat .fi { width: 20px; height: 20px; color: var(--gold); margin-bottom: 12px; }
+    .feat h4 { font-size: 0.98rem; margin-bottom: 5px; }
+    .feat p { color: var(--text-dim); font-size: 0.85rem; line-height: 1.5; }
+
+    /* how it works */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; counter-reset: step; }
+    .step { position: relative; padding: 24px 20px; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 14px; }
+    .step .num {
+      counter-increment: step;
+      width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--gold); color: #14161f; font-weight: 800; margin-bottom: 14px;
+    }
+    .step .num::before { content: counter(step); }
+    .step h4 { font-size: 1.05rem; margin-bottom: 6px; }
+    .step p { color: var(--text-mut); font-size: 0.92rem; }
+
+    /* dual voice */
+    .voice { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 8px; }
+    .voice > div { padding: 26px 24px; border-radius: 14px; border: 1px solid var(--border-soft); background: var(--panel); }
+    .voice .tag { font-size: 0.76rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; }
+    .voice h3 { font-size: 1.16rem; margin-bottom: 8px; }
+    .voice.badass h3 { color: var(--gold); }
+    .voice.awesome h3 { color: var(--green); }
+    .voice p { color: var(--text-mut); font-size: 0.95rem; }
+
+    /* final cta */
+    .cta-band { text-align: center; background: linear-gradient(180deg, var(--panel), var(--bg-2)); border: 1px solid var(--border-soft); border-radius: 20px; padding: 56px 28px; }
+    .cta-band h2 { font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 800; margin-bottom: 12px; }
+    .cta-band p { color: var(--text-mut); margin-bottom: 28px; }
+
+    footer { border-top: 1px solid var(--border-soft); padding: 40px 0 56px; color: var(--text-dim); font-size: 0.86rem; }
+    footer .wrap { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+    footer a { color: var(--text-mut); }
+    footer a:hover { color: var(--gold); }
+    footer .links { display: flex; gap: 20px; flex-wrap: wrap; }
+
+    @media (max-width: 860px) {
+      .props { grid-template-columns: 1fr; }
+      .features { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: 1fr; }
+      .voice { grid-template-columns: 1fr; }
+      section { padding: 60px 0; }
+    }
+    @media (max-width: 460px) {
+      .features { grid-template-columns: 1fr; }
+      .nav-actions .btn-ghost { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/icons/icon-192.png" alt=""><span>TBA</span></a>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/auth.html">Log in</a>
+        <a class="btn btn-primary" href="/auth.html?tab=register">Start playing</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Tools for the Bad&nbsp;Ass</span>
+      <h1>Run your tabletop RPG <span class="accent">in the browser</span></h1>
+      <p class="lede">
+        TBA is a real-time platform for the TBA ruleset. Roll dice, run combat, and narrate
+        the story with your whole party in one shared window — live, from anywhere. No virtual
+        tabletop to wrestle, no table required.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="/auth.html?tab=register">Create your free account</a>
+        <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+      </div>
+      <p class="hero-sub">Free to play. <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener">Grab the free rulebook on itch.io →</a></p>
+
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar">
+          <span class="dot" style="background:#f87171"></span>
+          <span class="dot" style="background:#fbbf24"></span>
+          <span class="dot" style="background:#34d399"></span>
+          <span class="spacer"></span>
+          <span>The Ashfall Expedition · Story channel</span>
+        </div>
+        <div class="mock-body">
+          <div class="line narr">The bridge groans. Below, the river of embers moves like something alive.</div>
+          <div class="line"><span class="who" style="color:#a78bfa">Story Weaver</span> — Kesh, the cultist lunges at you as you cross.</div>
+          <div class="card attack">
+            <div class="head"><i class="ico" data-lucide="swords"></i> Kesh attacks the Cultist — Hit</div>
+            <div class="roll-detail">3d6 → [5 + 2 + 6] vs defense 1d6 → [3]&nbsp;&nbsp;·&nbsp;&nbsp;damage 4 + 0 + 3</div>
+            <div class="roll-total hit">7 damage · Cultist DP 11 → 4</div>
+          </div>
+          <div class="line"><span class="who" style="color:#34d399">Rell</span> — I try to shove them off the edge.</div>
+          <div class="card stat">
+            <div class="head"><i class="ico" data-lucide="target"></i> Stat Check — PP <span class="pill">Hidden difficulty</span></div>
+            <div class="roll-detail">Rell rolls 1d6 → [6] + PP 3 + Edge 1&nbsp;&nbsp;=&nbsp;&nbsp;<span class="roll-total hit">10</span> · beats the DC</div>
+          </div>
+          <div class="card combo">
+            <div class="head"><i class="ico" data-lucide="link"></i> Combo ready — Kesh + Rell</div>
+            <div class="roll-detail">Bond forged in the collapse of Vault 7. Fires on Rell's next turn.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Built for the way people actually play now</h2>
+        <p>Everyone's in a different city. TBA keeps the table feeling like a table.</p>
+      </div>
+      <div class="props">
+        <div class="prop">
+          <div class="badge"><i data-lucide="zap" style="width:20px;height:20px"></i></div>
+          <h3>Real-time by default</h3>
+          <p>Every roll, attack, and ability is broadcast to the whole party the instant it happens, over a live connection — with a persistent log you can scroll back through mid-session or weeks later.</p>
+        </div>
+        <div class="prop">
+          <div class="badge"><i data-lucide="dices" style="width:20px;height:20px"></i></div>
+          <h3>The mechanics do the talking</h3>
+          <p>Multi-die attacks, Edge, BAP, Bonds that chain into Combos, hidden-difficulty Stat Checks, environmental hazards, Objects to pick or smash, the death spiral of The Calling — each one narrated for you as it resolves.</p>
+        </div>
+        <div class="prop">
+          <div class="badge"><i data-lucide="smartphone" style="width:20px;height:20px"></i></div>
+          <h3>Play from your pocket</h3>
+          <p>Install it like an app, get a push notification when it's your roll, and mirror the whole session to your group's Discord so nobody misses a beat.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Everything the ruleset needs, already wired up</h2>
+        <p>You bring the story. The app handles the bookkeeping.</p>
+      </div>
+      <div class="features">
+        <div class="feat"><i class="fi" data-lucide="swords"></i><h4>Real-time combat &amp; dice</h4><p>Roll macros, multi-die attacks, live combat broadcast to the party.</p></div>
+        <div class="feat"><i class="fi" data-lucide="link"></i><h4>Bonds &amp; Combo attacks</h4><p>Story-earned bonds between characters chain into shared Combo strikes.</p></div>
+        <div class="feat"><i class="fi" data-lucide="target"></i><h4>Stat &amp; Env Checks</h4><p>The Story Weaver sends hidden-difficulty checks and environmental hazards.</p></div>
+        <div class="feat"><i class="fi" data-lucide="puzzle"></i><h4>Objects</h4><p>Locks, doors, chests and traps the party rolls against, smashes, or burns down.</p></div>
+        <div class="feat"><i class="fi" data-lucide="list-ordered"></i><h4>Initiative &amp; encounters</h4><p>Turn order, encounter setup, auto-restore when the fight ends.</p></div>
+        <div class="feat"><i class="fi" data-lucide="wand-2"></i><h4>Custom ability macros</h4><p>Per-character abilities, six effect types, usage tracking, PP/IP/SP sources.</p></div>
+        <div class="feat"><i class="fi" data-lucide="trophy"></i><h4>153 achievements</h4><p>Rarity tiers, live toasts, a badge showcase, retroactive unlocks.</p></div>
+        <div class="feat"><i class="fi" data-lucide="user-round"></i><h4>Public profiles</h4><p>A shareable page for your characters, stats and achievements — no login to view.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>From nothing to playing in three steps</h2>
+        <p>No installs for your players. No accounts to wrangle. A link and a code.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="num"></div>
+          <h4>Create a campaign</h4>
+          <p>Sign up, name your world, and you're the Story Weaver — the app sets up the channels and tools.</p>
+        </div>
+        <div class="step">
+          <div class="num"></div>
+          <h4>Share the join code</h4>
+          <p>Send your players one code. They make a character, you approve it, and they're in.</p>
+        </div>
+        <div class="step">
+          <div class="num"></div>
+          <h4>Play in the browser</h4>
+          <p>Desktop or phone. Roll, fight, narrate — everyone sees it live, and the log keeps the history.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <h2>One ruleset, two voices</h2>
+        <p>The TBA rules are written to be read aloud at any table.</p>
+      </div>
+      <div class="voice">
+        <div class="badass">
+          <div class="tag">Tools for the Bad Ass</div>
+          <h3>Gritty and tactical</h3>
+          <p>Expressive combat, hard choices, and the weight of The Calling for players who want their stakes sharp.</p>
+        </div>
+        <div class="awesome">
+          <div class="tag">Tools for Being Awesome</div>
+          <h3>Gentle and welcoming</h3>
+          <p>The same mechanics in kinder words — a ruleset a family can learn together and grow into.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <h2>Your party's waiting.</h2>
+        <p>Create a campaign in a minute. It's free.</p>
+        <a class="btn btn-primary btn-lg" href="/auth.html?tab=register">Start playing</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>TBA — Tools for the Bad Ass / Tools for Being Awesome</span>
+      <div class="links">
+        <a href="/auth.html">Log in</a>
+        <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener">Rulebook</a>
+        <a href="https://ko-fi.com/gameoctane" target="_blank" rel="noopener">☕ Ko-fi</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    if (window.lucide) lucide.createIcons();
+    // If a returning player is already signed in, send them to their campaigns.
+    try {
+      if (localStorage.getItem('tba_token') || sessionStorage.getItem('tba_token')) {
+        location.replace('/campaigns.html');
+      }
+    } catch (_) {}
+  </script>
+</body>
+</html>
