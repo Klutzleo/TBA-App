@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TBA — Run your tabletop RPG in the browser</title>
-  <meta name="description" content="TBA is a real-time platform for playing the TBA tabletop RPG in your browser. Roll dice, run combat, and narrate the story with your party — live, from anywhere, no virtual tabletop to wrestle.">
+  <title>TBA — the TBA tabletop RPG, live in your browser</title>
+  <meta name="description" content="TBA runs the TBA tabletop RPG live in your browser. Every roll is a duel — attacker die versus defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#1a1a2e" />
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="TBA — Run your tabletop RPG in the browser">
-  <meta property="og:description" content="A real-time platform for the TBA tabletop RPG. Roll dice, run combat, and narrate the story with your party — live, from anywhere.">
+  <meta property="og:title" content="TBA — the TBA tabletop RPG, live in your browser">
+  <meta property="og:description" content="Every roll is a duel — attacker die versus defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <meta property="og:image" content="/icons/icon-512.png">
   <meta property="og:url" content="https://tba-rpg.com/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="TBA — Run your tabletop RPG in the browser">
-  <meta name="twitter:description" content="A real-time platform for the TBA tabletop RPG. Roll dice, run combat, narrate the story — live, from anywhere.">
+  <meta name="twitter:title" content="TBA — the TBA tabletop RPG, live in your browser">
+  <meta name="twitter:description" content="Every roll is a duel — attacker die vs defender die, no flat numbers. Gather the party, tell the story, from anywhere.">
   <meta name="twitter:image" content="/icons/icon-512.png">
 
   <script src="/js/lucide.min.js"></script>
@@ -136,8 +136,8 @@
     .card.attack .head { color: var(--gold); }
     .card.stat   { border-left: 3px solid var(--purple); }
     .card.stat .head { color: var(--purple); }
-    .card.combo  { border-left: 3px solid var(--orange); }
-    .card.combo .head { color: var(--orange); }
+    .card.bapcard { border-left: 3px solid var(--gold); }
+    .card.bapcard .head { color: var(--gold); }
     .roll-detail { color: var(--text-mut); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
     .roll-total { font-weight: 800; font-size: 1.05rem; }
     .roll-total.hit { color: var(--green); }
@@ -154,6 +154,37 @@
     .section-head p { color: var(--text-mut); font-size: 1.04rem; }
 
     .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border-soft), transparent); }
+
+    /* die vs die */
+    .duel {
+      display: flex; align-items: center; gap: 36px;
+      background: linear-gradient(120deg, rgba(212,175,55,0.08), rgba(248,113,113,0.05));
+      border: 1px solid var(--border-soft); border-radius: 18px; padding: 40px 36px;
+    }
+    .duel-copy { flex: 1.4; }
+    .duel-copy .tag { font-size: 0.76rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
+    .duel-copy h2 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); font-weight: 800; letter-spacing: -0.01em; margin-bottom: 14px; }
+    .duel-copy h2 .accent { color: var(--gold); }
+    .duel-copy p { color: var(--text-mut); font-size: 1rem; }
+    .duel-copy em { color: var(--text); font-style: italic; }
+    .duel-viz {
+      flex: 1; min-width: 210px; display: flex; flex-direction: column; gap: 10px;
+      background: var(--panel); border: 1px solid var(--border-soft); border-radius: 14px; padding: 22px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .dv-side { display: flex; flex-direction: column; gap: 3px; }
+    .dv-label { font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.03em; }
+    .dv-roll { font-size: 1.5rem; font-weight: 800; color: var(--gold); letter-spacing: 0.08em; }
+    .dv-side.def .dv-roll { color: var(--red); }
+    .dv-vs { text-align: center; font-size: 0.8rem; color: var(--text-dim); letter-spacing: 0.2em; }
+    .dv-out { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border-soft); font-size: 0.92rem; color: var(--text-mut); }
+    .dv-out strong { color: var(--green); }
+    .duel.bap { background: linear-gradient(120deg, rgba(212,175,55,0.10), rgba(167,139,250,0.05)); }
+    .duel.bap .duel-copy { flex: 1.4; }
+    .bap-viz { justify-content: center; font-family: inherit; }
+    .bap-line { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 1.02rem; color: var(--text-mut); margin: 6px 0; }
+    .bap-line .op { color: var(--text-dim); margin: 0 3px; }
+    .bap-tok { color: #14161f; background: var(--gold); font-weight: 800; padding: 2px 8px; border-radius: 6px; }
 
     /* value props */
     .props { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
@@ -179,6 +210,12 @@
     .feat .fi { width: 20px; height: 20px; color: var(--gold); margin-bottom: 12px; }
     .feat h4 { font-size: 0.98rem; margin-bottom: 5px; }
     .feat p { color: var(--text-dim); font-size: 0.85rem; line-height: 1.5; }
+    .soon {
+      display: inline-block; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em;
+      text-transform: uppercase; vertical-align: middle; margin-left: 6px;
+      padding: 1px 6px; border-radius: 5px;
+      color: var(--purple); background: rgba(167,139,250,0.14); border: 1px solid rgba(167,139,250,0.32);
+    }
 
     /* how it works */
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; counter-reset: step; }
@@ -236,6 +273,7 @@
       .features { grid-template-columns: repeat(2, 1fr); }
       .steps { grid-template-columns: 1fr; }
       .voice { grid-template-columns: 1fr; }
+      .duel { flex-direction: column; gap: 24px; }
       .install-band { flex-direction: column; text-align: center; align-items: center; }
       .install-actions { justify-content: center; }
       .install-glyph { order: -1; }
@@ -260,18 +298,21 @@
 
   <header class="hero">
     <div class="wrap">
-      <span class="eyebrow">Tools for the Bad&nbsp;Ass</span>
-      <h1>Run your tabletop RPG <span class="accent">in the browser</span></h1>
+      <span class="eyebrow">The TBA Tabletop RPG</span>
+      <h1>Tell <span class="accent">your</span> story.</h1>
       <p class="lede">
-        TBA is a real-time platform for the TBA ruleset. Roll dice, run combat, and narrate
-        the story with your whole party in one shared window — live, from anywhere. No virtual
-        tabletop to wrestle, no table required.
+        A cyberpunk heist, high fantasy, a monster-of-the-week comedy — TBA runs the TBA
+        ruleset live in your browser for any genre your table's into. Dice, combat, and
+        narration in one shared window, playable from anywhere. No virtual tabletop to
+        fight, no table to book.
       </p>
       <div class="hero-cta">
         <a class="btn btn-primary btn-lg" href="/auth.html?tab=register">Create your free account</a>
-        <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+        <a class="btn btn-ghost btn-lg" href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener">
+          <i data-lucide="book-open" style="width:17px;height:17px"></i> Read the free rulebook
+        </a>
       </div>
-      <p class="hero-sub">Free to play. <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener">Grab the free rulebook on itch.io →</a></p>
+      <p class="hero-sub">Free to play. <a href="#how">See how it works →</a></p>
 
       <div class="mock" aria-hidden="true">
         <div class="mock-bar">
@@ -289,19 +330,69 @@
             <div class="roll-detail">3d6 → [5 + 2 + 6] vs defense 1d6 → [3]&nbsp;&nbsp;·&nbsp;&nbsp;damage 4 + 0 + 3</div>
             <div class="roll-total hit">7 damage · Cultist DP 11 → 4</div>
           </div>
-          <div class="line"><span class="who" style="color:#34d399">Rell</span> — I try to shove them off the edge.</div>
+          <div class="line"><span class="who" style="color:#34d399">Rell</span> — I grab the falling rope, swing under the flame, and shove them off the edge.</div>
+          <div class="card bapcard">
+            <div class="head"><i class="ico" data-lucide="sparkles"></i> Story Weaver granted Rell +4 BAP</div>
+            <div class="roll-detail">"That's the move." Adds to Rell's roll this turn.</div>
+          </div>
           <div class="card stat">
             <div class="head"><i class="ico" data-lucide="target"></i> Stat Check — PP <span class="pill">Hidden difficulty</span></div>
-            <div class="roll-detail">Rell rolls 1d6 → [6] + PP 3 + Edge 1&nbsp;&nbsp;=&nbsp;&nbsp;<span class="roll-total hit">10</span> · beats the DC</div>
-          </div>
-          <div class="card combo">
-            <div class="head"><i class="ico" data-lucide="link"></i> Combo ready — Kesh + Rell</div>
-            <div class="roll-detail">Bond forged in the collapse of Vault 7. Fires on Rell's next turn.</div>
+            <div class="roll-detail">Rell 1d6 → [5] + PP 3 + Edge 1 + BAP 4 = <span class="roll-total hit">13</span>&nbsp;&nbsp;vs&nbsp;&nbsp;the SW's 1d10 → [8]</div>
           </div>
         </div>
       </div>
     </div>
   </header>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="wrap">
+      <div class="duel">
+        <div class="duel-copy">
+          <div class="tag">The core of the system</div>
+          <h2>No flat numbers. <span class="accent">Every roll is a duel.</span></h2>
+          <p>
+            Nothing in TBA has a static difficulty. Your attack die rolls against the defender's
+            die. A hidden Stat Check is your die against the world's. A locked door rolls back at
+            you. Damage is the <em>gap</em> between the two rolls — so a big swing against a weak
+            one is a rout, and luck cuts both ways. Every contest has a heartbeat.
+          </p>
+        </div>
+        <div class="duel-viz" aria-hidden="true">
+          <div class="dv-side"><span class="dv-label">Attacker · 3d6</span><span class="dv-roll">5 · 2 · 6</span></div>
+          <div class="dv-vs">vs</div>
+          <div class="dv-side def"><span class="dv-label">Defender · 1d6</span><span class="dv-roll">3</span></div>
+          <div class="dv-out">→ 4 + 0 + 3 = <strong>7 damage</strong></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="wrap">
+      <div class="duel bap">
+        <div class="duel-viz bap-viz" aria-hidden="true">
+          <span class="dv-label">Rell slides under the closing blast door, firing backward</span>
+          <div class="bap-line">1d6 <span class="op">+</span> PP 3 <span class="op">+</span> Edge 1 <span class="op">+</span> <span class="bap-tok">BAP&nbsp;4</span></div>
+          <div class="dv-out">Story Weaver: <em>"Hell yes. Take the BAP."</em></div>
+        </div>
+        <div class="duel-copy">
+          <div class="tag">Why it's called that</div>
+          <h2>Do something cool. <span class="accent">The dice pay you back.</span></h2>
+          <p>
+            <strong>BAP — Bad-Ass Power.</strong> Describe an action that's bold, clever, or
+            straight-up cinematic — swing from the chandelier, take the hit meant for someone
+            else, land the one-liner before the shot — and the Story Weaver hands you a bonus
+            that rides on your roll. The bigger the moment, the bigger the swing. The whole
+            system is built to reward the story, not just the tactics.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <div class="divider"></div>
 
@@ -320,12 +411,12 @@
         <div class="prop">
           <div class="badge"><i data-lucide="dices" style="width:20px;height:20px"></i></div>
           <h3>The mechanics do the talking</h3>
-          <p>Multi-die attacks, Edge, BAP, Bonds that chain into Combos, hidden-difficulty Stat Checks, environmental hazards, Objects to pick or smash, the death spiral of The Calling — each one narrated for you as it resolves.</p>
+          <p>Multi-die attacks, Edge, BAP, hidden-difficulty Stat Checks, environmental hazards, Objects to pick or smash, the death spiral of The Calling — each one rolled and narrated for you as it resolves.</p>
         </div>
         <div class="prop">
           <div class="badge"><i data-lucide="smartphone" style="width:20px;height:20px"></i></div>
           <h3>Play from your pocket</h3>
-          <p>Install it like an app, get a push notification when it's your roll, and mirror the whole session to your group's Discord so nobody misses a beat.</p>
+          <p>Install it like an app and get a push notification the moment it's your roll. Session-to-Discord mirroring is on the way.</p>
         </div>
       </div>
     </div>
@@ -341,12 +432,12 @@
       </div>
       <div class="features">
         <div class="feat"><i class="fi" data-lucide="swords"></i><h4>Real-time combat &amp; dice</h4><p>Roll macros, multi-die attacks, live combat broadcast to the party.</p></div>
-        <div class="feat"><i class="fi" data-lucide="link"></i><h4>Bonds &amp; Combo attacks</h4><p>Story-earned bonds between characters chain into shared Combo strikes.</p></div>
+        <div class="feat"><i class="fi" data-lucide="link"></i><h4>Bonds &amp; Combo attacks <span class="soon">Coming soon</span></h4><p>Story-earned bonds between characters chain into shared Combo strikes.</p></div>
         <div class="feat"><i class="fi" data-lucide="target"></i><h4>Stat &amp; Env Checks</h4><p>The Story Weaver sends hidden-difficulty checks and environmental hazards.</p></div>
         <div class="feat"><i class="fi" data-lucide="puzzle"></i><h4>Objects</h4><p>Locks, doors, chests and traps the party rolls against, smashes, or burns down.</p></div>
         <div class="feat"><i class="fi" data-lucide="list-ordered"></i><h4>Initiative &amp; encounters</h4><p>Turn order, encounter setup, auto-restore when the fight ends.</p></div>
         <div class="feat"><i class="fi" data-lucide="wand-2"></i><h4>Custom ability macros</h4><p>Per-character abilities, six effect types, usage tracking, PP/IP/SP sources.</p></div>
-        <div class="feat"><i class="fi" data-lucide="trophy"></i><h4>153 achievements</h4><p>Rarity tiers, live toasts, a badge showcase, retroactive unlocks.</p></div>
+        <div class="feat"><i class="fi" data-lucide="trophy"></i><h4>150+ achievements</h4><p>Rarity tiers, live toasts, a badge showcase, retroactive unlocks.</p></div>
         <div class="feat"><i class="fi" data-lucide="user-round"></i><h4>Public profiles</h4><p>A shareable page for your characters, stats and achievements — no login to view.</p></div>
       </div>
     </div>
@@ -390,14 +481,14 @@
       </div>
       <div class="voice">
         <div class="badass">
-          <div class="tag">Tools for the Bad Ass</div>
+          <div class="tag">Tools for the Bad-Ass</div>
           <h3>Gritty and tactical</h3>
           <p>Expressive combat, hard choices, and the weight of The Calling for players who want their stakes sharp.</p>
         </div>
         <div class="awesome">
-          <div class="tag">Tools for Being Awesome</div>
+          <div class="tag">Tools for Being Awesome <span class="soon">Coming soon</span></div>
           <h3>Gentle and welcoming</h3>
-          <p>The same mechanics in kinder words — a ruleset a family can learn together and grow into.</p>
+          <p>The same mechanics in kinder words — a ruleset a family can learn together and grow into. The in-app kid-friendly mode is on the way.</p>
         </div>
       </div>
     </div>
@@ -441,7 +532,7 @@
 
   <footer>
     <div class="wrap">
-      <span>TBA — Tools for the Bad Ass / Tools for Being Awesome</span>
+      <span>TBA — Tools for the Bad-Ass / Tools for Being Awesome</span>
       <div class="links">
         <a href="/auth.html">Log in</a>
         <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener">Rulebook</a>
