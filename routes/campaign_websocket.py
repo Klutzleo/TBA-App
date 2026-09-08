@@ -1163,6 +1163,20 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             })
             return
 
+        # Objects with no DP pool can't be smashed — must be picked (Stat Check).
+        if defender.is_object and (defender.max_dp or 0) == 0:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": f"❌ {defender.name} can't be smashed — try a Stat Check against it."
+            })
+            return
+        if defender.is_object and defender.object_revealed:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": f"❌ {defender.name} is already broken open."
+            })
+            return
+
         # Check if defender is alive
         if defender.dp <= 0:
             await manager.broadcast(campaign_id, {
@@ -1332,10 +1346,13 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             logger.warning(f"Stats track_attack failed: {_se}")
 
         # =====================================================================
-        # Check for knockout / The Calling
+        # Check for knockout / The Calling / Object broken open
         # =====================================================================
         if defender.dp <= 0:
-            if defender.dp <= -10 and not defender.is_npc and not defender.in_calling:
+            if defender.is_object:
+                if not defender.object_revealed:
+                    await _defeat_object(campaign_id, defender, db, actor_user_id=user_id, source="attack")
+            elif defender.dp <= -10 and not defender.is_npc and not defender.in_calling:
                 if (defender.times_called or 0) >= 4:
                     # 5th Calling — no roll, instant permadeath
                     defender.status = 'archived'
@@ -1842,6 +1859,15 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     })
                     continue
 
+                # Objects with no DP pool can't be damaged — must be picked (Stat Check).
+                if target.is_object and ((target.max_dp or 0) == 0 or target.object_revealed):
+                    results.append({
+                        "target": target_name,
+                        "success": False,
+                        "message": "can't be smashed" if (target.max_dp or 0) == 0 else "already broken open"
+                    })
+                    continue
+
                 # Summon durability: each successful hit removes 1 durability point
                 # regardless of roll margin. Auto-dismiss when durability hits 0.
                 if target.is_summon:
@@ -1933,6 +1959,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                         calling_triggered = True
 
                 db.commit()
+
+                if target.is_object and target.dp <= 0 and not target.object_revealed:
+                    await _defeat_object(campaign_id, target, db, actor_user_id=user_id, source="attack")
 
                 if damage > 0:
                     await cancel_holding_combo_on_damage(campaign_id, target.id, db)
@@ -2798,6 +2827,61 @@ async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
     })
 
 
+async def _defeat_object(campaign_uuid, obj, db, *, actor_user_id, source="check"):
+    """An Object was beaten — a won Stat Check, or DP driven to 0 by an attack / AOE /
+    Env Check. Single funnel, idempotent on object_revealed. Reveals contents (does NOT
+    move them — the SW distributes) and posts a persisted flavor card."""
+    from backend.models import InventoryItem
+    try:
+        db.refresh(obj)
+    except Exception:
+        pass
+    if obj.object_revealed:
+        return
+    obj.object_revealed = True
+    obj.status = "unconscious"   # keeps it out of status=='active'-only target loops
+    if (obj.dp or 0) < 0:
+        obj.dp = 0              # a smashed object reads as 0/max, never negative
+    db.commit()
+
+    items = db.query(InventoryItem).filter(InventoryItem.character_id == obj.id).all()
+    contents = [{"id": str(i.id), "name": i.name, "quantity": i.quantity,
+                 "item_type": i.item_type} for i in items]
+    names = ", ".join(
+        c["name"] + (f" ×{c['quantity']}" if c["quantity"] and c["quantity"] > 1 else "")
+        for c in contents
+    ) or "nothing"
+
+    payload = {
+        "type": "object_revealed",
+        "object_id": str(obj.id),
+        "object_name": obj.name,
+        "source": source,
+        "contents": contents,
+        "revealed_text": f"🔓 {obj.name} held: {names}",
+    }
+    try:
+        msg = Message(
+            campaign_id=str(campaign_uuid),
+            party_id=None,
+            sender_id=str(actor_user_id or obj.owner_id),
+            sender_name=obj.name,
+            content=payload["revealed_text"],
+            message_type="object_revealed",
+            extra_data=payload,
+        )
+        db.add(msg)
+        db.commit()
+        payload["message_id"] = str(msg.id)
+    except Exception as _me:
+        logger.warning(f"Failed to persist object_revealed message: {_me}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    await manager.broadcast(campaign_uuid, payload)
+
+
 async def _resolve_npc_stat_check(campaign_uuid, sw_user_id, npc, stat, sw_roll,
                                  difficulty_label, flavor_text, silent, db):
     """Auto-resolve a stat check for an NPC target — the SW rolls for them right now,
@@ -2872,7 +2956,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             _c = db.query(Character).filter(Character.id == _UUID(str(_cid))).first()
         except Exception:
             _c = None
-        if not _c:
+        if not _c or _c.is_object:   # Objects come in via `object_id`, never character_ids
             continue
         if _c.is_npc:
             npc_targets.append(_c)
@@ -2897,6 +2981,27 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
     # Determine difficulty — VS uses NPC's stat as live roll (no pre-roll), others use SW die
     difficulty_die = data.get("difficulty_die") or "1d8"
     difficulty_label = data.get("difficulty_label") or "Moderate"
+
+    # Rolling against an Object: the Object owns the difficulty tier and the allowed
+    # stats. Players are the targets (character mode); the Object never rolls.
+    object_id = data.get("object_id")
+    obj = None
+    if object_id:
+        try:
+            obj = db.query(Character).filter(
+                Character.id == _UUID(str(object_id)),
+                Character.campaign_id == campaign_uuid,
+                Character.is_object == True,
+            ).first()
+        except Exception:
+            obj = None
+        if not obj or not obj.check_difficulty:
+            return
+        _allowed = [s for s in (obj.check_stats or "").split(",") if s]
+        if _allowed and stat not in _allowed:
+            return
+        difficulty_die, difficulty_label = obj.check_difficulty.split("|", 1)
+        mode = "character"
 
     if mode == "vs":
         # NPC rolls their stat right now — same formula as player
@@ -2950,6 +3055,7 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             status="pending",
             group_id=group_id if mode == "character" else None,
             sw_user_id=sw_user_id,
+            object_id=obj.id if obj else None,
         )
         db.add(req)
         db.commit()
@@ -2973,6 +3079,8 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             "difficulty_label": difficulty_label,
             "group_id": str(group_id) if (group_id and mode == "character") else None,
             "group_size": group_size if mode == "character" else 1,
+            "object_id": str(obj.id) if obj else None,
+            "object_name": obj.name if obj else None,
         }
         msg = Message(
             campaign_id=str(campaign_uuid),
@@ -3116,6 +3224,16 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "bap_granted": req.bap_granted,
         "rolled_by_sw": rolled_by_sw,
     }
+    # Rolling against an Object — a win cracks it open.
+    _defeated_obj = None
+    if outcome == "win" and req.object_id:
+        _o = db.query(Character).filter(Character.id == req.object_id).first()
+        if _o and _o.is_object:
+            result_payload["object_name"] = _o.name
+            result_payload["object_defeated"] = True
+            if not _o.object_revealed:
+                _defeated_obj = _o
+
     result_msg = Message(
         campaign_id=str(campaign_uuid),
         party_id=None,
@@ -3129,6 +3247,9 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     db.commit()
     result_payload["message_id"] = str(result_msg.id)
     await manager.broadcast(campaign_uuid, result_payload)
+
+    if _defeated_obj is not None:
+        await _defeat_object(campaign_uuid, _defeated_obj, db, actor_user_id=user_id, source="check")
 
     if req.group_id:
         await _maybe_finish_group_check(campaign_uuid, req.group_id, req.kind or "stat", db)
@@ -4095,9 +4216,10 @@ async def roll_initiative_target(
         # Get or create active encounter
         encounter = await get_or_create_active_encounter(campaign_uuid, db)
 
-        # Try to find target as character
+        # Try to find target as character (Objects don't roll initiative)
         character = db.query(Character).filter(
-            Character.name.ilike(f"%{target_name}%")
+            Character.name.ilike(f"%{target_name}%"),
+            Character.is_object == False
         ).first()
 
         npc = None

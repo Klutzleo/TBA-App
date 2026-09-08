@@ -226,12 +226,13 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register combat_blp_fastapi: {e}")
 
 try:
-    from routes.character_fastapi import character_blp_fastapi, npc_router, ally_router
+    from routes.character_fastapi import character_blp_fastapi, npc_router, ally_router, object_router
 
     application.include_router(character_blp_fastapi, tags=["Character"])
     application.include_router(npc_router, tags=["NPCs"])
     application.include_router(ally_router, tags=["Allies"])
-    logger.info("✅ Registered character_blp_fastapi, npc_router, and ally_router")
+    application.include_router(object_router, tags=["Objects"])
+    logger.info("✅ Registered character_blp_fastapi, npc_router, ally_router, object_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register character_blp_fastapi: {e}")
 

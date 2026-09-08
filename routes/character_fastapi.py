@@ -26,7 +26,10 @@ from routes.schemas.character import (
     PartyMemberResponse,
     FullCharacterCreate,
     FullCharacterResponse,
-    AbilityResponse
+    AbilityResponse,
+    ObjectCreate,
+    ObjectUpdate,
+    check_stats_to_str,
 )
 from typing import List, Optional
 import logging
@@ -859,10 +862,13 @@ async def list_npcs(
 
     # SW sees all NPCs; players only see ones marked visible_to_players
     # Summons are excluded — they live only in the initiative tracker, not the bubble bar
+    # Objects are excluded — is_object rows are NPCs mechanically but have their own
+    # /objects endpoint and dashboard panel, never the bubble bar / mentions / check lists
     query = db.query(Character).filter(
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True,
-        Character.is_summon == False
+        Character.is_summon == False,
+        Character.is_object == False
     )
     if membership.role != 'story_weaver':
         query = query.filter(Character.visible_to_players == True)
@@ -895,7 +901,8 @@ async def reorder_npcs(
         db.query(Character).filter(
             Character.id == UUID(npc_id),
             Character.campaign_id == campaign_uuid,
-            Character.is_npc == True
+            Character.is_npc == True,
+            Character.is_object == False
         ).update({"sort_order": index})
     db.commit()
     return {"ok": True}
@@ -1014,7 +1021,8 @@ async def update_npc(
     npc = db.query(Character).filter(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
-        Character.is_npc == True
+        Character.is_npc == True,
+        Character.is_object == False
     ).first()
 
     if not npc:
@@ -1088,7 +1096,8 @@ async def set_npc_visibility(
     npc = db.query(Character).filter(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
-        Character.is_npc == True
+        Character.is_npc == True,
+        Character.is_object == False
     ).first()
     if not npc:
         raise HTTPException(status_code=404, detail="NPC not found")
@@ -1141,7 +1150,8 @@ async def delete_npc(
     npc = db.query(Character).filter(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
-        Character.is_npc == True
+        Character.is_npc == True,
+        Character.is_object == False
     ).first()
 
     if not npc:
@@ -1183,7 +1193,8 @@ async def transfer_npc_to_player(
     npc = db.query(Character).filter(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
-        Character.is_npc == True
+        Character.is_npc == True,
+        Character.is_object == False
     ).first()
 
     if not npc:
@@ -1402,7 +1413,8 @@ async def duplicate_npc(
     original = db.query(Character).filter(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
-        Character.is_npc == True
+        Character.is_npc == True,
+        Character.is_object == False
     ).first()
 
     if not original:
@@ -1460,6 +1472,251 @@ async def duplicate_npc(
 
     logger.info(f"[{request_id}] NPC duplicated: {npc_id} → {duplicate.id} with {len(original_abilities)} abilities")
     return duplicate
+
+
+# ============================================================================
+# OBJECT ROUTES  (locks / doors / chests / traps — is_npc=True + is_object=True)
+# ============================================================================
+
+object_router = APIRouter(prefix="/api/campaigns", tags=["Objects"])
+
+
+def _object_dict(obj: Character) -> dict:
+    return {
+        "id": str(obj.id),
+        "name": obj.name,
+        "check_difficulty": obj.check_difficulty,
+        "check_stats": obj.check_stats,
+        "dp": obj.dp,
+        "max_dp": obj.max_dp,
+        "defense_die": obj.defense_die,
+        "object_revealed": bool(obj.object_revealed),
+        "visible_to_players": bool(obj.visible_to_players),
+        "status": obj.status,
+        "notes": obj.notes,
+        "sort_order": obj.sort_order,
+    }
+
+
+def _broadcast_object(campaign_uuid, payload: dict):
+    try:
+        from routes.campaign_websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast(campaign_uuid, payload))
+    except Exception as _e:
+        logger.warning(f"Could not broadcast {payload.get('type')}: {_e}")
+
+
+@object_router.get("/{campaign_id}/objects", response_model=List[CharacterResponse])
+async def list_objects(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List campaign Objects. Members read; non-SW only sees visible ones."""
+    from uuid import UUID
+    campaign_uuid = UUID(campaign_id)
+    if not _is_campaign_member(campaign_uuid, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Not a member of this campaign")
+    q = db.query(Character).filter(
+        Character.campaign_id == campaign_uuid,
+        Character.is_object == True,
+    )
+    if not _is_sw(campaign_uuid, current_user.id, db):
+        q = q.filter(Character.visible_to_players == True)
+    return q.order_by(Character.sort_order, Character.created_at).all()
+
+
+@object_router.post("/{campaign_id}/objects", response_model=CharacterResponse, status_code=201)
+async def create_object(
+    campaign_id: str,
+    req: ObjectCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create an Object (SW only)."""
+    from uuid import UUID
+    campaign_uuid = UUID(campaign_id)
+    if not _is_sw(campaign_uuid, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can create Objects")
+
+    obj = Character(
+        name=req.name,
+        owner_id=str(current_user.id),
+        user_id=None,
+        campaign_id=campaign_uuid,
+        is_npc=True,
+        is_object=True,
+        is_ally=False,
+        is_summon=False,
+        level=1,
+        pp=0, ip=0, sp=0,
+        edge=0, bap=1,
+        dp=req.max_dp,
+        max_dp=req.max_dp,
+        attack_style="1d4",                 # sentinel — Objects never attack
+        defense_die=req.defense_die or "1d6",
+        chat_color="#94a3b8",
+        status="active",
+        visible_to_players=req.visible_to_players,
+        check_difficulty=req.check_difficulty,
+        check_stats=check_stats_to_str(req.check_stats),
+        object_revealed=False,
+        notes=(req.notes or None),
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    _broadcast_object(campaign_uuid, {"type": "object_created", "object": _object_dict(obj)})
+    return obj
+
+
+@object_router.put("/{campaign_id}/objects/{object_id}", response_model=CharacterResponse)
+async def update_object(
+    campaign_id: str,
+    object_id: str,
+    req: ObjectUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update / re-arm an Object (SW only)."""
+    from uuid import UUID
+    campaign_uuid = UUID(campaign_id)
+    if not _is_sw(campaign_uuid, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can edit Objects")
+    obj = db.query(Character).filter(
+        Character.id == UUID(object_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_object == True,
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Object not found")
+
+    data = req.model_dump(exclude_unset=True)
+    if "name" in data and data["name"]:
+        obj.name = data["name"].strip()
+    if "check_difficulty" in data:
+        obj.check_difficulty = data["check_difficulty"]  # already validated / None-normalised
+    if "check_stats" in data:
+        obj.check_stats = check_stats_to_str(data["check_stats"])
+    if "defense_die" in data and data["defense_die"]:
+        obj.defense_die = data["defense_die"]
+    if "visible_to_players" in data and data["visible_to_players"] is not None:
+        obj.visible_to_players = bool(data["visible_to_players"])
+    if "notes" in data:
+        obj.notes = data["notes"] or None
+    if "max_dp" in data and data["max_dp"] is not None:
+        obj.max_dp = data["max_dp"]
+        if obj.dp > obj.max_dp:
+            obj.dp = obj.max_dp
+    if "dp" in data and data["dp"] is not None:
+        obj.dp = min(data["dp"], obj.max_dp)
+    if data.get("rearm"):
+        obj.object_revealed = False
+        obj.status = "active"
+        obj.dp = obj.max_dp
+
+    if not obj.check_difficulty and (obj.max_dp or 0) <= 0:
+        raise HTTPException(status_code=400, detail="an Object needs a check difficulty, a DP pool, or both")
+
+    db.commit()
+    db.refresh(obj)
+    _broadcast_object(campaign_uuid, {"type": "object_updated", "object": _object_dict(obj)})
+    return obj
+
+
+@object_router.delete("/{campaign_id}/objects/{object_id}", status_code=204)
+async def delete_object(
+    campaign_id: str,
+    object_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete an Object (SW only). Any contents it still holds are moved to the loot pool first."""
+    from uuid import UUID
+    campaign_uuid = UUID(campaign_id)
+    if not _is_sw(campaign_uuid, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can delete Objects")
+    obj = db.query(Character).filter(
+        Character.id == UUID(object_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_object == True,
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Object not found")
+
+    db.query(InventoryItem).filter(InventoryItem.character_id == obj.id).update(
+        {"character_id": None, "is_equipped": False}, synchronize_session=False
+    )
+    oid = str(obj.id)
+    db.delete(obj)
+    db.commit()
+    _broadcast_object(campaign_uuid, {"type": "object_deleted", "object_id": oid})
+    return None
+
+
+@object_router.patch("/{campaign_id}/objects/{object_id}/visibility")
+async def set_object_visibility(
+    campaign_id: str,
+    object_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle whether players can see this Object (SW only)."""
+    from uuid import UUID
+    campaign_uuid = UUID(campaign_id)
+    if not _is_sw(campaign_uuid, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can hide/reveal Objects")
+    obj = db.query(Character).filter(
+        Character.id == UUID(object_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_object == True,
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Object not found")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    obj.visible_to_players = bool(body.get("visible_to_players", not obj.visible_to_players))
+    db.commit()
+    db.refresh(obj)
+    _broadcast_object(campaign_uuid, {
+        "type": "object_visibility_changed",
+        "object_id": str(obj.id),
+        "object_name": obj.name,
+        "visible_to_players": obj.visible_to_players,
+        "chat_color": obj.chat_color or "#94a3b8",
+    })
+    return {"object_id": str(obj.id), "visible_to_players": obj.visible_to_players}
+
+
+@object_router.post("/{campaign_id}/objects/{object_id}/dump-to-loot")
+async def dump_object_to_loot(
+    campaign_id: str,
+    object_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Move all of an Object's contents into the SW loot pool (SW only)."""
+    from uuid import UUID
+    campaign_uuid = UUID(campaign_id)
+    if not _is_sw(campaign_uuid, current_user.id, db):
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can do this")
+    obj = db.query(Character).filter(
+        Character.id == UUID(object_id),
+        Character.campaign_id == campaign_uuid,
+        Character.is_object == True,
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Object not found")
+    moved = db.query(InventoryItem).filter(InventoryItem.character_id == obj.id).update(
+        {"character_id": None, "is_equipped": False}, synchronize_session=False
+    )
+    db.commit()
+    _broadcast_object(campaign_uuid, {"type": "loot_pool_changed", "reason": "object_dump", "object_id": str(obj.id)})
+    return {"moved": moved}
 
 
 # ============================================================================

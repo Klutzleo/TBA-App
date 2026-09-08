@@ -2788,6 +2788,11 @@
               onmouseover="this.style.background='rgba(249,115,22,0.25)'" onmouseout="this.style.background='rgba(249,115,22,0.15)'">
               <i data-lucide="globe" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Env Check
             </button>
+            <button onclick="openObjectsModal()" title="Locks, doors, chests, traps — things the party rolls against or smashes"
+              style="flex:1; padding:5px 8px; background:rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.4); border-radius:6px; color:#94a3b8; font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.15s;"
+              onmouseover="this.style.background='rgba(148,163,184,0.25)'" onmouseout="this.style.background='rgba(148,163,184,0.15)'">
+              <i data-lucide="lock" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Objects
+            </button>
           </div>
           <div id="swDashboardList" style="flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px;">
             <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Loading...</div>
@@ -3220,6 +3225,14 @@
           </div>
         </div>
 
+        <!-- Object picker (Character mode only) — the Object owns the difficulty -->
+        <div id="scObjectRow" style="display:none;">
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Object <span style="opacity:0.5;">(optional — lock/door/chest)</span></label>
+          <select id="statCheckObject" onchange="onStatCheckObjectChange()" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:8px 10px;font-size:0.9rem;">
+            <option value="">— none (free-form difficulty) —</option>
+          </select>
+        </div>
+
         <!-- Difficulty (Character + NPC modes only — hidden in VS) -->
         <div id="scDifficultyRow">
           <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Difficulty</label>
@@ -3355,6 +3368,77 @@
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
           <button class="btn" style="background:var(--bg-secondary);" onclick="closeEncounterSetupModal()">Cancel</button>
           <button class="btn btn-primary" style="background:#f97316;border-color:#f97316;" onclick="sendEncounterSetup()">Start Encounter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Objects Modal (SW): locks / doors / chests / traps -->
+  <div id="objectsModal" class="modal" onclick="if(event.target===this)closeObjectsModal()">
+    <div class="modal-content" style="max-width:460px;width:95vw;">
+      <div class="modal-header">
+        <h2><i data-lucide="lock" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;color:#94a3b8;"></i>Objects</h2>
+        <button class="modal-close" onclick="closeObjectsModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">A lock the party picks, a door they smash, a chest that holds loot. Set a difficulty tier, a DP pool, or both.</p>
+
+        <div style="display:flex;flex-direction:column;gap:8px;border:1px solid var(--border-color);border-radius:8px;padding:10px;">
+          <div style="font-size:0.78rem;font-weight:700;color:#94a3b8;" id="objFormTitle">New Object</div>
+          <input id="objName" type="text" maxlength="100" placeholder="Vault Door"
+            style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.9rem;">
+          <div>
+            <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:3px;">Lock difficulty <span style="opacity:0.5;">(skill check)</span></label>
+            <select id="objDifficulty" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.88rem;">
+              <option value="">— none (smash-only) —</option>
+              <option value="1d4|Trivial">Trivial — 1d4</option>
+              <option value="1d6|Easy">Easy — 1d6</option>
+              <option value="1d8|Moderate">Moderate — 1d8</option>
+              <option value="1d10|Hard">Hard — 1d10</option>
+              <option value="1d12|Very Hard">Very Hard — 1d12</option>
+              <option value="2d6|Extreme">Extreme — 2d6</option>
+              <option value="2d8|Nearly Impossible">Nearly Impossible — 2d8</option>
+            </select>
+          </div>
+          <div id="objStatsRow">
+            <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:3px;">Stats allowed against it</label>
+            <div style="display:flex;gap:12px;font-size:0.85rem;">
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" class="obj-stat" value="PP" checked>PP</label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" class="obj-stat" value="IP" checked>IP</label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" class="obj-stat" value="SP" checked>SP</label>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;">
+              <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:3px;">DP pool <span style="opacity:0.5;">(0 = can't smash)</span></label>
+              <input id="objMaxDp" type="number" min="0" max="999" value="0"
+                style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.88rem;">
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:3px;">Defense die</label>
+              <select id="objDefenseDie" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.88rem;">
+                <option value="1d4">1d4</option><option value="1d6" selected>1d6</option><option value="1d8">1d8</option><option value="1d10">1d10</option><option value="1d12">1d12</option>
+              </select>
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text-secondary);cursor:pointer;">
+            <input type="checkbox" id="objVisible"> Players can see this object
+          </label>
+          <input id="objNotes" type="text" maxlength="200" placeholder="Notes (optional)"
+            style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.85rem;">
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" id="objSaveBtn" style="flex:1;background:#94a3b8;border-color:#94a3b8;" onclick="saveObject()">Add Object</button>
+            <button class="btn" id="objCancelEditBtn" style="display:none;background:var(--bg-secondary);" onclick="resetObjectForm()">Cancel edit</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);margin-bottom:6px;">Existing objects</div>
+          <div id="objectsList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:2px;">
+          <button class="btn" style="background:var(--bg-secondary);" onclick="closeObjectsModal()">Done</button>
         </div>
       </div>
     </div>
@@ -4631,6 +4715,192 @@
     let activeSpeaker = null;  // { id, name, type: 'pc'|'npc'|'ally'|'narrator'|'puppet' }
     let playerCharacters = [];  // Player's PC and Ally (if any)
     let campaignNPCs = [];  // All NPCs for this campaign (SW only)
+    let campaignObjects = [];  // Objects (locks/doors/chests) — SW sees all, players see revealed/visible only
+
+    async function loadCampaignObjects() {
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (r.ok) campaignObjects = await r.json();
+      } catch (_) { /* silent */ }
+    }
+
+    // ── Objects modal (SW): create / edit / re-arm / hide / delete ───────────
+    let _editingObjectId = null;
+
+    function openObjectsModal() {
+      resetObjectForm();
+      loadCampaignObjects().then(refreshObjectsModal);
+      document.getElementById('objectsModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+    function closeObjectsModal() {
+      document.getElementById('objectsModal').classList.remove('active');
+    }
+
+    function resetObjectForm() {
+      _editingObjectId = null;
+      document.getElementById('objFormTitle').textContent = 'New Object';
+      document.getElementById('objName').value = '';
+      document.getElementById('objDifficulty').value = '';
+      document.querySelectorAll('.obj-stat').forEach(c => { c.checked = true; });
+      document.getElementById('objMaxDp').value = '0';
+      document.getElementById('objDefenseDie').value = '1d6';
+      document.getElementById('objVisible').checked = false;
+      document.getElementById('objNotes').value = '';
+      document.getElementById('objSaveBtn').textContent = 'Add Object';
+      document.getElementById('objCancelEditBtn').style.display = 'none';
+    }
+
+    function refreshObjectsModal() {
+      const wrap = document.getElementById('objectsList');
+      if (!wrap) return;
+      if (!campaignObjects.length) {
+        wrap.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:0.82rem;">No objects yet.</div>';
+        return;
+      }
+      wrap.innerHTML = campaignObjects.map(o => {
+        const diff = o.check_difficulty ? escHtml(o.check_difficulty.split('|')[1] || o.check_difficulty.split('|')[0]) : '—';
+        const dp = (o.max_dp || 0) > 0 ? `DP ${o.dp}/${o.max_dp}` : 'no DP';
+        const broken = o.object_revealed ? ' <span title="opened" style="color:#4ade80;">🔓</span>' : '';
+        const hidden = o.visible_to_players === false ? ' <span title="hidden from players" style="opacity:0.5;">🙈</span>' : '';
+        return `<div style="border:1px solid var(--border-color);border-radius:6px;padding:7px 9px;display:flex;flex-direction:column;gap:4px;">
+          <div style="font-size:0.88rem;font-weight:600;">${escHtml(o.name)}${broken}${hidden}</div>
+          <div style="font-size:0.74rem;color:var(--text-muted);">Lock: ${diff} · ${dp}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:var(--bg-secondary);" onclick="editObject('${o.id}')">Edit</button>
+            <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:var(--bg-secondary);" onclick="toggleObjectVisibility('${o.id}')">${o.visible_to_players === false ? 'Show' : 'Hide'}</button>
+            ${o.object_revealed || (o.max_dp || 0) > 0 ? `<button class="btn" style="padding:3px 8px;font-size:0.72rem;background:var(--bg-secondary);" onclick="rearmObject('${o.id}')">Re-arm</button>` : ''}
+            <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:rgba(239,68,68,0.15);color:#f87171;" onclick="deleteObject('${o.id}')">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function editObject(id) {
+      const o = campaignObjects.find(x => x.id === id);
+      if (!o) return;
+      _editingObjectId = id;
+      document.getElementById('objFormTitle').textContent = 'Edit Object';
+      document.getElementById('objName').value = o.name || '';
+      document.getElementById('objDifficulty').value = o.check_difficulty || '';
+      const allowed = (o.check_stats || 'PP,IP,SP').split(',').map(s => s.trim());
+      document.querySelectorAll('.obj-stat').forEach(c => { c.checked = allowed.includes(c.value); });
+      document.getElementById('objMaxDp').value = o.max_dp || 0;
+      document.getElementById('objDefenseDie').value = o.defense_die || '1d6';
+      document.getElementById('objVisible').checked = o.visible_to_players !== false;
+      document.getElementById('objNotes').value = o.notes || '';
+      document.getElementById('objSaveBtn').textContent = 'Save Changes';
+      document.getElementById('objCancelEditBtn').style.display = '';
+      document.getElementById('objName').scrollIntoView({ block: 'nearest' });
+    }
+
+    function _readObjectForm() {
+      const name = document.getElementById('objName').value.trim();
+      const check_difficulty = document.getElementById('objDifficulty').value || null;
+      const check_stats = [...document.querySelectorAll('.obj-stat:checked')].map(c => c.value);
+      const max_dp = parseInt(document.getElementById('objMaxDp').value, 10) || 0;
+      const defense_die = document.getElementById('objDefenseDie').value || '1d6';
+      const visible_to_players = document.getElementById('objVisible').checked;
+      const notes = document.getElementById('objNotes').value.trim() || null;
+      if (!name) { alert('Give the object a name.'); return null; }
+      if (!check_difficulty && max_dp <= 0) { alert('An object needs a lock difficulty, a DP pool, or both.'); return null; }
+      return { name, check_difficulty, check_stats, max_dp, defense_die, visible_to_players, notes };
+    }
+
+    async function saveObject() {
+      if (_editingObjectId) return updateObject(_editingObjectId);
+      const body = _readObjectForm();
+      if (!body) return;
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Create failed');
+        resetObjectForm();
+        await loadCampaignObjects();
+        refreshObjectsModal();
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function updateObject(id) {
+      const body = _readObjectForm();
+      if (!body) return;
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects/${id}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Update failed');
+        resetObjectForm();
+        await loadCampaignObjects();
+        refreshObjectsModal();
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function rearmObject(id) {
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects/${id}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rearm: true }),
+        });
+        if (!r.ok) throw new Error('Re-arm failed');
+        await loadCampaignObjects();
+        refreshObjectsModal();
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function toggleObjectVisibility(id) {
+      const o = campaignObjects.find(x => x.id === id);
+      if (!o) return;
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects/${id}/visibility`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visible_to_players: o.visible_to_players === false }),
+        });
+        if (!r.ok) throw new Error('Visibility toggle failed');
+        await loadCampaignObjects();
+        refreshObjectsModal();
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function deleteObject(id) {
+      const o = campaignObjects.find(x => x.id === id);
+      if (!o) return;
+      if (!confirm(`Delete "${o.name}"? Any items inside move to the loot pool.`)) return;
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/objects/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        if (!r.ok) throw new Error('Delete failed');
+        await loadCampaignObjects();
+        refreshObjectsModal();
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    // Flavor card posted when an Object is beaten (stat-check win, smashed, or env).
+    function renderObjectRevealedCard(data) {
+      const card = document.createElement('div');
+      card.className = 'message-card';
+      const contents = Array.isArray(data.contents) ? data.contents : [];
+      const list = contents.length
+        ? '<ul style="margin:6px 0 0;padding-left:18px;font-size:0.85rem;">' +
+            contents.map(c => `<li>${escHtml(c.name)}${c.quantity > 1 ? ` ×${c.quantity}` : ''}</li>`).join('') + '</ul>'
+        : '<div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Nothing inside.</div>';
+      card.innerHTML = `<div style="border-left:3px solid #94a3b8;padding:8px 12px;background:rgba(148,163,184,0.08);border-radius:4px;">
+        <div style="font-weight:700;color:#cbd5e1;">🔓 ${escHtml(data.object_name || 'The object')} gives way</div>
+        ${data.revealed_text ? `<div style="font-size:0.88rem;margin-top:3px;">${escHtml(data.revealed_text)}</div>` : ''}
+        ${list}
+      </div>`;
+      return card;
+    }
     let campaignPCs = [];  // Real player characters only (no Narrator/NPC) — for SW puppet bubbles
     const visibleNPCNames = new Set(); // NPCs revealed to players via non-silent initiative
 
@@ -5098,6 +5368,8 @@
             }
           } catch (_) { /* silent — color fallback is fine */ }
         }
+
+        await loadCampaignObjects();
 
         renderBubbleBar();
         // activeSpeaker is now set — recolor history so self-messages get the right color
@@ -10982,6 +11254,11 @@
                 const card = makeAchievementChatCard(d);
                 storeAndDisplayMessage(card, { type: 'achievement_announced', timestamp: msg.timestamp, message_id: msg.id, actor: d.earner_name || 'system' });
               }
+              else if (msg.message_type === 'object_revealed') {
+                const d = msg.extra_data || {};
+                const card = renderObjectRevealedCard({ ...d, timestamp: msg.timestamp });
+                storeAndDisplayMessage(card, { type: 'object_revealed', timestamp: msg.timestamp, message_id: msg.id, actor: d.object_name || 'system' });
+              }
               else if (msg.message_type === 'stat_roll') {
                 console.log('📊 Loading stat roll from history:', msg);
                 const data = msg.extra_data || {};
@@ -13227,6 +13504,34 @@
                   if (idx !== -1) campaignNPCs.splice(idx, 1);
                 }
               }
+            } else if (data.type === 'object_created') {
+              const i = campaignObjects.findIndex(o => o.id === data.object.id);
+              if (i === -1) campaignObjects.push(data.object); else campaignObjects[i] = data.object;
+              if (isSW()) { refreshObjectsModal(); }
+            } else if (data.type === 'object_updated') {
+              const i = campaignObjects.findIndex(o => o.id === data.object.id);
+              if (i !== -1) campaignObjects[i] = data.object;
+              else if (data.object.visible_to_players || isSW()) campaignObjects.push(data.object);
+              if (isSW()) refreshObjectsModal();
+            } else if (data.type === 'object_deleted') {
+              const i = campaignObjects.findIndex(o => o.id === data.object_id);
+              if (i !== -1) campaignObjects.splice(i, 1);
+              if (isSW()) refreshObjectsModal();
+            } else if (data.type === 'object_visibility_changed') {
+              const i = campaignObjects.findIndex(o => o.id === data.object_id);
+              if (i !== -1) { campaignObjects[i].visible_to_players = data.visible_to_players; }
+              else if (data.visible_to_players && !isSW()) {
+                campaignObjects.push({ id: data.object_id, name: data.object_name, visible_to_players: true });
+              }
+              if (!data.visible_to_players && !isSW() && i !== -1) campaignObjects.splice(i, 1);
+              if (isSW()) refreshObjectsModal();
+            } else if (data.type === 'object_revealed') {
+              const card = renderObjectRevealedCard(data);
+              storeAndDisplayMessage(card, { type: 'object_revealed', timestamp: data.timestamp, message_id: data.message_id, actor: data.object_name || 'system' });
+              const i = campaignObjects.findIndex(o => o.id === data.object_id);
+              if (i !== -1) campaignObjects[i].object_revealed = true;
+            } else if (data.type === 'loot_pool_changed') {
+              if (typeof loadLootPool === 'function' && document.getElementById('lootPoolPane')) loadLootPool();
             } else if (data.type === 'achievement_awarded') {
               showAchievementToast(data);
               if (window.notificationCenterRefresh) notificationCenterRefresh();
@@ -14188,9 +14493,16 @@
         npcSel.appendChild(opt);
       });
 
+      // Object picker (character mode) — only Objects that carry a lock difficulty
+      const objSel = document.getElementById('statCheckObject');
+      objSel.innerHTML = '<option value="">— none (free-form difficulty) —</option>' +
+        (campaignObjects || []).filter(o => o.check_difficulty).map(o =>
+          `<option value="${escHtml(o.id)}">${escHtml(o.name)} — ${escHtml((o.check_difficulty || '').split('|')[1] || '')}</option>`).join('');
+
       selectStatCheckMode('character');
       selectStatCheckStat('PP');
       document.getElementById('statCheckDifficulty').value = '1d8|Moderate';
+      onStatCheckObjectChange();
       document.getElementById('statCheckFlavor').value = '';
       document.getElementById('statCheckBAP').checked = false;
       document.getElementById('statCheckHidden').checked = false;
@@ -14219,9 +14531,41 @@
       document.getElementById('scDifficultyRow').style.display = mode === 'vs' ? 'none' : '';
       document.getElementById('scBapRow').style.display = mode === 'npc' ? 'none' : 'flex';
       document.getElementById('scHiddenRow').style.display = mode === 'npc' ? 'flex' : 'none';
+      document.getElementById('scObjectRow').style.display = mode === 'character' ? '' : 'none';
+      if (mode !== 'character') {
+        const os = document.getElementById('statCheckObject');
+        if (os) os.value = '';
+        onStatCheckObjectChange();
+      }
+    }
+
+    // When an Object is picked, it dictates the difficulty die and which stats are legal.
+    function onStatCheckObjectChange() {
+      const objId = document.getElementById('statCheckObject').value;
+      const diffSel = document.getElementById('statCheckDifficulty');
+      const obj = (campaignObjects || []).find(o => o.id === objId);
+      const btns = [...document.querySelectorAll('.stat-check-stat-btn')];
+      if (!obj) {
+        diffSel.disabled = false;
+        diffSel.style.opacity = '';
+        btns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
+        return;
+      }
+      diffSel.value = obj.check_difficulty;
+      diffSel.disabled = true;
+      diffSel.style.opacity = '0.55';
+      const allowed = (obj.check_stats || '').split(',').map(s => s.trim()).filter(Boolean);
+      btns.forEach(b => {
+        const ok = allowed.length === 0 || allowed.includes(b.dataset.stat);
+        b.disabled = !ok;
+        b.style.opacity = ok ? '' : '0.3';
+      });
+      if (allowed.length && !allowed.includes(_statCheckSelectedStat)) selectStatCheckStat(allowed[0]);
     }
 
     function selectStatCheckStat(stat) {
+      const target = document.querySelector(`.stat-check-stat-btn[data-stat="${stat}"]`);
+      if (target && target.disabled) return;
       _statCheckSelectedStat = stat;
       document.querySelectorAll('.stat-check-stat-btn').forEach(btn => {
         const active = btn.dataset.stat === stat;
@@ -14248,6 +14592,7 @@
 
       const diffVal = document.getElementById('statCheckDifficulty').value;
       const [diffDie, diffLabel] = diffVal.split('|');
+      const objectId = mode === 'character' ? (document.getElementById('statCheckObject').value || null) : null;
 
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({
@@ -14256,6 +14601,7 @@
         character_ids: mode === 'character' ? checkedIds : null,
         character_id: mode === 'vs' ? vsCharId : null,
         npc_id: npcId || null,
+        object_id: objectId,
         stat: _statCheckSelectedStat,
         difficulty_die: mode === 'vs' ? null : diffDie,
         difficulty_label: mode === 'vs' ? null : diffLabel,
@@ -14782,6 +15128,7 @@
         <div style="text-align:center;margin-top:8px;font-size:0.82rem;color:${color};font-weight:600;">
           Margin: ${marginText}
         </div>
+        ${data.object_defeated ? `<div style="text-align:center;margin-top:6px;font-size:0.85rem;color:#cbd5e1;font-weight:700;">🔓 ${escHtml(data.object_name || 'The object')} gives way!</div>` : ''}
       `;
       outerRow.appendChild(contentCol);
       div.appendChild(outerRow);

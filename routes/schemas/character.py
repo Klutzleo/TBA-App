@@ -93,13 +93,18 @@ class CharacterUpdate(BaseModel):
 
 
 class CharacterResponse(BaseModel):
-    """Character response (from DB)."""
+    """Character response (from DB). Also serves as the Object response."""
     id: UUID
     name: str
     owner_id: str
     user_id: Optional[UUID] = None
     is_npc: bool = False
     is_ally: bool = False
+    is_object: bool = False
+    check_difficulty: Optional[str] = None
+    check_stats: Optional[str] = None
+    object_revealed: bool = False
+    status: str = 'active'
     visible_to_players: bool = True
     level: int
     pp: int
@@ -128,6 +133,98 @@ class CharacterResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+_ALLOWED_CHECK_STATS = {"PP", "IP", "SP"}
+_ALLOWED_DIFFICULTY_DICE = {"1d4", "1d6", "1d8", "1d10", "1d12", "2d6", "2d8"}
+
+
+def _validate_check_difficulty(v: Optional[str]) -> Optional[str]:
+    if v is None or v == "":
+        return None
+    if "|" not in v:
+        raise ValueError('check_difficulty must be "die|label", e.g. "1d10|Hard"')
+    die, _, label = v.partition("|")
+    if die not in _ALLOWED_DIFFICULTY_DICE:
+        raise ValueError(f"difficulty die must be one of {sorted(_ALLOWED_DIFFICULTY_DICE)}")
+    return f"{die}|{label.strip()[:16]}"
+
+
+def _validate_check_stats(v):
+    """Validate only — returns the cleaned list (or None). The handler joins to a
+    comma string for the DB column."""
+    if not v:
+        return None
+    stats = [s.strip().upper() for s in (v if isinstance(v, list) else str(v).split(","))]
+    stats = [s for s in stats if s]
+    bad = [s for s in stats if s not in _ALLOWED_CHECK_STATS]
+    if bad:
+        raise ValueError(f"check_stats may only contain PP/IP/SP, got {bad}")
+    seen = []
+    for s in stats:
+        if s not in seen:
+            seen.append(s)
+    return seen or None
+
+
+def check_stats_to_str(v) -> Optional[str]:
+    """['PP','IP'] -> 'PP,IP'  (handler-side, post-validation)."""
+    cleaned = _validate_check_stats(v)
+    return ",".join(cleaned) if cleaned else None
+
+
+class ObjectCreate(BaseModel):
+    """Create an Object (lock / door / chest / trap). Stored as a Character row
+    with is_npc=True + is_object=True."""
+    name: str = Field(..., min_length=1, max_length=100)
+    check_difficulty: Optional[str] = None          # "1d10|Hard" — the tier a stat roll is contested against
+    check_stats: Optional[List[str]] = None          # ["PP","IP"] — which stats the SW allows; empty/None = any
+    max_dp: int = Field(default=0, ge=0, le=999)      # 0 => can't be smashed
+    defense_die: str = Field(default="1d6")
+    visible_to_players: bool = False
+    notes: Optional[str] = Field(None, max_length=1000)
+
+    @field_validator("check_difficulty")
+    @classmethod
+    def _cd(cls, v):
+        return _validate_check_difficulty(v)
+
+    @field_validator("check_stats")
+    @classmethod
+    def _cs(cls, v):
+        return _validate_check_stats(v)
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v):
+        return v.strip()
+
+    def model_post_init(self, __context) -> None:
+        if not self.check_difficulty and self.max_dp <= 0:
+            raise ValueError("an Object needs a check_difficulty, a max_dp > 0, or both")
+
+
+class ObjectUpdate(BaseModel):
+    """Partial update for an Object. Empty string on check_difficulty/check_stats clears it."""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    check_difficulty: Optional[str] = None
+    check_stats: Optional[List[str]] = None
+    max_dp: Optional[int] = Field(None, ge=0, le=999)
+    dp: Optional[int] = Field(None, ge=0)
+    defense_die: Optional[str] = None
+    visible_to_players: Optional[bool] = None
+    notes: Optional[str] = Field(None, max_length=1000)
+    rearm: Optional[bool] = None                      # True => object_revealed=False, dp=max_dp
+
+    @field_validator("check_difficulty")
+    @classmethod
+    def _cd(cls, v):
+        return _validate_check_difficulty(v)
+
+    @field_validator("check_stats")
+    @classmethod
+    def _cs(cls, v):
+        return _validate_check_stats(v)
 
 
 class PartyCreate(BaseModel):

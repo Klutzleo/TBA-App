@@ -244,6 +244,12 @@ class Character(Base):
     is_summon = Column(Boolean, nullable=False, default=False)  # True for summoned creatures (temporary NPCs)
     summoner_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)  # Caster who summoned this
 
+    # Objects (locks / doors / chests / traps) — is_npc=True AND is_object=True. See migration 024.
+    is_object = Column(Boolean, nullable=False, default=False, index=True)
+    check_difficulty = Column(String(24), nullable=True)   # "1d10|Hard" (die|label), or None for smash-only
+    check_stats = Column(String(12), nullable=True)        # "PP,IP,SP" subset the SW allows against it, or None = any
+    object_revealed = Column(Boolean, nullable=False, default=False)  # flipped once when beaten; contents become visible
+
     # BAP Token system
     bap_token_active = Column(Boolean, nullable=False, default=False)
     bap_token_expires_at = Column(DateTime(timezone=True), nullable=True)
@@ -1011,6 +1017,7 @@ class StatCheckRequest(Base):
     campaign_id     = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
     character_id    = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=True)
     npc_id          = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)
+    object_id       = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)  # Object this check is rolled against (migration 024)
     mode            = Column(String(10), nullable=False, default='character')  # character, vs, npc
     kind            = Column(String(8), nullable=False, default='stat')        # stat | env
     stat            = Column(String(2), nullable=False)
