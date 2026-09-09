@@ -992,6 +992,41 @@
       margin-top: 2px;
     }
 
+    /* ── Story Weaver identity in the feed (design review: option C) ──────────
+       Any message from the Story Weaver — narration or an announcement they
+       trigger — gets a quill chip, a 4px left bar and a wash in their chat
+       colour, so it reads as theirs whatever hue they picked. */
+    .sw-message {
+      --sw-c: var(--accent-primary);
+      border-left: 4px solid var(--sw-c) !important;
+      background: linear-gradient(90deg,
+        color-mix(in srgb, var(--sw-c) 22%, transparent),
+        color-mix(in srgb, var(--sw-c) 13%, transparent) 55%,
+        color-mix(in srgb, var(--sw-c) 8%, transparent)) !important;
+    }
+    .sw-chip {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase;
+      padding: 1px 6px 1px 4px; border-radius: 4px; margin-left: 5px; white-space: nowrap;
+      color: color-mix(in srgb, var(--sw-c, #a78bfa) 55%, #ffffff);
+      background: color-mix(in srgb, var(--sw-c, #a78bfa) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--sw-c, #a78bfa) 34%, transparent);
+    }
+    .sw-chip i { width: 10px; height: 10px; }
+    /* announcements (tether on/off, scene change…) flash once as they land */
+    .sw-message.sw-announce { animation: swAnnounce 2.4s ease-out 1; }
+    @keyframes swAnnounce {
+      0%   { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-c) 85%, transparent),
+                         0 0 30px 0 color-mix(in srgb, var(--sw-c) 70%, transparent); }
+      100% { box-shadow: none; }
+    }
+    .sw-message .message-text.sw-announce-text {
+      font-style: normal;
+      font-size: 0.9em;
+      color: var(--text-primary);
+    }
+    @media (prefers-reduced-motion: reduce) { .sw-message.sw-announce { animation: none; } }
+
     .message-ooc {
       padding: 7px 12px;
       border-radius: var(--radius-md);
@@ -2902,7 +2937,7 @@
         <div id="puppetBanner" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:rgba(167,139,250,0.12);border-bottom:1px solid rgba(167,139,250,0.3);font-size:0.8rem;color:#a78bfa;">
           <i data-lucide="drama" style="width:14px;height:14px;flex-shrink:0;"></i>
           <span id="puppetBannerText" style="flex:1;"></span>
-          <button onclick="setActiveSpeaker({ id: null, name: 'Narrator', type: 'narrator' })" style="background:none;border:1px solid rgba(167,139,250,0.4);border-radius:5px;color:#a78bfa;font-size:0.75rem;padding:2px 8px;cursor:pointer;">Stop puppeting</button>
+          <button onclick="setActiveSpeaker({ id: null, name: 'Story Weaver', type: 'narrator' })" style="background:none;border:1px solid rgba(167,139,250,0.4);border-radius:5px;color:#a78bfa;font-size:0.75rem;padding:2px 8px;cursor:pointer;">Stop puppeting</button>
         </div>
 
         <!-- Character Bubble Bar (for active speaker switching) -->
@@ -3881,7 +3916,7 @@
 
         <!-- Tethers & Boosts -->
         <div>
-          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">🔗 Tethers &amp; ⚡ Boosts</div>
+          <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">⚓ Tethers &amp; ⚡ Boosts</div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-size:0.82rem;color:var(--text-muted);line-height:1.6;display:grid;gap:8px;">
             <div><strong style="color:#a78bfa;">Tethers</strong> — Emotional anchors that shape a character's story. The SW adds them via the character sheet (max 3). Each has a description and a modifier set by the SW.</div>
             <div><strong style="color:#f59e0b;">⚡ Boost</strong> — After any roll, the SW sees a <strong style="color:#f59e0b;">⚡ Boost</strong> button on the roll card. Click it to apply BAP and/or any tethers to that roll retroactively. One modal, one epic fanfare card — no spam.</div>
@@ -4153,11 +4188,11 @@
           </div>
           <!-- Tether prompt (appears after scar is saved) -->
           <div id="callingTetherPrompt" style="display:none; margin-bottom:12px; background:rgba(147,197,253,0.07); border:1px solid rgba(147,197,253,0.25); border-radius:8px; padding:12px;">
-            <div style="font-size:0.82rem; color:#93c5fd; margin-bottom:8px;">🔗 <strong>Add as Tether?</strong> — This scar can become a permanent Tether that affects future rolls.</div>
+            <div style="font-size:0.82rem; color:#93c5fd; margin-bottom:8px;">⚓ <strong>Add as Tether?</strong> This scar can become a permanent Tether that affects future rolls.</div>
             <textarea id="callingTetherText" rows="2"
               style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:4px; color:var(--text-primary); padding:6px; resize:vertical; box-sizing:border-box; font-size:0.85rem;"></textarea>
             <div style="display:flex; gap:8px; margin-top:8px;">
-              <button class="btn" style="flex:1; font-size:0.85rem;" onclick="saveScarAsTether()"><i data-lucide="link" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Add Tether</button>
+              <button class="btn" style="flex:1; font-size:0.85rem;" onclick="saveScarAsTether()"><i data-lucide="anchor" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Add Tether</button>
               <button class="btn btn-secondary" style="flex:1; font-size:0.85rem;" onclick="document.getElementById('callingTetherPrompt').style.display='none'">Skip</button>
             </div>
           </div>
@@ -4588,6 +4623,7 @@
       { name: 'Amber',    hex: '#fbbf24' },
     ];
     let myChatColor = localStorage.getItem('tba_chat_color') || '#d4af37';
+    let swChatColor = null;   // the Story Weaver's chat colour — feeds the SW message frame
 
     function initColorPicker() {
       const btn = document.getElementById('colorPickerBtn');
@@ -5424,7 +5460,7 @@
         'help-circle':'❓', 'piggy-bank':'🐷', 'rotate-ccw':'🔄', 'refresh-cw':'🔄',
         wine:'🍷', equal:'⚖️', coins:'🪙', wind:'💨', brain:'🧠',
         dumbbell:'💪', target:'🎯', link:'🔗', wand:'🪄', 'door-open':'🚪',
-        anchor:'⚓', 'thumbs-down':'👎', 'chevrons-down':'⬇️', 'chevrons-up':'⬆️',
+        anchor:'⚓', feather:'🪶', 'thumbs-down':'👎', 'chevrons-down':'⬇️', 'chevrons-up':'⬆️',
         'alert-triangle':'⚠️', 'x-circle':'❌', frown:'😞', 'at-sign':'@',
       };
       return iconMap[icon] || '🏅';
@@ -5492,7 +5528,7 @@
           }
 
           // SW starts with Narrator as active speaker
-          activeSpeaker = { id: null, name: 'Narrator', type: 'narrator' };
+          activeSpeaker = { id: null, name: 'Story Weaver', type: 'narrator' };
         } else if (userRole === 'Spectator') {
           // Spectator: no character loaded, chat as username
           activeSpeaker = null;
@@ -5549,12 +5585,12 @@
       bubbleBar.innerHTML = '';
 
       if (userRole === 'SW') {
-        // Story Weaver: Narrator + NPCs + Add button
+        // Story Weaver: Story Weaver voice + NPCs + Add button
 
-        // Narrator bubble
+        // Story Weaver bubble (the SW's own narrating voice)
         const narratorBubble = createBubble({
           id: null,
-          name: 'Narrator',
+          name: 'Story Weaver',
           type: 'narrator'
         });
         bubbleBar.appendChild(narratorBubble);
@@ -5679,7 +5715,7 @@
       if (character.portrait_url) {
         avatarInner = `<img src="${escHtml(character.portrait_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`;
       } else if (character.type === 'narrator') {
-        avatarInner = `<i data-lucide="book-open" style="width:1rem;height:1rem;"></i>`;
+        avatarInner = `<i data-lucide="feather" style="width:1rem;height:1rem;"></i>`;
       } else if (character.type === 'npc') {
         avatarInner = `<i data-lucide="user-x" style="width:1rem;height:1rem;"></i>`;
       } else if (character.type === 'ally') {
@@ -5801,7 +5837,7 @@
         const stopBtn = document.createElement('button');
         stopBtn.className = 'context-menu-item';
         stopBtn.innerHTML = '<i data-lucide="x" style="width:13px;height:13px;vertical-align:middle;margin-right:6px;"></i>Stop puppeting';
-        stopBtn.onclick = () => setActiveSpeaker({ id: null, name: 'Narrator', type: 'narrator' });
+        stopBtn.onclick = () => setActiveSpeaker({ id: null, name: 'Story Weaver', type: 'narrator' });
         menu.appendChild(stopBtn);
       }
 
@@ -6473,7 +6509,7 @@
         row.className = 'boost-option';
         row.innerHTML = `
           <input type="checkbox" id="boostChkTether_${i}" data-tether-id="${t.id}" data-modifier="${t.modifier}" onchange="updateBoostPreview()">
-          <label for="boostChkTether_${i}"><i data-lucide="link" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>${escHtml(t.description)}</label>
+          <label for="boostChkTether_${i}"><i data-lucide="anchor" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>${escHtml(t.description)}</label>
           <span class="boost-tether-mod">${t.modifier > 0 ? '+' : ''}${t.modifier}</span>`;
         optionsEl.appendChild(row);
       });
@@ -7966,7 +8002,7 @@
       }
       const chatMode = currentTab === 'ooc' ? 'ooc' : 'ic';
       const speakerName = (activeSpeaker ? activeSpeaker.name : currentActor) ||
-        (userRole === 'SW' ? 'Narrator' : 'Unknown');
+        (userRole === 'SW' ? 'Story Weaver' : 'Unknown');
       caption = (caption || '').trim().slice(0, 2000);
 
       const formData = new FormData();
@@ -9497,7 +9533,7 @@
           body: JSON.stringify({ description: desc })
         });
         document.getElementById('callingTetherPrompt').style.display = 'none';
-        showPanelToast('🔗 Tether added from battle scar', 'success');
+        showPanelToast('⚓ Tether added from battle scar', 'success');
       } catch (e) {
         alert(`Failed to add tether: ${e.message}`);
       }
@@ -9575,6 +9611,22 @@
         });
         // the tether_deactivated broadcast reloads the party panel for everyone
       } catch (e) { showPanelToast('Could not release tether', 'error'); }
+    }
+
+    // Quick "activate" from the party-panel — the trigger fired in the fiction.
+    async function swActivateTether(charId, tetherId, lastModifier) {
+      const raw = prompt('Tether modifier for this moment (-5 to +5):', String(lastModifier || 2));
+      if (raw === null) return;
+      const modifier = Math.max(-5, Math.min(5, parseInt(raw, 10) || 0));
+      if (modifier === 0) { showPanelToast('A 0 modifier does nothing — pick -5 to +5', 'error'); return; }
+      try {
+        await fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: true, modifier })
+        });
+        // the tether_activated broadcast + announcement handle the rest
+      } catch (e) { showPanelToast('Could not activate tether', 'error'); }
     }
 
     async function swRemoveTether(charId, tetherId) {
@@ -10550,6 +10602,11 @@
     function displayTypedMessage(mode, actor, text, targets = null, isOocCommand = false, storedTimestamp = null, fromHistory = false, chatColor = null, messageId = null, senderId = null, isEdited = false) {
       const container = document.createElement('div');
 
+      // The Story Weaver's narration gets a distinct frame regardless of chat colour.
+      // Old messages stored as "Narrator" render as "Story Weaver" too.
+      const _isSW = (actor === 'Narrator' || actor === 'Story Weaver');
+      if (_isSW) { actor = 'Story Weaver'; chatColor = swChatColor || chatColor; }
+
       const timestamp = (storedTimestamp ? new Date(storedTimestamp) : new Date()).toLocaleString([], {
         month: 'short',
         day: 'numeric',
@@ -10604,6 +10661,10 @@
       };
       const cfg = modeConfigs[mode];
       container.className = cfg.cls;
+      if (_isSW) {
+        container.classList.add('sw-message');
+        if (chatColor) container.style.setProperty('--sw-c', chatColor);
+      }
 
       const modeSpan = document.createElement('span');
       modeSpan.className = 'mode-label';
@@ -10626,6 +10687,14 @@
       actorSpan.textContent = actor;
       headerRow.appendChild(actorSpan);
 
+      if (_isSW) {
+        const swChip = document.createElement('span');
+        swChip.className = 'sw-chip';
+        swChip.innerHTML = '<i data-lucide="feather"></i>Story Weaver';
+        headerRow.appendChild(swChip);
+        if (window.lucide) lucide.createIcons({ el: swChip });
+      }
+
       if (mode === 'whisper' && targets) {
         const targetList = Array.isArray(targets) ? targets : [targets];
         const targetSpan = document.createElement('span');
@@ -10644,7 +10713,8 @@
 
       // Apply chat color to the bubble (border + tinted bg + mode label) for IC and OOC.
       // Whisper stays purple — it's a system-level secret, not a character voice.
-      if (chatColor && mode !== 'whisper') {
+      // SW messages get their frame from the .sw-message CSS instead.
+      if (chatColor && mode !== 'whisper' && !_isSW) {
         container.style.borderLeftColor = chatColor;
         const bg = hexToRgba(chatColor, 0.1);
         if (bg) container.style.backgroundColor = bg;
@@ -10670,6 +10740,44 @@
 
       // Store and display via tab system
       storeAndDisplayMessage(container, data, fromHistory);
+    }
+
+    // A mechanical beat the Story Weaver triggered (Tether on/off, scene change…).
+    // Same frame as SW narration, minus the in-character quotes, plus a one-shot glow.
+    function renderSwAnnounce(innerHtml, { type = 'sw_announce', messageId = null, timestamp = null, live = true } = {}) {
+      const container = document.createElement('div');
+      container.className = 'message-ic sw-message';
+      if (live) container.classList.add('sw-announce');
+      const c = swChatColor || '#a78bfa';
+      container.style.setProperty('--sw-c', c);
+      if (messageId) container.dataset.messageId = messageId;
+
+      const ts = (timestamp ? new Date(timestamp) : new Date())
+        .toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+      const outerRow = document.createElement('div');
+      outerRow.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+      outerRow.appendChild(buildAvatarEl('Story Weaver', c));
+      const col = document.createElement('div');
+      col.style.cssText = 'flex:1;min-width:0;';
+      const head = document.createElement('div');
+      head.className = 'msg-header-row';
+      head.innerHTML =
+        `<span style="color:var(--text-muted);font-size:0.8em;">[${ts}]</span>` +
+        `<span style="color:var(--text-muted);font-size:0.8em;">·</span>` +
+        `<span class="actor-name">Story Weaver</span>` +
+        `<span class="sw-chip"><i data-lucide="feather"></i>Story Weaver</span>` +
+        `<span class="message-tab-indicator">STORY</span>`;
+      col.appendChild(head);
+      const body = document.createElement('div');
+      body.className = 'message-text sw-announce-text';
+      body.innerHTML = innerHtml;
+      col.appendChild(body);
+      outerRow.appendChild(col);
+      container.appendChild(outerRow);
+      if (window.lucide) lucide.createIcons({ el: head });
+
+      storeAndDisplayMessage(container, { type, timestamp: timestamp || new Date().toISOString(), message_id: messageId, actor: 'Story Weaver' });
     }
 
     // Parse chat command and return mode info
@@ -10757,7 +10865,7 @@
       if (roll.base_roll !== undefined) {
         const bapPart = roll.bap_bonus ? ` + BAP(${roll.bap_bonus})` : '';
         const atkFx = roll.attacker_effect_bonus ? ` + Fx(${roll.attacker_effect_bonus > 0 ? '+' : ''}${roll.attacker_effect_bonus})` : '';
-        const atkTether = roll.tether_bonus ? ` + 🔗(${roll.tether_bonus > 0 ? '+' : ''}${roll.tether_bonus})` : '';
+        const atkTether = roll.tether_bonus ? ` + ⚓(${roll.tether_bonus > 0 ? '+' : ''}${roll.tether_bonus})` : '';
         const defFx = roll.defender_effect_bonus ? ` + Fx(${roll.defender_effect_bonus > 0 ? '+' : ''}${roll.defender_effect_bonus})` : '';
         const atkStr = `die(${roll.base_roll}) + Stat(${roll.stat_bonus ?? 0}) + Edge(${roll.edge_bonus ?? 0}) + Wpn(${roll.weapon_bonus ?? 0})${atkFx}${atkTether}${bapPart} = ${roll.attacker_roll}`;
         const rawDef = roll.raw_defense_roll ?? roll.defense_roll;
@@ -11455,6 +11563,15 @@
                 const d = msg.extra_data || {};
                 const card = renderObjectRevealedCard({ ...d, timestamp: msg.timestamp });
                 storeAndDisplayMessage(card, { type: 'object_revealed', timestamp: msg.timestamp, message_id: msg.id, actor: d.object_name || 'system' });
+              }
+              else if (msg.message_type === 'tether_activated' || msg.message_type === 'tether_deactivated') {
+                const d = msg.extra_data || {};
+                const active = msg.message_type === 'tether_activated';
+                const modStr = (d.modifier || 0) > 0 ? `+${d.modifier}` : String(d.modifier || 0);
+                const html = active
+                  ? `⚓ <strong>${escHtml(d.character_name || '')}'s Tether</strong> <em>"${escHtml(d.description || '')}"</em> is now active <b style="color:#34d399;font-style:normal;">${escHtml(modStr)}</b> — it rides every roll until released.`
+                  : `⚓ <strong>${escHtml(d.character_name || '')}'s Tether</strong> <em>"${escHtml(d.description || '')}"</em> released.`;
+                renderSwAnnounce(html, { type: msg.message_type, messageId: msg.id, timestamp: msg.timestamp, live: false });
               }
               else if (msg.message_type === 'stat_roll') {
                 console.log('📊 Loading stat roll from history:', msg);
@@ -12608,11 +12725,10 @@
             } else if (data.type === 'tether_activated' || data.type === 'tether_deactivated') {
               const active = data.type === 'tether_activated';
               const modStr = data.modifier > 0 ? `+${data.modifier}` : String(data.modifier);
-              const icon = active ? '🔗' : '⛓️';
-              const msg = active
-                ? `${icon} ${data.character_name}'s Tether activated (${modStr}): "${data.description}"`
-                : `${icon} ${data.character_name}'s Tether released: "${data.description}"`;
-              addMessage(msg, 'message-card message-system', { type: data.type, actor: 'system', message_id: data.message_id });
+              const html = active
+                ? `⚓ <strong>${escHtml(data.character_name)}'s Tether</strong> <em>"${escHtml(data.description)}"</em> is now active <b style="color:#34d399;font-style:normal;">${escHtml(modStr)}</b> — it rides every roll until released.`
+                : `⚓ <strong>${escHtml(data.character_name)}'s Tether</strong> <em>"${escHtml(data.description)}"</em> released.`;
+              renderSwAnnounce(html, { type: data.type, messageId: data.message_id, timestamp: data.timestamp });
               await loadCharacters();
 
             } else if (data.type === 'item_added') {
@@ -13093,7 +13209,7 @@
 
               const boostPills = (data.boosts || []).map(b => {
                 if (b.type === 'bap') return `<span class="boost-fanfare-pill bap"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP +${b.bonus}</span>`;
-                return `<span class="boost-fanfare-pill tether"><i data-lucide="link" style="width:11px;height:11px;vertical-align:middle;"></i> ${escHtml(b.description)} ${b.modifier > 0 ? '+' : ''}${b.modifier}</span>`;
+                return `<span class="boost-fanfare-pill tether"><i data-lucide="anchor" style="width:11px;height:11px;vertical-align:middle;"></i> ${escHtml(b.description)} ${b.modifier > 0 ? '+' : ''}${b.modifier}</span>`;
               }).join('');
 
               const rollLabel = data.roll_type === 'stat'
@@ -14290,7 +14406,8 @@
         // Add Narrator (SW voice) to knownPCs so history messages from SW get colored for all viewers
         const swMember = members.find(m => m.role === 'story_weaver');
         if (swMember && swMember.membership_chat_color) {
-          knownPCs.push({ id: null, name: 'Narrator', chat_color: swMember.membership_chat_color, portrait_url: null });
+          swChatColor = swMember.membership_chat_color;
+          knownPCs.push({ id: null, name: 'Story Weaver', chat_color: swChatColor, portrait_url: null });
         }
 
         // Add NPCs to knownPCs so their chat history messages get colored correctly
@@ -14334,19 +14451,30 @@
               ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;margin-left:4px;" title="The Called — haunted by visions and nightmares">The Called</span>`
               : '';
             const tetherBadge = '';
-            // Active Tethers ride every roll this character makes until released. Loud on
-            // purpose so the SW remembers to switch them off when the moment passes.
-            const _activeTethers = (char.tethers || []).filter(t => t.is_active && (t.modifier || 0) !== 0);
-            const tetherRow = _activeTethers.length
-              ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;">
-                   ${_activeTethers.map(t => `
-                     <div style="display:flex;align-items:center;gap:6px;font-size:0.72rem;background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.4);border-radius:5px;padding:2px 7px;">
-                       <i data-lucide="link" style="width:11px;height:11px;color:#f59e0b;flex-shrink:0;"></i>
-                       <span style="flex:1;min-width:0;color:#fbbf24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(t.description || '')}">${escHtml(t.description || 'Tether')}</span>
-                       <strong style="color:${t.modifier > 0 ? '#34d399' : '#f87171'};">${t.modifier > 0 ? '+' : ''}${t.modifier}</strong>
-                       ${isSW() ? `<button title="Release this tether" style="background:none;border:none;color:#f59e0b;cursor:pointer;padding:0 2px;line-height:1;font-size:0.9rem;" onclick="swReleaseTether('${char.id}','${t.id}')">&times;</button>` : ''}
-                     </div>`).join('')}
-                 </div>`
+            // Tethers, right on the party card so the SW never digs into the sheet mid-session.
+            // Active ones ride every roll (loud amber, one tap to release); inactive ones sit
+            // dim with a one-tap activate. Players only ever see the active ones.
+            const _tethers = char.tethers || [];
+            const _activeTethers = _tethers.filter(t => t.is_active && (t.modifier || 0) !== 0);
+            const _idleTethers = isSW() ? _tethers.filter(t => !(t.is_active && (t.modifier || 0) !== 0)) : [];
+            const _tetherChips = [
+              ..._activeTethers.map(t => `
+                <div style="display:flex;align-items:center;gap:6px;font-size:0.72rem;background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.4);border-radius:5px;padding:2px 7px;">
+                  <i data-lucide="anchor" style="width:11px;height:11px;color:#f59e0b;flex-shrink:0;"></i>
+                  <span style="flex:1;min-width:0;color:#fbbf24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(t.description || '')}">${escHtml(t.description || 'Tether')}</span>
+                  <strong style="color:${t.modifier > 0 ? '#34d399' : '#f87171'};">${t.modifier > 0 ? '+' : ''}${t.modifier}</strong>
+                  ${isSW() ? `<button title="Release this tether" style="background:none;border:none;color:#f59e0b;cursor:pointer;padding:0 2px;line-height:1;font-size:0.9rem;" onclick="swReleaseTether('${char.id}','${t.id}')">&times;</button>` : ''}
+                </div>`),
+              ..._idleTethers.map(t => `
+                <button title="Activate — the trigger fired" onclick="swActivateTether('${char.id}','${t.id}',${t.modifier || 0})"
+                  style="display:flex;align-items:center;gap:6px;width:100%;text-align:left;font-size:0.72rem;background:none;border:1px dashed var(--border-color);border-radius:5px;padding:2px 7px;color:var(--text-muted);cursor:pointer;">
+                  <i data-lucide="anchor" style="width:11px;height:11px;flex-shrink:0;opacity:0.6;"></i>
+                  <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(t.description || '')}">${escHtml(t.description || 'Tether')}</span>
+                  <span style="opacity:0.7;">activate</span>
+                </button>`)
+            ];
+            const tetherRow = _tetherChips.length
+              ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;">${_tetherChips.join('')}</div>`
               : '';
             const scars = Array.isArray(char.battle_scars) ? char.battle_scars : [];
             const scarsHtml = scars.length > 0
@@ -15238,7 +15366,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')} resists</div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}${data.tether_modifier ? ` <span style="color:#a78bfa;">🔗 ${data.tether_modifier > 0 ? '+' : ''}${data.tether_modifier}</span>` : ''}</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}${data.tether_modifier ? ` <span style="color:#a78bfa;">⚓ ${data.tether_modifier > 0 ? '+' : ''}${data.tether_modifier}</span>` : ''}</div>
             <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.resist_total}</div>
           </div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
@@ -15362,7 +15490,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')}</div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}${data.tether_modifier ? ` <span style="color:#a78bfa;">🔗 ${data.tether_modifier > 0 ? '+' : ''}${data.tether_modifier}</span>` : ''}</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}${data.tether_modifier ? ` <span style="color:#a78bfa;">⚓ ${data.tether_modifier > 0 ? '+' : ''}${data.tether_modifier}</span>` : ''}</div>
             <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.player_total}</div>
             ${debuffLine}
           </div>
@@ -16238,7 +16366,7 @@
               </div></div>`).join('');
           return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(147,197,253,0.4);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:3px;"><i data-lucide="link" style="width:11px;height:11px;"></i>Tethers ${char.tethers && char.tethers.length >= 3 ? '(max)' : ''}</span>
+              <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:3px;"><i data-lucide="anchor" style="width:11px;height:11px;"></i>Tethers ${char.tethers && char.tethers.length >= 3 ? '(max)' : ''}</span>
               ${char.active_tether_modifier ? `<span style="font-size:0.72rem;padding:1px 6px;border-radius:3px;background:${char.active_tether_modifier > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'};color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};">Active: ${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>` : ''}
             </div>
             ${tList}
@@ -16250,7 +16378,7 @@
           const charBonds = _campaignBonds.filter(b => b.is_active && (b.character_id_a === String(char.id) || b.character_id_b === String(char.id)));
           if (!charBonds.length) return '';
           return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid #a78bfa;">
-            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="zap" style="width:11px;height:11px;"></i>Bonds (${charBonds.length})</div>
+            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="link" style="width:11px;height:11px;"></i>Bonds (${charBonds.length})</div>
             ${charBonds.map(b => {
               const partner = b.character_id_a === String(char.id) ? b.character_name_b : b.character_name_a;
               return `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
@@ -16691,7 +16819,7 @@
         ${char.notes ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid var(--accent-secondary);"><div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Notes / Backstory</div><div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(char.notes)}</div></div>` : ""}
         ${(char.tethers && char.tethers.length > 0) ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid rgba(147,197,253,0.4);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:3px;"><i data-lucide="link" style="width:11px;height:11px;"></i>Tethers</span>
+            <span style="font-size:0.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:3px;"><i data-lucide="anchor" style="width:11px;height:11px;"></i>Tethers</span>
             ${char.active_tether_modifier ? `<span style="font-size:0.72rem;padding:1px 6px;border-radius:3px;background:${char.active_tether_modifier > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'};color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};">Active: ${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>` : ''}
           </div>
           ${char.tethers.map(t => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;">${escHtml(t.description)}</span>${t.is_active ? `<span style="font-size:0.7rem;color:${t.modifier >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${t.modifier >= 0 ? '+' : ''}${t.modifier}</span>` : ''}</div>`).join('')}
@@ -16701,7 +16829,7 @@
           const charBonds = _campaignBonds.filter(b => b.is_active && (b.character_id_a === String(char.id) || b.character_id_b === String(char.id)));
           if (!charBonds.length) return '';
           return `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-top:16px;border-left:3px solid #a78bfa;">
-            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="zap" style="width:11px;height:11px;"></i>Bonds (${charBonds.length})</div>
+            <div style="font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:3px;"><i data-lucide="link" style="width:11px;height:11px;"></i>Bonds (${charBonds.length})</div>
             ${charBonds.map(b => {
               const partner = b.character_id_a === String(char.id) ? b.character_name_b : b.character_name_a;
               return `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
