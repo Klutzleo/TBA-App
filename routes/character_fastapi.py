@@ -4115,6 +4115,10 @@ async def update_tether(
             tethers[idx]["modifier"] = max(-5, min(5, mod))
 
     char.tethers = tethers
+    # The dicts inside `tethers` are shared with char.tethers, so an in-place edit
+    # ("is_active" flip) isn't seen by SQLAlchemy unless we flag the JSON column.
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(char, "tethers")
     # Recalculate combined modifier
     char.active_tether_modifier = sum(
         t.get("modifier", 0) for t in tethers if t.get("is_active")
@@ -4176,6 +4180,8 @@ async def delete_tether(
 
     tethers = [t for t in (char.tethers or []) if t.get("id") != tether_id]
     char.tethers = tethers
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(char, "tethers")
     char.active_tether_modifier = sum(
         t.get("modifier", 0) for t in tethers if t.get("is_active")
     )
