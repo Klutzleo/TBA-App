@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Allow: /u/
+
+Disallow: /game.html
+Disallow: /campaigns.html
+Disallow: /campaign_chat.html
+Disallow: /auth.html
+Disallow: /profile.html
+Disallow: /player-profile.html
+Disallow: /create-character.html
+Disallow: /create-ally.html
+Disallow: /reset-request.html
+Disallow: /reset-password.html
+Disallow: /api/
+
+Sitemap: https://tba-rpg.com/sitemap.xml
