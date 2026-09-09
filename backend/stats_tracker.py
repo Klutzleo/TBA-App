@@ -8,6 +8,7 @@ They upsert rows so first-time players get a row automatically.
 
 import logging
 from datetime import datetime
+from sqlalchemy import Boolean
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -16,6 +17,25 @@ logger = logging.getLogger(__name__)
 
 def _now():
     return datetime.utcnow()
+
+
+def _apply_stat(row, col, val):
+    """Merge one tracked value onto a stats row. `biggest_`/`highest_` columns take
+    the max; Boolean columns (e.g. last_pp_check_won) are SET to the value;
+    everything else accumulates. Previously every non-`biggest_` column was
+    `current + val`, which quietly poisoned the boolean columns (True + True = 2)."""
+    if col.startswith('biggest_') or col.startswith('highest_'):
+        current = getattr(row, col, 0) or 0
+        if val > current:
+            setattr(row, col, val)
+        return
+    try:
+        if isinstance(type(row).__table__.columns[col].type, Boolean):
+            setattr(row, col, bool(val))
+            return
+    except (KeyError, AttributeError):
+        pass
+    setattr(row, col, (getattr(row, col, 0) or 0) + val)
 
 
 def _upsert_user_stats(db: Session, user_id: str, **increments):
@@ -27,13 +47,7 @@ def _upsert_user_stats(db: Session, user_id: str, **increments):
             db.add(row)
             db.flush()
         for col, val in increments.items():
-            if col.startswith('biggest_'):
-                current = getattr(row, col, 0) or 0
-                if val > current:
-                    setattr(row, col, val)
-            else:
-                current = getattr(row, col, 0) or 0
-                setattr(row, col, current + val)
+            _apply_stat(row, col, val)
         row.last_played_at = _now()
         row.updated_at = _now()
     except Exception as e:
@@ -49,13 +63,7 @@ def _upsert_character_stats(db: Session, character_id: str, user_id: str, **incr
             db.add(row)
             db.flush()
         for col, val in increments.items():
-            if col.startswith('biggest_'):
-                current = getattr(row, col, 0) or 0
-                if val > current:
-                    setattr(row, col, val)
-            else:
-                current = getattr(row, col, 0) or 0
-                setattr(row, col, current + val)
+            _apply_stat(row, col, val)
         row.last_played_at = _now()
         row.updated_at = _now()
     except Exception as e:
