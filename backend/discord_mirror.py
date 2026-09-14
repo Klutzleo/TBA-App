@@ -103,7 +103,61 @@ DENYLIST_TYPES = {
     # This module's own reaction-poller output loops back through broadcast()
     # like everything else — mirroring it as a message would be a feedback loop.
     "discord_reaction",
+    # The pending/request side of a check never mirrors, only the resolved
+    # outcome does (stat_check_result / env_check_result below) — matches
+    # combat's one-message-per-event policy rather than "waiting on a roll"
+    # followed by a second message closing it out. Listed explicitly so this
+    # stays true even if a future edit adds a generic text/content field to
+    # the request payload.
+    "stat_check_request", "env_check_request",
 }
+
+def _int(v, default=0):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _flavor_suffix(d) -> str:
+    flavor = (d.get("flavor_text") or "").strip()
+    return f' — "{flavor}"' if flavor else ""
+
+
+def _fmt_stat_check_result(d) -> str:
+    # Never reveal the SW's hidden difficulty roll/label — only outcome + margin,
+    # same as what a player only sees after resolving in-app.
+    win = d.get("outcome") == "win"
+    object_defeated = bool(d.get("object_defeated"))
+    icon = "🔓" if object_defeated else ("✅" if win else "❌")
+    label = "Success" if win else "Failure"
+    obj_part = f" — {d.get('object_name', 'it')} gives way!" if object_defeated else ""
+    margin = d.get("margin")
+    margin_part = f" (margin {_int(margin):+d})" if margin is not None else ""
+    return (f"{icon} **{d.get('character_name', '?')}** — {d.get('stat', '?')} Check: "
+            f"{label}{_flavor_suffix(d)}{obj_part}{margin_part}")
+
+
+def _fmt_env_check_result(d) -> str:
+    effect = d.get("env_effect", "damage")
+    name = d.get("character_name", "?")
+    tier = d.get("tier", "?")
+    flavor = _flavor_suffix(d)
+    if effect == "healing":
+        return (f"💚 **{name}** heals {d.get('roll_total', '?')} DP{flavor} "
+                f"({d.get('old_dp', '?')} → {d.get('new_dp', '?')}/{d.get('max_dp', '?')})")
+    if effect == "buff":
+        return (f"✨ **{name}** gains {d.get('effect_name', 'a buff')} "
+                f"(+{d.get('magnitude', '?')}, {d.get('duration_rounds', '?')} rd){flavor}")
+    win = d.get("outcome") == "win"
+    if win:
+        return f"🌍 **{name}** resists a Tier {tier} hazard{flavor}"
+    if effect == "debuff":
+        return (f"🌍 **{name}** is {d.get('effect_name', 'debuffed')} by a Tier {tier} hazard"
+                f"{flavor} ({d.get('duration_rounds', '?')} rd)")
+    return (f"💥 **{name}** takes {d.get('damage', '?')} damage from a Tier {tier} hazard"
+            f"{flavor} ({d.get('old_dp', '?')} → {d.get('new_dp', '?')}/{d.get('max_dp', '?')})")
+
 
 # Small, hand-verified formatters for the types whose exact field names are
 # well known. Everything else falls back to the generic content/message/text
@@ -113,6 +167,13 @@ _LABEL_FORMATTERS = {
     "combat_result": lambda d: f"⚔️ **{d.get('attacker', '?')}** → **{d.get('defender', '?')}**: {d.get('damage', '?')} dmg ({d.get('outcome', '?')})",
     "damage_applied": lambda d: f"💥 **{d.get('source', '?')}** hits **{d.get('character_name', '?')}** for {d.get('amount', '?')} DP ({d.get('old_dp', '?')} → {d.get('new_dp', '?')}/{d.get('max_dp', '?')})",
     "bap_granted": lambda d: f"✦ **{d.get('character_name', '?')}** received a BAP token",
+    "stat_check_result": _fmt_stat_check_result,
+    "env_check_result": _fmt_env_check_result,
+    "object_revealed": lambda d: d.get("revealed_text") or f"🔓 **{d.get('object_name', '?')}** gives way",
+    "tether_activated": lambda d: (f"⚓ **{d.get('character_name', '?')}**'s Tether "
+                                    f"\"{d.get('description', '')}\" is now active ({_int(d.get('modifier')):+d})"),
+    "tether_deactivated": lambda d: (f"⚓ **{d.get('character_name', '?')}**'s Tether "
+                                      f"\"{d.get('description', '')}\" released"),
 }
 
 
