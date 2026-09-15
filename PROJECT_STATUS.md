@@ -41,7 +41,7 @@ Shipping the remaining Combo rules (cancellation, triple) and grief tether fixes
 
 ## Next up
 - [ ] Fix grief tether weight — `routes/bonds.py:183` hardcodes -1; needs SW-selectable weight input in break-bond modal
-- [ ] Combo cancellation rule — if proposer takes damage before combo fires → cancel; acceptor takes turn normally (`campaign_websocket.py`)
+- [x] Combo cancellation rule — if proposer takes damage before combo fires → cancel; acceptor takes turn normally (`campaign_websocket.py`). Was already wired for ability-cast/summon damage; this pass added the two remaining gaps (basic `/attack` damage, PC Env Check damage).
 - [ ] Triple Combo — all 3 hold; fires on last acceptor's turn in initiative order; requires bilateral Bonds + all at L10+
 - [ ] Ally auto-Combo — character + Ally get one Combo automatically at creation (not yet wired)
 - [ ] The Called status system — death counter (1st-5th), nightmare/vision 1d6 table per rest
@@ -55,7 +55,7 @@ Shipping the remaining Combo rules (cancellation, triple) and grief tether fixes
 - [ ] Lore & asset library — taggable homebrew content
 
 ## Blockers
-Nothing hard blocking. All pending items are implementation work. Grief tether and Combo cancellation are small (hours). Triple Combo and Ascension are larger (days each).
+Nothing hard blocking. All pending items are implementation work. Grief tether is small (hours). Triple Combo and Ascension are larger (days each).
 
 ## Resume here
 **Immediate**: Fix grief tether weight in `routes/bonds.py:183`. The `break_bond` endpoint applies a hardcoded `"modifier": -1` for grief tether. The rules say "The SW sets the weight based on how significant the Bond was." Add a `weight` param to the break-bond request body and a numeric input to the break-bond modal in `game.html`.

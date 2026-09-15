@@ -117,8 +117,10 @@ says 3.10 but is ignored. Local 3.11 matches prod.
 
 ## Current focus
 
-Post-launch polish. Near-term per `PROJECT_STATUS.md`: Combo cancellation +
-Triple Combo in `campaign_websocket.py`, then Ascension levels 11–15.
+Post-launch polish. Near-term per `PROJECT_STATUS.md`: Triple Combo in
+`campaign_websocket.py`, then Ascension levels 11–15. Combo cancellation
+(proposer takes damage before firing → cancel, acceptor's turn resumes
+normally) shipped.
 
 `PROJECT_STATUS.md` runs a bit behind the code — e.g. it lists the grief-tether
 weight fix as pending, but `routes/bonds.py` `break_bond` already takes an

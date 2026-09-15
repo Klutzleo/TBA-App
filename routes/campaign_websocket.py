@@ -1281,11 +1281,14 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         old_dp = defender.dp
         defender.dp = defender.dp - result["total_damage"]
         db.commit()
-        
+
         logger.info(
             f"[{request_id}] {attacker.name} dealt {result['total_damage']} damage "
             f"to {defender.name} (DP: {old_dp} → {defender.dp}) [PERSISTED]"
         )
+
+        if result["total_damage"] > 0:
+            await cancel_holding_combo_on_damage(campaign_id, defender.id, db)
         
         # =====================================================================
         # Persist combat result to database (save first to get message_id)
@@ -3775,6 +3778,7 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
         char.dp = char.dp - damage  # no floor — env damage can down a PC
         db.commit()
         db.refresh(char)
+        await cancel_holding_combo_on_damage(campaign_uuid, char.id, db)
         if char.dp <= -10 and not char.is_npc and not char.in_calling:
             await _trigger_the_calling(char, campaign_uuid, db, actor_user_id=user_id)
             db.refresh(char)
