@@ -11544,7 +11544,7 @@
               }
               else if (msg.message_type === 'stat_check_result') {
                 const d = msg.extra_data || {};
-                const card = renderStatCheckResultCard({ ...d, timestamp: msg.timestamp });
+                const card = renderStatCheckResultCard({ ...d, timestamp: msg.timestamp, message_id: msg.id });
                 storeAndDisplayMessage(card, { type: 'stat_check_result', timestamp: msg.timestamp, message_id: msg.id, actor: d.character_name || 'system' });
               }
               else if (msg.message_type === 'env_check_request') {
@@ -13212,6 +13212,32 @@
                     dmgInfo.textContent = data.new_total > 0 ? `💥 ${data.new_total} damage dealt` : '💫 0 damage dealt';
                   }
                 }
+                // Stat Check result — outcome/margin/colors can all flip
+                if (data.roll_type === 'stat_check') {
+                  const won = data.outcome === 'win';
+                  const color = won ? '#34d399' : '#f87171';
+                  card.style.background = `rgba(${won ? '52,211,153' : '248,113,113'},0.06)`;
+                  card.style.borderColor = `rgba(${won ? '52,211,153' : '248,113,113'},0.25)`;
+                  const labelEl = card.querySelector('[data-sc-label]');
+                  if (labelEl) {
+                    labelEl.textContent = `Stat Check — ${data.stat} — ${won ? '✓ Success' : '✗ Failure'}`;
+                    labelEl.style.color = color;
+                  }
+                  const ptEl = card.querySelector('[data-sc-player-total]');
+                  if (ptEl) { ptEl.textContent = data.player_total; ptEl.style.color = color; }
+                  const swEl = card.querySelector('[data-sc-sw-total]');
+                  if (swEl) { swEl.style.color = won ? 'var(--accent-danger)' : '#34d399'; }
+                  const marginEl = card.querySelector('[data-sc-margin]');
+                  if (marginEl) {
+                    const mt = data.margin > 0 ? `+${data.margin}` : String(data.margin);
+                    marginEl.textContent = `Margin: ${mt}`;
+                    marginEl.style.color = color;
+                  }
+                  const objLine = card.querySelector('[data-sc-object-line]');
+                  if (objLine && data.object_defeated) {
+                    objLine.innerHTML = `<div style="text-align:center;margin-top:6px;font-size:0.85rem;color:#cbd5e1;font-weight:700;">🔓 ${escHtml(data.object_name || 'The object')} gives way!</div>`;
+                  }
+                }
               }
 
               // Build fanfare card
@@ -13225,7 +13251,13 @@
 
               const rollLabel = data.roll_type === 'stat'
                 ? `${escHtml(data.stat_name || '')} Check`
+                : data.roll_type === 'stat_check'
+                ? `${escHtml(data.stat || '')} Check`
                 : 'Attack';
+
+              const outcomeFlip = (data.roll_type === 'stat_check' && data.old_outcome && data.old_outcome !== data.outcome)
+                ? `<div style="margin-top:4px;font-size:0.82rem;font-weight:700;color:${data.outcome === 'win' ? '#34d399' : '#f87171'};">🔄 ${data.old_outcome.toUpperCase()} → ${data.outcome.toUpperCase()}</div>`
+                : '';
 
               fanfare.innerHTML = `
                 <div class="boost-fanfare-title">⚡ BOOSTED — ${escHtml(data.character_name)}</div>
@@ -13234,7 +13266,8 @@
                   <span class="new">${data.new_total}</span>
                   <span style="color:var(--text-muted);font-size:0.85rem;font-weight:400;margin-left:6px;">${rollLabel}</span>
                 </div>
-                <div class="boost-fanfare-breakdown">${boostPills}</div>`;
+                <div class="boost-fanfare-breakdown">${boostPills}</div>
+                ${outcomeFlip}`;
               storeAndDisplayMessage(fanfare, { type: 'boost_fanfare', actor: 'system', _tab: 'story' });
 
             } else if (data.type === 'ability_cast') {
@@ -15489,7 +15522,7 @@
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span style="color:var(--text-muted);font-size:0.78rem;">[${timestamp}]</span>
             <span style="font-size:1rem;"><i data-lucide="target" style="width:16px;height:16px;vertical-align:middle;"></i></span>
-            <span style="font-weight:700;color:${color};font-size:0.88rem;">Stat Check — ${data.stat} — ${label}</span>
+            <span data-sc-label style="font-weight:700;color:${color};font-size:0.88rem;">Stat Check — ${data.stat} — ${label}</span>
             ${bapBadge}
             ${swRolledBadge}
           </div>
@@ -15503,22 +15536,35 @@
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${escHtml(data.character_name || '')}</div>
             <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.die_roll} + ${data.stat}: ${data.stat_value} + Edge: ${data.edge}${data.debuff_modifier < 0 ? ` ${data.debuff_modifier}` : ''}${data.tether_modifier ? ` <span style="color:#a78bfa;">⚓ ${data.tether_modifier > 0 ? '+' : ''}${data.tether_modifier}</span>` : ''}</div>
-            <div style="font-size:1.1rem;font-weight:700;color:${color};">${data.player_total}</div>
+            <div data-sc-player-total style="font-size:1.1rem;font-weight:700;color:${color};">${data.player_total}</div>
             ${debuffLine}
           </div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:8px;">
             <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${rightLabel}</div>
             <div style="font-size:0.78rem;color:var(--text-secondary);"><i data-lucide="dices" style="width:12px;height:12px;vertical-align:middle;"></i> ${data.sw_roll}</div>
-            <div style="font-size:1.1rem;font-weight:700;color:${won ? 'var(--accent-danger)' : '#34d399'};">${data.sw_total}</div>
+            <div data-sc-sw-total style="font-size:1.1rem;font-weight:700;color:${won ? 'var(--accent-danger)' : '#34d399'};">${data.sw_total}</div>
           </div>
         </div>
-        <div style="text-align:center;margin-top:8px;font-size:0.82rem;color:${color};font-weight:600;">
+        <div data-sc-margin style="text-align:center;margin-top:8px;font-size:0.82rem;color:${color};font-weight:600;">
           Margin: ${marginText}
         </div>
-        ${data.object_defeated ? `<div style="text-align:center;margin-top:6px;font-size:0.85rem;color:#cbd5e1;font-weight:700;">🔓 ${escHtml(data.object_name || 'The object')} gives way!</div>` : ''}
+        <div data-sc-object-line>${data.object_defeated ? `<div style="text-align:center;margin-top:6px;font-size:0.85rem;color:#cbd5e1;font-weight:700;">🔓 ${escHtml(data.object_name || 'The object')} gives way!</div>` : ''}</div>
       `;
       outerRow.appendChild(contentCol);
       div.appendChild(outerRow);
+
+      if (isSW() && data.character_id && data.message_id && data.request_id && !data.boost_applied) {
+        const boostBtn = document.createElement('button');
+        boostBtn.className = 'bap-retro-btn boost-retro-btn';
+        boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost';
+        if (window.lucide) lucide.createIcons({ el: boostBtn });
+        boostBtn.onclick = () => openBoostModal(
+          data.character_id, data.message_id, 'stat_check', data.player_total,
+          data.bap || 1, data.available_tethers || [],
+          `${data.character_name} — ${data.stat} Check`
+        );
+        div.appendChild(boostBtn);
+      }
       return div;
     }
 

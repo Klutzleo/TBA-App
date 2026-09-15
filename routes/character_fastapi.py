@@ -3499,6 +3499,92 @@ async def apply_boosts(
             "boosts": boosts,
         }
 
+    elif roll_type == "stat_check":
+        from backend.models import StatCheckRequest
+
+        request_id = extra.get("request_id")
+        if not request_id:
+            raise HTTPException(status_code=400, detail="Stat Check result missing request_id")
+        try:
+            check_req = db.query(StatCheckRequest).filter(StatCheckRequest.id == UUID(request_id)).first()
+        except Exception:
+            check_req = None
+        if not check_req:
+            raise HTTPException(status_code=404, detail="Stat Check request not found")
+        if check_req.kind != "stat":
+            raise HTTPException(status_code=400, detail="Env Check boosts aren't supported yet")
+        if check_req.status != "resolved":
+            raise HTTPException(status_code=400, detail="Stat Check hasn't resolved yet")
+
+        old_total = check_req.player_total or 0
+        old_outcome = check_req.outcome
+        sw_total = check_req.sw_roll or 0
+        new_total = old_total + total_bonus
+        new_outcome = "win" if new_total > sw_total else "loss"
+        new_margin = new_total - sw_total
+
+        check_req.player_total = new_total
+        check_req.outcome = new_outcome
+        check_req.margin = new_margin
+
+        boost_parts = []
+        for b in boosts:
+            if b["type"] == "bap":
+                boost_parts.append(f"BAP(+{b['bonus']})")
+            else:
+                boost_parts.append(f"🔗({b['description'][:20]} +{b['modifier']})")
+
+        extra["player_total"] = new_total
+        extra["outcome"] = new_outcome
+        extra["margin"] = new_margin
+        extra["boost_applied"] = True
+        extra["boosts"] = boosts
+
+        # A win that only landed because of the boost can still crack open an
+        # Object the SW attached to this check (same as a normal-roll win does).
+        defeated_obj = None
+        if new_outcome == "win" and check_req.object_id:
+            obj = db.query(Character).filter(Character.id == check_req.object_id).first()
+            if obj and obj.is_object and not obj.object_revealed:
+                defeated_obj = obj
+                extra["object_name"] = obj.name
+                extra["object_defeated"] = True
+
+        msg.extra_data = extra
+        flag_modified(msg, "extra_data")
+        db.commit()
+
+        if defeated_obj is not None:
+            from routes.campaign_websocket import _defeat_object
+            await _defeat_object(char.campaign_id, defeated_obj, db, actor_user_id=current_user.id, source="check")
+
+        try:
+            from routes.campaign_websocket import manager
+            asyncio.create_task(manager.broadcast(char.campaign_id, {
+                **extra,
+                "type": "boosts_applied",
+                "message_id": message_id,
+                "roll_type": "stat_check",
+                "character_id": str(char.id),
+                "character_name": char.name,
+                "old_total": old_total,
+                "new_total": new_total,
+                "old_outcome": old_outcome,
+                "total_bonus": total_bonus,
+            }))
+        except Exception as _e:
+            logger.warning(f"boosts_applied broadcast failed: {_e}")
+
+        return {
+            "message_id": message_id,
+            "boost_applied": True,
+            "old_total": old_total,
+            "new_total": new_total,
+            "old_outcome": old_outcome,
+            "new_outcome": new_outcome,
+            "boosts": boosts,
+        }
+
     else:  # combat
         individual_rolls = extra.get("individual_rolls", [])
         old_total_damage = extra.get("damage", 0)

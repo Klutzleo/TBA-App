@@ -3250,6 +3250,13 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "margin": margin,
         "bap_granted": req.bap_granted,
         "rolled_by_sw": rolled_by_sw,
+        "bap": char.bap or 1,
+        # Tethers not already active (and therefore not already baked into
+        # player_total above) — these are the ones a retroactive Boost can add.
+        "available_tethers": [
+            t for t in (char.tethers or [])
+            if not t.get("is_active") and (t.get("modifier") or 0) != 0
+        ],
     }
     # Rolling against an Object — a win cracks it open.
     _defeated_obj = None
