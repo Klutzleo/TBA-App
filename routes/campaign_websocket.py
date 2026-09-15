@@ -673,6 +673,18 @@ async def campaign_websocket(
             elif message_type == "combo_ability_select":
                 await _handle_combo_ability_select(campaign_uuid, user_uuid, data, websocket, db)
 
+            elif message_type == "triple_combo_propose":
+                await _handle_triple_combo_propose(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "triple_combo_accept":
+                await _handle_triple_combo_accept(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "triple_combo_decline":
+                await _handle_triple_combo_decline(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "triple_combo_ability_select":
+                await _handle_triple_combo_ability_select(campaign_uuid, user_uuid, data, websocket, db)
+
             else:
                 logger.warning(f"Unknown message type: {message_type}")
 
@@ -1288,7 +1300,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         )
 
         if result["total_damage"] > 0:
-            await cancel_holding_combo_on_damage(campaign_id, defender.id, db)
+            await cancel_holding_combos_on_damage(campaign_id, defender.id, db)
         
         # =====================================================================
         # Persist combat result to database (save first to get message_id)
@@ -1554,7 +1566,7 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
                 target.dp -= damage
                 db.commit()
                 if damage > 0:
-                    await cancel_holding_combo_on_damage(campaign_id, target.id, db)
+                    await cancel_holding_combos_on_damage(campaign_id, target.id, db)
                 outcome = "hit" if damage > 0 else "miss"
                 atk_bd = f"{ability.die}=[{'+'.join(str(r) for r in attack_rolls)}]+IP({power_stat})+Edge({caster.edge})={attack_total}"
                 def_bd = f"{target.defense_die}=[{'+'.join(str(r) for r in def_rolls)}]+IP({target_stat})+Edge({target.edge or 0})={defense_total}"
@@ -1977,7 +1989,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     await _defeat_object(campaign_id, target, db, actor_user_id=user_id, source="attack")
 
                 if damage > 0:
-                    await cancel_holding_combo_on_damage(campaign_id, target.id, db)
+                    await cancel_holding_combos_on_damage(campaign_id, target.id, db)
 
                 outcome = "hit" if damage > 0 else "miss"
                 atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
@@ -3778,7 +3790,7 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
         char.dp = char.dp - damage  # no floor — env damage can down a PC
         db.commit()
         db.refresh(char)
-        await cancel_holding_combo_on_damage(campaign_uuid, char.id, db)
+        await cancel_holding_combos_on_damage(campaign_uuid, char.id, db)
         if char.dp <= -10 and not char.is_npc and not char.in_calling:
             await _trigger_the_calling(char, campaign_uuid, db, actor_user_id=user_id)
             db.refresh(char)
@@ -5011,22 +5023,37 @@ async def advance_turn(
         new_index = (old_index + 1) % len(rolls)
 
         # Skip any characters holding for a combo (proposers waiting for their partner's turn)
-        from backend.models import PendingCombo as _PendingCombo
+        from backend.models import PendingCombo as _PendingCombo, PendingTripleCombo as _PendingTripleCombo
         skipped_holders = []
         safety = 0
         while safety < len(rolls):
             current_roll = rolls[new_index]
+            skip_hit = None
             if current_roll.character_id:
-                holding = db.query(_PendingCombo).filter(
+                skip_hit = db.query(_PendingCombo).filter(
                     _PendingCombo.encounter_id == encounter.id,
                     _PendingCombo.proposer_character_id == current_roll.character_id,
                     _PendingCombo.status == "holding",
                 ).first()
-                if holding:
-                    skipped_holders.append({"character_id": str(current_roll.character_id), "name": current_roll.name})
-                    new_index = (new_index + 1) % len(rolls)
-                    safety += 1
-                    continue
+                if not skip_hit:
+                    # Triple: proposer + the non-last-acceptor partner hold/skip.
+                    # last_acceptor_character_id is still NULL during accepted_by_one
+                    # (nobody knows who's last yet), so all 3 skip until it's decided.
+                    triple = db.query(_PendingTripleCombo).filter(
+                        _PendingTripleCombo.encounter_id == encounter.id,
+                        _PendingTripleCombo.status.in_(["accepted_by_one", "holding"]),
+                    ).filter(
+                        (_PendingTripleCombo.proposer_character_id == current_roll.character_id) |
+                        (_PendingTripleCombo.partner_a_character_id == current_roll.character_id) |
+                        (_PendingTripleCombo.partner_b_character_id == current_roll.character_id)
+                    ).first()
+                    if triple and str(current_roll.character_id) != str(triple.last_acceptor_character_id or ""):
+                        skip_hit = triple
+            if skip_hit:
+                skipped_holders.append({"character_id": str(current_roll.character_id), "name": current_roll.name})
+                new_index = (new_index + 1) % len(rolls)
+                safety += 1
+                continue
             break
 
         encounter.current_turn_index = new_index
@@ -5125,6 +5152,15 @@ async def advance_turn(
         })
 
         # Check if the character whose turn it is is the acceptor of a pending combo
+        def _ability_list(char):
+            from backend.models import Ability as _Ability
+            abilities = db.query(_Ability).filter(
+                _Ability.character_id == char.id
+            ).order_by(_Ability.slot_number).all()
+            return [{"slot": a.slot_number, "name": a.display_name, "die": a.die,
+                      "power_source": a.power_source, "uses_remaining": a.uses_remaining or 0}
+                     for a in abilities]
+
         if active_roll.character_id:
             waiting_combo = db.query(_PendingCombo).filter(
                 _PendingCombo.encounter_id == encounter.id,
@@ -5137,15 +5173,6 @@ async def advance_turn(
                 # Send combo_fire_ready to both players with their own ability lists
                 proposer_char = db.query(Character).filter(Character.id == waiting_combo.proposer_character_id).first()
                 acceptor_char = db.query(Character).filter(Character.id == active_roll.character_id).first()
-
-                def _ability_list(char):
-                    from backend.models import Ability as _Ability
-                    abilities = db.query(_Ability).filter(
-                        _Ability.character_id == char.id
-                    ).order_by(_Ability.slot_number).all()
-                    return [{"slot": a.slot_number, "name": a.display_name, "die": a.die,
-                              "power_source": a.power_source, "uses_remaining": a.uses_remaining or 0}
-                             for a in abilities]
 
                 bond = waiting_combo.bond
                 base_payload = {
@@ -5171,6 +5198,41 @@ async def advance_turn(
                         "partner_name": proposer_char.name if proposer_char else "Partner",
                         "your_abilities": _ability_list(acceptor_char),
                     })
+
+            # Same trigger, generalized to 3 parties: the LAST acceptor's own turn
+            # arriving fires it (proposer + first-acceptor were already skipped above).
+            waiting_triple = db.query(_PendingTripleCombo).filter(
+                _PendingTripleCombo.encounter_id == encounter.id,
+                _PendingTripleCombo.last_acceptor_character_id == active_roll.character_id,
+                _PendingTripleCombo.status == "holding",
+            ).first()
+            if waiting_triple:
+                from backend.models import Bond as _Bond
+                waiting_triple.status = "ready"
+                db.commit()
+                proposer_char = db.query(Character).filter(Character.id == waiting_triple.proposer_character_id).first()
+                partner_a_char = db.query(Character).filter(Character.id == waiting_triple.partner_a_character_id).first()
+                partner_b_char = db.query(Character).filter(Character.id == waiting_triple.partner_b_character_id).first()
+                bond_ab = db.query(_Bond).filter(_Bond.id == waiting_triple.bond_ab_id).first()
+                base_payload = {
+                    "type": "triple_combo_fire_ready",
+                    "combo_id": str(waiting_triple.id),
+                    "bond_name": bond_ab.combo_name if bond_ab else "Triple Combo",
+                    "bond_description": bond_ab.combo_description if bond_ab else "",
+                }
+                for role_char, others in (
+                    (proposer_char, [partner_a_char, partner_b_char]),
+                    (partner_a_char, [proposer_char, partner_b_char]),
+                    (partner_b_char, [proposer_char, partner_a_char]),
+                ):
+                    if role_char and role_char.user_id:
+                        await manager.send_to_user(campaign_uuid, UUID(str(role_char.user_id)), {
+                            **base_payload,
+                            "your_character_id": str(role_char.id),
+                            "your_name": role_char.name,
+                            "partner_names": [o.name for o in others if o],
+                            "your_abilities": _ability_list(role_char),
+                        })
 
         # Push "your turn" to the active combatant's player (PCs only)
         if active_roll.character_id:
@@ -5237,6 +5299,66 @@ async def cancel_holding_combo_on_damage(campaign_id: UUID, character_id, db: Se
     })
 
     logger.info(f"Combo cancelled (proposer damaged): {combo.id}")
+
+
+async def cancel_holding_triple_combo_on_damage(campaign_id: UUID, character_id, db: Session):
+    """If a character committed to a Triple Combo takes damage before it fires,
+    cancel it. Unlike the 2-person combo, TWO of the 3 parties are turn-skipping
+    at once here (proposer + whichever partner didn't accept last) — either one
+    taking a hit fizzles it, not just the proposer. The last acceptor, once
+    `holding`, is NOT in that skip-locked state (their own upcoming turn is the
+    trigger), so damage to them specifically does not cancel it."""
+    from backend.models import PendingTripleCombo
+
+    encounter = db.query(Encounter).filter(
+        Encounter.campaign_id == campaign_id,
+        Encounter.is_active == True,  # noqa: E712
+    ).first()
+    if not encounter:
+        return
+
+    combo = db.query(PendingTripleCombo).filter(
+        PendingTripleCombo.encounter_id == encounter.id,
+        PendingTripleCombo.status.in_(["pending", "accepted_by_one", "holding"]),
+    ).filter(
+        (PendingTripleCombo.proposer_character_id == character_id) |
+        (PendingTripleCombo.partner_a_character_id == character_id) |
+        (PendingTripleCombo.partner_b_character_id == character_id)
+    ).first()
+    if not combo:
+        return
+    if combo.status == "holding" and str(character_id) == str(combo.last_acceptor_character_id or ""):
+        return
+
+    combo.status = "cancelled"
+    db.commit()
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
+    partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
+    hit_char = db.query(Character).filter(Character.id == character_id).first()
+    hit_name = hit_char.name if hit_char else "Unknown"
+    names = [c.name for c in (proposer_char, partner_a_char, partner_b_char) if c]
+
+    await manager.broadcast(campaign_id, {
+        "type": "triple_combo_cancelled",
+        "combo_id": str(combo.id),
+        "reason": "proposer_damaged" if hit_char and str(hit_char.id) == str(combo.proposer_character_id) else "partner_damaged",
+        "proposer_character_id": str(combo.proposer_character_id),
+        "hit_character_id": str(character_id),
+        "hit_name": hit_name,
+        "message": f"💔 {hit_name} took damage — the Triple Combo ({', '.join(names)}) is cancelled!",
+    })
+
+    logger.info(f"Triple Combo cancelled (damage to {hit_name}): {combo.id}")
+
+
+async def cancel_holding_combos_on_damage(campaign_id: UUID, character_id, db: Session):
+    """Single call site for all damage paths — checks both the 2-person and
+    Triple Combo systems so a future 3rd combo variant only needs to be added
+    here, not at every damage-dealing call site."""
+    await cancel_holding_combo_on_damage(campaign_id, character_id, db)
+    await cancel_holding_triple_combo_on_damage(campaign_id, character_id, db)
 
 
 async def _handle_combo_propose(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
@@ -5517,11 +5639,15 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
     acceptor_result = _roll_for(acceptor_char, combo.acceptor_ability_slot)
 
-    # Grant full BAP to both
+    # Grant a BAP token to both (matches the app's real BAP mechanism — a token
+    # flag, not a numeric pool; `current_bap` below was never a real column and
+    # crashed every time a Combo actually fired in production).
     proposer_bap = proposer_char.bap or 1
     acceptor_bap = acceptor_char.bap or 1
-    proposer_char.current_bap = min((proposer_char.current_bap or 0) + proposer_bap, proposer_bap)
-    acceptor_char.current_bap = min((acceptor_char.current_bap or 0) + acceptor_bap, acceptor_bap)
+    proposer_char.bap_token_active = True
+    proposer_char.bap_token_type = "encounter"
+    acceptor_char.bap_token_active = True
+    acceptor_char.bap_token_type = "encounter"
 
     combo.status = "fired"
     db.commit()
@@ -5575,6 +5701,432 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     })
 
     logger.info(f"Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / {acceptor_char.name} {acceptor_result['total']}")
+
+
+# ============================================================
+# Triple Combo — 3 bonded L10 characters chain one strike
+# ============================================================
+
+def _combo_conflict(db: Session, encounter_id, character_id) -> bool:
+    """True if this character is already committed to a pending/holding/ready
+    combo of either kind (2-person or Triple) — used to keep the two systems
+    from double-booking the same character."""
+    from backend.models import PendingCombo, PendingTripleCombo
+
+    duo = db.query(PendingCombo).filter(
+        PendingCombo.encounter_id == encounter_id,
+        PendingCombo.status.in_(["pending", "holding", "ready"]),
+    ).filter(
+        (PendingCombo.proposer_character_id == character_id) |
+        (PendingCombo.acceptor_character_id == character_id)
+    ).first()
+    if duo:
+        return True
+
+    triple = db.query(PendingTripleCombo).filter(
+        PendingTripleCombo.encounter_id == encounter_id,
+        PendingTripleCombo.status.in_(["pending", "accepted_by_one", "holding", "ready"]),
+    ).filter(
+        (PendingTripleCombo.proposer_character_id == character_id) |
+        (PendingTripleCombo.partner_a_character_id == character_id) |
+        (PendingTripleCombo.partner_b_character_id == character_id)
+    ).first()
+    return triple is not None
+
+
+async def _handle_triple_combo_propose(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """Player proposes a Triple Combo to two bonded partners on their turn.
+    Requires bilateral Bonds between all 3 characters and all 3 at level 10."""
+    from backend.models import Bond, PendingTripleCombo, Encounter, InitiativeRoll
+
+    partner_a_id = data.get("partner_a_character_id")
+    partner_b_id = data.get("partner_b_character_id")
+    if not partner_a_id or not partner_b_id:
+        await websocket.send_json({"type": "error", "message": "partner_a_character_id and partner_b_character_id required"})
+        return
+    if str(partner_a_id) == str(partner_b_id):
+        await websocket.send_json({"type": "error", "message": "Pick two different partners"})
+        return
+
+    proposer_char = db.query(Character).filter(
+        Character.user_id == str(user_uuid),
+        Character.campaign_id == str(campaign_uuid),
+        Character.is_npc == False,
+    ).first()
+    if not proposer_char:
+        await websocket.send_json({"type": "error", "message": "You don't have a character in this campaign"})
+        return
+
+    encounter = db.query(Encounter).filter(
+        Encounter.campaign_id == campaign_uuid,
+        Encounter.is_active == True
+    ).first()
+    if not encounter:
+        await websocket.send_json({"type": "error", "message": "No active encounter — combos require combat"})
+        return
+
+    rolls = db.query(InitiativeRoll).filter(
+        InitiativeRoll.encounter_id == encounter.id,
+        InitiativeRoll.is_silent == False
+    ).all()
+    rolls = _sort_initiative_rolls(rolls, db)
+    if not rolls:
+        await websocket.send_json({"type": "error", "message": "No initiative order yet"})
+        return
+
+    current_roll = rolls[encounter.current_turn_index % len(rolls)]
+    if str(current_roll.character_id) != str(proposer_char.id):
+        await websocket.send_json({"type": "error", "message": "You can only propose a Triple Combo on your own turn"})
+        return
+
+    partner_a = db.query(Character).filter(Character.id == partner_a_id).first()
+    partner_b = db.query(Character).filter(Character.id == partner_b_id).first()
+    if not partner_a or not partner_b:
+        await websocket.send_json({"type": "error", "message": "Partner character not found"})
+        return
+
+    if proposer_char.level != 10 or partner_a.level != 10 or partner_b.level != 10:
+        await websocket.send_json({"type": "error", "message": "All three characters must be level 10 to Triple Combo"})
+        return
+
+    def _find_bond(char_x_id, char_y_id):
+        return db.query(Bond).filter(
+            Bond.campaign_id == campaign_uuid,
+            Bond.broken_at == None,
+        ).filter(
+            ((Bond.character_id_a == char_x_id) & (Bond.character_id_b == char_y_id)) |
+            ((Bond.character_id_a == char_y_id) & (Bond.character_id_b == char_x_id))
+        ).first()
+
+    bond_ab = _find_bond(proposer_char.id, partner_a.id)
+    bond_ac = _find_bond(proposer_char.id, partner_b.id)
+    bond_bc = _find_bond(partner_a.id, partner_b.id)
+    if not bond_ab or not bond_ac or not bond_bc:
+        await websocket.send_json({"type": "error", "message": "Bilateral Bonds required between all three characters"})
+        return
+
+    for cid in (proposer_char.id, partner_a.id, partner_b.id):
+        if _combo_conflict(db, encounter.id, cid):
+            await websocket.send_json({"type": "error", "message": "One of the three already has a pending or active combo"})
+            return
+
+    combo = PendingTripleCombo(
+        encounter_id=encounter.id,
+        campaign_id=campaign_uuid,
+        bond_ab_id=bond_ab.id,
+        bond_ac_id=bond_ac.id,
+        bond_bc_id=bond_bc.id,
+        proposer_character_id=proposer_char.id,
+        partner_a_character_id=partner_a.id,
+        partner_b_character_id=partner_b.id,
+        status="pending",
+    )
+    db.add(combo)
+    db.commit()
+    db.refresh(combo)
+
+    bond_name = bond_ab.combo_name or "Triple Combo"
+    for invitee, other in ((partner_a, partner_b), (partner_b, partner_a)):
+        if invitee.user_id:
+            await manager.send_to_user(campaign_uuid, UUID(str(invitee.user_id)), {
+                "type": "triple_combo_incoming",
+                "combo_id": str(combo.id),
+                "proposer_character_id": str(proposer_char.id),
+                "proposer_name": proposer_char.name,
+                "other_partner_name": other.name,
+                "bond_name": bond_name,
+                "bond_description": bond_ab.combo_description or "",
+            })
+
+    await websocket.send_json({
+        "type": "triple_combo_proposed",
+        "combo_id": str(combo.id),
+        "partner_a_name": partner_a.name,
+        "partner_b_name": partner_b.name,
+        "bond_name": bond_name,
+    })
+
+    logger.info(f"Triple Combo proposed: {proposer_char.name} → {partner_a.name} + {partner_b.name} (bond: {bond_name})")
+
+
+async def _handle_triple_combo_accept(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """A partner accepts. Once both partners have accepted, the second (last)
+    acceptor is set and the combo flips to holding."""
+    from backend.models import PendingTripleCombo
+
+    combo_id = data.get("combo_id")
+    if not combo_id:
+        await websocket.send_json({"type": "error", "message": "combo_id required"})
+        return
+
+    combo = db.query(PendingTripleCombo).filter(
+        PendingTripleCombo.id == combo_id,
+        PendingTripleCombo.campaign_id == campaign_uuid,
+        PendingTripleCombo.status.in_(["pending", "accepted_by_one"]),
+    ).first()
+    if not combo:
+        await websocket.send_json({"type": "error", "message": "Combo not found or already resolved"})
+        return
+
+    partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
+    partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
+
+    is_a = partner_a_char and str(partner_a_char.user_id) == str(user_uuid)
+    is_b = partner_b_char and str(partner_b_char.user_id) == str(user_uuid)
+    if not is_a and not is_b:
+        await websocket.send_json({"type": "error", "message": "You are not a partner in this combo"})
+        return
+
+    accepting_char = partner_a_char if is_a else partner_b_char
+    other_char = partner_b_char if is_a else partner_a_char
+    already_accepted_at = combo.partner_a_accepted_at if is_a else combo.partner_b_accepted_at
+    if already_accepted_at is not None:
+        await websocket.send_json({"type": "error", "message": "You already accepted"})
+        return
+
+    from datetime import datetime as _dt
+    if is_a:
+        combo.partner_a_accepted_at = _dt.utcnow()
+        other_already_in = combo.partner_b_accepted_at is not None
+    else:
+        combo.partner_b_accepted_at = _dt.utcnow()
+        other_already_in = combo.partner_a_accepted_at is not None
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+
+    if not other_already_in:
+        combo.status = "accepted_by_one"
+        db.commit()
+        await manager.broadcast(campaign_uuid, {
+            "type": "triple_combo_partner_accepted",
+            "combo_id": str(combo.id),
+            "accepted_name": accepting_char.name,
+            "still_pending_name": other_char.name if other_char else "the other partner",
+            "message": f"⚔️ {accepting_char.name} is in — waiting on {other_char.name if other_char else 'the other partner'}…",
+        })
+        logger.info(f"Triple Combo partial accept: {combo.id} ({accepting_char.name})")
+        return
+
+    # Second acceptance — this partner is the "last acceptor" whose turn fires it
+    combo.last_acceptor_character_id = accepting_char.id
+    combo.status = "holding"
+    db.commit()
+
+    await manager.broadcast(campaign_uuid, {
+        "type": "triple_combo_holding",
+        "combo_id": str(combo.id),
+        "proposer_character_id": str(combo.proposer_character_id),
+        "last_acceptor_character_id": str(accepting_char.id),
+        "proposer_name": proposer_char.name if proposer_char else "Unknown",
+        "partner_names": [other_char.name if other_char else "Unknown", accepting_char.name],
+        "last_acceptor_name": accepting_char.name,
+        "bond_name": combo.bond_ab.combo_name if combo.bond_ab else "Triple Combo",
+        "message": (
+            f"⚔️ {proposer_char.name if proposer_char else '?'} and {other_char.name if other_char else '?'} "
+            f"are holding — the Triple Combo fires on {accepting_char.name}'s turn!"
+        ),
+    })
+
+    logger.info(f"Triple Combo holding: {combo.id}, last acceptor {accepting_char.name}")
+
+
+async def _handle_triple_combo_decline(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """Either partner declining cancels the whole Triple Combo."""
+    from backend.models import PendingTripleCombo
+
+    combo_id = data.get("combo_id")
+    combo = db.query(PendingTripleCombo).filter(
+        PendingTripleCombo.id == combo_id,
+        PendingTripleCombo.campaign_id == campaign_uuid,
+        PendingTripleCombo.status.in_(["pending", "accepted_by_one"]),
+    ).first()
+    if not combo:
+        await websocket.send_json({"type": "error", "message": "Combo not found"})
+        return
+
+    partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
+    partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
+    is_a = partner_a_char and str(partner_a_char.user_id) == str(user_uuid)
+    is_b = partner_b_char and str(partner_b_char.user_id) == str(user_uuid)
+    if not is_a and not is_b:
+        await websocket.send_json({"type": "error", "message": "You are not a partner in this combo"})
+        return
+
+    declining_char = partner_a_char if is_a else partner_b_char
+    other_char = partner_b_char if is_a else partner_a_char
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+
+    combo.status = "declined"
+    db.commit()
+
+    for notify_char in (proposer_char, other_char):
+        if notify_char and notify_char.user_id:
+            await manager.send_to_user(campaign_uuid, UUID(str(notify_char.user_id)), {
+                "type": "triple_combo_declined",
+                "combo_id": str(combo.id),
+                "declined_by": declining_char.name,
+            })
+
+    await websocket.send_json({"type": "ok", "message": "Triple Combo declined"})
+
+
+async def _handle_triple_combo_ability_select(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
+    """Any of the 3 picks their ability slot. Once all 3 lock in, resolve."""
+    from backend.models import PendingTripleCombo
+
+    combo_id = data.get("combo_id")
+    slot = data.get("slot")
+    if not combo_id or slot is None:
+        await websocket.send_json({"type": "error", "message": "combo_id and slot required"})
+        return
+
+    combo = db.query(PendingTripleCombo).filter(
+        PendingTripleCombo.id == combo_id,
+        PendingTripleCombo.campaign_id == campaign_uuid,
+        PendingTripleCombo.status == "ready",
+    ).first()
+    if not combo:
+        await websocket.send_json({"type": "error", "message": "Combo not ready or not found"})
+        return
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
+    partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
+
+    role = None
+    locked_char = None
+    if proposer_char and str(proposer_char.user_id) == str(user_uuid):
+        role, locked_char = "proposer", proposer_char
+    elif partner_a_char and str(partner_a_char.user_id) == str(user_uuid):
+        role, locked_char = "partner_a", partner_a_char
+    elif partner_b_char and str(partner_b_char.user_id) == str(user_uuid):
+        role, locked_char = "partner_b", partner_b_char
+
+    if not role:
+        await websocket.send_json({"type": "error", "message": "You are not part of this combo"})
+        return
+
+    setattr(combo, f"{role}_ability_slot", slot)
+    db.commit()
+
+    others = [c for c in (proposer_char, partner_a_char, partner_b_char) if c and c.id != locked_char.id]
+    for other_char in others:
+        if other_char.user_id:
+            await manager.send_to_user(campaign_uuid, UUID(str(other_char.user_id)), {
+                "type": "triple_combo_partner_locked",
+                "combo_id": str(combo.id),
+                "locked_by": locked_char.name,
+            })
+
+    if combo.proposer_ability_slot is not None and combo.partner_a_ability_slot is not None and combo.partner_b_ability_slot is not None:
+        await _resolve_triple_combo(campaign_uuid, combo, db)
+
+
+async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
+    """All 3 slots locked — roll all 3 abilities independently, grant BAP to all
+    3, broadcast one combined result. Same mechanic as _resolve_combo, extended
+    from 2 sides to 3 — no shared target, no combined roll."""
+    from backend.models import Ability
+    from backend.roll_logic import roll_dice
+
+    proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
+    partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
+
+    def _roll_for(char, slot) -> dict:
+        ability = db.query(Ability).filter(
+            Ability.character_id == char.id,
+            Ability.slot_number == slot,
+        ).first()
+        if not ability:
+            return {"slot": slot, "ability_name": "Basic Attack", "die": "1d4",
+                    "rolls": [1], "total": 1, "error": "Ability not found"}
+        stat_map = {"PP": char.pp, "IP": char.ip, "SP": char.sp}
+        power_stat = stat_map.get(ability.power_source, 0)
+        rolls = roll_dice(ability.die)
+        total = sum(rolls) + power_stat + (char.edge or 0)
+        ability.uses_remaining = max(0, (ability.uses_remaining or 0) - 2)
+        return {
+            "slot": slot,
+            "ability_name": ability.display_name,
+            "die": ability.die,
+            "power_source": ability.power_source,
+            "power_stat": power_stat,
+            "edge": char.edge or 0,
+            "rolls": rolls,
+            "total": total,
+            "effect_type": ability.effect_type,
+            "uses_remaining": ability.uses_remaining,
+        }
+
+    proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
+    partner_a_result = _roll_for(partner_a_char, combo.partner_a_ability_slot)
+    partner_b_result = _roll_for(partner_b_char, combo.partner_b_ability_slot)
+
+    bap_granted = {}
+    for c in (proposer_char, partner_a_char, partner_b_char):
+        b = c.bap or 1
+        c.bap_token_active = True
+        c.bap_token_type = "encounter"
+        bap_granted[str(c.id)] = b
+
+    combo.status = "fired"
+    db.commit()
+
+    bond_name = combo.bond_ab.combo_name if combo.bond_ab else "Triple Combo"
+    bond_desc = combo.bond_ab.combo_description if combo.bond_ab else ""
+    combo_content = (
+        f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + "
+        f"{partner_a_char.name} rolls {partner_a_result['total']} + "
+        f"{partner_b_char.name} rolls {partner_b_result['total']}!"
+    )
+
+    combo_msg = Message(
+        campaign_id=campaign_uuid,
+        party_id=None,
+        sender_id=proposer_char.id,
+        sender_name=bond_name,
+        message_type="triple_combo_resolved",
+        content=combo_content,
+        extra_data={
+            "combo_id": str(combo.id),
+            "bond_name": bond_name,
+            "bond_description": bond_desc,
+            "proposer": {"character_id": str(proposer_char.id), "name": proposer_char.name, **proposer_result},
+            "partner_a": {"character_id": str(partner_a_char.id), "name": partner_a_char.name, **partner_a_result},
+            "partner_b": {"character_id": str(partner_b_char.id), "name": partner_b_char.name, **partner_b_result},
+            "bap_granted": bap_granted,
+        }
+    )
+    db.add(combo_msg)
+    db.commit()
+
+    await manager.broadcast(campaign_uuid, {
+        "type": "triple_combo_resolved",
+        "combo_id": str(combo.id),
+        "bond_name": bond_name,
+        "bond_description": bond_desc,
+        "proposer": {
+            "character_id": str(proposer_char.id), "name": proposer_char.name,
+            "portrait_url": proposer_char.portrait_url, **proposer_result,
+        },
+        "partner_a": {
+            "character_id": str(partner_a_char.id), "name": partner_a_char.name,
+            "portrait_url": partner_a_char.portrait_url, **partner_a_result,
+        },
+        "partner_b": {
+            "character_id": str(partner_b_char.id), "name": partner_b_char.name,
+            "portrait_url": partner_b_char.portrait_url, **partner_b_result,
+        },
+        "bap_granted": bap_granted,
+        "message": combo_content,
+        "message_id": str(combo_msg.id),
+    })
+
+    logger.info(
+        f"Triple Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / "
+        f"{partner_a_char.name} {partner_a_result['total']} / {partner_b_char.name} {partner_b_result['total']}"
+    )
 
 
 async def send_help_text(websocket: WebSocket):

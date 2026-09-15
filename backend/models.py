@@ -1159,3 +1159,50 @@ class PendingCombo(Base):
 
     def __repr__(self):
         return f"<PendingCombo(status={self.status}, proposer={str(self.proposer_character_id)[:8]}, acceptor={str(self.acceptor_character_id)[:8]})>"
+
+
+class PendingTripleCombo(Base):
+    """In-flight 3-way combo request. Requires bilateral Bonds between all 3
+    characters (A-B, A-C, B-C) and all 3 at level 10. Additive alongside
+    PendingCombo — the 2-person system is untouched by this table."""
+    __tablename__ = "pending_triple_combos"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    encounter_id = Column(UUID(as_uuid=True), ForeignKey("encounters.id", ondelete="CASCADE"), nullable=False, index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+
+    bond_ab_id = Column(UUID(as_uuid=True), ForeignKey("bonds.id", ondelete="SET NULL"), nullable=True)
+    bond_ac_id = Column(UUID(as_uuid=True), ForeignKey("bonds.id", ondelete="SET NULL"), nullable=True)
+    bond_bc_id = Column(UUID(as_uuid=True), ForeignKey("bonds.id", ondelete="SET NULL"), nullable=True)
+
+    proposer_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+    partner_a_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+    partner_b_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
+
+    partner_a_accepted_at = Column(DateTime, nullable=True)
+    partner_b_accepted_at = Column(DateTime, nullable=True)
+    # Set the moment the 2nd of {partner_a, partner_b} accepts. From then on the
+    # proposer + the OTHER (first-accepting) partner hold/skip their turns; this
+    # character's own next turn is what fires the combo (PROJECT_STATUS: "fires
+    # on last acceptor's turn in initiative order").
+    last_acceptor_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=True)
+
+    # pending -> accepted_by_one -> holding -> ready -> fired / declined / cancelled
+    status = Column(String(20), nullable=False, default="pending")
+
+    proposer_ability_slot = Column(Integer, nullable=True)
+    partner_a_ability_slot = Column(Integer, nullable=True)
+    partner_b_ability_slot = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    proposer = relationship("Character", foreign_keys=[proposer_character_id])
+    partner_a = relationship("Character", foreign_keys=[partner_a_character_id])
+    partner_b = relationship("Character", foreign_keys=[partner_b_character_id])
+    bond_ab = relationship("Bond", foreign_keys=[bond_ab_id])
+    bond_ac = relationship("Bond", foreign_keys=[bond_ac_id])
+    bond_bc = relationship("Bond", foreign_keys=[bond_bc_id])
+
+    def __repr__(self):
+        return f"<PendingTripleCombo(status={self.status}, proposer={str(self.proposer_character_id)[:8]})>"
