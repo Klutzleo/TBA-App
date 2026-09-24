@@ -60,8 +60,10 @@
     .app-container {
       display: grid;
       grid-template-rows: auto 1fr;
+      grid-template-columns: minmax(0, 1fr); /* stop wide scroll rows from stretching the page */
       height: 100vh;
       height: calc(var(--vh, 1vh) * 100);
+      max-width: 100vw;
     }
 
     /* === Header === */
@@ -1413,6 +1415,12 @@
       flex-wrap: wrap;
       margin-bottom: 4px;
     }
+    .fmt-btn.combo-tb-btn {
+      background: rgba(167, 139, 250, 0.15);
+      border-color: rgba(167, 139, 250, 0.4);
+      color: #a78bfa;
+      font-weight: 700;
+    }
     .fmt-btn {
       background: var(--bg-input, #1e2130);
       border: 1px solid var(--border-color);
@@ -2154,8 +2162,10 @@
       }
 
       .main-content {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
+
+      .chat-container { min-width: 0; }
 
       .sidebar {
         position: fixed;
@@ -2587,7 +2597,14 @@
       .connection-status { gap: 2px; }
       .header-logo { width: 28px !important; height: 28px !important; }
       .header-title .brand-kicker { display: none; }
-      .header-title h1 { font-size: 16px !important; max-width: 60vw; }
+      .header-title { flex: 1 1 0; min-width: 0; gap: 8px; }
+      .header-title h1 { font-size: 16px !important; max-width: 100%; }
+      .connection-status { flex-shrink: 0; }
+
+      /* SEND: tighter so the textarea gets the room */
+      .chat-input-main { gap: 8px; }
+      .chat-input-main button#sendBtn { min-width: 0; padding: 0 14px; }
+      .chat-input-main textarea { min-width: 0; }
 
       /* reclaim vertical space around the message feed + input */
       .chat-messages { padding: 8px 10px; }
@@ -2707,6 +2724,43 @@
       <div id="comboAbilityWaiting" style="display:none;text-align:center;padding:16px;color:#6b7280;font-size:0.85rem;">
         <i data-lucide="loader" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;animation:spin 1s linear infinite;"></i>
         Waiting for your partner to choose…
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Triple Combo: propose (pick a valid bonded-triangle pair) ── -->
+  <div id="tripleComboProposeModal" class="combo-modal-overlay" style="display:none;">
+    <div class="combo-modal">
+      <h3><i data-lucide="zap" style="width:18px;height:18px;color:#a78bfa;"></i>Start a Triple Combo</h3>
+      <div class="combo-subtitle">Choose two partners — all three of you must be bonded to each other and at level 10. Both must accept before it fires.</div>
+      <div id="tripleComboPartnerList"></div>
+      <div class="combo-modal-actions">
+        <button class="btn-combo-cancel" onclick="closeTripleComboProposeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Triple Combo: incoming request (partner) ── -->
+  <div id="tripleComboIncomingModal" class="combo-modal-overlay" style="display:none;">
+    <div class="combo-modal">
+      <h3><i data-lucide="zap" style="width:18px;height:18px;color:#a78bfa;"></i>Triple Combo Incoming!</h3>
+      <div id="tripleComboIncomingBody" style="font-size:0.9rem;color:#e4e6eb;margin-bottom:18px;line-height:1.6;"></div>
+      <div class="combo-modal-actions">
+        <button class="btn-combo-cancel" onclick="rejectTripleCombo()">Decline</button>
+        <button style="padding:8px 20px;background:#a78bfa;border:none;border-radius:8px;color:#13151f;font-weight:700;font-size:0.88rem;cursor:pointer;" onclick="acceptTripleCombo()">Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Triple Combo: ability picker (fires on the last acceptor's turn) ── -->
+  <div id="tripleComboAbilityModal" class="combo-modal-overlay" style="display:none;">
+    <div class="combo-modal">
+      <h3><i data-lucide="swords" style="width:18px;height:18px;color:#a78bfa;"></i><span id="tripleComboAbilityTitle">Choose Your Ability</span></h3>
+      <div id="tripleComboAbilitySubtitle" class="combo-subtitle"></div>
+      <div id="tripleComboAbilityList"></div>
+      <div id="tripleComboAbilityWaiting" style="display:none;text-align:center;padding:16px;color:#6b7280;font-size:0.85rem;">
+        <i data-lucide="loader" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;animation:spin 1s linear infinite;"></i>
+        Waiting for your partners to choose…
       </div>
     </div>
   </div>
@@ -4602,7 +4656,7 @@
     let ws = null;
     let currentActor = currentUser.username; // Will be updated when character data loads
     // Determine role: SW has no character_id AND no role param; players without active chars pass role=player
-    let userRole = characterId ? 'Player' : (urlRoleParam === 'player' ? 'Spectator' : 'SW');
+    let userRole = characterId ? 'player' : (urlRoleParam === 'player' ? 'Spectator' : 'SW');
     let bapArmed = false; // Player has activated BAP token for next roll
     let messagesOffset = { story: 0, ooc: 0 }; // Per-tab pagination offsets
     let tabHasMore = { story: false, ooc: false }; // Per-tab Load More state
@@ -6082,6 +6136,7 @@
         <button class="fmt-btn" title="Italic (*text*)" onclick="wrapInputText('*','*','italic text')"><em style="font-family:Georgia,serif;">I</em></button>
         <button class="fmt-btn" title="Commands — type / to see all" onclick="msgInput.value='/';msgInput.focus();updateMentionDropdown();" style="font-size:0.8rem;">/</button>
         <button class="fmt-btn" title="Help — open quick reference" onclick="document.getElementById('quickRefModal').classList.add('active');" style="font-size:0.8rem;">?</button>
+        ${_comboToolbarHtml()}
         ${abilities.length ? '<div class="toolbar-sep"></div>' : ''}
         ${abilities.map(a => `
           <button class="fmt-btn macro-btn" data-macro="${escHtml(a.macro_command)}" title="${escHtml(a.display_name)}">${escHtml(a.macro_command)}</button>
@@ -6092,6 +6147,7 @@
           style="width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid var(--border-color);cursor:pointer;padding:0;align-self:center;background:${currentColor};flex-shrink:0;"></button>
         <button class="fmt-btn toolbar-mobile-only" id="attachBtnMobile" title="Upload image" onclick="document.getElementById('imageFileInput').click()"><i data-lucide="paperclip" style="width:14px;height:14px;"></i></button>
       `;
+      if (window.lucide) lucide.createIcons({ el: toolbar });
     }
 
     // Show context menu for NPCs
@@ -12757,7 +12813,7 @@
               if (data.given_by_sw && data.character_id === characterId) {
                 if (!_secret) showPanelToast(`🎁 You received: ${data.item.name}!`, 'success');
                 loadInventory();
-              } else if (userRole === 'Player' && data.character_id === characterId) {
+              } else if (userRole === 'player' && data.character_id === characterId) {
                 loadInventory();
               }
               // If NPC edit panel is open and this item was added to that NPC, refresh it
@@ -13635,6 +13691,54 @@
               addMessage(comboEl, '', data, false);
               showPanelToast(`⚡ ${escHtml(data.bond_name || 'Combo')} fires!`, 'info');
 
+            } else if (data.type === 'triple_combo_incoming') {
+              showTripleComboIncoming(data);
+
+            } else if (data.type === 'triple_combo_proposed') {
+              showPanelToast(`Triple Combo proposed to ${escHtml(data.partner_a_name)} and ${escHtml(data.partner_b_name)} — waiting…`, 'info');
+
+            } else if (data.type === 'triple_combo_partner_accepted') {
+              showPanelToast(`⚡ ${escHtml(data.message || 'Partner accepted…')}`, 'info');
+
+            } else if (data.type === 'triple_combo_holding') {
+              _holdingComboIds.add(data.proposer_character_id);
+              if (data.non_last_acceptor_character_id) _holdingComboIds.add(data.non_last_acceptor_character_id);
+              if (userRole === 'SW') renderInitiativeTracker();
+              showPanelToast(`⚡ ${escHtml(data.message || 'Triple Combo holding…')}`, 'info');
+
+            } else if (data.type === 'triple_combo_declined') {
+              showPanelToast(`${escHtml(data.declined_by)} declined the Triple Combo.`, 'info');
+              _activeTripleComboId = null;
+              _pendingTripleComboId = null;
+
+            } else if (data.type === 'triple_combo_partner_locked') {
+              showPanelToast(`${escHtml(data.locked_by)} has chosen their ability. Waiting for the others…`, 'info');
+
+            } else if (data.type === 'triple_combo_fire_ready') {
+              document.getElementById('tripleComboAbilityModal').style.display = 'none';
+              showTripleComboAbilityPicker(data);
+
+            } else if (data.type === 'triple_combo_cancelled') {
+              _holdingComboIds.delete(data.proposer_character_id);
+              if (data.partner_a_character_id) _holdingComboIds.delete(data.partner_a_character_id);
+              if (data.partner_b_character_id) _holdingComboIds.delete(data.partner_b_character_id);
+              if (_activeTripleComboId === data.combo_id) _activeTripleComboId = null;
+              if (_pendingTripleComboId === data.combo_id) _pendingTripleComboId = null;
+              document.getElementById('tripleComboAbilityModal').style.display = 'none';
+              if (userRole === 'SW') renderInitiativeTracker();
+              showPanelToast(`💔 ${escHtml(data.message || 'Triple Combo cancelled')}`, 'error');
+
+            } else if (data.type === 'triple_combo_resolved') {
+              _holdingComboIds.delete(data.proposer?.character_id);
+              _holdingComboIds.delete(data.partner_a?.character_id);
+              _holdingComboIds.delete(data.partner_b?.character_id);
+              _activeTripleComboId = null;
+              document.getElementById('tripleComboAbilityModal').style.display = 'none';
+              if (userRole === 'SW') renderInitiativeTracker();
+              const tripleComboEl = renderTripleComboCard(data);
+              addMessage(tripleComboEl, '', data, false);
+              showPanelToast(`⚡ ${escHtml(data.bond_name || 'Triple Combo')} fires!`, 'info');
+
             } else if (data.type === 'turn_advance') {
               // Sync turn index from server
               currentTurnIndex = data.current_turn_index ?? 0;
@@ -14444,7 +14548,7 @@
         // Build knownPCs list for dropdowns (award, give, etc.)
         knownPCs = members
           .filter(m => m.character && !m.character.is_npc)
-          .map(m => ({ id: m.character.id, name: m.character.name, chat_color: m.character.chat_color || null, portrait_url: m.character.portrait_url || null }));
+          .map(m => ({ id: m.character.id, name: m.character.name, chat_color: m.character.chat_color || null, portrait_url: m.character.portrait_url || null, level: m.character.level }));
         campaignPCs = knownPCs.slice(); // snapshot before Narrator/NPC entries get appended below
 
         // Add Narrator (SW voice) to knownPCs so history messages from SW get colored for all viewers
@@ -14694,7 +14798,7 @@
     }
 
     // Player-only UI setup
-    if (userRole === 'Player') {
+    if (userRole === 'player') {
       const tabBarEl = document.getElementById('tabBar');
       if (tabBarEl) {
         const notesBtn = document.createElement('button');
@@ -15615,7 +15719,9 @@
   let _campaignBonds = [];       // active bonds for this campaign
   let _pendingComboId = null;    // combo_id of incoming proposal (acceptor side)
   let _activeComboId = null;     // combo_id currently in ability picker
-  let _holdingComboIds = new Set(); // character_ids currently holding for a combo
+  let _holdingComboIds = new Set(); // character_ids currently holding for a combo (2-person + Triple both feed this)
+  let _pendingTripleComboId = null; // combo_id of incoming Triple proposal (partner side)
+  let _activeTripleComboId = null;  // combo_id currently in the Triple ability picker
 
   // ── Load bonds from API ──────────────────────────────────────────────────
   async function loadBonds() {
@@ -15827,25 +15933,176 @@
   }
 
   // ── Combo button: show on player's own turn if they have bonds ───────────
-  function _updateComboButton(whoseTurn) {
-    // Remove any existing combo button
-    const existing = document.getElementById('myComboBtn');
-    if (existing) existing.remove();
-    if (!whoseTurn || !characterId || userRole !== 'Player') return;
-    if (whoseTurn.character_id !== characterId) return;
-    if (!myBonds().length) return;
+  // The buttons live in the #chatToolbar row (above the input, wraps on phones)
+  // and are rendered by renderChatToolbar() via _comboToolbarHtml(), so they
+  // survive toolbar rebuilds. This just records whose turn it is and re-renders.
+  let _comboIsMyTurn = false;
 
-    const btn = document.createElement('button');
-    btn.id = 'myComboBtn';
-    btn.innerHTML = '<i data-lucide="zap" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>Combo';
-    btn.style.cssText = 'padding:6px 14px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.4);border-radius:8px;color:#a78bfa;font-size:0.82rem;font-weight:700;cursor:pointer;margin-left:6px;';
-    btn.onclick = openComboProposeModal;
-    // Inject next to the send button area
-    const sendArea = document.getElementById('sendBtn') || document.getElementById('chatInput');
-    if (sendArea && sendArea.parentNode) {
-      sendArea.parentNode.insertBefore(btn, sendArea.nextSibling);
-      if (window.lucide) lucide.createIcons({ el: btn });
+  function _updateComboButton(whoseTurn) {
+    _comboIsMyTurn = !!(whoseTurn && characterId && userRole === 'player' &&
+                        whoseTurn.character_id === characterId);
+    renderChatToolbar();
+    if (window.lucide) lucide.createIcons({ el: document.getElementById('chatToolbar') });
+  }
+
+  function _comboToolbarHtml() {
+    if (!_comboIsMyTurn || userRole !== 'player' || !characterId) return '';
+    const btns = [];
+    if (myBonds().length) {
+      btns.push('<button class="fmt-btn combo-tb-btn" id="myComboBtn" title="Propose a Combo" onclick="openComboProposeModal()"><i data-lucide="zap" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Combo</button>');
     }
+    // Independent of the 2-person Combo: a character can be eligible for both
+    if (myTriangleCandidates().length) {
+      btns.push('<button class="fmt-btn combo-tb-btn" id="myTripleComboBtn" title="Propose a Triple Combo" onclick="openTripleComboProposeModal()"><i data-lucide="zap" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Triple</button>');
+    }
+    return btns.length ? '<div class="toolbar-sep"></div>' + btns.join('') : '';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRIPLE COMBO — 3 bonded L10 characters chain one strike
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Valid (partnerA, partnerB) pairs: I'm bonded to both, they're bonded to each
+  // other, and all three of us are level 10. Computed client-side from the
+  // already-loaded _campaignBonds — server-side propose validates again anyway.
+  function myTriangleCandidates() {
+    if (!characterId) return [];
+    const myLevel = (knownPCs.find(c => c.id === characterId) || {}).level;
+    if (myLevel !== 10) return [];
+
+    const partners = myBonds().map(b => {
+      const partnerId = b.character_id_a === characterId ? b.character_id_b : b.character_id_a;
+      const partnerName = b.character_id_a === characterId ? b.character_name_b : b.character_name_a;
+      return { id: partnerId, name: partnerName, bondName: b.combo_name };
+    });
+
+    const levelOf = id => (knownPCs.find(c => c.id === id) || {}).level;
+    const results = [];
+    for (let i = 0; i < partners.length; i++) {
+      for (let j = i + 1; j < partners.length; j++) {
+        const pa = partners[i], pb = partners[j];
+        if (levelOf(pa.id) !== 10 || levelOf(pb.id) !== 10) continue;
+        const thirdLeg = _campaignBonds.find(b =>
+          (b.character_id_a === pa.id && b.character_id_b === pb.id) ||
+          (b.character_id_a === pb.id && b.character_id_b === pa.id)
+        );
+        if (!thirdLeg) continue;
+        results.push({ partnerA: pa, partnerB: pb, bondName: pa.bondName || thirdLeg.combo_name });
+      }
+    }
+    return results;
+  }
+
+  // ── Player: propose a Triple Combo ────────────────────────────────────────
+  function openTripleComboProposeModal() {
+    const candidates = myTriangleCandidates();
+    if (!candidates.length) {
+      showPanelToast('No valid Triple Combo triangle — need two partners at level 10, all bonded to each other', 'info');
+      return;
+    }
+    const list = document.getElementById('tripleComboPartnerList');
+    list.innerHTML = candidates.map(c => `
+      <button class="combo-partner-btn" onclick="proposeTripleCombo('${c.partnerA.id}','${c.partnerB.id}')">
+        <i data-lucide="zap" style="width:16px;height:16px;color:#a78bfa;flex-shrink:0;"></i>
+        <div>
+          <div>${escHtml(c.partnerA.name)} + ${escHtml(c.partnerB.name)}</div>
+          ${c.bondName ? `<div class="bond-name">"${escHtml(c.bondName)}"</div>` : ''}
+        </div>
+      </button>`).join('');
+    document.getElementById('tripleComboProposeModal').style.display = 'flex';
+    if (window.lucide) lucide.createIcons({ el: document.getElementById('tripleComboProposeModal') });
+  }
+
+  function closeTripleComboProposeModal() {
+    document.getElementById('tripleComboProposeModal').style.display = 'none';
+  }
+
+  function proposeTripleCombo(partnerAId, partnerBId) {
+    ws.send(JSON.stringify({ type: 'triple_combo_propose', partner_a_character_id: partnerAId, partner_b_character_id: partnerBId }));
+    closeTripleComboProposeModal();
+    showPanelToast('Triple Combo proposed — waiting for both partners…', 'info');
+  }
+
+  // ── Partner: incoming Triple Combo ────────────────────────────────────────
+  function showTripleComboIncoming(data) {
+    _pendingTripleComboId = data.combo_id;
+    const bondLabel = data.bond_name ? `"${escHtml(data.bond_name)}"` : 'a Triple Combo';
+    document.getElementById('tripleComboIncomingBody').innerHTML =
+      `<strong style="color:#d4af37;">${escHtml(data.proposer_name)}</strong> wants to fire ${bondLabel} with you and <strong style="color:#d4af37;">${escHtml(data.other_partner_name)}</strong>.
+       ${data.bond_description ? `<div style="margin-top:6px;font-size:0.8rem;color:#6b7280;">${escHtml(data.bond_description)}</div>` : ''}
+       <div style="margin-top:10px;font-size:0.8rem;color:#6b7280;">It fires once all three of you are in, on the last acceptor's turn.</div>`;
+    document.getElementById('tripleComboIncomingModal').style.display = 'flex';
+  }
+
+  function acceptTripleCombo() {
+    if (!_pendingTripleComboId) return;
+    ws.send(JSON.stringify({ type: 'triple_combo_accept', combo_id: _pendingTripleComboId }));
+    document.getElementById('tripleComboIncomingModal').style.display = 'none';
+    showPanelToast('Triple Combo accepted!', 'info');
+    _pendingTripleComboId = null;
+  }
+
+  function rejectTripleCombo() {
+    if (!_pendingTripleComboId) return;
+    ws.send(JSON.stringify({ type: 'triple_combo_decline', combo_id: _pendingTripleComboId }));
+    document.getElementById('tripleComboIncomingModal').style.display = 'none';
+    _pendingTripleComboId = null;
+  }
+
+  // ── Ability picker (fires on the last acceptor's turn) ────────────────────
+  function showTripleComboAbilityPicker(data) {
+    _activeTripleComboId = data.combo_id;
+    document.getElementById('tripleComboAbilityTitle').textContent = `${data.bond_name || 'Triple Combo'} — Choose Your Ability`;
+    document.getElementById('tripleComboAbilitySubtitle').textContent =
+      `Firing with ${(data.partner_names || []).map(escHtml).join(' and ')}. Pick the ability you'll use.`;
+    const list = document.getElementById('tripleComboAbilityList');
+    list.innerHTML = (data.your_abilities || []).map(a => `
+      <button class="combo-ability-btn" onclick="selectTripleComboAbility(${a.slot})" ${a.uses_remaining <= 0 ? 'disabled' : ''}>
+        <div>
+          <div>${escHtml(a.name)}</div>
+          <div style="font-size:0.72rem;color:#6b7280;">${a.die} · ${a.power_source} · ${a.uses_remaining} uses</div>
+        </div>
+        <span class="slot-badge">Slot ${a.slot}</span>
+      </button>`).join('');
+    document.getElementById('tripleComboAbilityWaiting').style.display = 'none';
+    document.getElementById('tripleComboAbilityModal').style.display = 'flex';
+  }
+
+  function selectTripleComboAbility(slot) {
+    if (!_activeTripleComboId) return;
+    ws.send(JSON.stringify({ type: 'triple_combo_ability_select', combo_id: _activeTripleComboId, slot }));
+    document.getElementById('tripleComboAbilityList').innerHTML = '';
+    document.getElementById('tripleComboAbilityWaiting').style.display = 'block';
+  }
+
+  // ── Render Triple Combo resolved chat card ────────────────────────────────
+  function renderTripleComboCard(data) {
+    const bd = n => n ? `<div class="combo-roll-breakdown">${escHtml(n)}</div>` : '';
+    const rollBreak = r => `[${(r.rolls || []).join('+')}]+${r.power_source}(${r.power_stat})+Edge(${r.edge})`;
+    const block = r => `
+        <div class="combo-roll-block">
+          <div class="combo-roll-name">${escHtml(r.name)}</div>
+          <div class="combo-roll-ability">${escHtml(r.ability_name)}</div>
+          <div class="combo-roll-total">${r.total}</div>
+          ${bd(rollBreak(r))}
+        </div>`;
+    const el = document.createElement('div');
+    el.className = 'combo-card';
+    el.innerHTML = `
+      <div class="combo-card-header">
+        <i data-lucide="zap" style="width:18px;height:18px;color:#a78bfa;flex-shrink:0;"></i>
+        <div>
+          <div class="combo-card-title">${escHtml(data.bond_name || 'Triple Combo')}</div>
+          ${data.bond_description ? `<div class="combo-card-desc">${escHtml(data.bond_description)}</div>` : ''}
+        </div>
+      </div>
+      <div class="combo-rolls">
+        ${block(data.proposer)}
+        ${block(data.partner_a)}
+        ${block(data.partner_b)}
+      </div>`;
+    if (window.lucide) lucide.createIcons({ el });
+    return el;
   }
   </script>
 
