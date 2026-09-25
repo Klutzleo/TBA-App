@@ -164,6 +164,76 @@
       50% { opacity: 0.5; }
     }
 
+    /* === Header overflow menu (phones only; see the max-width:600px block) === */
+    .hdr-more-btn {
+      display: none;
+      position: relative;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      margin-left: 2px;
+      color: inherit;
+      opacity: 0.85;
+      align-items: center;
+    }
+    .hdr-more-dot {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444; /* same red as the desktop bell badge; gold would blend with the hamburger */
+      border: 1.5px solid var(--bg-panel);
+    }
+    .hdr-more-menu {
+      display: none;
+      position: fixed;
+      right: 8px;
+      z-index: 1100;
+      min-width: 224px;
+      max-width: calc(100vw - 16px);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      padding: 6px;
+    }
+    .hdr-more-menu.open { display: block; }
+    .hdr-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 11px 12px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.92rem;
+      font-family: inherit;
+      text-align: left;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .hdr-menu-item:hover, .hdr-menu-item:active { background: var(--bg-panel-hover); }
+    .hdr-menu-item svg { flex-shrink: 0; opacity: 0.8; }
+    .hdr-menu-count {
+      margin-left: auto;
+      min-width: 20px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-align: center;
+    }
+    @media (min-width: 601px) {
+      .hdr-more-menu { display: none !important; }
+    }
+
     /* === Main Content Area === */
     .main-content {
       display: grid;
@@ -2597,6 +2667,9 @@
       .connection-status { gap: 2px; }
       .header-logo { width: 28px !important; height: 28px !important; }
       .header-title .brand-kicker { display: none; }
+      /* Only the push bell stays up top; the rest lives in the ⋯ menu */
+      .hdr-collapse { display: none !important; }
+      .hdr-more-btn { display: inline-flex; }
       .header-title { flex: 1 1 0; min-width: 0; gap: 8px; }
       .header-title h1 { font-size: 16px !important; max-width: 100%; }
       .connection-status { flex-shrink: 0; }
@@ -2824,29 +2897,29 @@
         </div>
       </div>
       <div class="connection-status">
-        <a href="/profile.html" title="My Profile"
+        <a href="/profile.html" title="My Profile" class="hdr-collapse"
           style="display:inline-flex;align-items:center;padding:2px 6px;margin-right:4px;opacity:0.7;text-decoration:none;color:inherit;">
           <i data-lucide="user" style="width:18px;height:18px;"></i></a>
         <a href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener"
-          title="Free rulebook on itch.io"
+          title="Free rulebook on itch.io" class="hdr-collapse"
           style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem; color:#a78bfa; text-decoration:none; margin-right:8px; opacity:0.8;">
           <i data-lucide="book-open" style="width:14px;height:14px;"></i><span class="portrait-hide">Rules</span></a>
         <span class="status-indicator disconnected portrait-hide" id="statusIndicator"></span>
         <span id="statusText" class="portrait-hide">Disconnected</span>
-        <div class="notif-bell-target"></div>
+        <div class="notif-bell-target hdr-collapse"></div>
         <button id="webPushBtn" title="Enable push notifications"
           onclick="toggleNotifications()"
           style="background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;color:#6b7280;display:flex;align-items:center;transition:color 0.15s;margin-left:2px;">
           <i data-lucide="bell-off" style="width:18px;height:18px;"></i>
         </button>
-        <button id="soundToggleBtn" title="Toggle message sounds"
+        <button id="soundToggleBtn" title="Toggle message sounds" class="hdr-collapse"
           onclick="toggleMessageSound()"
           style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;color:#6b7280;display:flex;align-items:center;">
           <i data-lucide="volume-x" style="width:18px;height:18px;"></i></button>
-        <button title="Campaign Stats" onclick="openCampaignStats()"
+        <button title="Campaign Stats" onclick="openCampaignStats()" class="hdr-collapse"
           style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;opacity:0.6;color:inherit;display:flex;align-items:center;">
           <i data-lucide="bar-chart-2" style="width:18px;height:18px;"></i></button>
-        <button title="Quick Reference" onclick="document.getElementById('quickRefModal').classList.add('active')"
+        <button title="Quick Reference" onclick="document.getElementById('quickRefModal').classList.add('active')" class="hdr-collapse"
           style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;opacity:0.6;color:inherit;display:flex;align-items:center;">
           <i data-lucide="book-open" style="width:18px;height:18px;"></i></button>
         <a href="https://discord.gg/pnuamjT" target="_blank" rel="noopener" title="GameOctane Discord"
@@ -2857,8 +2930,33 @@
           class="portrait-hide"
           style="display:inline-flex;align-items:center;padding:2px 6px;margin-left:2px;opacity:0.45;text-decoration:none;color:inherit;">
           <i data-lucide="coffee" style="width:18px;height:18px;"></i></a>
+        <!-- Phones only: overflow menu for everything that isn't a must-see (see .hdr-collapse) -->
+        <button id="hdrMoreBtn" class="hdr-more-btn" title="More" aria-haspopup="true" aria-expanded="false" onclick="toggleHdrMenu(event)">
+          <i data-lucide="ellipsis" style="width:20px;height:20px;"></i>
+          <span id="hdrMoreDot" class="hdr-more-dot" style="display:none;"></span>
+        </button>
       </div>
     </header>
+    <div id="hdrMoreMenu" class="hdr-more-menu" role="menu">
+      <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();toggleNotificationDrawer()">
+        <i data-lucide="scroll" style="width:18px;height:18px;"></i><span>Notifications</span>
+        <span id="hdrMenuNotifCount" class="hdr-menu-count" style="display:none;"></span>
+      </button>
+      <a class="hdr-menu-item" role="menuitem" href="/profile.html" onclick="closeHdrMenu()">
+        <i data-lucide="user" style="width:18px;height:18px;"></i><span>My Profile</span></a>
+      <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();document.getElementById('quickRefModal').classList.add('active')">
+        <i data-lucide="book-open" style="width:18px;height:18px;"></i><span>Quick Reference</span></button>
+      <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();openCampaignStats()">
+        <i data-lucide="bar-chart-2" style="width:18px;height:18px;"></i><span>Campaign Stats</span></button>
+      <button class="hdr-menu-item" role="menuitem" id="hdrMenuSound" onclick="toggleMessageSound()">
+        <i data-lucide="volume-x" style="width:18px;height:18px;"></i><span>Sounds: Off</span></button>
+      <a class="hdr-menu-item" role="menuitem" href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener" onclick="closeHdrMenu()">
+        <i data-lucide="external-link" style="width:18px;height:18px;"></i><span>Free rulebook (itch.io)</span></a>
+      <a class="hdr-menu-item" role="menuitem" href="https://discord.gg/pnuamjT" target="_blank" rel="noopener" onclick="closeHdrMenu()">
+        <i data-lucide="message-circle" style="width:18px;height:18px;"></i><span>GameOctane Discord</span></a>
+      <a class="hdr-menu-item" role="menuitem" href="https://ko-fi.com/gameoctane" target="_blank" rel="noopener" onclick="closeHdrMenu()">
+        <i data-lucide="coffee" style="width:18px;height:18px;"></i><span>Support on Ko-fi</span></a>
+    </div>
     <div id="campaignNameBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:3px 8px;font-size:0.75rem;color:var(--text-muted);font-style:italic;border-bottom:1px solid rgba(255,255,255,0.05);"></div>
 
     <!-- Main Content -->
@@ -10369,7 +10467,56 @@
       btn.style.color = _soundEnabled ? '#d3c088' : '#6b7280';
       btn.innerHTML = `<i data-lucide="${_soundEnabled ? 'volume-2' : 'volume-x'}" style="width:18px;height:18px;"></i>`;
       if (window.lucide) lucide.createIcons({ root: btn });
+
+      // Same state in the phone ⋯ menu
+      const menuItem = document.getElementById('hdrMenuSound');
+      if (menuItem) {
+        menuItem.innerHTML = `<i data-lucide="${_soundEnabled ? 'volume-2' : 'volume-x'}" style="width:18px;height:18px;"></i><span>Sounds: ${_soundEnabled ? 'On' : 'Off'}</span>`;
+        if (window.lucide) lucide.createIcons({ root: menuItem });
+      }
     }
+
+    // ── Phone header ⋯ menu ────────────────────────────────────────────────
+    function toggleHdrMenu(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('hdrMoreMenu');
+      const btn = document.getElementById('hdrMoreBtn');
+      if (!menu || !btn) return;
+      const open = !menu.classList.contains('open');
+      if (open) menu.style.top = (document.querySelector('.header').getBoundingClientRect().bottom + 4) + 'px';
+      menu.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function closeHdrMenu() {
+      const menu = document.getElementById('hdrMoreMenu');
+      const btn = document.getElementById('hdrMoreBtn');
+      if (menu) menu.classList.remove('open');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+    document.addEventListener('click', (e) => {
+      // composedPath, not target.closest: a row that rebuilds itself on tap (Sounds)
+      // is detached by the time this runs, so closest() would call it an outside tap
+      const inside = e.composedPath().some(n => n.id === 'hdrMoreMenu' || n.id === 'hdrMoreBtn');
+      if (!inside) closeHdrMenu();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHdrMenu(); });
+
+    // The notification bell (with its unread badge) is injected by
+    // notification-drawer.js into .notif-bell-target, which is hidden on phones.
+    // Mirror its unread count onto the ⋯ button (dot) and the menu row (number).
+    function _syncHdrMenuBadge() {
+      const badge = document.getElementById('notifBadge');
+      const n = badge && badge.style.display !== 'none' ? (parseInt(badge.textContent, 10) || 0) : 0;
+      const count = document.getElementById('hdrMenuNotifCount');
+      const dot = document.getElementById('hdrMoreDot');
+      if (count) { count.textContent = n > 99 ? '99+' : String(n); count.style.display = n ? '' : 'none'; }
+      if (dot) dot.style.display = n ? 'block' : 'none';
+    }
+    (function () {
+      const target = document.querySelector('.notif-bell-target');
+      if (target) new MutationObserver(_syncHdrMenuBadge)
+        .observe(target, { subtree: true, childList: true, characterData: true, attributes: true });
+    })();
     function toggleMessageSound() {
       _soundEnabled = !_soundEnabled;
       localStorage.setItem('tba_sound', _soundEnabled ? 'on' : 'off');
