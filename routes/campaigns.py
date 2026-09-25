@@ -1738,6 +1738,7 @@ async def get_initiative_state(
         "active": True,
         "rolls": result,
         "current_turn_index": encounter.current_turn_index,
+        "round_number": encounter.round_number,
     }
 
 

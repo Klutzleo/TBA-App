@@ -4237,6 +4237,7 @@ async def roll_initiative_self(
             "is_silent": False,
             "updated_order": updated_order,
             "current_turn_index": encounter.current_turn_index,
+            "round_number": encounter.round_number,
             "timestamp": datetime.now().isoformat(),
             "message_id": str(msg.id)
         })
@@ -4380,6 +4381,7 @@ async def roll_initiative_target(
                 "sw_only": True,
                 "updated_order": updated_order,
                 "current_turn_index": encounter.current_turn_index,
+                "round_number": encounter.round_number,
                 "timestamp": datetime.now().isoformat(),
                 "message_id": str(msg.id)
             })
@@ -4397,6 +4399,7 @@ async def roll_initiative_target(
                 "rolled_by_sw": True,
                 "updated_order": updated_order,
                 "current_turn_index": encounter.current_turn_index,
+                "round_number": encounter.round_number,
                 "timestamp": datetime.now().isoformat(),
                 "message_id": str(msg.id)
             })
@@ -4626,6 +4629,7 @@ async def _handle_encounter_setup(campaign_uuid, sw_user_id, data, websocket, db
         "rolls": _build_updated_order(encounter, db),
         "encounter_id": str(encounter.id),
         "current_turn_index": encounter.current_turn_index,
+        "round_number": encounter.round_number,
         "timestamp": datetime.now().isoformat(),
     })
 
@@ -4714,6 +4718,7 @@ async def show_initiative_order(
             "rolls": visible_rolls,
             "encounter_id": str(encounter.id),
             "current_turn_index": encounter.current_turn_index,
+            "round_number": encounter.round_number,
             "timestamp": datetime.now().isoformat()
         })
 
@@ -4876,6 +4881,7 @@ async def clear_initiative(
         ).delete()
 
         encounter.current_turn_index = 0
+        encounter.round_number = 1
         db.commit()
         _encounter_roster.pop(str(encounter.id), None)
 
@@ -4965,6 +4971,7 @@ async def remove_initiative_roll(campaign_uuid: UUID, user_uuid: UUID, target_na
             "name": removed_name,
             "updated_order": _build_updated_order(encounter, db),
             "current_turn_index": encounter.current_turn_index,
+            "round_number": encounter.round_number,
             "timestamp": datetime.now().isoformat(),
         })
 
@@ -4977,6 +4984,18 @@ async def remove_initiative_roll(campaign_uuid: UUID, user_uuid: UUID, target_na
         await websocket.send_json({"type": "error",
             "message": "❌ Failed to remove that combatant. Please try again."})
 
+
+
+def next_round_number(current_round, old_index, new_index):
+    """Round counter for the initiative order.
+
+    The round goes up whenever the turn wraps back to the top of the order. Comparing
+    indexes (instead of testing for index 0) also counts the wrap when the first
+    combatant is skipped because they are holding for a combo, and makes a lone
+    combatant's every turn a new round.
+    """
+    round_number = current_round or 1
+    return round_number + 1 if new_index <= old_index else round_number
 
 async def advance_turn(
     campaign_uuid: UUID,
@@ -5056,6 +5075,7 @@ async def advance_turn(
                 continue
             break
 
+        encounter.round_number = next_round_number(encounter.round_number, old_index, new_index)
         encounter.current_turn_index = new_index
 
         # DP drain for active summons — fires at the start of each new round (index wraps to 0)
@@ -5144,6 +5164,7 @@ async def advance_turn(
         await manager.broadcast(campaign_uuid, {
             "type": "turn_advance",
             "current_turn_index": new_index,
+            "round_number": encounter.round_number,
             "turn_count": len(rolls),
             "whose_turn": whose_turn,
             "effects": effects_payload,
