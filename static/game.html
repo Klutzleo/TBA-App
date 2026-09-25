@@ -8472,6 +8472,16 @@
     let currentRound = null;           // server round number; null until the server sends one
     let _campaignJoinCode = null;
 
+    // Send over the campaign socket, or say so when the connection is down
+    function sendWs(payload) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showPanelToast('Not connected. Reconnecting…', 'error');
+        return false;
+      }
+      ws.send(JSON.stringify(payload));
+      return true;
+    }
+
     function switchSidebarTab(tab) {
       // 'initiative' / 'dashboard' / 'session' were separate tabs once; they are all the Session tab now
       const showSession = tab !== 'online';
@@ -8756,13 +8766,13 @@
         };
         if (roll.user_id) acts.appendChild(mk('Ping', `Ping ${roll.name}`, () => pingPlayer(roll.user_id, roll.name)));
         acts.appendChild(mk('Remove from order', `Remove ${roll.name} from initiative`, () =>
-          ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative remove @' + roll.name }))));
+          sendWs({ type: 'initiative_command', raw_command: '/initiative remove @' + roll.name })));
         if (roll.waiting) {
           const rb = document.createElement('button');
           rb.className = 'roll-for-btn'; rb.textContent = 'Roll'; rb.title = `Roll initiative for ${roll.name}`;
           rb.addEventListener('click', (e) => {
             e.stopPropagation();
-            ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative @' + roll.name }));
+            sendWs({ type: 'initiative_command', raw_command: '/initiative @' + roll.name });
           });
           card.querySelector('.character-header > div').appendChild(rb);
         }
@@ -8810,9 +8820,9 @@
       row.querySelector('.is-x').addEventListener('click', (e) => {
         e.stopPropagation();
         if (roll.is_summon && roll.summon_id) {
-          ws.send(JSON.stringify({ type: 'dismiss_summon', summon_id: roll.summon_id }));
+          sendWs({ type: 'dismiss_summon', summon_id: roll.summon_id });
         } else {
-          ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative remove @' + roll.name }));
+          sendWs({ type: 'initiative_command', raw_command: '/initiative remove @' + roll.name });
         }
       });
       return row;
@@ -8880,7 +8890,7 @@
     function advanceTurn() {
       if (!currentInitiativeOrder.length) return;
       // SW sends a WS command; server broadcasts turn_advance to all clients
-      ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative next' }));
+      sendWs({ type: 'initiative_command', raw_command: '/initiative next' });
     }
 
     // NPC Modal Functions
@@ -15161,8 +15171,7 @@
     }
     // End / Clear buttons in the initiative tab — same commands as /initiative.
     function initiativeCmd(sub) {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative ' + sub }));
+      sendWs({ type: 'initiative_command', raw_command: '/initiative ' + sub });
     }
 
     function openStatCheckModal() {
