@@ -1172,8 +1172,16 @@
     .msg-header-row {
       display: flex;
       align-items: center;
-      gap: 5px;
+      flex-wrap: wrap;
+      gap: 3px 5px;
       margin-bottom: 2px;
+    }
+    /* Keep the timestamp intact on its own — when the row is too narrow, the title
+       (which can genuinely afford to wrap at word boundaries) should drop to its own
+       line, not squeeze the timestamp into "[Sep 28,\n10:05\nPM]". */
+    .msg-header-row > span:first-child {
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
     @keyframes pulse {
