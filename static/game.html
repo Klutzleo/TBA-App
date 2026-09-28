@@ -10830,6 +10830,24 @@
       if (data.edge) parts.push(`Edge(${data.edge})`);
       return parts.length > 1 ? ` [${parts.join(' + ')}]` : ` [${parts[0]}]`;
     }
+    // The roll total is the number that actually matters — give it its own weight and
+    // color instead of burying it in one flat bold sentence next to the dice-math footnote.
+    // `showRoll` mirrors whatever the caller already decided to reveal (history hides a
+    // silent roll's number outright; the live path only reaches this code once a non-SW
+    // viewer has already bailed) — this only restyles what was already shown, never what's
+    // shown to whom.
+    function buildInitTitleHtml(data, showRoll) {
+      const actor = escHtml(data.actor || '');
+      const lock = data.is_silent ? '🔒' : '🎲';
+      if (!showRoll) {
+        return `${lock} <strong>${actor}</strong> rolled initiative <span style="font-weight:normal;color:var(--text-muted);">(hidden)</span>`;
+      }
+      const total = `<b style="color:#c4b5fd;font-size:1.05em;">${escHtml(String(data.roll))}</b>`;
+      const breakdown = `<span style="font-weight:normal;color:var(--text-muted);font-size:0.85em;">${escHtml(buildInitBreakdown(data))}</span>`;
+      const suffix = data.is_silent ? ' <span style="font-weight:normal;color:var(--text-muted);">(silent)</span>' : '';
+      const swNote = data.rolled_by_sw ? ' <span style="font-weight:normal;color:var(--text-muted);">(SW rolled)</span>' : '';
+      return `${lock} <strong>${actor}</strong> rolled initiative: ${total}${breakdown}${suffix}${swNote}`;
+    }
     function fmtNow() {
       return new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
@@ -10901,7 +10919,7 @@
       if (window.lucide) lucide.createIcons({ el: titleEl });
     }
 
-    function makeHeaderRow(tsStr, titleText, { toggle = null, tab = null, icon = null } = {}) {
+    function makeHeaderRow(tsStr, titleText, { toggle = null, tab = null, icon = null, titleHtml = null } = {}) {
       const row = document.createElement('div');
       row.className = 'msg-header-row';
       if (tsStr) {
@@ -10913,7 +10931,14 @@
       }
       const title = document.createElement('span');
       title.style.fontWeight = 'bold';
-      setHeaderTitle(title, icon, titleText);
+      // titleHtml lets a caller give the headline number its own weight/color instead of
+      // one flat bold string — the caller is responsible for escHtml()-ing any live data in it.
+      if (titleHtml != null) {
+        title.innerHTML = titleHtml;
+        if (window.lucide) lucide.createIcons({ el: title });
+      } else {
+        setHeaderTitle(title, icon, titleText);
+      }
       row.appendChild(title);
       if (toggle) row.appendChild(toggle);
       if (tab) {
@@ -12104,12 +12129,7 @@
                 const container = document.createElement('div');
                 container.className = 'message-card initiative-roll';
 
-                const initHistBreakdown = buildInitBreakdown(data);
-                const initHistTitle = data.is_silent
-                  ? `🔒 ${data.actor} rolled initiative (hidden)`
-                  : `🎲 ${data.actor} rolled initiative: ${data.roll}${initHistBreakdown}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
-
-                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), initHistTitle, { tab: 'STORY' }));
+                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), null, { tab: 'STORY', titleHtml: buildInitTitleHtml(data, !data.is_silent) }));
                 storeAndDisplayMessage(container, { type: 'initiative_roll', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // ✅ Handle encounter start from database
@@ -13791,12 +13811,9 @@
               const container = document.createElement('div');
               container.className = 'message-card initiative-roll';
 
-              const initBreakdown = buildInitBreakdown(data);
-              const initTitle = data.is_silent
-                ? `🔒 ${data.actor} rolled initiative: ${data.roll}${initBreakdown} (silent)`
-                : `🎲 ${data.actor} rolled initiative: ${data.roll}${initBreakdown}${data.rolled_by_sw ? ' (SW rolled)' : ''}`;
-
-              container.appendChild(makeHeaderRow(fmtNow(), initTitle, { tab: 'STORY' }));
+              // Non-SW viewers already bailed above on data.is_silent, so whoever reaches
+              // this line is meant to see the roll.
+              container.appendChild(makeHeaderRow(fmtNow(), null, { tab: 'STORY', titleHtml: buildInitTitleHtml(data, true) }));
               storeAndDisplayMessage(container, data);
 
               // SW: update tracker immediately without needing /initiative show
