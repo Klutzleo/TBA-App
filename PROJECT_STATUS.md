@@ -2,10 +2,10 @@
 phase: active
 priority: high
 category: app
-progress: 72
-focus: "Post-launch polish — analytics, Combo rules, grief tether fix"
-next_milestone: "Grief tether weight SW-selectable + Combo cancellation rule"
-milestone_distance: days
+progress: 78
+focus: "Post-launch polish — mobile UI pass shipped; growth features next"
+next_milestone: "Pick one growth feature (social/friends, Discord account linking, age-gated mode, or lore library) and scope it"
+milestone_distance: weeks
 community_pressure: low
 excitement: high
 strategic: true
@@ -22,7 +22,7 @@ A live TTRPG platform built for the TBA ruleset — real-time combat, Bonds, Com
 ## Strategic picture
 TBA is live at tba-rpg.com. The v3.0 Core Rules dropped on itch.io and Reddit (Jun 2026). The app implements the full ruleset — combat, abilities, initiative, Bonds, Combo attacks, achievements, public profiles. Post-launch traffic via Reddit is the current growth lever. Umami analytics just added to all 11 pages.
 
-Shipping the remaining Combo rules (cancellation, triple) and grief tether fixes makes the game fully v3.0-spec-compliant. Ascension levels 11-15 and social features are the next unlock after that.
+The game is now fully v3.0-spec-compliant on the rules side — Combo rules (cancellation, triple), grief tether weight, and The Called status system are all shipped and verified against `Rulebook.md`. The mobile/desktop UI also got a real pass (phone header, chat toolbar, sidebar merge) after Jason's own phone testing surfaced crowding issues. Ascension levels 11-15 is scoped but on hold — Jason wants NPCs (and possibly Allies) levelable past 10 too, not just PCs, and is writing up that fuller design before implementation starts. Social/growth features (friends, Discord account linking, age-gated mode, lore library) are the next intentional push.
 
 ## What's shipped
 - ✅ Real-time WebSocket combat chat, roll macros, narration engine
@@ -38,33 +38,37 @@ Shipping the remaining Combo rules (cancellation, triple) and grief tether fixes
 - ✅ Notification center — push alerts, live unread count, scroll icon drawer
 - ✅ Umami analytics — all 11 pages instrumented (Jun 2026)
 - ✅ v3.0 Core Rules — published to itch.io, posted to Reddit
+- ✅ Combo cancellation — proposer takes damage before firing → cancel, acceptor's turn resumes normally
+- ✅ Triple Combo — full backend (3-way hold/fire state machine) + frontend (propose/accept modals, toolbar buttons)
+- ✅ Grief tether weight — SW-selectable, clamped -5..-1, on `break_bond` (`routes/bonds.py`)
+- ✅ The Called status system — full Calling roll-off (SW-vs-player, level-scaled difficulty die, margin outcomes), Marked by Death scars → optional Tether, Memory Echo on death, 5th-Calling permadeath, Called Check 1d6 table, cleansing. See "Called status — known gaps" below for the small pieces still missing.
+- ✅ Mobile/desktop UI pass (Sep 2026) — phone header collapsed to a bell + ⋯ menu, chat toolbar stays one row, sidebar merged into Session/Campaign tabs with initiative round counter, connection-down buttons now say so instead of failing silently
 
 ## Next up
-- [ ] Fix grief tether weight — `routes/bonds.py:183` hardcodes -1; needs SW-selectable weight input in break-bond modal
-- [x] Combo cancellation rule — if proposer takes damage before combo fires → cancel; acceptor takes turn normally (`campaign_websocket.py`). Was already wired for ability-cast/summon damage; this pass added the two remaining gaps (basic `/attack` damage, PC Env Check damage).
-- [ ] Triple Combo — all 3 hold; fires on last acceptor's turn in initiative order; requires bilateral Bonds + all at L10+
 - [ ] Ally auto-Combo — character + Ally get one Combo automatically at creation (not yet wired)
-- [ ] The Called status system — death counter (1st-5th), nightmare/vision 1d6 table per rest
-- [ ] Ascension levels 11-15 — rules locked; app level cap is currently 10; stats: L11 60DP/+5/+6 → L15 80DP/+7/+8
+- [ ] Ascension levels 11-15 — rules locked for PCs; on hold pending Jason's write-up on whether NPCs/Allies also go past 10 (Allies have their own separate, lower stat table that doesn't extend without new numbers). Also: Triple Combo's level gate is `== 10` in both `campaign_websocket.py` and `game.html` — needs to become `>= 10` whenever Ascension ships, or an Ascended character loses Triple Combo the moment they level past 10.
 - [ ] Social & friends — follow players, friend activity feed
-- [ ] Discord integration — account linking, community server role
+- [ ] Discord integration — account linking, community server role (separate from the live campaign→Discord mirror, which already ships)
 - [ ] Age-gated experience — dual-mode (Tools for the Bad Ass / Tools for Being Awesome)
 - [x] Environmental damage tier system — SW "Env Check" tool (v3.0 tiers, players
       roll to resist, can trigger The Calling). Replaced the /env command. Also
       shipped: multi-target Stat Checks. Achievement placeholder names still TBD.
 - [ ] Lore & asset library — taggable homebrew content
 
+### Called status — known gaps (small, optional; core mechanic is done)
+- No escalating trigger cadence by `times_called` — rulebook says 1st Calling = rests only, 2nd = rests+adventuring, 3rd-4th = +battle. App has one manual SW "Called Check" button, usable anytime regardless of count.
+- The Called Check's ±1 result is narrative-only — never mechanically applied to a subsequent roll. No wiring to the Tether/Active-Effects modifier system.
+- No nightmare/vision flavor-text table — one static sentence per outcome (nightmare/peaceful/vision) rather than a bank of prompts to roll from.
+- Cosmetic: `Character.is_called`/`times_called` column comments in `backend/models.py:227-228` say "summoned" (stale, reused-column leftover).
+- `backend/achievements.py:819-822` "Death Knows My Name" (survive Calling ×5) is unreachable — the 5th Calling is always permadeath (no roll offered). Dead achievement, needs renaming/retiring or the condition changed to ×4.
+
 ## Blockers
-Nothing hard blocking. All pending items are implementation work. Grief tether is small (hours). Triple Combo and Ascension are larger (days each).
+Nothing hard blocking. Ascension is blocked on Jason's NPC/Ally leveling design (not a technical blocker). Everything else is ordinary implementation work.
 
 ## Resume here
-**Immediate**: Fix grief tether weight in `routes/bonds.py:183`. The `break_bond` endpoint applies a hardcoded `"modifier": -1` for grief tether. The rules say "The SW sets the weight based on how significant the Bond was." Add a `weight` param to the break-bond request body and a numeric input to the break-bond modal in `game.html`.
+Pick a growth feature (social/friends, Discord account linking, age-gated mode, or lore library) and scope it — that's the intentional next push per Jason (2026-09-28). Ally auto-Combo is a good small warm-up if wanted first. Ascension resumes once Jason shares his NPC/Ally leveling write-up — see the Called-status gaps above for optional cleanup that could be folded into whichever session touches Bonds/Calling code next.
 
-**Then**: Combo cancellation in `campaign_websocket.py` — when a holding proposer takes damage (DP update WS message), check if `_pendingComboId` is set for that character, and if so cancel the combo and reset the acceptor's hold status.
-
-**Then**: Triple Combo WS flow — extend `pending_combos` table with a second acceptor slot and add the triple-hold state machine.
-
-First file to open: `routes/bonds.py` line 183.
+First file to open: none picked yet — depends which growth feature gets chosen.
 
 ## Last session
-2026-06-26: Added Umami analytics (all 11 HTML pages). Fixed missing Lucide icons on campaign cards — `renderMyCampaigns()` wasn't calling `lucide.createIcons()` after injecting HTML. v3.0 Core Rules confirmed published to itch.io and Reddit. Bonds + Combo system fully deployed.
+2026-09-28: Audited three "Next up" items marked incomplete and found all three already shipped in prior sessions (grief tether weight, Triple Combo, The Called status system) — `PROJECT_STATUS.md` had drifted from the code. Corrected this doc accordingly; real gaps in The Called system are small and optional (listed above). Scoped Ascension levels 11-15, then paused it at Jason's request pending his NPC/Ally leveling design. Prior session (2026-09-25) shipped a mobile/desktop UI pass (phone header ⋯ menu, one-row chat toolbar, sidebar merged into Session/Campaign tabs, initiative round counter) and cleaned up test data that had leaked into the production DB during browser testing — see memory `sidebar-session-redesign.md` and `no-test-data-in-prod.md` for full detail.
