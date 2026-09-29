@@ -2,9 +2,9 @@
 phase: active
 priority: high
 category: app
-progress: 78
-focus: "Post-launch polish — mobile UI pass shipped; growth features next"
-next_milestone: "Pick one growth feature (social/friends, Discord account linking, age-gated mode, or lore library) and scope it"
+progress: 80
+focus: "Post-launch polish — mobile UI pass and email digest notifications shipped; growth features next"
+next_milestone: "Run a fresh bug/security audit over recent work, then pick up GO ID (cross-game identity) scoping or another growth feature"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -22,7 +22,9 @@ A live TTRPG platform built for the TBA ruleset — real-time combat, Bonds, Com
 ## Strategic picture
 TBA is live at tba-rpg.com. The v3.0 Core Rules dropped on itch.io and Reddit (Jun 2026). The app implements the full ruleset — combat, abilities, initiative, Bonds, Combo attacks, achievements, public profiles. Post-launch traffic via Reddit is the current growth lever. Umami analytics just added to all 11 pages.
 
-The game is now fully v3.0-spec-compliant on the rules side — Combo rules (cancellation, triple), grief tether weight, and The Called status system are all shipped and verified against `Rulebook.md`. The mobile/desktop UI also got a real pass (phone header, chat toolbar, sidebar merge) after Jason's own phone testing surfaced crowding issues. Ascension levels 11-15 is scoped but on hold — Jason wants NPCs (and possibly Allies) levelable past 10 too, not just PCs, and is writing up that fuller design before implementation starts. Social/growth features (friends, Discord account linking, age-gated mode, lore library) are the next intentional push.
+The game is now fully v3.0-spec-compliant on the rules side — Combo rules (cancellation, triple), grief tether weight, and The Called status system are all shipped and verified against `Rulebook.md`. The mobile/desktop UI also got a real pass (phone header, chat toolbar, sidebar merge) after Jason's own phone testing surfaced crowding issues. Ascension levels 11-15 is scoped but on hold — Jason wants NPCs (and possibly Allies) levelable past 10 too, not just PCs, and is writing up that fuller design before implementation starts.
+
+Growth direction: Jason is thinking bigger than just TBA — a shared cross-game identity/achievement system ("GO ID") spanning TBA plus other GameOctane projects in the pipe (a Godot 16-bit RPG, FlipperRPG for Flipper Zero, ~15 more early-stage). Key decision made 2026-09-29: GO ID owns the canonical account; Discord is an optional *linked* identity (via a `linked_identities`-style table), never a login method — avoids making the whole universe's auth depend on a third party, and fits FlipperRPG's hardware (no browser for OAuth). Still in the concept/design stage, not scoped yet. In the meantime, the concrete, shippable piece of the "notifications reach people reliably" problem — email digest for your-turn/@mention, max twice a day — shipped this session and doesn't depend on GO ID or Discord at all.
 
 ## What's shipped
 - ✅ Real-time WebSocket combat chat, roll macros, narration engine
@@ -43,12 +45,13 @@ The game is now fully v3.0-spec-compliant on the rules side — Combo rules (can
 - ✅ Grief tether weight — SW-selectable, clamped -5..-1, on `break_bond` (`routes/bonds.py`)
 - ✅ The Called status system — full Calling roll-off (SW-vs-player, level-scaled difficulty die, margin outcomes), Marked by Death scars → optional Tether, Memory Echo on death, 5th-Calling permadeath, Called Check 1d6 table, cleansing. See "Called status — known gaps" below for the small pieces still missing.
 - ✅ Mobile/desktop UI pass (Sep 2026) — phone header collapsed to a bell + ⋯ menu, chat toolbar stays one row, sidebar merged into Session/Campaign tabs with initiative round counter, connection-down buttons now say so instead of failing silently
+- ✅ Email digest notifications (Sep 2026) — your-turn / @mention, max twice a day (9am/6pm ET), skips anyone already online or already-seen, live-revalidates "your turn" before sending, 2-day staleness cutoff, opt-out toggle + one-click unsubscribe. Merged to `main` 2026-09-29; deploy is currently queued behind a Railway platform-wide incident (their API degradation, not our build) — confirm it actually went live before relying on it.
 
 ## Next up
 - [ ] Ally auto-Combo — character + Ally get one Combo automatically at creation (not yet wired)
 - [ ] Ascension levels 11-15 — rules locked for PCs; on hold pending Jason's write-up on whether NPCs/Allies also go past 10 (Allies have their own separate, lower stat table that doesn't extend without new numbers). Also: Triple Combo's level gate is `== 10` in both `campaign_websocket.py` and `game.html` — needs to become `>= 10` whenever Ascension ships, or an Ascended character loses Triple Combo the moment they level past 10.
 - [ ] Social & friends — follow players, friend activity feed
-- [ ] Discord integration — account linking, community server role (separate from the live campaign→Discord mirror, which already ships)
+- [ ] GO ID — cross-game identity + achievement trophy case spanning GameOctane's projects (TBA, a Godot RPG, FlipperRPG, others still early). Discord becomes one optional *linked* identity (server role while in a live session, DM notifications), never a login method. Concept stage only — see "Strategic picture" above. Not the same as the old "Discord account linking" line this replaces.
 - [ ] Age-gated experience — dual-mode (Tools for the Bad Ass / Tools for Being Awesome)
 - [x] Environmental damage tier system — SW "Env Check" tool (v3.0 tiers, players
       roll to resist, can trigger The Calling). Replaced the /env command. Also
@@ -63,12 +66,14 @@ The game is now fully v3.0-spec-compliant on the rules side — Combo rules (can
 - `backend/achievements.py:819-822` "Death Knows My Name" (survive Calling ×5) is unreachable — the 5th Calling is always permadeath (no roll offered). Dead achievement, needs renaming/retiring or the condition changed to ×4.
 
 ## Blockers
-Nothing hard blocking. Ascension is blocked on Jason's NPC/Ally leveling design (not a technical blocker). Everything else is ordinary implementation work.
+Nothing hard blocking. Ascension is blocked on Jason's NPC/Ally leveling design (not a technical blocker). GO ID is concept-stage, blocked on nothing but scoping time. The email digest deploy is transiently stuck behind a Railway platform incident (their side, not ours) as of 2026-09-29 — check it actually went live before assuming it's running. Everything else is ordinary implementation work.
 
 ## Resume here
-Pick a growth feature (social/friends, Discord account linking, age-gated mode, or lore library) and scope it — that's the intentional next push per Jason (2026-09-28). Ally auto-Combo is a good small warm-up if wanted first. Ascension resumes once Jason shares his NPC/Ally leveling write-up — see the Called-status gaps above for optional cleanup that could be folded into whichever session touches Bonds/Calling code next.
+A fresh bug/security/logic audit over recent sessions' work is planned next (2026-09-29) — prompted by finding two real, previously-missed bugs while building the email digest (see Last session). After that: pick a growth feature — GO ID scoping, social/friends, age-gated mode, or lore library. Ally auto-Combo is a good small warm-up if wanted first. Ascension resumes once Jason shares his NPC/Ally leveling write-up — see the Called-status gaps above for optional cleanup that could be folded into whichever session touches Bonds/Calling code next.
 
-First file to open: none picked yet — depends which growth feature gets chosen.
+First file to open: none picked yet — depends which growth feature (or audit finding) gets picked up.
 
 ## Last session
+2026-09-29: Shipped email digest notifications (your-turn/@mention, max 2/day, live turn-revalidation, opt-out) — see "What's shipped" above; full design/verification detail in memory `email-digest-notifications.md`. Found and fixed two real pre-existing bugs while building it: `User.last_login` was declared in the DB but never mapped in the SQLAlchemy model (silently dropped on every commit since routes/auth.py started setting it), and `.env.example` referenced the wrong email-provider env var (`SENDGRID_API_KEY` instead of the `RESEND_API_KEY` the code has actually used for a while). Verified end-to-end against the real `handle_chat`/`advance_turn` code paths (not just isolated unit tests) and a live test send through prod's Resend key — that pass caught a third bug (Windows console crash on emoji in the dev-mode print fallback) that unit tests alone had missed. Also discussed and roughed out "GO ID," a cross-game identity/achievement concept spanning GameOctane's game portfolio (see "Strategic picture") — concept stage, not scoped. Given today's bug count, Jason asked to run a broader bug/security audit next session before picking up new feature work.
+
 2026-09-28: Audited three "Next up" items marked incomplete and found all three already shipped in prior sessions (grief tether weight, Triple Combo, The Called status system) — `PROJECT_STATUS.md` had drifted from the code. Corrected this doc accordingly; real gaps in The Called system are small and optional (listed above). Scoped Ascension levels 11-15, then paused it at Jason's request pending his NPC/Ally leveling design. Prior session (2026-09-25) shipped a mobile/desktop UI pass (phone header ⋯ menu, one-row chat toolbar, sidebar merged into Session/Campaign tabs, initiative round counter) and cleaned up test data that had leaked into the production DB during browser testing — see memory `sidebar-session-redesign.md` and `no-test-data-in-prod.md` for full detail.
