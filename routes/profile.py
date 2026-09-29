@@ -42,13 +42,17 @@ def _max_featured(total_points: int) -> int:
 
 def _profile_dict(profile: UserProfile | None) -> dict:
     if not profile:
-        return {"bio": None, "is_public": True, "discord_username": None, "avatar_url": None, "featured_badges": []}
+        return {
+            "bio": None, "is_public": True, "discord_username": None, "avatar_url": None,
+            "featured_badges": [], "email_notifications_enabled": True,
+        }
     return {
         "bio": profile.bio,
         "is_public": profile.is_public,
         "discord_username": profile.discord_username,
         "avatar_url": profile.avatar_url,
         "featured_badges": profile.featured_badges or [],
+        "email_notifications_enabled": profile.email_notifications_enabled,
     }
 
 
@@ -132,6 +136,34 @@ async def get_my_profile(
 
 
 # ----------------------------------------------------------------
+# GET /api/profile/unsubscribe — one-click, no login required (clicked from an
+# email client). Token is a purpose-scoped JWT, see backend/email_service.py.
+# Registered before /{username} — that catch-all would otherwise swallow this path.
+# ----------------------------------------------------------------
+@profile_router.get("/unsubscribe")
+async def unsubscribe(token: str, db: Session = Depends(get_db)):
+    from fastapi.responses import HTMLResponse
+    from backend.email_service import verify_unsubscribe_token
+
+    user_id = verify_unsubscribe_token(token)
+    if not user_id:
+        return HTMLResponse("<p>This unsubscribe link is invalid or expired.</p>", status_code=400)
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    if not profile:
+        profile = UserProfile(user_id=user_id)
+        db.add(profile)
+    profile.email_notifications_enabled = False
+    db.commit()
+
+    return HTMLResponse(
+        "<p style=\"font-family:Arial,sans-serif;\">You're unsubscribed — "
+        "TBA won't send you any more notification emails. "
+        "You can turn them back on anytime from your profile settings.</p>"
+    )
+
+
+# ----------------------------------------------------------------
 # GET /api/profile/{username} — public profile (respects is_public)
 # ----------------------------------------------------------------
 @profile_router.get("/{username}")
@@ -201,6 +233,8 @@ async def update_my_profile(
         profile.is_public = bool(req["is_public"])
     if "avatar_url" in req:
         profile.avatar_url = req["avatar_url"]
+    if "email_notifications_enabled" in req:
+        profile.email_notifications_enabled = bool(req["email_notifications_enabled"])
 
     db.commit()
     return {"ok": True, "profile": _profile_dict(profile)}

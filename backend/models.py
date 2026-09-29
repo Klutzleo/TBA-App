@@ -55,6 +55,10 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    # Column has existed since 000_CLEAN_START.sql, but was never mapped here — routes/auth.py's
+    # `user.last_login = ...` on every login was silently a no-op (unmapped attribute, dropped on
+    # commit). Mapping it now so it actually persists.
+    last_login = Column(DateTime, nullable=True)
 
     # Relationships
     characters = relationship("Character", back_populates="user", foreign_keys="[Character.user_id]")
@@ -993,6 +997,7 @@ class UserProfile(Base):
     discord_username = Column(String(64), nullable=True)
     avatar_url       = Column(Text, nullable=True)
     featured_badges  = Column(JSONB, nullable=False, default=list)
+    email_notifications_enabled = Column(Boolean, nullable=False, default=True)
     updated_at       = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -1105,6 +1110,9 @@ class Notification(Base):
     silent       = Column(Boolean, nullable=False, default=False)
     read         = Column(Boolean, nullable=False, default=False)
     created_at   = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    # Set once the email digest sweep has made a final decision on this row (sent it, or
+    # determined it's permanently moot — e.g. a stale turn). NULL = still pending consideration.
+    emailed_at   = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User")
 

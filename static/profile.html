@@ -484,6 +484,10 @@
       <input type="checkbox" id="editPublic" style="width:auto;accent-color:#d4af37;">
       <label for="editPublic" style="margin:0;">Public profile (others can view your stats)</label>
     </div>
+    <div class="toggle-row">
+      <input type="checkbox" id="editEmailNotifs" style="width:auto;accent-color:#d4af37;">
+      <label for="editEmailNotifs" style="margin:0;">Email me for your turn / @mentions (max twice a day)</label>
+    </div>
     <div class="edit-actions">
       <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
       <button class="btn-save" onclick="saveProfile()">Save</button>
@@ -751,6 +755,7 @@
     const p = profileData.profile || {};
     document.getElementById('editBio').value = p.bio || '';
     document.getElementById('editPublic').checked = p.is_public !== false;
+    document.getElementById('editEmailNotifs').checked = p.email_notifications_enabled !== false;
     const preview = document.getElementById('editAvatarPreview');
     preview.innerHTML = p.avatar_url
       ? `<img src="${p.avatar_url}" style="width:100%;height:100%;object-fit:cover;">`
@@ -816,11 +821,12 @@
   async function saveProfile() {
     const bio = document.getElementById('editBio').value.trim();
     const is_public = document.getElementById('editPublic').checked;
+    const email_notifications_enabled = document.getElementById('editEmailNotifs').checked;
     try {
       const resp = await fetch('/api/profile/me', {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bio, is_public }),
+        body: JSON.stringify({ bio, is_public, email_notifications_enabled }),
       });
       if (!resp.ok) throw new Error('Save failed');
       const data = await resp.json();

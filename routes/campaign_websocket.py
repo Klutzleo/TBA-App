@@ -919,6 +919,12 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
                                 url=f"/game.html?campaign_id={campaign_id}",
                                 campaign_id=str(campaign_id),
                             )
+                            from backend.notification_center import notify_mention
+                            notify_mention(
+                                db, user_id=sw_membership.user_id, mentioned_by=sender,
+                                message_preview=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                                campaign_id=campaign_id, commit=True,
+                            )
                     except Exception as _pe:
                         logger.warning(f"SW mention push failed: {_pe}")
                     continue
@@ -936,6 +942,12 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
                             body=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
                             url=f"/game.html?campaign_id={campaign_id}&character_id={mentioned_char.id}",
                             campaign_id=str(campaign_id),
+                        )
+                        from backend.notification_center import notify_mention
+                        notify_mention(
+                            db, user_id=mentioned_char.user_id, mentioned_by=sender,
+                            message_preview=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                            campaign_id=campaign_id, character_id=mentioned_char.id, commit=True,
                         )
                     except Exception as _pe:
                         logger.warning(f"Mention push failed for {mention_name}: {_pe}")
@@ -5267,6 +5279,11 @@ async def advance_turn(
                         f"It's {char.name}'s turn in combat.",
                         url=f"/game.html?campaign_id={campaign_uuid}&character_id={char.id}&role=player",
                         campaign_id=str(campaign_uuid)
+                    )
+                    from backend.notification_center import notify_turn
+                    notify_turn(
+                        db, user_id=char.user_id, character_id=char.id, character_name=char.name,
+                        campaign_id=campaign_uuid, encounter_id=encounter.id, commit=True,
                     )
                 except Exception as _pe:
                     logger.warning(f"Push notification failed (your_turn): {_pe}")

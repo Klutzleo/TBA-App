@@ -37,6 +37,7 @@ httpx==0.27.0
 # Capped <14 — websockets 14+ removes legacy import paths that uvicorn 0.30 still
 # uses for the WS server; 13.x has websockets.asyncio.client and stays compatible.
 websockets>=13.0,<14
+tzdata  # zoneinfo needs this explicitly — Windows has no system tz database, and slim Docker images often strip it too
 
 # Dev tools
 pytest==8.3.2

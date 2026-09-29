@@ -74,6 +74,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Discord mirror startup warning: {e}")
 
+    try:
+        from backend import notification_digest
+        notification_digest.start_workers()
+    except Exception as e:
+        logger.warning(f"⚠️ Notification digest startup warning: {e}")
+
     yield
     # Shutdown
     logger.info("🛑 FastAPI TBA-App shutting down")
@@ -82,6 +88,12 @@ async def lifespan(app: FastAPI):
         await discord_mirror.stop_workers()
     except Exception as e:
         logger.warning(f"⚠️ Discord mirror shutdown warning: {e}")
+
+    try:
+        from backend import notification_digest
+        await notification_digest.stop_workers()
+    except Exception as e:
+        logger.warning(f"⚠️ Notification digest shutdown warning: {e}")
 
 
 # Create FastAPI app
