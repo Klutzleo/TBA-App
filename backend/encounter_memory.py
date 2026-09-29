@@ -3,6 +3,12 @@ from typing import Optional
 
 encounter_state = {
     "actors": [],
+    # NOT the combat round counter — that's Encounter.round_number in the DB
+    # (routes/campaign_websocket.py's advance_turn/next_round_number), shown in the
+    # initiative tracker and broadcast to clients. This "round" is only a fallback
+    # default for add_lore_entry() below when an effect is logged without an
+    # explicit round — nothing ever advances it (the old advance_round() that did
+    # was dead code, removed), so treat it as always 1, not a live value.
     "round": 1,
     "location": None,
     "initiative_order": [],
@@ -19,10 +25,6 @@ def get_actors():
 
 def set_location(location: str):
     encounter_state["location"] = location
-
-def advance_round():
-    encounter_state["round"] += 1
-    return encounter_state["round"]
 
 def resolve_initiative():
     # Sort actors by initiative descending

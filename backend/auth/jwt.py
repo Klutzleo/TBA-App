@@ -61,6 +61,25 @@ def create_access_token(user_id: str, email: str, username: str) -> str:
     return token
 
 
+def decode_with_key(token: str, key: str, algorithm: str = ALGORITHM) -> Optional[dict]:
+    """
+    Decode a JWT token with an explicit key and return the raw payload dict, or
+    None if it doesn't verify (bad signature, malformed, or expired — jose checks
+    `exp` automatically whenever the payload has one).
+
+    Shared by decode_access_token() below (real login tokens, signed with
+    SECRET_KEY) and backend/email_service.py's unsubscribe-token verification
+    (signed with its own, deliberately different, derived key) — same decode
+    shape, different trust domains. Keep the key an explicit parameter rather
+    than hardcoding SECRET_KEY here, or a future caller could easily end up
+    validating a different token type against the wrong key by accident.
+    """
+    try:
+        return jwt.decode(token, key, algorithms=[algorithm])
+    except JWTError:
+        return None
+
+
 def decode_access_token(token: str) -> Optional[dict]:
     """
     Decode a JWT token and return the raw payload dict.
@@ -76,11 +95,7 @@ def decode_access_token(token: str) -> Optional[dict]:
         if payload:
             user_id = payload.get("sub")
     """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except JWTError:
-        return None
+    return decode_with_key(token, SECRET_KEY, ALGORITHM)
 
 
 def verify_token(token: str) -> Optional[TokenData]:

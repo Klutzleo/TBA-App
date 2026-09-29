@@ -911,18 +911,19 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
                             CampaignMembership.role == 'story_weaver'
                         ).first()
                         if sw_membership and str(sw_membership.user_id) != str(user_id):
+                            mention_title = f"💬 {sender} mentioned you"
+                            mention_preview = msg.message[:80] + ('…' if len(msg.message) > 80 else '')
                             send_push(
                                 db,
                                 user_id=str(sw_membership.user_id),
-                                title=f"💬 {sender} mentioned you",
-                                body=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                                title=mention_title,
+                                body=mention_preview,
                                 url=f"/game.html?campaign_id={campaign_id}",
                                 campaign_id=str(campaign_id),
                             )
                             from backend.notification_center import notify_mention
                             notify_mention(
-                                db, user_id=sw_membership.user_id, mentioned_by=sender,
-                                message_preview=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                                db, user_id=sw_membership.user_id, title=mention_title, body=mention_preview,
                                 campaign_id=campaign_id, commit=True,
                             )
                     except Exception as _pe:
@@ -935,18 +936,19 @@ async def handle_chat(campaign_id: UUID, data: dict, user_id: UUID, db: Session 
                 ).first()
                 if mentioned_char and mentioned_char.user_id and str(mentioned_char.user_id) != str(user_id):
                     try:
+                        mention_title = f"💬 {sender} mentioned you"
+                        mention_preview = msg.message[:80] + ('…' if len(msg.message) > 80 else '')
                         send_push(
                             db,
                             user_id=str(mentioned_char.user_id),
-                            title=f"💬 {sender} mentioned you",
-                            body=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                            title=mention_title,
+                            body=mention_preview,
                             url=f"/game.html?campaign_id={campaign_id}&character_id={mentioned_char.id}",
                             campaign_id=str(campaign_id),
                         )
                         from backend.notification_center import notify_mention
                         notify_mention(
-                            db, user_id=mentioned_char.user_id, mentioned_by=sender,
-                            message_preview=msg.message[:80] + ('…' if len(msg.message) > 80 else ''),
+                            db, user_id=mentioned_char.user_id, title=mention_title, body=mention_preview,
                             campaign_id=campaign_id, character_id=mentioned_char.id, commit=True,
                         )
                     except Exception as _pe:
@@ -5279,18 +5281,20 @@ async def advance_turn(
             char = db.query(Character).filter(Character.id == active_roll.character_id).first()
             if char and char.user_id:
                 try:
+                    turn_title = "⚔️ Your Turn!"
+                    turn_body = f"It's {char.name}'s turn in combat."
                     from backend.notifications import send_push
                     send_push(
                         db, str(char.user_id),
-                        "⚔️ Your Turn!",
-                        f"It's {char.name}'s turn in combat.",
+                        turn_title, turn_body,
                         url=f"/game.html?campaign_id={campaign_uuid}&character_id={char.id}&role=player",
                         campaign_id=str(campaign_uuid)
                     )
                     from backend.notification_center import notify_turn
                     notify_turn(
                         db, user_id=char.user_id, character_id=char.id, character_name=char.name,
-                        campaign_id=campaign_uuid, encounter_id=encounter.id, commit=True,
+                        campaign_id=campaign_uuid, encounter_id=encounter.id,
+                        title=turn_title, body=turn_body, commit=True,
                     )
                 except Exception as _pe:
                     logger.warning(f"Push notification failed (your_turn): {_pe}")

@@ -118,20 +118,26 @@ def notify_turn(
     character_name: str,
     campaign_id,
     encounter_id,
+    title: str,
+    body: str,
     commit: bool = False,
 ):
     """
-    Create a notification row for 'it's your turn'. Mirrors the existing web-push
-    fired from routes/campaign_websocket.py's advance_turn() — this is the persisted
-    counterpart, so the email digest sweep has something to read and revalidate later
-    (turn order may have moved on by the time a digest fires).
+    Create a notification row for 'it's your turn'. Persisted counterpart to the
+    web-push fired from routes/campaign_websocket.py's advance_turn(), so the email
+    digest sweep has something to read and revalidate later (turn order may have
+    moved on by the time a digest fires).
+
+    title/body are passed in rather than re-derived here, on purpose — they should
+    be the exact same strings the caller just used for send_push(), so the push and
+    the persisted/digest copy of the same event can't quietly drift apart.
     """
     return create_notification(
         db=db,
         user_id=user_id,
         type="turn",
-        title="Your turn!",
-        body=f"It's {character_name}'s turn in combat.",
+        title=title,
+        body=body,
         icon="swords",
         data={
             "campaign_id": str(campaign_id),
@@ -145,16 +151,18 @@ def notify_turn(
 def notify_mention(
     db: Session,
     user_id,
-    mentioned_by: str,
-    message_preview: str,
+    title: str,
+    body: str,
     campaign_id,
     character_id=None,
     commit: bool = False,
 ):
     """
-    Create a notification row for an @mention in chat. Mirrors the existing web-push
-    fired from handle_chat() in routes/campaign_websocket.py — persisted counterpart
-    for the email digest sweep.
+    Create a notification row for an @mention in chat. Persisted counterpart to the
+    web-push fired from handle_chat() in routes/campaign_websocket.py.
+
+    title/body are passed in rather than re-derived here, on purpose — same reason
+    as notify_turn above: keep push and persisted/digest copy from drifting apart.
     """
     data = {"campaign_id": str(campaign_id)}
     if character_id:
@@ -163,8 +171,8 @@ def notify_mention(
         db=db,
         user_id=user_id,
         type="mention",
-        title=f"{mentioned_by} mentioned you",
-        body=message_preview,
+        title=title,
+        body=body,
         icon="at-sign",
         data=data,
         commit=commit,

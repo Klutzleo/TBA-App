@@ -56,11 +56,10 @@ def create_unsubscribe_token(user_id: str) -> str:
 
 def verify_unsubscribe_token(token: str) -> str | None:
     """Returns the user_id if valid (right key, right purpose, not expired), else None."""
-    try:
-        payload = jwt.decode(token, _UNSUBSCRIBE_SECRET_KEY, algorithms=[_ALGORITHM])
-    except Exception:
-        return None
-    if payload.get("purpose") != "unsubscribe":
+    from backend.auth.jwt import decode_with_key
+
+    payload = decode_with_key(token, _UNSUBSCRIBE_SECRET_KEY, _ALGORITHM)
+    if not payload or payload.get("purpose") != "unsubscribe":
         return None
     return payload.get("sub")
 

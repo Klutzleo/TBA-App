@@ -155,15 +155,19 @@
   function _updateBadge() {
     const badge = document.getElementById('notifBadge');
     const bell  = document.getElementById('notifBellBtn');
-    if (!badge || !bell) return;
-    if (_unreadCount > 0) {
-      badge.textContent = _unreadCount > 99 ? '99+' : _unreadCount;
-      badge.style.display = 'flex';
-      bell.classList.add('has-unread');
-    } else {
-      badge.style.display = 'none';
-      bell.classList.remove('has-unread');
+    if (badge && bell) {
+      if (_unreadCount > 0) {
+        badge.textContent = _unreadCount > 99 ? '99+' : _unreadCount;
+        badge.style.display = 'flex';
+        bell.classList.add('has-unread');
+      } else {
+        badge.style.display = 'none';
+        bell.classList.remove('has-unread');
+      }
     }
+    // Let anything mirroring this count (e.g. game.html's phone header ⋯ menu) react
+    // to the actual state change directly, instead of having to watch the DOM for it.
+    window.dispatchEvent(new CustomEvent('tba:unread-count-changed', { detail: { count: _unreadCount } }));
   }
 
   // ── Drawer rendering ──────────────────────────────────────────────────────

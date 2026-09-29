@@ -107,9 +107,15 @@ def relative_time_phrase(now: datetime, dt: datetime) -> str:
 # Live revalidation
 # ============================================================================
 
-def revalidate_turn(db, data: dict) -> bool:
+def revalidate_turn(db, data: dict, cache: dict | None = None) -> bool:
     """Re-check a stored 'your turn' notification is still actually true right now.
-    Other players/the SW may have moved on while the recipient was away."""
+    Other players/the SW may have moved on while the recipient was away.
+
+    `cache`, when passed (a plain dict the caller owns, keyed by encounter_id),
+    lets one sweep that revalidates multiple pending turn notifications for the
+    same encounter reuse the query + sort instead of repeating it per notification
+    — plausible right after a busy round, when more than one away player has a
+    stale turn notification pending in the same sweep."""
     from backend.models import Encounter, InitiativeRoll
     from routes.campaign_websocket import _sort_initiative_rolls
 
@@ -118,22 +124,30 @@ def revalidate_turn(db, data: dict) -> bool:
     if not encounter_id or not character_id:
         return False
 
+    if cache is not None and encounter_id in cache:
+        active_character_id = cache[encounter_id]
+        return active_character_id is not None and str(active_character_id) == str(character_id)
+
     encounter = db.query(Encounter).filter(
         Encounter.id == encounter_id, Encounter.is_active == True  # noqa: E712
     ).first()
     if not encounter:
+        if cache is not None:
+            cache[encounter_id] = None
         return False
 
     rolls = db.query(InitiativeRoll).filter(
         InitiativeRoll.encounter_id == encounter.id,
         InitiativeRoll.is_silent == False,  # noqa: E712
     ).all()
-    if not rolls:
-        return False
-    rolls = _sort_initiative_rolls(rolls, db)
-    if encounter.current_turn_index >= len(rolls):
-        return False
-    return str(rolls[encounter.current_turn_index].character_id) == str(character_id)
+    rolls = _sort_initiative_rolls(rolls, db) if rolls else []
+    active_character_id = None
+    if rolls and encounter.current_turn_index < len(rolls):
+        active_character_id = rolls[encounter.current_turn_index].character_id
+
+    if cache is not None:
+        cache[encounter_id] = active_character_id
+    return active_character_id is not None and str(active_character_id) == str(character_id)
 
 
 def _connected_user_ids() -> set:
@@ -187,17 +201,34 @@ def _process(db):
     for n in candidates:
         by_user.setdefault(str(n.user_id), []).append(n)
 
+    # Batch-load once instead of per-user in the loop below — by_user already has the
+    # full set of user ids this sweep cares about up front.
+    users = {str(u.id): u for u in db.query(User).filter(User.id.in_(by_user.keys())).all()}
+    profiles = {
+        str(p.user_id): p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(by_user.keys())).all()
+    }
+    # Same idea for campaign names — computed once across every candidate rather than
+    # re-queried per user, since a campaign with several away players is the common case.
+    all_campaign_ids = {(n.data or {}).get("campaign_id") for n in candidates if n.data}
+    all_campaign_ids.discard(None)
+    campaign_names = {
+        str(c.id): c.name for c in db.query(Campaign).filter(Campaign.id.in_(all_campaign_ids)).all()
+    } if all_campaign_ids else {}
+    # Reused across users/notifications so revalidating multiple pending turns in the
+    # same encounter (plausible right after a busy round) doesn't re-query it each time.
+    turn_cache: dict = {}
+
     frontend_url = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
 
     for user_id, notifs in by_user.items():
         if user_id in connected:
             continue  # already looking at it — reconsider next sweep
 
-        user = db.query(User).filter(User.id == user_id).first()
+        user = users.get(user_id)
         if not user or not user.email:
             continue
 
-        profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+        profile = profiles.get(user_id)
         if profile and not profile.email_notifications_enabled:
             continue  # opted out — reconsider next sweep in case they re-enable
 
@@ -207,26 +238,21 @@ def _process(db):
             if already_seen(n.created_at, user.last_login):
                 resolved_ids.append(n.id)  # they logged in since — permanently moot
                 continue
-            if n.type == "turn" and not revalidate_turn(db, n.data or {}):
+            if n.type == "turn" and not revalidate_turn(db, n.data or {}, cache=turn_cache):
                 resolved_ids.append(n.id)  # turn moved on — permanently moot
                 continue
             to_send.append(n)
 
         if to_send:
-            campaign_ids = {(n.data or {}).get("campaign_id") for n in to_send if n.data}
-            campaign_ids.discard(None)
-            campaign_names = {
-                str(c.id): c.name
-                for c in db.query(Campaign).filter(Campaign.id.in_(campaign_ids)).all()
-            } if campaign_ids else {}
-
             lines = []
             for n in to_send:
                 camp_name = campaign_names.get((n.data or {}).get("campaign_id"), "your campaign")
                 when = relative_time_phrase(now, n.created_at)
-                icon = "⚔️" if n.type == "turn" else "💬"
+                # n.title already carries its own icon (⚔️/💬) — it's now the exact same string
+                # passed to send_push() at the call site, kept in sync on purpose. No separate
+                # prefix here, or it'd double up.
                 lines.append(
-                    f'{icon} <strong>{html.escape(n.title)}</strong> — {html.escape(n.body or "")} '
+                    f'<strong>{html.escape(n.title)}</strong> — {html.escape(n.body or "")} '
                     f'<span style="color:#999;">({html.escape(camp_name)}, {when})</span>'
                 )
 

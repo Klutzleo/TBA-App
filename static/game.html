@@ -8567,25 +8567,39 @@
     }
 
     // ── Action strip (Story Weaver) ─────────────────────────────────────────
-    function toggleEncMenu(e) {
-      if (e) e.stopPropagation();
-      const menu = document.getElementById('encMenu');
-      const btn = document.getElementById('encMoreBtn');
-      if (!menu || !btn) return;
-      const open = menu.style.display === 'none';
-      menu.style.display = open ? 'block' : 'none';
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // Shared "more options" dropdown behavior — toggle/close/outside-click/Escape are
+    // identical for every such menu on the page; only the show-mechanism (display vs a
+    // CSS class) and any extra positioning differ per menu.
+    function _makeMenuToggle(btnId, menuId, { useOpenClass = false, position = null } = {}) {
+      function isOpen(menu) { return useOpenClass ? menu.classList.contains('open') : menu.style.display !== 'none'; }
+      function setOpen(menu, open) {
+        if (useOpenClass) menu.classList.toggle('open', open);
+        else menu.style.display = open ? 'block' : 'none';
+      }
+      function toggle(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById(menuId), btn = document.getElementById(btnId);
+        if (!menu || !btn) return;
+        const open = !isOpen(menu);
+        if (open && position) position(menu);
+        setOpen(menu, open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      function close() {
+        const menu = document.getElementById(menuId), btn = document.getElementById(btnId);
+        if (menu) setOpen(menu, false);
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      }
+      document.addEventListener('click', (e) => {
+        if (!e.composedPath().some(n => n.id === menuId || n.id === btnId)) close();
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+      return { toggle, close };
     }
-    function closeEncMenu() {
-      const menu = document.getElementById('encMenu');
-      const btn = document.getElementById('encMoreBtn');
-      if (menu) menu.style.display = 'none';
-      if (btn) btn.setAttribute('aria-expanded', 'false');
-    }
-    document.addEventListener('click', (e) => {
-      if (!e.composedPath().some(n => n.id === 'encMenu' || n.id === 'encMoreBtn')) closeEncMenu();
-    });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeEncMenu(); });
+
+    const _encMenuCtl = _makeMenuToggle('encMoreBtn', 'encMenu');
+    const toggleEncMenu = _encMenuCtl.toggle;
+    const closeEncMenu = _encMenuCtl.close;
 
     function updateEncounterStrip() {
       if (!isSW()) return;
@@ -9908,18 +9922,33 @@
     // btn is disabled immediately so a slow connection can't be mistaken for a dead button
     // and re-clicked into posting duplicate "tether released" chat messages. Left disabled
     // on success — the tether_deactivated broadcast re-renders the card and removes it anyway.
-    async function swReleaseTether(charId, tetherId, btn) {
-      if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'default'; btn.textContent = '…'; }
+    // Shared click-guard for a button that fires one async request: locks it
+    // immediately (so a rapid double-click/double-tap can't fire twice), and only
+    // restores it (with restoreLabel) if the request actually fails — on success the
+    // real-time broadcast for the underlying change re-renders this button anyway.
+    async function _withButtonBusy(btn, restoreLabel, fn) {
+      if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'default'; btn.textContent = '…';
+      }
       try {
-        await fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
+        await fn();
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer'; btn.textContent = restoreLabel; }
+        throw e;
+      }
+    }
+
+    async function swReleaseTether(charId, tetherId, btn) {
+      try {
+        await _withButtonBusy(btn, 'Turn off', () => fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
           method: 'PATCH',
           headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_active: false })
-        });
+        }));
         // the tether_deactivated broadcast reloads the party panel for everyone
       } catch (e) {
         showPanelToast('Could not release tether', 'error');
-        if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer'; btn.textContent = 'Turn off'; }
       }
     }
 
@@ -9929,17 +9958,15 @@
       if (raw === null) return;
       const modifier = Math.max(-5, Math.min(5, parseInt(raw, 10) || 0));
       if (modifier === 0) { showPanelToast('A 0 modifier does nothing — pick -5 to +5', 'error'); return; }
-      if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'default'; btn.textContent = '…'; }
       try {
-        await fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
+        await _withButtonBusy(btn, 'Activate', () => fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
           method: 'PATCH',
           headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_active: true, modifier })
-        });
+        }));
         // the tether_activated broadcast + announcement handle the rest
       } catch (e) {
         showPanelToast('Could not activate tether', 'error');
-        if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer'; btn.textContent = 'Activate'; }
       }
     }
 
@@ -10625,46 +10652,30 @@
     }
 
     // ── Phone header ⋯ menu ────────────────────────────────────────────────
-    function toggleHdrMenu(e) {
-      if (e) e.stopPropagation();
-      const menu = document.getElementById('hdrMoreMenu');
-      const btn = document.getElementById('hdrMoreBtn');
-      if (!menu || !btn) return;
-      const open = !menu.classList.contains('open');
-      if (open) menu.style.top = (document.querySelector('.header').getBoundingClientRect().bottom + 4) + 'px';
-      menu.classList.toggle('open', open);
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
-    function closeHdrMenu() {
-      const menu = document.getElementById('hdrMoreMenu');
-      const btn = document.getElementById('hdrMoreBtn');
-      if (menu) menu.classList.remove('open');
-      if (btn) btn.setAttribute('aria-expanded', 'false');
-    }
-    document.addEventListener('click', (e) => {
-      // composedPath, not target.closest: a row that rebuilds itself on tap (Sounds)
-      // is detached by the time this runs, so closest() would call it an outside tap
-      const inside = e.composedPath().some(n => n.id === 'hdrMoreMenu' || n.id === 'hdrMoreBtn');
-      if (!inside) closeHdrMenu();
+    // composedPath, not target.closest: a row that rebuilds itself on tap (Sounds)
+    // is detached by the time this runs, so closest() would call it an outside tap
+    // (_makeMenuToggle above already uses composedPath for this exact reason).
+    const _hdrMenuCtl = _makeMenuToggle('hdrMoreBtn', 'hdrMoreMenu', {
+      useOpenClass: true,
+      position: (menu) => {
+        menu.style.top = (document.querySelector('.header').getBoundingClientRect().bottom + 4) + 'px';
+      },
     });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHdrMenu(); });
+    const toggleHdrMenu = _hdrMenuCtl.toggle;
+    const closeHdrMenu = _hdrMenuCtl.close;
 
     // The notification bell (with its unread badge) is injected by
     // notification-drawer.js into .notif-bell-target, which is hidden on phones.
-    // Mirror its unread count onto the ⋯ button (dot) and the menu row (number).
-    function _syncHdrMenuBadge() {
-      const badge = document.getElementById('notifBadge');
-      const n = badge && badge.style.display !== 'none' ? (parseInt(badge.textContent, 10) || 0) : 0;
+    // Mirror its unread count onto the ⋯ button (dot) and the menu row (number) —
+    // driven by the 'tba:unread-count-changed' event notification-drawer.js fires
+    // whenever the real count actually changes, not by watching the DOM for it.
+    function _syncHdrMenuBadge(n) {
       const count = document.getElementById('hdrMenuNotifCount');
       const dot = document.getElementById('hdrMoreDot');
       if (count) { count.textContent = n > 99 ? '99+' : String(n); count.style.display = n ? '' : 'none'; }
       if (dot) dot.style.display = n ? 'block' : 'none';
     }
-    (function () {
-      const target = document.querySelector('.notif-bell-target');
-      if (target) new MutationObserver(_syncHdrMenuBadge)
-        .observe(target, { subtree: true, childList: true, characterData: true, attributes: true });
-    })();
+    window.addEventListener('tba:unread-count-changed', (e) => _syncHdrMenuBadge(e.detail.count));
     function toggleMessageSound() {
       _soundEnabled = !_soundEnabled;
       localStorage.setItem('tba_sound', _soundEnabled ? 'on' : 'off');
