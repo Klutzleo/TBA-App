@@ -55,8 +55,22 @@ def next_digest_datetime(now: datetime, tz_name: str = DIGEST_TIMEZONE, hours=DI
     return min(c for c in candidates if c > local_now)
 
 
+def _naive_utc(dt: datetime) -> datetime:
+    """Normalize a possibly-tz-aware datetime to naive UTC, matching the naive-UTC
+    convention the rest of this codebase uses (User.last_login, datetime.utcnow()
+    defaults throughout). Notification.created_at is DateTime(timezone=True) —
+    Postgres returns that as tz-aware, which raises TypeError against a naive
+    datetime in a direct Python comparison/subtraction. SQLite does NOT return
+    tz-aware datetimes for the same column type, which is why this mismatch
+    doesn't show up under the SQLite-backed test suite — normalize defensively
+    here rather than relying on callers to always pass matching types."""
+    if dt is not None and dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 def is_stale(now: datetime, created_at: datetime, max_age_days: int = STALE_AFTER_DAYS) -> bool:
-    return (now - created_at) > timedelta(days=max_age_days)
+    return (_naive_utc(now) - _naive_utc(created_at)) > timedelta(days=max_age_days)
 
 
 def already_seen(created_at: datetime, last_login) -> bool:
@@ -64,7 +78,7 @@ def already_seen(created_at: datetime, last_login) -> bool:
     already seen it in-app, so there's no need to also email it."""
     if not last_login:
         return False
-    return last_login >= created_at
+    return _naive_utc(last_login) >= _naive_utc(created_at)
 
 
 def relative_time_phrase(now: datetime, dt: datetime) -> str:
@@ -75,6 +89,8 @@ def relative_time_phrase(now: datetime, dt: datetime) -> str:
     Based on calendar-day difference plus the actual time of day the event happened,
     not just elapsed hours — a message from yesterday at noon isn't "last night"
     just because it's under 24 hours old."""
+    now = _naive_utc(now)
+    dt = _naive_utc(dt)
     minutes = (now - dt).total_seconds() / 60
     if minutes < 60:
         return "a few minutes ago"

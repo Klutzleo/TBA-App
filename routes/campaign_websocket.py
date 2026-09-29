@@ -4901,7 +4901,9 @@ async def clear_initiative(
         await manager.broadcast(campaign_uuid, {
             "type": "initiative_clear",
             "message": f"Initiative cleared. {deleted_count} rolls removed.",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "round_number": encounter.round_number,
+            "current_turn_index": encounter.current_turn_index,
         })
 
         # Persist message
@@ -5087,11 +5089,16 @@ async def advance_turn(
                 continue
             break
 
+        old_round_number = encounter.round_number
         encounter.round_number = next_round_number(encounter.round_number, old_index, new_index)
         encounter.current_turn_index = new_index
 
-        # DP drain for active summons — fires at the start of each new round (index wraps to 0)
-        if new_index == 0:
+        # DP drain for active summons — fires at the start of each new round. Checked via the
+        # round_number actually changing (matches next_round_number's real "did we wrap" signal
+        # above), NOT `new_index == 0` — when the leading combatant is skipped for holding a
+        # Combo, the round can wrap without new_index ever landing on 0, and the old check
+        # silently missed drain for that round.
+        if encounter.round_number != old_round_number:
             active_summons = db.query(Character).filter(
                 Character.campaign_id == str(campaign_uuid),
                 Character.is_summon == True,  # noqa: E712

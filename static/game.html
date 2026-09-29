@@ -13966,6 +13966,14 @@
 
               storeAndDisplayMessage(container, data);
 
+              // SW: reset tracker state so the round counter doesn't stay stale after a clear
+              if (userRole === 'SW') {
+                currentInitiativeOrder = [];
+                currentTurnIndex = data.current_turn_index ?? 0;
+                if (data.round_number != null) currentRound = data.round_number;
+                renderInitiativeTracker();
+              }
+
             } else if (data.type === 'combo_incoming') {
               showComboIncoming(data);
 

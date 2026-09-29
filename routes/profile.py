@@ -40,20 +40,23 @@ def _max_featured(total_points: int) -> int:
     if unlocked == 0: return 0
     return unlocked + 2  # 1→3, 2→4, 3→5
 
-def _profile_dict(profile: UserProfile | None) -> dict:
+def _profile_dict(profile: UserProfile | None, include_private: bool = False) -> dict:
+    """include_private=True only for the profile's own owner (get_my_profile, or
+    get_public_profile when is_own) — email_notifications_enabled is an account
+    setting, not something other users should see on a public profile page."""
     if not profile:
-        return {
-            "bio": None, "is_public": True, "discord_username": None, "avatar_url": None,
-            "featured_badges": [], "email_notifications_enabled": True,
+        d = {"bio": None, "is_public": True, "discord_username": None, "avatar_url": None, "featured_badges": []}
+    else:
+        d = {
+            "bio": profile.bio,
+            "is_public": profile.is_public,
+            "discord_username": profile.discord_username,
+            "avatar_url": profile.avatar_url,
+            "featured_badges": profile.featured_badges or [],
         }
-    return {
-        "bio": profile.bio,
-        "is_public": profile.is_public,
-        "discord_username": profile.discord_username,
-        "avatar_url": profile.avatar_url,
-        "featured_badges": profile.featured_badges or [],
-        "email_notifications_enabled": profile.email_notifications_enabled,
-    }
+    if include_private:
+        d["email_notifications_enabled"] = profile.email_notifications_enabled if profile else True
+    return d
 
 
 def _character_summary(char: Character, stats: CharacterStats | None) -> dict:
@@ -126,7 +129,7 @@ async def get_my_profile(
         "username": current_user.username,
         "email": current_user.email,
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
-        "profile": _profile_dict(profile),
+        "profile": _profile_dict(profile, include_private=True),
         "stats": _stats_dict(stats),
         "first_played_at": stats.first_played_at.isoformat() if stats and stats.first_played_at else None,
         "last_played_at": stats.last_played_at.isoformat() if stats and stats.last_played_at else None,
@@ -204,7 +207,7 @@ async def get_public_profile(
         "username": user.username,
         "is_own": is_own,
         "created_at": user.created_at.isoformat() if user.created_at else None,
-        "profile": _profile_dict(profile),
+        "profile": _profile_dict(profile, include_private=is_own),
         "stats": _stats_dict(stats),
         "first_played_at": stats.first_played_at.isoformat() if stats and stats.first_played_at else None,
         "last_played_at": stats.last_played_at.isoformat() if stats and stats.last_played_at else None,

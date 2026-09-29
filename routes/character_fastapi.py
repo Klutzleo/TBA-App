@@ -4191,7 +4191,7 @@ async def update_tether(
         tethers[idx]["description"] = body["description"].strip()
 
     # Activation + modifier is SW only
-    was_active = tethers[idx]["is_active"]
+    was_active = tethers[idx].get("is_active", False)
     if "is_active" in body or "modifier" in body:
         if not is_sw:
             raise HTTPException(status_code=403, detail="Only the SW can activate tethers")
@@ -4202,7 +4202,7 @@ async def update_tether(
             tethers[idx]["modifier"] = max(-5, min(5, mod))
     # Did activation actually flip? A repeat click (slow network, double-tap) resends the
     # same is_active — only a real flip should post a chat announcement and broadcast.
-    is_active_changed = "is_active" in body and tethers[idx]["is_active"] != was_active
+    is_active_changed = "is_active" in body and tethers[idx].get("is_active", False) != was_active
 
     char.tethers = tethers
     # The dicts inside `tethers` are shared with char.tethers, so an in-place edit

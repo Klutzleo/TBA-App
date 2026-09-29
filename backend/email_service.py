@@ -8,9 +8,12 @@ Required environment variables:
     FRONTEND_URL   — defaults to https://tba-app-production.up.railway.app
 """
 
+import hashlib
 import os
 import sys
 import logging
+from datetime import datetime, timedelta
+
 import requests
 from jose import jwt
 
@@ -27,21 +30,34 @@ def _safe_print(s: str) -> None:
         enc = sys.stdout.encoding or "utf-8"
         print(s.encode(enc, errors="replace").decode(enc))
 
-# Reuses the same signing key/algorithm as backend/auth/jwt.py, but this token
-# has its own "purpose" claim and no expiry — it needs to keep working for as
-# long as an old digest email might still be sitting in someone's inbox.
-_SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+# SECURITY: this must NOT be signed with the same key as real login tokens (backend/auth/jwt.py's
+# SECRET_KEY). backend.auth.jwt.verify_token()/get_current_user() — the dependency every
+# protected route uses — decodes with that same SECRET_KEY and never checks a "purpose" claim
+# or requires an expiry, so a token signed with SECRET_KEY would decode there too and function
+# as a permanent, unrevoked Bearer token for the account, regardless of what this module
+# intends it for. Deriving a distinct key means it can never validate against the real auth
+# path at all, independent of any purpose-checking logic (defense at the right layer, not
+# just a convention every future call site has to remember to honor).
+_UNSUBSCRIBE_SECRET_KEY = hashlib.sha256(
+    (os.getenv("SECRET_KEY", "your-secret-key-change-in-production") + "|unsubscribe-token|v1").encode()
+).hexdigest()
 _ALGORITHM = "HS256"
+_UNSUBSCRIBE_TOKEN_DAYS = 90  # bounds exposure if a token ever leaks (mail-relay logs, forwarded email, etc.)
 
 
 def create_unsubscribe_token(user_id: str) -> str:
-    return jwt.encode({"sub": str(user_id), "purpose": "unsubscribe"}, _SECRET_KEY, algorithm=_ALGORITHM)
+    payload = {
+        "sub": str(user_id),
+        "purpose": "unsubscribe",
+        "exp": datetime.utcnow() + timedelta(days=_UNSUBSCRIBE_TOKEN_DAYS),
+    }
+    return jwt.encode(payload, _UNSUBSCRIBE_SECRET_KEY, algorithm=_ALGORITHM)
 
 
 def verify_unsubscribe_token(token: str) -> str | None:
-    """Returns the user_id if valid, else None."""
+    """Returns the user_id if valid (right key, right purpose, not expired), else None."""
     try:
-        payload = jwt.decode(token, _SECRET_KEY, algorithms=[_ALGORITHM])
+        payload = jwt.decode(token, _UNSUBSCRIBE_SECRET_KEY, algorithms=[_ALGORITHM])
     except Exception:
         return None
     if payload.get("purpose") != "unsubscribe":

@@ -63,6 +63,39 @@ def test_already_seen_true_at_exact_same_instant():
 
 
 # ============================================================================
+# Regression: Notification.created_at is DateTime(timezone=True) — Postgres
+# returns that as tz-aware, while User.last_login is a plain naive DateTime.
+# Comparing them directly raised TypeError in production; SQLite silently
+# doesn't reproduce this (it never returns tz-aware datetimes), which is why
+# it wasn't caught by the DB-backed tests. These use real aware datetimes to
+# simulate what Postgres actually hands back.
+# ============================================================================
+
+def test_already_seen_handles_aware_created_at_vs_naive_last_login():
+    created_at = datetime(2026, 9, 29, 9, 0, 0, tzinfo=timezone.utc)  # Postgres-style, aware
+    last_login = datetime(2026, 9, 29, 10, 0, 0)  # naive, matches User.last_login
+    assert already_seen(created_at, last_login) is True  # doesn't raise, and is correct
+
+
+def test_already_seen_handles_aware_created_at_naive_last_login_not_seen():
+    created_at = datetime(2026, 9, 29, 11, 0, 0, tzinfo=timezone.utc)
+    last_login = datetime(2026, 9, 29, 10, 0, 0)
+    assert already_seen(created_at, last_login) is False
+
+
+def test_relative_time_phrase_handles_aware_dt_vs_naive_now():
+    now = datetime(2026, 9, 29, 12, 30, 0)  # naive, matches datetime.utcnow() used in _process
+    dt = datetime(2026, 9, 29, 12, 15, 0, tzinfo=timezone.utc)  # Postgres-style, aware
+    assert relative_time_phrase(now, dt) == "a few minutes ago"
+
+
+def test_is_stale_handles_aware_created_at():
+    now = datetime(2026, 9, 29, 12, 0, 0)
+    created_at = datetime(2026, 9, 27, 11, 0, 0, tzinfo=timezone.utc)
+    assert is_stale(now, created_at) is True
+
+
+# ============================================================================
 # relative_time_phrase — real elapsed time, never in-game/narrative time
 # ============================================================================
 

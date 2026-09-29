@@ -172,26 +172,29 @@ def notify_mention(
 
 
 def _trim_recent(db: Session, user_id):
-    """Keep only the MAX_RECENT most recent non-permanent notifications per user."""
+    """Keep only the MAX_RECENT most recent non-permanent notifications per user.
+
+    Excludes rows the email digest sweep (backend/notification_digest.py) hasn't
+    resolved yet (type turn/mention, emailed_at still NULL) — otherwise a busy
+    user (e.g. an active encounter posting a 'turn' notification every round)
+    could have a still-pending digest item silently deleted before the twice-daily
+    sweep ever sees it, and they'd just never get the email with no error anywhere.
+    """
     from backend.models import Notification
-    from sqlalchemy import func
+    from sqlalchemy import func, not_, and_
 
     try:
-        count = (
-            db.query(func.count(Notification.id))
-            .filter(
-                Notification.user_id == user_id,
-                Notification.is_permanent == False,
-            )
-            .scalar()
+        pending_digest = and_(Notification.type.in_(("turn", "mention")), Notification.emailed_at.is_(None))
+        base_filter = (
+            Notification.user_id == user_id,
+            Notification.is_permanent == False,
+            not_(pending_digest),
         )
+        count = db.query(func.count(Notification.id)).filter(*base_filter).scalar()
         if count >= MAX_RECENT:
             oldest = (
                 db.query(Notification.id)
-                .filter(
-                    Notification.user_id == user_id,
-                    Notification.is_permanent == False,
-                )
+                .filter(*base_filter)
                 .order_by(Notification.created_at.asc())
                 .limit(count - MAX_RECENT + 1)
                 .subquery()
