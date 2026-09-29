@@ -1806,6 +1806,22 @@ async def create_ally(
         db.commit()
         db.refresh(ally)
 
+        # Rules guarantee: a character and their Ally get one Combo automatically at
+        # creation — this is the Bond that enables it (routes/bonds.py's create_bond is
+        # the SW-declared path for everyone else; this one is system-guaranteed, not an
+        # SW narrative call, so it bypasses that gate). Duplicate-check kept anyway as a
+        # safety net, even though a brand-new Ally can't already have one.
+        from backend.models import Bond
+        existing_bond = db.query(Bond).filter(
+            Bond.broken_at == None,  # noqa: E711
+            ((Bond.character_id_a == parent.id) & (Bond.character_id_b == ally.id)) |
+            ((Bond.character_id_a == ally.id) & (Bond.character_id_b == parent.id)),
+        ).first()
+        if not existing_bond:
+            db.add(Bond(campaign_id=UUID(campaign_id), character_id_a=parent.id, character_id_b=ally.id))
+            db.commit()
+            logger.info(f"[{request_id}] Auto-Combo bond created: {parent.name} <-> {ally.name}")
+
         logger.info(f"[{request_id}] Ally created: {ally.id} for parent {parent.id}")
         return ally
 

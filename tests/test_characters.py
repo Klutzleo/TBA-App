@@ -227,6 +227,36 @@ def test_player_cannot_delete_a_character(test_client, world):
 
 
 # ============================================================================
+# ALLY AUTO-COMBO (character + Ally get one Combo automatically at creation)
+# ============================================================================
+
+def _create_ally(test_client, world, parent_id, who="player", **overrides):
+    return test_client.post(
+        f"/api/campaigns/{world['campaign_id']}/characters/{parent_id}/ally",
+        headers=world[who],
+        json=_character(world, name="Buddy", **overrides),
+    )
+
+
+def test_creating_an_ally_auto_creates_the_combo_bond(test_client, world):
+    parent = _create(test_client, world, name="Hero")
+    resp = _create_ally(test_client, world, parent["id"])
+    assert resp.status_code == 201, resp.text
+    ally = resp.json()
+
+    bonds = test_client.get(f"/api/campaigns/{world['campaign_id']}/bonds", headers=world["player"]).json()["bonds"]
+    matching = [
+        b for b in bonds
+        if {b["character_id_a"], b["character_id_b"]} == {parent["id"], ally["id"]}
+    ]
+    assert len(matching) == 1, f"expected exactly one auto-created bond, found {len(matching)}"
+    assert matching[0]["is_active"] is True
+    # Blank on purpose — the SW can name the combo later via the existing bond-update
+    # endpoint, same as any other bond; nothing forces a name at creation time.
+    assert matching[0]["combo_name"] is None
+
+
+# ============================================================================
 # PARTY CRUD TESTS
 # ============================================================================
 
