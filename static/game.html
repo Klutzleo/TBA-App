@@ -2193,6 +2193,13 @@
     .pill-now { background: var(--accent-primary); color: #1a1a1a; }
     .pill-hold { color: #a78bfa; border: 1px solid rgba(167,139,250,0.5); }
     .pill-wait { color: var(--text-muted); border: 1px solid var(--border-color); }
+    /* LBA authoring form */
+    .lba-label { font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
+    .lba-hint { font-weight: normal; opacity: 0.85; }
+    .lba-input { width: 100%; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary); padding: 7px 10px; font-size: 0.875rem; font-family: inherit; }
+    .lba-side-quest-row { display: flex; gap: 6px; align-items: flex-start; }
+    .lba-npc-item, .lba-item-item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; padding: 3px 0; }
+
     .card-chev { display: inline-flex; align-items: center; transition: transform 0.15s; }
     .character-card.expanded .card-chev { transform: rotate(180deg); }
     .pc-extra { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); gap: 7px; }
@@ -3028,6 +3035,10 @@
         <i data-lucide="book-open" style="width:18px;height:18px;"></i><span>Quick Reference</span></button>
       <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();openCampaignStats()">
         <i data-lucide="bar-chart-2" style="width:18px;height:18px;"></i><span>Campaign Stats</span></button>
+      <a class="hdr-menu-item" role="menuitem" href="/lba.html" target="_blank" rel="noopener" onclick="closeHdrMenu()">
+        <i data-lucide="library" style="width:18px;height:18px;"></i><span>Browse LBA</span></a>
+      <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();openLbaAuthorModal()">
+        <i data-lucide="feather" style="width:18px;height:18px;"></i><span>Publish to LBA</span></button>
       <button class="hdr-menu-item" role="menuitem" id="hdrMenuSound" onclick="toggleMessageSound()">
         <i data-lucide="volume-x" style="width:18px;height:18px;"></i><span>Sounds: Off</span></button>
       <a class="hdr-menu-item" role="menuitem" href="https://klutzleo.itch.io/tba-rpg" target="_blank" rel="noopener" onclick="closeHdrMenu()">
@@ -3209,6 +3220,120 @@
               <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button class="btn-secondary btn" onclick="closeLoreEditor()">Cancel</button>
                 <button class="btn" id="loreSaveBtn" onclick="saveLoreEntry()">Save Entry</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LBA — My Packages list (SW only) -->
+        <div id="lbaListModal" class="modal">
+          <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+              <h2>My LBA Packages</h2>
+            </div>
+            <div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">
+              <button class="btn" style="font-size:0.8rem; padding:6px 14px; align-self:flex-start;" onclick="openLbaEditor(null)">+ New Package</button>
+              <div id="lbaPackageList" style="max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+                <div style="color:var(--text-muted); text-align:center; padding:20px; font-size:0.9rem;">Loading...</div>
+              </div>
+              <div style="display:flex; justify-content:flex-end;">
+                <button class="btn-secondary btn" onclick="closeLbaListModal()">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LBA — Package editor (SW only) -->
+        <div id="lbaEditorModal" class="modal">
+          <div class="modal-content" style="max-width:720px;">
+            <div class="modal-header">
+              <h2 id="lbaEditorTitle">New LBA Package</h2>
+            </div>
+            <div class="modal-body" style="display:flex; flex-direction:column; gap:12px; max-height:70vh; overflow-y:auto;">
+              <div>
+                <label class="lba-label">Title</label>
+                <input id="lbaTitleInput" type="text" maxlength="200" class="lba-input">
+              </div>
+              <div>
+                <label class="lba-label">Tagline <span class="lba-hint">— short public-facing hook</span></label>
+                <input id="lbaTaglineInput" type="text" maxlength="300" class="lba-input">
+              </div>
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:140px;">
+                  <label class="lba-label">Format</label>
+                  <select id="lbaFormatInput" class="lba-input">
+                    <option value="one_shot">One-shot</option>
+                    <option value="short_arc">Short arc</option>
+                    <option value="ongoing_campaign">Ongoing campaign</option>
+                  </select>
+                </div>
+                <div style="flex:1; min-width:140px;">
+                  <label class="lba-label">Suggested party size <span class="lba-hint">— a guide, not enforced</span></label>
+                  <select id="lbaPartySizeInput" class="lba-input">
+                    <option value="">—</option>
+                    <option value="solo">Solo (1)</option>
+                    <option value="small">Small (2-3)</option>
+                    <option value="medium">Medium (4-5)</option>
+                    <option value="large">Large (6+)</option>
+                  </select>
+                </div>
+                <div style="flex:1; min-width:140px;">
+                  <label class="lba-label">Content rating</label>
+                  <select id="lbaRatingInput" class="lba-input">
+                    <option value="all_ages">All ages</option>
+                    <option value="teen">Teen</option>
+                    <option value="mature">Mature</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="lba-label">Tags <span class="lba-hint">— comma-separated</span></label>
+                <input id="lbaTagsInput" type="text" placeholder="horror, revenge, found-family" class="lba-input">
+              </div>
+
+              <div>
+                <label class="lba-label">Story <span class="lba-hint">— private, Story Weaver only. Goes into the new SW's notes, never shown to players.</span></label>
+                <textarea id="lbaStoryInput" rows="6" class="lba-input" style="resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label class="lba-label">World / setting <span class="lba-hint">— ⚠️ keep this spoiler-free. Shown to players in the new campaign's Lore tab.</span></label>
+                <textarea id="lbaWorldInput" rows="5" class="lba-input" style="resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label class="lba-label">Homebrew notes <span class="lba-hint">— optional, private. If this leans on custom abilities/rules, note it here; the actual custom data already lives on the NPC sheets you pick below.</span></label>
+                <textarea id="lbaHomebrewInput" rows="2" class="lba-input" style="resize:vertical;"></textarea>
+              </div>
+
+              <div>
+                <label class="lba-label">Side quests <span class="lba-hint">— private, Story Weaver only</span></label>
+                <div id="lbaSideQuestList" style="display:flex; flex-direction:column; gap:6px;"></div>
+                <button type="button" class="btn-secondary btn" style="font-size:0.78rem; padding:4px 10px; margin-top:4px;" onclick="addLbaSideQuestRow()">+ Add side quest</button>
+              </div>
+
+              <div>
+                <label class="lba-label">Core NPCs <span class="lba-hint">— cloned in full (stats + abilities) when someone starts a campaign from this</span></label>
+                <div id="lbaNpcPicker" style="max-height:140px; overflow-y:auto; border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:8px;">
+                  <div style="color:var(--text-muted); font-size:0.8rem;">Loading NPCs…</div>
+                </div>
+              </div>
+              <div>
+                <label class="lba-label">Core items <span class="lba-hint">— from your loot pool</span></label>
+                <div id="lbaItemPicker" style="max-height:120px; overflow-y:auto; border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:8px;">
+                  <div style="color:var(--text-muted); font-size:0.8rem;">Loading items…</div>
+                </div>
+              </div>
+
+              <div class="toggle-row" style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="lbaIsPublicInput" style="width:auto; accent-color:#d4af37;">
+                <label for="lbaIsPublicInput" style="margin:0; font-size:0.85rem;">Publish publicly to LBA (window-shopping teaser only — full story requires login, and players must explicitly click through a spoiler warning)</label>
+              </div>
+
+              <div style="display:flex; gap:10px; justify-content:space-between; align-items:center;">
+                <button type="button" id="lbaDeleteBtn" class="btn-secondary btn" style="font-size:0.8rem; color:var(--accent-danger); display:none;" onclick="deleteLbaPackage()">Delete</button>
+                <div style="display:flex; gap:10px; margin-left:auto;">
+                  <button type="button" class="btn-secondary btn" onclick="closeLbaEditor()">Cancel</button>
+                  <button type="button" class="btn" id="lbaSaveBtn" onclick="saveLbaPackage()">Save</button>
+                </div>
               </div>
             </div>
           </div>
@@ -8440,6 +8565,198 @@
         });
         if (!resp.ok && resp.status !== 204) { const e = await resp.json(); throw new Error(e.detail); }
         // WS lore_deleted will update all clients
+      } catch (e) {
+        showPanelToast(`Delete failed: ${e.message}`, 'error');
+      }
+    }
+
+    // ===================================================================
+    // LBA ("Lore for the Bad-Ass" / "Lore for Being Awesome") — authoring
+    // ===================================================================
+    let _lbaEditingId = null;
+    let _lbaLootPool = [];
+
+    function openLbaAuthorModal() {
+      if (!isSW()) { showPanelToast('Only the Story Weaver can publish to LBA.', 'error'); return; }
+      document.getElementById('lbaListModal').classList.add('active');
+      loadLbaPackages();
+    }
+    function closeLbaListModal() {
+      document.getElementById('lbaListModal').classList.remove('active');
+    }
+
+    async function loadLbaPackages() {
+      const list = document.getElementById('lbaPackageList');
+      try {
+        const resp = await fetch('/api/lba/packages/mine', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (!resp.ok) throw new Error('Failed to load');
+        const packages = await resp.json();
+        if (!packages.length) {
+          list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:16px;font-size:0.85rem;">No packages yet — click + New Package to write your first one.</div>';
+          return;
+        }
+        list.innerHTML = packages.map(p => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border-color);border-radius:var(--radius-sm);">
+            <div style="min-width:0;">
+              <div style="font-weight:600;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(p.title)}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);">${p.is_public ? '🌐 Public' : '🔒 Draft'} · ${p.adoption_count} adopted · ${p.view_count} views</div>
+            </div>
+            <button class="btn-secondary btn" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;" onclick="openLbaEditor('${p.id}')">Edit</button>
+          </div>`).join('');
+      } catch (e) {
+        list.innerHTML = '<div style="color:var(--accent-danger);text-align:center;padding:16px;font-size:0.85rem;">Could not load your packages.</div>';
+      }
+    }
+
+    function addLbaSideQuestRow(title = '', hook = '') {
+      const wrap = document.getElementById('lbaSideQuestList');
+      const row = document.createElement('div');
+      row.className = 'lba-side-quest-row';
+      row.innerHTML = `
+        <input type="text" placeholder="Quest title" maxlength="200" class="lba-input lba-sq-title" style="flex:1;" value="${escHtml(title)}">
+        <input type="text" placeholder="Hook" maxlength="500" class="lba-input lba-sq-hook" style="flex:2;" value="${escHtml(hook)}">
+        <button type="button" class="btn-icon" title="Remove" style="flex-shrink:0;color:var(--accent-danger);" onclick="this.parentElement.remove()"><i data-lucide="x" style="width:14px;height:14px;"></i></button>`;
+      wrap.appendChild(row);
+      if (window.lucide) lucide.createIcons({ el: row });
+    }
+
+    function _collectLbaSideQuests() {
+      return Array.from(document.querySelectorAll('#lbaSideQuestList .lba-side-quest-row')).map(row => ({
+        title: row.querySelector('.lba-sq-title').value.trim(),
+        hook: row.querySelector('.lba-sq-hook').value.trim(),
+      })).filter(sq => sq.title);
+    }
+
+    function renderLbaNpcPicker(selectedIds) {
+      const box = document.getElementById('lbaNpcPicker');
+      const npcs = campaignNPCs || [];  // already excludes objects/summons server-side
+      if (!npcs.length) {
+        box.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No NPCs in this campaign yet.</div>';
+        return;
+      }
+      box.innerHTML = npcs.map(n => `
+        <label class="lba-npc-item">
+          <input type="checkbox" value="${n.id}" ${selectedIds.includes(n.id) ? 'checked' : ''}>
+          ${escHtml(n.name)} <span style="color:var(--text-muted);">(Lvl ${n.level})</span>
+        </label>`).join('');
+    }
+
+    function renderLbaItemPicker(selectedIds) {
+      const box = document.getElementById('lbaItemPicker');
+      if (!_lbaLootPool.length) {
+        box.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No unassigned items in your loot pool.</div>';
+        return;
+      }
+      box.innerHTML = _lbaLootPool.map(i => `
+        <label class="lba-item-item">
+          <input type="checkbox" value="${i.id}" ${selectedIds.includes(i.id) ? 'checked' : ''}>
+          ${escHtml(i.name)} <span style="color:var(--text-muted);">(${i.item_type})</span>
+        </label>`).join('');
+    }
+
+    async function openLbaEditor(packageId) {
+      _lbaEditingId = packageId;
+      document.getElementById('lbaEditorTitle').textContent = packageId ? 'Edit LBA Package' : 'New LBA Package';
+      document.getElementById('lbaDeleteBtn').style.display = packageId ? '' : 'none';
+
+      let pkg = null;
+      if (packageId) {
+        try {
+          const resp = await fetch(`/api/lba/packages/${packageId}/edit`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+          if (resp.ok) pkg = await resp.json();
+        } catch (_) { /* fall through to blank form */ }
+      }
+
+      document.getElementById('lbaTitleInput').value = pkg ? pkg.title : '';
+      document.getElementById('lbaTaglineInput').value = pkg ? (pkg.tagline || '') : '';
+      document.getElementById('lbaFormatInput').value = pkg ? pkg.format : 'one_shot';
+      document.getElementById('lbaPartySizeInput').value = pkg ? (pkg.suggested_party_size || '') : '';
+      document.getElementById('lbaRatingInput').value = pkg ? pkg.content_rating : 'all_ages';
+      document.getElementById('lbaTagsInput').value = pkg ? (pkg.tags || []).join(', ') : '';
+      document.getElementById('lbaStoryInput').value = pkg ? (pkg.story_text || '') : '';
+      document.getElementById('lbaWorldInput').value = pkg ? (pkg.world_text || '') : '';
+      document.getElementById('lbaHomebrewInput').value = pkg ? (pkg.homebrew_note || '') : '';
+      document.getElementById('lbaIsPublicInput').checked = pkg ? !!pkg.is_public : false;
+
+      document.getElementById('lbaSideQuestList').innerHTML = '';
+      if (pkg) (pkg.side_quests || []).forEach(sq => addLbaSideQuestRow(sq.title, sq.hook));
+
+      const selectedNpcIds = pkg ? (pkg.core_npcs || []).map(n => n.id) : [];
+      const selectedItemIds = pkg ? (pkg.core_items || []).map(i => i.id) : [];
+      renderLbaNpcPicker(selectedNpcIds);
+
+      try {
+        const lootResp = await fetch(`/api/campaigns/${campaignId}/loot-pool`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (lootResp.ok) _lbaLootPool = (await lootResp.json()).items || [];
+      } catch (_) { _lbaLootPool = []; }
+      renderLbaItemPicker(selectedItemIds);
+
+      closeLbaListModal();
+      document.getElementById('lbaEditorModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeLbaEditor() {
+      document.getElementById('lbaEditorModal').classList.remove('active');
+      _lbaEditingId = null;
+    }
+
+    async function saveLbaPackage() {
+      const title = document.getElementById('lbaTitleInput').value.trim();
+      if (!title) { alert('Title is required.'); return; }
+
+      const checkedNpcIds = Array.from(document.querySelectorAll('#lbaNpcPicker input:checked')).map(el => el.value);
+      const checkedItemIds = Array.from(document.querySelectorAll('#lbaItemPicker input:checked')).map(el => el.value);
+
+      const payload = {
+        title,
+        tagline: document.getElementById('lbaTaglineInput').value.trim(),
+        format: document.getElementById('lbaFormatInput').value,
+        suggested_party_size: document.getElementById('lbaPartySizeInput').value || null,
+        content_rating: document.getElementById('lbaRatingInput').value,
+        tags: document.getElementById('lbaTagsInput').value.split(',').map(t => t.trim()).filter(Boolean),
+        story_text: document.getElementById('lbaStoryInput').value,
+        world_text: document.getElementById('lbaWorldInput').value,
+        homebrew_note: document.getElementById('lbaHomebrewInput').value,
+        side_quests: _collectLbaSideQuests(),
+        core_npc_character_ids: checkedNpcIds,
+        core_item_ids: checkedItemIds,
+        is_public: document.getElementById('lbaIsPublicInput').checked,
+      };
+
+      const btn = document.getElementById('lbaSaveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        const url = _lbaEditingId ? `/api/lba/packages/${_lbaEditingId}` : '/api/lba/packages';
+        const method = _lbaEditingId ? 'PATCH' : 'POST';
+        const resp = await fetch(url, {
+          method,
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail || 'Save failed'); }
+        closeLbaEditor();
+        showPanelToast('Package saved.', 'success');
+      } catch (e) {
+        showPanelToast(`Save failed: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      }
+    }
+
+    async function deleteLbaPackage() {
+      if (!_lbaEditingId) return;
+      if (!confirm('Delete this LBA package? This cannot be undone.')) return;
+      try {
+        const resp = await fetch(`/api/lba/packages/${_lbaEditingId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        if (!resp.ok && resp.status !== 204) { const e = await resp.json(); throw new Error(e.detail); }
+        closeLbaEditor();
+        showPanelToast('Package deleted.', 'success');
       } catch (e) {
         showPanelToast(`Delete failed: ${e.message}`, 'error');
       }

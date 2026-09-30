@@ -185,7 +185,8 @@ async def attach_request_id_and_auth(request: Request, call_next):
     # All routes that require JWT authentication (not API key)
     jwt_protected_routes = auth_paths | {
         "/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse", "/api/campaigns/join",
-        "/api/characters", "/api/notifications", "/api/upload", "/api/profile", "/api/achievements"
+        "/api/characters", "/api/notifications", "/api/upload", "/api/profile", "/api/achievements",
+        "/api/lba"
     }
 
     # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
@@ -342,6 +343,20 @@ try:
     logger.info("✅ Registered bonds_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register bonds_router: {e}")
+
+try:
+    from routes.lba import lba_router
+    application.include_router(lba_router, tags=["LBA"])
+    logger.info("✅ Registered lba_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register lba_router: {e}")
+
+try:
+    from routes.public_lba import public_lba_router
+    application.include_router(public_lba_router, tags=["LBA"])
+    logger.info("✅ Registered public_lba_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register public_lba_router: {e}")
 
 
 # Custom OpenAPI schema

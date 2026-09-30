@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LBA — TBA</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <script src="/js/auth-helper.js"></script>
+  <script src="/js/lucide.min.js"></script>
+  <style>
+    :root {
+      --bg:        #101219;
+      --bg-2:      #161a26;
+      --panel:     #1c2130;
+      --panel-2:   #232838;
+      --border:    #333a52;
+      --border-soft:#2a3048;
+      --gold:      #d4af37;
+      --gold-dim:  #9d7c2f;
+      --purple:    #a78bfa;
+      --orange:    #f97316;
+      --green:     #34d399;
+      --red:       #f87171;
+      --text:      #e7e9f0;
+      --text-mut:  #a2a7b8;
+      --text-dim:  #6a7086;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6;
+      -webkit-font-smoothing: antialiased; min-height: 100vh;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(16, 18, 25, 0.82); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-soft);
+    }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.04em; }
+    .brand img { width: 30px; height: 30px; border-radius: 7px; }
+    .brand span { font-size: 1.25rem; color: var(--gold); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 9px; font-weight: 700; font-size: 0.95rem;
+      cursor: pointer; border: 1px solid transparent; transition: transform .15s, background .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--gold); color: #14161f; }
+    .btn-primary:hover { background: #e6c14e; transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+    .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+    .page-head { padding: 40px 0 28px; }
+    .eyebrow {
+      display: inline-block; font-size: 0.8rem; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--gold); border: 1px solid var(--border); border-radius: 999px;
+      padding: 5px 14px; margin-bottom: 18px;
+    }
+    .page-head h1 { font-size: clamp(1.8rem, 4vw, 2.4rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
+    .page-head p { color: var(--text-mut); max-width: 62ch; font-size: 0.98rem; }
+
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 26px; position: relative; z-index: 10; }
+    .filter-bar input {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; color: var(--text);
+      padding: 8px 12px; font-size: 0.85rem; font-family: inherit;
+    }
+
+    /* Multi-select filter: a button that opens a checkbox panel. Checking
+       several options is OR logic (any match), not AND. */
+    .ms-filter { position: relative; }
+    .ms-filter-btn {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; color: var(--text);
+      padding: 8px 12px; font-size: 0.85rem; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .ms-filter-btn:hover { border-color: var(--gold); }
+    .ms-filter-count { color: var(--gold); font-weight: 700; }
+    .ms-filter-panel {
+      position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; min-width: 200px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px;
+      box-shadow: 0 20px 50px -20px rgba(0,0,0,0.7); max-height: 260px; overflow-y: auto;
+    }
+    .ms-filter-opt {
+      display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+      font-size: 0.85rem; cursor: pointer; white-space: nowrap;
+    }
+    .ms-filter-opt:hover { background: var(--panel-2); }
+    .ms-filter-opt input { accent-color: var(--gold); }
+
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; padding-bottom: 60px; }
+    .lba-card {
+      background: var(--panel); border: 1px solid var(--border-soft); border-radius: 14px; padding: 20px;
+      cursor: pointer; transition: border-color 0.15s, transform 0.15s;
+    }
+    .lba-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+    .lba-card h3 { font-size: 1.08rem; color: var(--text); margin-bottom: 6px; }
+    .lba-card .tagline { font-size: 0.85rem; color: var(--text-mut); margin-bottom: 12px; min-height: 2.3em; }
+    .lba-card .meta-row { display: flex; gap: 6px; flex-wrap: wrap; font-size: 0.7rem; }
+    .pill { background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.3); color: var(--gold); border-radius: 6px; padding: 3px 8px; }
+    .pill.rating-mature { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.3); color: var(--red); }
+    .lba-card .adoption { margin-top: 12px; font-size: 0.75rem; color: var(--text-dim); }
+
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(8,9,13,0.88); z-index: 100; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; max-width: 640px; width: 100%; padding: 28px;
+      box-shadow: 0 40px 90px -34px rgba(0,0,0,0.75);
+    }
+    .modal-box h2 { color: var(--gold); margin-bottom: 6px; font-size: 1.3rem; }
+    .modal-close { float: right; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1.3rem; }
+
+    .spoiler-gate { margin-top: 20px; padding: 18px; border: 1px dashed rgba(248,113,113,0.45); border-radius: 12px; background: rgba(248,113,113,0.06); text-align: center; }
+    .spoiler-gate p { font-size: 0.86rem; color: var(--red); margin-bottom: 12px; }
+
+    .full-section { margin-top: 18px; }
+    .full-section h4 { color: var(--gold); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; margin-top: 18px; }
+    .full-section p { font-size: 0.9rem; line-height: 1.65; white-space: pre-wrap; color: var(--text-mut); }
+    .npc-chip, .item-chip { display: inline-block; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 11px; font-size: 0.8rem; margin: 3px 4px 0 0; }
+    .quest-item { font-size: 0.86rem; margin-bottom: 10px; }
+    .quest-item b { color: var(--text); }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="/">
+        <img src="/icons/icon-192.png" alt="">
+        <span>LBA</span>
+      </a>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <a class="btn btn-ghost" href="/campaigns.html"><i data-lucide="arrow-left" style="width:15px;height:15px;"></i> Campaigns</a>
+        <div id="user-info"></div>
+      </div>
+    </div>
+  </nav>
+  <div class="wrap">
+    <div class="page-head">
+      <span class="eyebrow">Lore for the Bad-Ass / Lore for Being Awesome</span>
+      <h1>Find your next story</h1>
+      <p>Stories, characters, and encounters other Story Weavers have shared. Browse freely — full details, and starting your own campaign from one, need a free account.</p>
+    </div>
+
+  <div class="filter-bar">
+    <div id="filterFormat"></div>
+    <div id="filterPartySize"></div>
+    <div id="filterGenre"></div>
+    <div id="filterRating"></div>
+    <input type="text" id="filterTag" placeholder="Filter by tag…">
+  </div>
+
+  <div id="cardGrid" class="card-grid">
+    <div style="grid-column:1/-1;color:var(--text-mut);text-align:center;padding:30px;">Loading…</div>
+  </div>
+  </div>
+
+  <!-- Detail modal -->
+  <div id="detailOverlay" class="modal-overlay" onclick="if(event.target===this)closeDetail()">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeDetail()">&times;</button>
+      <h2 id="detailTitle"></h2>
+      <div id="detailTagline" style="color:var(--text-mut);font-size:0.9rem;margin-bottom:10px;"></div>
+      <div id="detailMetaRow" class="meta-row" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+
+      <div id="spoilerGate" class="spoiler-gate">
+        <p>⚠️ Full story details below are meant for Story Weavers prepping this, not players who might join it. Reveal anyway?</p>
+        <button class="btn btn-primary" onclick="revealFull()">Reveal full details</button>
+      </div>
+
+      <div id="fullContent" class="full-section" style="display:none;"></div>
+
+      <div id="startCampaignRow" style="margin-top:20px;display:none;">
+        <button class="btn btn-primary" onclick="startCampaignFromDetail()">Start Campaign from this</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let _currentEntryId = null;
+
+    function renderUserInfo() {
+      const el = document.getElementById('user-info');
+      if (typeof isLoggedIn === 'function' && isLoggedIn() && typeof displayUserInfo === 'function') {
+        displayUserInfo('user-info');
+      } else {
+        el.innerHTML = '<a href="/auth.html" style="color:var(--gold);font-size:0.9rem;">Log in</a>';
+      }
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    const FORMAT_LABELS = { one_shot: 'One-shot', short_arc: 'Short arc', ongoing_campaign: 'Ongoing campaign' };
+    const PARTY_LABELS = { solo: 'Solo (1)', small: 'Small (2-3)', medium: 'Medium (4-5)', large: 'Large (6+)' };
+    const RATING_LABELS = { all_ages: 'All ages', teen: 'Teen', mature: 'Mature' };
+    const GENRE_LABELS = {
+      fantasy: 'Fantasy', horror: 'Horror', scifi: 'Sci-Fi', mystery: 'Mystery',
+      political: 'Political', post_apocalyptic: 'Post-Apocalyptic', superhero: 'Superhero',
+      western: 'Western', steampunk: 'Steampunk', survival: 'Survival', comedy: 'Comedy',
+      slice_of_life: 'Slice of Life', other: 'Other',
+    };
+
+    // A button that opens a checkbox panel. Checking several options is OR
+    // logic (any match), not AND — same component used for all four filters.
+    function makeMultiSelectFilter(containerId, label, labelMap, onChange) {
+      const container = document.getElementById(containerId);
+      const selected = new Set();
+      container.innerHTML = `
+        <div class="ms-filter">
+          <button type="button" class="ms-filter-btn">${escHtml(label)} <span class="ms-filter-count"></span></button>
+          <div class="ms-filter-panel" hidden>
+            ${Object.entries(labelMap).map(([value, text]) => `
+              <label class="ms-filter-opt"><input type="checkbox" value="${value}"> ${escHtml(text)}</label>
+            `).join('')}
+          </div>
+        </div>`;
+      const btn = container.querySelector('.ms-filter-btn');
+      const panel = container.querySelector('.ms-filter-panel');
+      const countEl = container.querySelector('.ms-filter-count');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.ms-filter-panel').forEach(p => { if (p !== panel) p.hidden = true; });
+        panel.hidden = !panel.hidden;
+      });
+      // Clicking a checkbox/label inside the panel must not bubble to the
+      // document-level "close all panels" listener below — without this the
+      // panel slams shut the instant you check the first box.
+      panel.addEventListener('click', (e) => e.stopPropagation());
+      panel.querySelectorAll('input').forEach(cb => {
+        cb.addEventListener('change', () => {
+          if (cb.checked) selected.add(cb.value); else selected.delete(cb.value);
+          countEl.textContent = selected.size ? `(${selected.size})` : '';
+          onChange();
+        });
+      });
+      return { get values() { return Array.from(selected); } };
+    }
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.ms-filter-panel').forEach(p => { p.hidden = true; });
+    });
+
+    const formatFilter = makeMultiSelectFilter('filterFormat', 'Format', FORMAT_LABELS, () => loadEntries());
+    const partySizeFilter = makeMultiSelectFilter('filterPartySize', 'Party size', PARTY_LABELS, () => loadEntries());
+    const genreFilter = makeMultiSelectFilter('filterGenre', 'Genre', GENRE_LABELS, () => loadEntries());
+    const ratingFilter = makeMultiSelectFilter('filterRating', 'Rating', RATING_LABELS, () => loadEntries());
+    document.getElementById('filterTag').addEventListener('input', () => loadEntries());
+
+    function genrePillsHtml(genres) {
+      return (genres || []).map(g => `<span class="pill">${escHtml(GENRE_LABELS[g] || g)}</span>`).join('');
+    }
+
+    async function loadEntries() {
+      const grid = document.getElementById('cardGrid');
+      grid.innerHTML = '<div style="grid-column:1/-1;color:var(--text-mut);text-align:center;padding:30px;">Loading…</div>';
+      const params = new URLSearchParams();
+      formatFilter.values.forEach(v => params.append('format', v));
+      partySizeFilter.values.forEach(v => params.append('party_size', v));
+      genreFilter.values.forEach(v => params.append('genre', v));
+      ratingFilter.values.forEach(v => params.append('rating', v));
+      const tag = document.getElementById('filterTag').value.trim();
+      if (tag) params.set('tag', tag);
+
+      try {
+        const resp = await fetch(`/api/public/lba/entries?${params}`);
+        if (!resp.ok) throw new Error('Failed to load');
+        const entries = await resp.json();
+        if (!entries.length) {
+          grid.innerHTML = '<div style="grid-column:1/-1;color:var(--text-mut);text-align:center;padding:30px;">No public stories match yet.</div>';
+          return;
+        }
+        grid.innerHTML = entries.map(e => `
+          <div class="lba-card" onclick="openDetail('${e.id}')">
+            <h3>${escHtml(e.title)}</h3>
+            <div class="tagline">${escHtml(e.tagline || '')}</div>
+            <div class="meta-row">
+              <span class="pill">${FORMAT_LABELS[e.format] || e.format}</span>
+              ${e.suggested_party_size ? `<span class="pill">${PARTY_LABELS[e.suggested_party_size] || e.suggested_party_size}</span>` : ''}
+              <span class="pill ${e.content_rating === 'mature' ? 'rating-mature' : ''}">${RATING_LABELS[e.content_rating] || e.content_rating}</span>
+              ${genrePillsHtml(e.genres)}
+              ${(e.tags || []).slice(0, 3).map(t => `<span class="pill">${escHtml(t)}</span>`).join('')}
+            </div>
+            <div class="adoption"><i data-lucide="users" style="width:12px;height:12px;vertical-align:middle;"></i> ${e.adoption_count} adopted</div>
+          </div>`).join('');
+        if (window.lucide) lucide.createIcons({ el: grid });
+      } catch (e) {
+        grid.innerHTML = '<div style="grid-column:1/-1;color:var(--red);text-align:center;padding:30px;">Could not load stories.</div>';
+      }
+    }
+
+    async function openDetail(entryId) {
+      _currentEntryId = entryId;
+      document.getElementById('spoilerGate').style.display = 'block';
+      document.getElementById('fullContent').style.display = 'none';
+      document.getElementById('fullContent').innerHTML = '';
+      document.getElementById('startCampaignRow').style.display = 'none';
+
+      try {
+        const resp = await fetch(`/api/public/lba/entries/${entryId}`);
+        if (!resp.ok) throw new Error('Not found');
+        const e = await resp.json();
+        document.getElementById('detailTitle').textContent = e.title;
+        document.getElementById('detailTagline').textContent = e.tagline || '';
+        document.getElementById('detailMetaRow').innerHTML = `
+          <span class="pill">${FORMAT_LABELS[e.format] || e.format}</span>
+          ${e.suggested_party_size ? `<span class="pill">${PARTY_LABELS[e.suggested_party_size] || e.suggested_party_size}</span>` : ''}
+          <span class="pill ${e.content_rating === 'mature' ? 'rating-mature' : ''}">${RATING_LABELS[e.content_rating] || e.content_rating}</span>
+          ${genrePillsHtml(e.genres)}
+          ${(e.tags || []).map(t => `<span class="pill">${escHtml(t)}</span>`).join('')}`;
+      } catch (err) {
+        document.getElementById('detailTitle').textContent = 'Not found';
+      }
+
+      document.getElementById('detailOverlay').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeDetail() {
+      document.getElementById('detailOverlay').classList.remove('active');
+      _currentEntryId = null;
+    }
+
+    async function revealFull() {
+      if (!_currentEntryId) return;
+      const token = typeof getAuthToken === 'function' ? getAuthToken() : null;
+      if (!token) {
+        if (confirm('Log in to reveal the full story and start a campaign from it?')) {
+          window.location.href = '/auth.html';
+        }
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/lba/packages/${_currentEntryId}/full`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!resp.ok) throw new Error('Could not load full details');
+        const e = await resp.json();
+
+        const npcHtml = (e.core_npcs || []).map(n => `<span class="npc-chip">${escHtml(n.name)} (Lvl ${n.level})</span>`).join('') || '<span style="color:var(--text-dim);font-size:0.85rem;">None listed</span>';
+        const itemHtml = (e.core_items || []).map(i => `<span class="item-chip">${escHtml(i.name)}</span>`).join('') || '<span style="color:var(--text-dim);font-size:0.85rem;">None listed</span>';
+        const questHtml = (e.side_quests || []).map(sq => `<div class="quest-item"><b>${escHtml(sq.title)}</b><br>${escHtml(sq.hook)}</div>`).join('') || '<span style="color:var(--text-dim);font-size:0.85rem;">None listed</span>';
+
+        document.getElementById('fullContent').innerHTML = `
+          ${e.homebrew_note ? `<h4>Homebrew</h4><p>${escHtml(e.homebrew_note)}</p>` : ''}
+          <h4>Story</h4><p>${escHtml(e.story_text || '')}</p>
+          <h4>World</h4><p>${escHtml(e.world_text || '')}</p>
+          <h4>Core NPCs</h4><div>${npcHtml}</div>
+          <h4>Core Items</h4><div>${itemHtml}</div>
+          <h4>Side Quests</h4><div>${questHtml}</div>`;
+        document.getElementById('fullContent').style.display = 'block';
+        document.getElementById('spoilerGate').style.display = 'none';
+        document.getElementById('startCampaignRow').style.display = 'block';
+      } catch (err) {
+        alert('Could not load full details: ' + err.message);
+      }
+    }
+
+    async function startCampaignFromDetail() {
+      if (!_currentEntryId) return;
+      const token = typeof getAuthToken === 'function' ? getAuthToken() : null;
+      if (!token) { window.location.href = '/auth.html'; return; }
+      if (!confirm('Start a brand-new campaign from this story? You\'ll become its Story Weaver, and NPCs/items will be copied into your own campaign.')) return;
+      try {
+        const resp = await fetch(`/api/lba/packages/${_currentEntryId}/start-campaign`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail || 'Failed'); }
+        const data = await resp.json();
+        window.location.href = `/game.html?campaign_id=${data.campaign_id}`;
+      } catch (err) {
+        alert('Could not start campaign: ' + err.message);
+      }
+    }
+
+    renderUserInfo();
+    loadEntries();
+    if (window.lucide) lucide.createIcons();
+  </script>
+</body>
+</html>

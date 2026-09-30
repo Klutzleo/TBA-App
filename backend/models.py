@@ -698,6 +698,67 @@ class LoreEntry(Base):
         return f"<LoreEntry(id={str(self.id)[:8]}..., title='{self.title[:30]}')>"
 
 
+# Dropdown option lists for LbaPackage — plain strings backed by one central list
+# each (here + the matching list in routes/lba.py), not a DB enum, so adding a new
+# option later is a one-line code edit, never a migration. Same pattern already used
+# throughout this file (Character.status, LoreEntry.entry_type, etc.)
+LBA_FORMATS = ("one_shot", "short_arc", "ongoing_campaign")
+LBA_PARTY_SIZES = ("solo", "small", "medium", "large")
+LBA_CONTENT_RATINGS = ("all_ages", "teen", "mature")
+LBA_GENRES = (
+    "fantasy", "horror", "scifi", "mystery", "political", "post_apocalyptic",
+    "superhero", "western", "steampunk", "survival", "comedy", "slice_of_life",
+    "other",
+)
+
+
+class LbaPackage(Base):
+    """LBA ("Lore for the Bad-Ass" / "Lore for Being Awesome") — a publishable,
+    structured story package: real linked NPCs/items (not copied text), not a
+    flat note. See plan doc for full design. Unrelated to LoreEntry above —
+    that stays the private per-campaign notes tab; this is its own thing.
+
+    Visibility is two-tiered (see routes/lba.py / routes/public_lba.py):
+    teaser fields are public with no login ("window shopping"); story_text,
+    world_text, core_npc_character_ids, core_item_ids, side_quests and
+    attachments require login to read, behind an explicit spoiler
+    click-through in the UI. is_public alone doesn't change what's *served*
+    for the full tier — it only controls whether the entry shows up at all."""
+    __tablename__ = "lba_packages"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    author_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    co_author_user_ids = Column(JSONB, nullable=False, default=list)
+
+    # Teaser tier — public, no login required
+    title = Column(String(200), nullable=False)
+    tagline = Column(String(300), nullable=True)
+    format = Column(String(20), nullable=False, default="one_shot")  # see LBA_FORMATS
+    suggested_party_size = Column(String(20), nullable=True)  # see LBA_PARTY_SIZES
+    content_rating = Column(String(20), nullable=False, default="all_ages")  # see LBA_CONTENT_RATINGS
+    genres = Column(JSONB, nullable=False, default=list)  # multi-value, see LBA_GENRES
+    tags = Column(JSONB, nullable=False, default=list)
+    is_public = Column(Boolean, nullable=False, default=False, server_default="false")
+    view_count = Column(Integer, nullable=False, default=0, server_default="0")
+    adoption_count = Column(Integer, nullable=False, default=0, server_default="0")
+
+    # Full tier — requires login to read (enforced in routes/lba.py, not here)
+    homebrew_note = Column(Text, nullable=True)
+    story_text = Column(Text, nullable=True)
+    world_text = Column(Text, nullable=True)
+    core_npc_character_ids = Column(JSONB, nullable=False, default=list)
+    core_item_ids = Column(JSONB, nullable=False, default=list)
+    side_quests = Column(JSONB, nullable=False, default=list)  # [{title, hook}]
+    attachments = Column(JSONB, nullable=False, default=list)  # [{url, filename, type}]
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<LbaPackage(id={str(self.id)[:8]}..., title='{self.title[:30]}')>"
+
+
 class MemoryEcho(Base):
     """Permanent record of a fallen character's final act."""
     __tablename__ = "memory_echoes"
