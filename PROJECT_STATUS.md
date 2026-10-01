@@ -2,9 +2,9 @@
 phase: active
 priority: high
 category: app
-progress: 82
-focus: "Post-launch polish shipped; LBA (content-sharing platform) Stage 0 built and verified end-to-end"
-next_milestone: "Ship LBA Stage 0 to prod, then pick up GO ID scoping or another growth feature once real content/usage data exists"
+progress: 83
+focus: "LBA Stage 0 shipped. Deliberately pausing growth features — Ascension is next, then a possible rules revision, then LBA Stage 0.5"
+next_milestone: "Ascension levels 11-15, once Jason's NPC/Ally leveling write-up is ready"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -48,11 +48,27 @@ Growth direction: Jason is thinking bigger than just TBA — a shared cross-game
 - ✅ Email digest notifications (Sep 2026) — your-turn / @mention, max twice a day (9am/6pm ET), skips anyone already online or already-seen, live-revalidates "your turn" before sending, 2-day staleness cutoff, opt-out toggle + one-click unsubscribe. Live in prod as of 2026-09-29 (the Railway platform incident that briefly queued the deploy resolved; confirmed via `railway deployment list`).
 - ✅ Bug/security audit (2026-09-29) over everything since the last documented security pass — found and fixed a High-severity account-takeover hole in the digest's unsubscribe token (was signed with the same key as real login tokens, no expiry; confirmed via a read-only prod query that it was never actually exploited — no digest had sent a real token yet), plus 6 more real correctness bugs (a Postgres-only naive/aware datetime crash that would have silently killed the whole digest feature, a notification-trim data-loss bug, a public-profile privacy leak, a tether-PATCH crash risk, and two initiative-round-counter bugs). See memory `email-digest-notifications.md` / `bug-audit-cadence.md` for full detail. Also worked through the audit's lower-priority reuse/simplification/efficiency findings the same session.
 - ✅ Ally auto-Combo (2026-09-29) — `create_ally` now auto-creates the Bond between a character and their new Ally (the mechanism a Combo actually needs), matching the rulebook's "get one Combo automatically at creation." `combo_name` stays blank for the SW to fill in later via the existing bond-update endpoint, same as any other bond.
-- ✅ LBA Stage 0 (2026-09-30) — "Lore for the Bad-Ass / Lore for Being Awesome": SWs write structured, taggable story packages (`LbaPackage`) — title/tagline/format/party-size/content-rating/tags, plus real linked NPCs (with abilities) and items, side quests, story/world text. Two visibility tiers: a public no-login "window shopping" teaser (`routes/public_lba.py`, `static/lba.html`) and a login-gated full tier behind an explicit spoiler click-through ("Story Weaver, not player" — real public content can't be technically spoiler-proofed, same as a published adventure module). **Start Campaign** is the real feature: clones the package's NPCs (with their abilities — the detail that makes a clone actually runnable), clones items, seeds the new campaign's SW notes with story/side-quests/homebrew (private) and the Lore tab with world text only (spoiler-free, all members can read it — this split was deliberately corrected mid-build after realizing the Lore tab isn't SW-only), and increments `adoption_count` — the real popularity signal, not raw page views. Authoring UI lives in `game.html` (header menu → Publish to LBA). Verified via 10 new automated tests (85 total passing) plus a full real-browser run of the actual anonymous→login→reveal→Start-Campaign flow. Not yet deployed to prod.
+- ✅ LBA Stage 0 (2026-09-30, pushed 2026-10-01) — "Lore for the Bad-Ass / Lore for Being Awesome": SWs write structured, taggable story packages (`LbaPackage`) — title/tagline/format/party-size/content-rating/genre (multi-select)/tags, plus real linked NPCs (with abilities) and items, side quests, story/world text. Two visibility tiers: a public no-login "window shopping" teaser (`routes/public_lba.py`, `static/lba.html`) and a login-gated full tier behind an explicit spoiler click-through ("Story Weaver, not player" — real public content can't be technically spoiler-proofed, same as a published adventure module). **Start Campaign** is the real feature: clones the package's NPCs (with their abilities — the detail that makes a clone actually runnable), clones items, seeds the new campaign's SW notes with story/side-quests/homebrew (private) and the Lore tab with world text only (spoiler-free, all members can read it — this split was deliberately corrected mid-build after realizing the Lore tab isn't SW-only), and increments `adoption_count` — the real popularity signal, not raw page views. Authoring UI lives in `game.html` (header menu → Publish to LBA); public page restyled to genuinely match the real landing page's design tokens. Verified via 11 new automated tests (76 total passing) plus full real-browser runs of the anonymous→login→reveal→Start-Campaign flow and the multi-select filter UI.
+
+## Deliberate sequencing decision (2026-10-01)
+LBA Stage 0.5 (Lore Builder, campaign-less authoring, cloning/attribution,
+NPC/PC-level publishing, moderation) is fully designed — see the plan doc,
+`C:\Users\jgermino\.claude\plans\hashed-seeking-pudding.md` — but
+**deliberately not being built next**. Reasoning, from Jason directly: TBA
+is still in testing, not promoted, and the ruleset isn't final (Ascension
++ a possible broader rules revision are still ahead). Publishing/sharing
+content now, before rules settle, risks that content going stale the
+moment mechanics change — weakens LBA's "clone something that actually
+works" promise. **Order: Ascension → possible rules revision → LBA Stage
+0.5.** Don't resume LBA work until Ascension (and any rules revision) is
+done, even if it's tempting to — this was an explicit, reasoned call, not
+a drop.
 
 ## Next up
-- [ ] LBA Stage 1 — lightweight reactions, SW/admin-curated "featured" picks, character-concept browser. Gate: ~25-50 published entries (soft, not a hard wall — real demand overrides the number).
-- [ ] Ascension levels 11-15 — rules locked for PCs; on hold pending Jason's write-up on whether NPCs/Allies also go past 10 (Allies have their own separate, lower stat table that doesn't extend without new numbers). Also: Triple Combo's level gate is `== 10` in both `campaign_websocket.py` and `game.html` — needs to become `>= 10` whenever Ascension ships, or an Ascended character loses Triple Combo the moment they level past 10.
+- [ ] **Ascension levels 11-15 — next up.** Rules locked for PCs; on hold pending Jason's write-up on whether NPCs/Allies also go past 10 (Allies have their own separate, lower stat table that doesn't extend without new numbers). Also: Triple Combo's level gate is `== 10` in both `campaign_websocket.py` and `game.html` — needs to become `>= 10` whenever Ascension ships, or an Ascended character loses Triple Combo the moment they level past 10. Full technical inventory already done, see plan doc.
+- [ ] Possible broader rules revision — mentioned 2026-10-01, no detail yet, Jason to scope whenever ready.
+- [ ] LBA Stage 0.5 — Lore Builder, cloning/attribution, NPC/PC-level publishing, moderation. Fully designed in the plan doc, deliberately paused — see sequencing decision above.
+- [ ] LBA Stage 1 — lightweight reactions, SW/admin-curated "featured" picks, character-concept browser. Gate: ~25-50 published entries (soft, not a hard wall — real demand overrides the number). Comes after Stage 0.5, not before.
 - [ ] Social & friends — follow players, friend activity feed
 - [ ] GO ID — cross-game identity + achievement trophy case spanning GameOctane's projects (TBA, a Godot RPG, FlipperRPG, others still early). Discord becomes one optional *linked* identity (server role while in a live session, DM notifications), never a login method. Concept stage only — see "Strategic picture" above.
 - [ ] Age-gated experience — dual-mode (Tools for the Bad Ass / Tools for Being Awesome)
@@ -71,11 +87,23 @@ Growth direction: Jason is thinking bigger than just TBA — a shared cross-game
 Nothing hard blocking. Ascension is blocked on Jason's NPC/Ally leveling design (not a technical blocker). GO ID is concept-stage, blocked on nothing but scoping time. Everything else is ordinary implementation work.
 
 ## Resume here
-LBA Stage 0 is built, tested, and not yet deployed — commit + push is the immediate next step once Jason gives the go-ahead. After that: let real usage accumulate before touching Stage 1 (gate is ~25-50 published entries, soft). Ascension resumes once Jason shares his NPC/Ally leveling write-up — see the Called-status gaps above for optional cleanup that could be folded into whichever session touches Bonds/Calling code next.
+**Ascension levels 11-15 is next** — do not jump to LBA Stage 0.5 even
+though it's fully designed, see the sequencing decision above. Resume once
+Jason shares his NPC/Ally leveling write-up; full technical inventory
+(every level-10-cap site in the codebase) is already done in the plan doc,
+so that session should move straight from his design doc to a file-by-file
+plan, not need to re-research the codebase.
 
-First file to open: `routes/lba.py` if resuming LBA work; otherwise depends which growth feature gets picked up next.
+First file to open: none yet — waiting on Jason's Ascension write-up.
 
 ## Last session
+2026-10-01: Pushed LBA Stage 0 to `main`. Designed Stage 0.5 (Lore Builder,
+cloning/attribution, NPC/PC-level publishing, moderation) in full, including
+a security/bug-risk pass per Jason's explicit request — see the plan doc.
+Then deliberately decided *not* to build it next — see "Deliberate
+sequencing decision" above. Order going forward: Ascension → possible rules
+revision → LBA Stage 0.5.
+
 2026-09-30: Built LBA Stage 0 — see "What's shipped" above and the plan doc (`C:\Users\jgermino\.claude\plans\hashed-seeking-pudding.md`, LBA section) for the full staged roadmap (Stage 1 curation, Stage 2 social/spectating, Stage 3 monetization, and a separate ungated AI-Game-Master track). Scope grew substantially through live back-and-forth with Jason before any code was written — worth reading the plan doc's revision history for why the data model ended up shaped the way it did (structured fields over freeform prose, real linked NPCs/items over copied text, the story-vs-lore visibility split caught and fixed mid-build). Verified end-to-end via real Playwright browser runs, not just unit tests.
 
 2026-09-29: Shipped email digest notifications (your-turn/@mention, max 2/day, live turn-revalidation, opt-out), then a bug/security audit over everything since the last security pass (found + fixed a High-severity account-takeover hole plus 6 more correctness bugs — see memory `email-digest-notifications.md` for full detail), then Ally auto-Combo. Adopted a standing practice going forward (memory `bug-audit-cadence.md`): adversarial self-review while writing code that touches auth/tokens, new endpoints, data visibility, Postgres-vs-SQLite-sensitive code, or shared invariants — not just an after-the-fact audit — plus a before/after report for each such change so Jason can see what was actually checked. Also discussed and roughed out "GO ID," a cross-game identity/achievement concept spanning GameOctane's game portfolio (see "Strategic picture") — concept stage, not scoped.
