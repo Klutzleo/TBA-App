@@ -2219,6 +2219,10 @@
     .init-slim.waiting { opacity: 0.6; }
     .init-slim .is-name { min-width: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: var(--text-secondary); font-weight: 600; font-size: 0.86rem; }
     .init-slim .is-tag { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; color: var(--text-muted); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 5px; }
+    .init-slim .is-dp { flex-basis: 100%; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+    .init-slim .is-dp-track { flex: 1; height: 6px; background: var(--bg-tertiary, #2a2f3a); border-radius: 3px; overflow: hidden; }
+    .init-slim .is-dp-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+    .init-slim .is-dp-num { font-size: 0.68rem; font-weight: 400; color: var(--text-muted); white-space: nowrap; }
     .init-slim .is-sub { color: var(--text-muted); font-size: 0.72rem; font-weight: 400; }
     .init-slim .is-pips { color: var(--accent-primary); letter-spacing: 2px; font-size: 0.8rem; }
     .init-slim .is-x { background: none; border: none; cursor: pointer; color: #ef4444; opacity: 0.6; width: 30px; height: 30px; display: grid; place-items: center; }
@@ -5921,6 +5925,21 @@
       }
     }
 
+    // Refetch just the NPC list and repaint the turn order, so NPC DP bars follow combat.
+    // (Unlike loadBubbleBar this never touches activeSpeaker, so puppeting survives.)
+    let _npcDpRefreshTimer = null;
+    function refreshNpcDpBars() {
+      clearTimeout(_npcDpRefreshTimer);
+      _npcDpRefreshTimer = setTimeout(async () => {
+        try {
+          const r = await fetch(`/api/campaigns/${campaignId}/npcs`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+          if (!r.ok) return;
+          campaignNPCs = await r.json();
+          if (currentInitiativeOrder.length) renderPartyList();
+        } catch (_) { /* silent */ }
+      }, 400);
+    }
+
     // Render the bubble bar
     function renderBubbleBar() {
       const bubbleBar = document.getElementById('bubbleBar');
@@ -9163,6 +9182,18 @@
         sub = `<span class="is-sub">${escHtml(roll.summoner_name || '?')}</span>`
           + `<span class="is-pips" style="${filled > 0 ? '' : 'color:#6b7280;'}">${'●'.repeat(Math.max(0, filled))}${'○'.repeat(Math.max(0, total - filled))}</span>`;
       }
+      // SW-only DP bar for NPCs (summons already show pips). Prefer the live NPC list,
+      // fall back to the DP carried on the initiative roll itself.
+      let dpBar = '';
+      if (isSW() && !roll.is_summon) {
+        const live = roll.character_id ? (campaignNPCs || []).find(n => String(n.id) === String(roll.character_id)) : null;
+        const dp = live ? live.dp : roll.dp;
+        const maxDp = live ? live.max_dp : roll.max_dp;
+        if (dp != null && maxDp) {
+          const st = getDPBarStyle(dp, maxDp);
+          dpBar = `<span class="is-dp"><span class="is-dp-track"><span class="is-dp-fill" style="display:block;width:${st.width};background:${st.background};"></span></span><span class="is-dp-num">${dp}/${maxDp}</span></span>`;
+        }
+      }
       row.innerHTML = `
         ${chip}
         <span class="is-name">${escHtml(roll.name)}
@@ -9171,6 +9202,7 @@
           ${isActive ? '<span class="pill pill-now">Now</span>' : ''}
           ${roll.waiting ? '<span class="is-sub">waiting…</span>' : ''}
           ${sub}
+          ${dpBar}
         </span>
         <button class="is-x" title="${roll.is_summon ? 'Dismiss summon' : 'Remove from initiative'}" aria-label="${roll.is_summon ? 'Dismiss summon' : 'Remove from initiative'}"><i data-lucide="x" style="width:14px;height:14px;"></i></button>`;
       row.querySelector('.is-x').addEventListener('click', (e) => {
@@ -13605,6 +13637,7 @@
               }
               storeAndDisplayMessage(container, data);
             } else if (data.type === 'combat_result') {
+              if (userRole === 'SW') refreshNpcDpBars();
               // Combat result display
               const container = document.createElement('div');
               container.className = 'message-card message-combat';
