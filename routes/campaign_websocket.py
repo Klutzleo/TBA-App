@@ -1777,17 +1777,27 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             name = m.group(1) if m.group(1) else m.group(2).replace('_', ' ')
             target_names.append(name)
 
-        # Get caster's character (PC lookup by user_id, or SW-overridden NPC/puppeted PC via speaker_id)
-        if cmd.speaker_id and cmd.speaker_type in ('npc', 'pc'):
-            if not await is_story_weaver(campaign_id, user_id, db):
-                await manager.broadcast(campaign_id, {
-                    "type": "system",
-                    "text": "❌ Only the Story Weaver can cast abilities as another character"
-                })
-                return
+        # Get caster's character. The client sends speaker_id for whoever is the active
+        # speaker, which for a normal player is their OWN character, so that must be allowed.
+        # Casting as anyone else (NPC, ally, puppeted PC) is Story Weaver only, and the
+        # target must belong to this campaign.
+        caster = None
+        if cmd.speaker_id and cmd.speaker_type in ('npc', 'pc', 'puppet', 'ally'):
+            try:
+                speaker_uuid = UUID(str(cmd.speaker_id))
+            except (ValueError, AttributeError):
+                speaker_uuid = None
             caster = db.query(Character).filter(
-                Character.id == cmd.speaker_id
-            ).first()
+                Character.id == speaker_uuid,
+                Character.campaign_id == campaign_id
+            ).first() if speaker_uuid else None
+            if caster and str(caster.user_id) != str(user_id):
+                if not await is_story_weaver(campaign_id, user_id, db):
+                    await manager.broadcast(campaign_id, {
+                        "type": "system",
+                        "text": "❌ Only the Story Weaver can cast abilities as another character"
+                    })
+                    return
         else:
             caster = db.query(Character).filter(
                 Character.user_id == str(user_id)
