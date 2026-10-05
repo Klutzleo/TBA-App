@@ -34,14 +34,14 @@ def world():
         db.commit()
         return u
 
-    sw, p1, p2 = user("sw"), user("p1"), user("p2")
+    sw, p1, p2, p3 = user("sw"), user("p1"), user("p2"), user("p3")
     camp = Campaign(id=uuid.uuid4(), name="Cast test", description="x", created_by_user_id=sw.id,
                     created_by_id=str(sw.id), story_weaver_id=sw.id)
     other = Campaign(id=uuid.uuid4(), name="Elsewhere", description="x", created_by_user_id=sw.id,
                      created_by_id=str(sw.id), story_weaver_id=sw.id)
     db.add_all([camp, other])
     db.commit()
-    for u, role in ((sw, "story_weaver"), (p1, "player"), (p2, "player")):
+    for u, role in ((sw, "story_weaver"), (p1, "player"), (p2, "player"), (p3, "player")):
         db.add(CampaignMembership(id=uuid.uuid4(), campaign_id=camp.id, user_id=u.id, role=role))
     db.commit()
 
@@ -57,14 +57,15 @@ def world():
         db.commit()
         return c
 
-    data = dict(camp=camp, sw=sw, p1=p1, p2=p2,
+    data = dict(camp=camp, sw=sw, p1=p1, p2=p2, p3=p3,
+                p3_elsewhere_pc=pc(p3, other, "P3 Elsewhere"),
                 p1_pc=pc(p1, camp, "Beef"), p2_pc=pc(p2, camp, "Giy"),
                 foreign_pc=pc(p2, other, "Elsewhere PC"))
     yield data, db
     db.close()
 
 
-def cast(world, user, speaker_id, speaker_type):
+def cast(world, user, speaker_id, speaker_type, command="/hammer"):
     from routes import campaign_websocket as cw
     data, db = world
     sent = []
@@ -75,7 +76,7 @@ def cast(world, user, speaker_id, speaker_type):
     original = cw.manager.broadcast
     cw.manager.broadcast = fake_broadcast
     try:
-        payload = {"type": "ability_cast", "raw_command": "/hammer"}
+        payload = {"type": "ability_cast", "raw_command": command}
         if speaker_id:
             payload.update(speaker_id=str(speaker_id), speaker_type=speaker_type)
         asyncio.run(cw.handle_ability_cast(data["camp"].id, payload, None, user.id, db))
@@ -109,3 +110,11 @@ def test_character_from_another_campaign_is_not_castable_even_by_the_sw(world):
     out = cast(world, data["sw"], data["foreign_pc"].id, "pc")
     assert "no uses remaining" not in out
     assert "need a character" in out
+
+
+def test_cast_without_speaker_id_ignores_characters_from_other_campaigns(world):
+    """p3's only character lives in another campaign. Casting here with no speaker_id must
+    say they have no character, not quietly cast as the one from elsewhere."""
+    data, _ = world
+    out = cast(world, data["p3"], None, None)
+    assert "need a character" in out, out

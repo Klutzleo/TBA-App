@@ -5875,8 +5875,12 @@
             campaignNPCs = await response.json();
           }
 
-          // SW starts with Narrator as active speaker
-          activeSpeaker = { id: null, name: 'Story Weaver', type: 'narrator' };
+          // SW starts with Narrator as active speaker; a reload (damage, heal, ...) must not
+          // knock them out of a puppet/NPC they picked, unless that NPC no longer exists.
+          const _s = activeSpeaker;
+          const _keep = _s && (_s.type === 'narrator' || _s.type === 'puppet' || _s.type === 'ally'
+            || (_s.type === 'npc' && campaignNPCs.some(n => String(n.id) === String(_s.id))));
+          if (!_keep) activeSpeaker = { id: null, name: 'Story Weaver', type: 'narrator' };
         } else if (userRole === 'Spectator') {
           // Spectator: no character loaded, chat as username
           activeSpeaker = null;
@@ -5895,8 +5899,12 @@
 
             // Set first PC as active speaker
             const pc = playerCharacters.find(c => !c.is_ally);
-            if (pc) {
+            // Keep the player's current pick (e.g. their Ally) across reloads while it still exists
+            const _stillMine = activeSpeaker && playerCharacters.some(c => String(c.id) === String(activeSpeaker.id));
+            if (pc && !_stillMine) {
               activeSpeaker = { id: pc.id, name: pc.name, type: 'pc' };
+            }
+            if (pc) {
               // If character is in The Calling (e.g. player joined late), auto-open modal
               if (pc.in_calling) {
                 openCallingModal(pc.id, pc.name, pc.dp, pc.ip, pc.sp, pc.edge || 0, pc.times_called || 0);

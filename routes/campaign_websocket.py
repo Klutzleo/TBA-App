@@ -1800,7 +1800,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     return
         else:
             caster = db.query(Character).filter(
-                Character.user_id == str(user_id)
+                Character.user_id == str(user_id),
+                Character.campaign_id == campaign_id
             ).first()
 
         if not caster:
