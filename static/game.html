@@ -3166,6 +3166,7 @@
         <div id="puppetBanner" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:rgba(167,139,250,0.12);border-bottom:1px solid rgba(167,139,250,0.3);font-size:0.8rem;color:#a78bfa;">
           <i data-lucide="drama" style="width:14px;height:14px;flex-shrink:0;"></i>
           <span id="puppetBannerText" style="flex:1;"></span>
+          <button id="puppetInitBtn" onclick="puppetRollInitiative()" style="display:none;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);border-radius:5px;color:#93c5fd;font-size:0.75rem;font-weight:700;padding:2px 10px;cursor:pointer;">Roll initiative</button>
           <button onclick="setActiveSpeaker({ id: null, name: 'Story Weaver', type: 'narrator' })" style="background:none;border:1px solid rgba(167,139,250,0.4);border-radius:5px;color:#a78bfa;font-size:0.75rem;padding:2px 8px;cursor:pointer;">Stop puppeting</button>
         </div>
 
@@ -6241,8 +6242,23 @@
         document.getElementById('puppetBannerText').textContent =
           `Puppeting ${activeSpeaker.name} — mechanics only (attack/cast/pp/ip/sp/initiative). Chat is disabled while puppeting.`;
         banner.style.display = 'flex';
+        // Offer an initiative roll while an encounter is running and this PC isn't in the order yet
+        const initBtn = document.getElementById('puppetInitBtn');
+        if (initBtn) {
+          const inOrder = (currentInitiativeOrder || []).some(r => String(r.character_id) === String(activeSpeaker.id));
+          initBtn.style.display = (currentInitiativeOrder.length && !inOrder) ? '' : 'none';
+          initBtn.disabled = false; initBtn.textContent = 'Roll initiative';
+        }
       } else {
         banner.style.display = 'none';
+      }
+    }
+
+    function puppetRollInitiative() {
+      if (!activeSpeaker || activeSpeaker.type !== 'puppet') return;
+      if (sendWs({ type: 'initiative_command', raw_command: '/initiative', speaker_id: activeSpeaker.id })) {
+        const b = document.getElementById('puppetInitBtn');
+        if (b) { b.disabled = true; b.textContent = 'Rolling…'; }
       }
     }
 
@@ -9225,6 +9241,7 @@
       if (!isSW()) return;
       updateEncounterStrip();
       renderPartyList();
+      updatePuppetBanner();
     }
 
     function advanceTurn() {
