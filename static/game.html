@@ -6230,6 +6230,7 @@
       renderBubbleBar();
       renderChatToolbar();
       updatePuppetBanner();
+      renderPendingCheckBar();
     }
 
     // Shows/hides the "Puppeting: X — mechanics only" banner to match activeSpeaker.
@@ -6238,7 +6239,7 @@
       if (!banner) return;
       if (activeSpeaker && activeSpeaker.type === 'puppet') {
         document.getElementById('puppetBannerText').textContent =
-          `Puppeting ${activeSpeaker.name} — mechanics only (attack/cast/pp/ip/sp). Chat still speaks as Narrator.`;
+          `Puppeting ${activeSpeaker.name} — mechanics only (attack/cast/pp/ip/sp/initiative). Chat is disabled while puppeting.`;
         banner.style.display = 'flex';
       } else {
         banner.style.display = 'none';
@@ -14136,7 +14137,8 @@
             } else if (data.type === 'initiative_roll') {
               // My own roll landed → clear the pill + its request card (also fires
               // if I typed /initiative by hand). request_id == character_id.
-              if (data.character_id && String(data.character_id) === String(characterId)) {
+              // SW rolling for a non-responsive/puppeted PC resolves it too.
+              if (data.character_id && (isSW() || String(data.character_id) === String(characterId))) {
                 dropCheckCard(String(data.character_id));
                 clearPendingCheck(String(data.character_id));
               }
@@ -15695,17 +15697,27 @@
     }
 
     // ── "A roll is waiting for you" pill above the chat input ────────────────
-    // Map<request_id, {kind:'stat'|'env', stat, flavor}>. Only checks targeting
-    // THIS player's character, still unresolved.
+    // Map<request_id, {kind:'stat'|'env'|'init', stat, flavor, characterId}>. Every
+    // unresolved check is tracked; the pill only shows the ones for the character
+    // being played: a player's own, or the PC an SW is puppeting.
     const _myPendingChecks = new Map();
 
+    function _pendingViewerCharacterId() {
+      if (isSW()) return (activeSpeaker && activeSpeaker.type === 'puppet') ? activeSpeaker.id : null;
+      return characterId || null;
+    }
+    function _visiblePendingChecks() {
+      const viewer = _pendingViewerCharacterId();
+      if (!viewer) return [];
+      return [..._myPendingChecks.entries()].filter(([, i]) => String(i.characterId) === String(viewer));
+    }
+
     function trackPendingCheck(data, kind, isLive = true) {
-      if (isSW() || !characterId) return;
-      if (String(data.character_id) !== String(characterId)) return;
       if (data.status === 'resolved') return;
-      _myPendingChecks.set(data.request_id, { kind, stat: data.stat, flavor: data.flavor_text || '' });
+      _myPendingChecks.set(data.request_id, { kind, stat: data.stat, flavor: data.flavor_text || '', characterId: data.character_id });
       renderPendingCheckBar();
       if (!isLive) return;
+      if (isSW() || String(data.character_id) !== String(characterId)) return;
       // live arrival: scroll the request card into view + a one-shot glow
       setTimeout(() => {
         const el = document.getElementById('check-card-' + data.request_id);
@@ -15733,9 +15745,10 @@
       const btn = document.getElementById('pendingCheckBtn');
       if (!bar) return;
       btn.disabled = false;
-      const n = _myPendingChecks.size;
+      const visible = _visiblePendingChecks();
+      const n = visible.length;
       if (n === 0) { bar.style.display = 'none'; return; }
-      const first = _myPendingChecks.values().next().value;
+      const first = visible[0][1];
       const palette = first.kind === 'env'
         ? { bg: 'rgba(249,115,22,0.14)', border: 'rgba(249,115,22,0.4)', txt: '#fdba74', btn: '#f97316', verb: '🌍 Resist' }
         : first.kind === 'init'
@@ -15755,7 +15768,7 @@
     }
 
     function rollPendingCheck() {
-      const entry = _myPendingChecks.entries().next().value;
+      const entry = _visiblePendingChecks()[0];
       if (!entry) return;
       const [rid, info] = entry;
       const btn = document.getElementById('pendingCheckBtn');
@@ -15768,8 +15781,18 @@
     // The initiative pill just fires the normal self-roll command.
     function rollInitiativeCheck(requestId) {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative' }));
+      const payload = { type: 'initiative_command', raw_command: '/initiative' };
+      if (isSW() && activeSpeaker && activeSpeaker.type === 'puppet') payload.speaker_id = activeSpeaker.id;
+      ws.send(JSON.stringify(payload));
       const btn = document.getElementById('pendingCheckBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
+    }
+
+    // SW backup: roll a player's initiative for them (AFK). The server verifies SW + campaign.
+    function rollInitiativeForCharacter(requestId, targetCharacterId) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'initiative_command', raw_command: '/initiative', speaker_id: targetCharacterId }));
+      const btn = document.getElementById(`init-check-sw-btn-${requestId}`);
       if (btn) { btn.disabled = true; btn.textContent = 'Rolling…'; }
     }
 
@@ -15929,7 +15952,11 @@
         ? `<button id="init-check-btn-${data.request_id}" onclick="rollInitiativeCheck('${data.request_id}')"
               style="margin-top:10px;width:100%;padding:10px;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);border-radius:8px;color:#93c5fd;font-size:0.95rem;font-weight:700;cursor:pointer;">
               <i data-lucide="dices" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i>Roll Initiative</button>`
-        : '';
+        : isSW()
+          ? `<button id="init-check-sw-btn-${data.request_id}" onclick="rollInitiativeForCharacter('${data.request_id}', '${data.character_id}')"
+              style="margin-top:10px;width:100%;padding:8px;background:none;border:1px solid rgba(59,130,246,0.4);border-radius:8px;color:#93c5fd;font-size:0.82rem;font-weight:600;cursor:pointer;">
+              <i data-lucide="dices" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Roll for ${escHtml(data.character_name || 'them')}</button>`
+          : '';
       const div = document.createElement('div');
       div.className = 'message-item';
       if (data.request_id) div.id = 'check-card-' + data.request_id;
