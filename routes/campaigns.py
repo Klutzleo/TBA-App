@@ -1,9 +1,9 @@
 """
 Campaign Routes - Create and manage campaigns
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime
@@ -14,7 +14,7 @@ import string
 logger = logging.getLogger(__name__)
 
 from backend.db import get_db
-from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect, CampaignLastVisited, Ability
+from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect, CampaignLastVisited, Ability, LBA_CONTENT_RATINGS, LBA_GENRES, LbaPackage
 from backend.auth.jwt import get_current_user
 from sqlalchemy import or_, func, cast, String
 
@@ -68,6 +68,17 @@ class CampaignResponse(BaseModel):
     my_character_status: Optional[str] = None  # Player's character status: 'active', 'pending_approval', 'rejected'
     my_rejection_reason: Optional[str] = None  # SW's rejection message if rejected
     pending_approval_count: Optional[int] = 0  # SW only: number of pending character approvals
+    # Browse / banner fields
+    banner_url: Optional[str] = None
+    banner_locked: Optional[bool] = None  # SW view only
+    genres: Optional[List[str]] = None
+    content_rating: Optional[str] = None
+    last_activity_at: Optional[datetime] = None  # newest message in the campaign
+    # "Based on" credit (only filled where the viewer is allowed to see it)
+    source_package_id: Optional[UUID] = None
+    source_title: Optional[str] = None
+    source_author_username: Optional[str] = None
+    show_source_in_game: Optional[bool] = None  # SW view only
 
     class Config:
         from_attributes = True
@@ -89,6 +100,81 @@ class CampaignUpdate(BaseModel):
     max_characters_per_player: Optional[int] = Field(None, ge=1, le=999)
     max_spectators: Optional[int] = Field(None, ge=0, le=500)  # None = unlimited
     max_players: Optional[int] = Field(None, ge=2, le=20)
+    genres: Optional[List[str]] = None
+    content_rating: Optional[str] = None  # explicit null clears it
+    show_source_in_game: Optional[bool] = None
+
+    @field_validator("genres")
+    @classmethod
+    def _genres_allowed(cls, v):
+        if v is None:
+            return v
+        cleaned = []
+        for g in v:
+            if g not in LBA_GENRES:
+                raise ValueError(f"Unknown genre: {g}")
+            if g not in cleaned:
+                cleaned.append(g)
+        if len(cleaned) > 5:
+            raise ValueError("Pick up to 5 genres")
+        return cleaned
+
+    @field_validator("content_rating")
+    @classmethod
+    def _rating_allowed(cls, v):
+        if v is not None and v not in LBA_CONTENT_RATINGS:
+            raise ValueError("Unknown content rating")
+        return v
+
+
+# Banner uploads: images only, validated by their actual bytes (not the client's claimed type).
+BANNER_MAX_BYTES = 3 * 1024 * 1024
+
+
+def _sniff_image(data: bytes):
+    """Return (content_type, extension) from magic bytes, or None if it is not a JPEG/PNG/WebP."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg", "jpg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png", "png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp", "webp"
+    return None
+
+
+def _campaign_extras(db: Session, campaigns: list) -> dict:
+    """One grouped query each for last activity and credit usernames, instead of per-campaign lookups."""
+    ids = [c.id for c in campaigns]
+    if not ids:
+        return {"activity": {}, "authors": {}}
+    activity = dict(
+        db.query(Message.campaign_id, func.max(Message.created_at))
+        .filter(Message.campaign_id.in_(ids)).group_by(Message.campaign_id).all()
+    )
+    author_ids = {c.source_author_user_id for c in campaigns if c.source_author_user_id}
+    authors = {}
+    if author_ids:
+        authors = {u.id: u.username for u in db.query(User).filter(User.id.in_(author_ids)).all()}
+    return {"activity": activity, "authors": authors}
+
+
+def _extra_fields(c, extras: dict, show_source: bool, is_sw: bool) -> dict:
+    """The banner/tag/credit fields for a CampaignResponse. show_source gates the credit;
+    banner_locked and show_source_in_game are only for the SW's own view."""
+    out = {
+        "banner_url": c.banner_url,
+        "genres": list(c.genres or []),
+        "content_rating": c.content_rating,
+        "last_activity_at": extras["activity"].get(c.id),
+    }
+    if show_source and c.source_title:
+        out["source_package_id"] = c.source_package_id
+        out["source_title"] = c.source_title
+        out["source_author_username"] = extras["authors"].get(c.source_author_user_id)
+    if is_sw:
+        out["banner_locked"] = bool(c.banner_locked)
+        out["show_source_in_game"] = bool(c.show_source_in_game)
+    return out
 
 
 @router.post("/create", response_model=CampaignResponse)
@@ -161,7 +247,8 @@ def create_campaign(
         created_by_user_id=str(campaign.created_by_user_id) if campaign.created_by_user_id else None,
         is_active=campaign.is_active,
         user_role='story_weaver',  # Creator is always the Story Weaver
-        member_count=1  # Creator is the first member
+        member_count=1,  # Creator is the first member
+        **_extra_fields(campaign, {"activity": {}, "authors": {}}, True, True),
     )
 
 
@@ -202,6 +289,7 @@ def list_my_campaigns(
 
     # Build response with role info and member count
     result = []
+    extras = _campaign_extras(db, list(sw_campaigns) + list(member_campaigns))
 
     # Add Story Weaver campaigns
     for c in sw_campaigns:
@@ -249,7 +337,8 @@ def list_my_campaigns(
             spectator_count=max(0, (total_players or 0) - (pc_count or 0)),
             character_creation_mode=c.character_creation_mode,
             max_characters_per_player=c.max_characters_per_player,
-            pending_approval_count=pending_count or 0
+            pending_approval_count=pending_count or 0,
+            **_extra_fields(c, extras, True, True),
         ))
 
     # Add player campaigns (avoid duplicates if user is both SW and member)
@@ -302,7 +391,8 @@ def list_my_campaigns(
                 character_creation_mode=c.character_creation_mode,
                 max_characters_per_player=c.max_characters_per_player,
                 my_character_status=my_char.status if my_char else None,
-                my_rejection_reason=my_char.rejection_reason if my_char else None
+                my_rejection_reason=my_char.rejection_reason if my_char else None,
+                **_extra_fields(c, extras, bool(c.show_source_in_game), False),
             ))
 
     # Sort by created_at descending (Story Weaver campaigns first, then player campaigns)
@@ -352,34 +442,34 @@ def browse_public_campaigns(
     db: Session = Depends(get_db)
 ):
     """
-    Browse all public campaigns.
+    Browse public campaigns that are open or on a break (archived ones are hidden).
 
-    Returns campaigns that are marked as public with member counts.
+    Counts and last-activity come from grouped queries, one per kind, not one per campaign.
     """
     campaigns = db.query(Campaign).filter(
         Campaign.is_public == True,
-        Campaign.is_active == True
+        Campaign.is_active == True,
+        Campaign.status != 'archived'
     ).order_by(Campaign.created_at.desc()).all()
+    if not campaigns:
+        return []
+
+    ids = [c.id for c in campaigns]
+    member_counts = dict(db.query(CampaignMembership.campaign_id, func.count(CampaignMembership.id)).filter(
+        CampaignMembership.campaign_id.in_(ids), CampaignMembership.left_at.is_(None)
+    ).group_by(CampaignMembership.campaign_id).all())
+    player_counts = dict(db.query(CampaignMembership.campaign_id, func.count(CampaignMembership.id)).filter(
+        CampaignMembership.campaign_id.in_(ids), CampaignMembership.left_at.is_(None),
+        CampaignMembership.role == 'player'
+    ).group_by(CampaignMembership.campaign_id).all())
+    pc_counts = dict(db.query(Character.campaign_id, func.count(Character.id)).filter(
+        Character.campaign_id.in_(ids), Character.status == 'active', Character.is_npc == False
+    ).group_by(Character.campaign_id).all())
+    extras = _campaign_extras(db, campaigns)
 
     result = []
     for c in campaigns:
-        member_count = db.query(func.count(CampaignMembership.id)).filter(
-            CampaignMembership.campaign_id == c.id,
-            CampaignMembership.left_at.is_(None)
-        ).scalar()
-
-        pc_count = db.query(func.count(Character.id)).filter(
-            Character.campaign_id == c.id,
-            Character.status == 'active',
-            Character.is_npc == False
-        ).scalar()
-
-        total_players = db.query(func.count(CampaignMembership.id)).filter(
-            CampaignMembership.campaign_id == c.id,
-            CampaignMembership.left_at.is_(None),
-            CampaignMembership.role == 'player'
-        ).scalar()
-
+        pc_count = pc_counts.get(c.id, 0)
         result.append(CampaignResponse(
             id=c.id,
             name=c.name,
@@ -396,11 +486,13 @@ def browse_public_campaigns(
             created_by_user_id=c.created_by_user_id,
             is_active=c.is_active,
             user_role=None,
-            member_count=member_count or 0,
-            pc_count=pc_count or 0,
-            spectator_count=max(0, (total_players or 0) - (pc_count or 0)),
+            member_count=member_counts.get(c.id, 0),
+            pc_count=pc_count,
+            spectator_count=max(0, player_counts.get(c.id, 0) - pc_count),
             character_creation_mode=c.character_creation_mode,
-            max_characters_per_player=c.max_characters_per_player
+            max_characters_per_player=c.max_characters_per_player,
+            # Browse is the discovery link back to the story, so the credit always shows here.
+            **_extra_fields(c, extras, True, False),
         ))
 
     return result
@@ -658,6 +750,13 @@ def get_campaign(
         status=str(campaign.status) if campaign.status else 'active',
         character_creation_mode=campaign.character_creation_mode or 'open',
         max_characters_per_player=campaign.max_characters_per_player or 1,
+        **_extra_fields(
+            campaign, _campaign_extras(db, [campaign]),
+            # Members only see the source story if the SW opted in; the SW and non-members (who are
+            # just browsing) always can.
+            show_source=(not membership) or membership.role == 'story_weaver' or bool(campaign.show_source_in_game),
+            is_sw=bool(membership and membership.role == 'story_weaver'),
+        ),
     )
 
 
@@ -707,6 +806,12 @@ async def update_campaign(
         campaign.max_spectators = updates.max_spectators  # None = unlimited
     if updates.max_players is not None:
         campaign.max_players = updates.max_players
+    if updates.genres is not None:
+        campaign.genres = updates.genres
+    if 'content_rating' in updates.model_fields_set:
+        campaign.content_rating = updates.content_rating  # None clears it
+    if updates.show_source_in_game is not None:
+        campaign.show_source_in_game = updates.show_source_in_game
 
     db.commit()
     db.refresh(campaign)
@@ -723,6 +828,64 @@ async def update_campaign(
             logger.warning(f"campaign_renamed broadcast failed: {_e}")
 
     return campaign
+
+
+@router.post("/{campaign_id}/banner")
+async def upload_campaign_banner(
+    campaign_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the campaign banner (Story Weaver only). JPEG/PNG/WebP up to 3MB, checked by real bytes.
+
+    This is the ONLY way banner_url is ever written: it can't be set through a settings PATCH, so
+    every banner is a file we host and can remove."""
+    from routes.upload import delete_banner_from_r2, upload_to_r2
+
+    campaign = _require_sw(campaign_id, current_user, db)
+    if campaign.banner_locked:
+        raise HTTPException(status_code=403, detail="Banner uploads are turned off for this campaign")
+
+    contents = await file.read(BANNER_MAX_BYTES + 1)
+    if len(contents) > BANNER_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Banner too large. Max 3MB.")
+    sniffed = _sniff_image(contents)
+    if not sniffed:
+        raise HTTPException(status_code=400, detail="Banner must be a JPEG, PNG, or WebP image")
+    content_type, ext = sniffed
+
+    key = f"campaigns/{campaign.id}/banner/{uuid4()}.{ext}"
+    try:
+        url = upload_to_r2(contents, key, content_type)
+    except Exception as e:
+        logger.warning(f"banner upload to R2 failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed. Please try again.")
+
+    old_url = campaign.banner_url
+    campaign.banner_url = url
+    db.commit()
+    if old_url:
+        delete_banner_from_r2(old_url)  # best effort; the DB already points at the new file
+    return {"banner_url": url}
+
+
+@router.delete("/{campaign_id}/banner")
+def remove_campaign_banner(
+    campaign_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Clear the campaign banner (Story Weaver only), including when the campaign is locked."""
+    from routes.upload import delete_banner_from_r2
+
+    campaign = _require_sw(campaign_id, current_user, db)
+    old_url = campaign.banner_url
+    campaign.banner_url = None
+    db.commit()
+    if old_url:
+        delete_banner_from_r2(old_url)
+    return {"banner_url": None}
 
 
 @router.get("/{campaign_id}/orphaned-characters")

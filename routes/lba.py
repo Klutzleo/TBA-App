@@ -447,6 +447,13 @@ async def start_campaign_from_package(
         story_weaver_id=current_user.id,
         created_by_user_id=current_user.id,
         sw_notes="\n\n".join(sw_notes_parts),
+        # Browse tags and credit carry over from the story. Title and author are copied in so the
+        # credit survives the package later being unpublished or deleted.
+        genres=list(package.genres or []),
+        content_rating=package.content_rating,
+        source_package_id=package.id,
+        source_title=(package.title or "")[:200],
+        source_author_user_id=package.author_user_id,
     )
     db.add(campaign)
     db.flush()  # need campaign.id for the membership row and clones below

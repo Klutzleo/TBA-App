@@ -342,6 +342,19 @@ class Campaign(Base):
     banner_url = Column(Text, nullable=True)
     banner_locked = Column(Boolean, nullable=False, default=False)
 
+    # Browse tags. Same vocabulary as LBA (LBA_GENRES / LBA_CONTENT_RATINGS) so filters can be shared later.
+    genres = Column(JSONB, nullable=False, default=list)
+    content_rating = Column(String(20), nullable=True)
+
+    # Credit when this campaign was started from an LBA story. Title and author are copied in (not
+    # looked up) so the credit survives the story being unpublished or deleted.
+    source_package_id = Column(UUID(as_uuid=True), ForeignKey("lba_packages.id", ondelete="SET NULL"), nullable=True)
+    source_title = Column(String(200), nullable=True)
+    source_author_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # Spoiler guard: players inside the campaign only see the source story if the SW opts in.
+    # (Browse always shows it; it's the discovery link back to LBA.)
+    show_source_in_game = Column(Boolean, nullable=False, default=False)
+
     # Legacy fields (kept for backward compatibility)
     created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
     is_active = Column(Boolean, nullable=False, default=True)
