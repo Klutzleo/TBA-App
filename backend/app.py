@@ -186,7 +186,7 @@ async def attach_request_id_and_auth(request: Request, call_next):
     jwt_protected_routes = auth_paths | {
         "/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse", "/api/campaigns/join",
         "/api/characters", "/api/notifications", "/api/upload", "/api/profile", "/api/achievements",
-        "/api/lba"
+        "/api/lba", "/api/moderation"
     }
 
     # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
@@ -350,6 +350,13 @@ try:
     logger.info("✅ Registered lba_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register lba_router: {e}")
+
+try:
+    from routes.moderation import moderation_router
+    application.include_router(moderation_router, tags=["Moderation"])
+    logger.info("✅ Registered moderation_router")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register moderation_router: {e}")
 
 try:
     from routes.public_lba import public_lba_router

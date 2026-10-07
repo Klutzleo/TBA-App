@@ -9,7 +9,7 @@ Phase 2d schema with:
 - Messages with party routing
 - NPCs and combat turns
 """
-from sqlalchemy import Column, String, DateTime, JSON, Integer, BigInteger, ForeignKey, Boolean, Text, Enum
+from sqlalchemy import Column, String, DateTime, JSON, Integer, BigInteger, ForeignKey, Boolean, Text, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -335,6 +335,12 @@ class Campaign(Base):
 
     # Discord live-mirror channel — mirroring is "on" iff this is non-null (no separate enabled flag)
     discord_channel_id = Column(String(32), nullable=True)
+
+    # Optional banner image (R2 URL). Only ever written by the banner upload endpoint, never from
+    # a settings PATCH, so every banner is a file we host and can remove. banner_locked is set by
+    # an admin after a removal to stop a repeat offender re-uploading.
+    banner_url = Column(Text, nullable=True)
+    banner_locked = Column(Boolean, nullable=False, default=False)
 
     # Legacy fields (kept for backward compatibility)
     created_by_id = Column(String, nullable=True, index=True)  # Old character-based creator ID
@@ -702,6 +708,45 @@ class LoreEntry(Base):
 # each (here + the matching list in routes/lba.py), not a DB enum, so adding a new
 # option later is a one-line code edit, never a migration. Same pattern already used
 # throughout this file (Character.status, LoreEntry.entry_type, etc.)
+# Moderation: one allowed-list in code (plain strings, no DB enum), same approach as the LBA lists,
+# so adding a reason later is a one-line edit and never a migration.
+REPORT_REASON_LABELS = {
+    "sexual_explicit": "Sexual or explicit content",
+    "hate_harassment": "Hate or harassment",
+    "graphic_violence": "Graphic violence or gore",
+    "illegal": "Illegal content",
+    "spam": "Spam or advertising",
+    "copyright": "Copyright (not theirs to use)",
+    "other": "Other (note required)",
+}
+REPORT_REASONS = tuple(REPORT_REASON_LABELS)
+REPORT_CONTENT_TYPES = ("campaign_banner",)  # lba_package / character come with LBA Stage 0.5
+
+
+class ContentReport(Base):
+    """A user's report of public content. Reporter identity is only ever exposed to the admin
+    moderation endpoints, never to the content's owner or the public."""
+    __tablename__ = "content_reports"
+    __table_args__ = (
+        UniqueConstraint("reporter_user_id", "content_type", "content_id", name="uq_content_report_once"),
+        {"extend_existing": True},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    reporter_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_type = Column(String(30), nullable=False)
+    content_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    reason = Column(String(30), nullable=False)
+    note = Column(String(500), nullable=True)
+    # What was reported, frozen at report time (the content may change or be deleted later)
+    snapshot = Column(JSONB, nullable=False, default=dict)
+    status = Column(String(20), nullable=False, default="open")  # open | resolved
+    resolution = Column(String(30), nullable=True)  # removed | removed_locked | dismissed | stale
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
 LBA_FORMATS = ("one_shot", "short_arc", "ongoing_campaign")
 LBA_PARTY_SIZES = ("solo", "small", "medium", "large")
 LBA_CONTENT_RATINGS = ("all_ages", "teen", "mature")

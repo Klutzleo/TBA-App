@@ -47,6 +47,26 @@ def upload_to_r2(contents: bytes, key: str, content_type: str) -> str:
     return f"{public_url_base}/{key}"
 
 
+def delete_banner_from_r2(url: str) -> bool:
+    """Delete a campaign banner object by its public URL. Returns True if it was deleted.
+
+    Deliberately narrow: only keys under campaigns/<id>/banner/ are ever deleted, so a bad or
+    tampered URL can never be turned into deleting someone's portrait or chat image."""
+    public_url_base = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
+    if not url or not public_url_base or not url.startswith(public_url_base + "/"):
+        return False
+    key = url[len(public_url_base) + 1:]
+    parts = key.split("/")
+    if len(parts) != 4 or parts[0] != "campaigns" or parts[2] != "banner" or ".." in key:
+        return False
+    try:
+        get_r2_client().delete_object(Bucket=os.environ.get("R2_BUCKET_NAME", "tba-assets"), Key=key)
+        return True
+    except Exception as e:
+        logger.warning(f"banner delete from R2 failed for {key}: {e}")
+        return False
+
+
 @router.post("/portrait")
 async def upload_portrait(
     file: UploadFile = File(...),

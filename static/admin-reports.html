@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Reports - TBA</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <script src="/js/auth-helper.js"></script>
+  <style>
+    :root {
+      --bg: #101219; --panel: #1c2130; --panel-2: #232838; --border: #333a52;
+      --gold: #d4af37; --red: #f87171; --green: #34d399; --orange: #f97316;
+      --text: #e7e9f0; --text-mut: #a2a7b8; --text-dim: #6a7086;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+           background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+    h1 { font-size: 1.4rem; color: var(--gold); margin-bottom: 4px; }
+    .sub { color: var(--text-mut); font-size: 0.9rem; margin-bottom: 18px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab { background: var(--panel); border: 1px solid var(--border); color: var(--text-mut);
+           padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .tab.active { color: var(--gold); border-color: var(--gold); }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+            padding: 16px; margin-bottom: 16px; }
+    .card h2 { font-size: 1.05rem; margin-bottom: 8px; word-break: break-word; }
+    .meta { color: var(--text-mut); font-size: 0.85rem; margin-bottom: 4px; }
+    .meta b { color: var(--text); }
+    .banner-box { margin: 12px 0; background: #000; border: 1px solid var(--border); border-radius: 8px;
+                  min-height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .banner-box img { max-width: 100%; max-height: 260px; display: block; }
+    .banner-gone { color: var(--text-dim); font-size: 0.85rem; padding: 24px; text-align: center; }
+    textarea { width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+               border-radius: 6px; padding: 8px; font: inherit; font-size: 0.85rem; resize: vertical; margin-top: 8px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    button.act { border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+                 border: 1px solid var(--border); background: var(--panel-2); color: var(--text); }
+    button.act.danger { border-color: rgba(248,113,113,.6); color: var(--red); }
+    button.act.lock { background: rgba(248,113,113,.15); border-color: var(--red); color: var(--red); }
+    button.act:disabled { opacity: .5; cursor: default; }
+    .pill { display: inline-block; font-size: 0.72rem; border-radius: 4px; padding: 1px 7px; margin-left: 6px;
+            border: 1px solid var(--border); color: var(--text-mut); }
+    .pill.live { color: var(--orange); border-color: var(--orange); }
+    .empty, .msg { color: var(--text-mut); padding: 30px 0; text-align: center; }
+    .msg.err { color: var(--red); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Reports</h1>
+  <p class="sub">Admin only. Reporter names are shown here and nowhere else.</p>
+  <div class="tabs">
+    <button class="tab active" id="tabOpen">Open</button>
+    <button class="tab" id="tabResolved">Resolved</button>
+  </div>
+  <div id="list"></div>
+</div>
+
+<script>
+  // Everything user-controlled (campaign names, notes, usernames) is written with textContent,
+  // never innerHTML, so a hostile campaign name can't inject script into the admin's session.
+  let currentStatus = 'open';
+  const list = document.getElementById('list');
+
+  function el(tag, props = {}, ...children) {
+    const e = document.createElement(tag);
+    Object.entries(props).forEach(([k, v]) => {
+      if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else e[k] = v;
+    });
+    children.forEach(c => c && e.appendChild(c));
+    return e;
+  }
+  function metaLine(label, value) {
+    const d = el('div', { class: 'meta' });
+    d.appendChild(el('b', { text: label + ': ' }));
+    d.appendChild(document.createTextNode(value));
+    return d;
+  }
+  function showMessage(text, isErr) {
+    list.replaceChildren(el('div', { class: 'msg' + (isErr ? ' err' : ''), text }));
+  }
+
+  async function load() {
+    if (!requireAuth()) return;
+    showMessage('Loading...');
+    let resp;
+    try {
+      resp = await fetchWithAuth('/api/moderation/reports?status=' + currentStatus);
+    } catch (e) { showMessage('Could not load reports.', true); return; }
+    if (!resp) return;
+    if (resp.status === 403) { showMessage('Not authorized. This page is for admins only.', true); return; }
+    if (!resp.ok) { showMessage('Could not load reports.', true); return; }
+    const reports = await resp.json();
+    if (!reports.length) { list.replaceChildren(el('div', { class: 'empty', text: currentStatus === 'open' ? 'No open reports.' : 'Nothing resolved yet.' })); return; }
+    list.replaceChildren(...reports.map(renderCard));
+  }
+
+  function renderCard(r) {
+    const card = el('div', { class: 'card' });
+    const title = el('h2', { text: (r.snapshot && r.snapshot.campaign_name) || '(deleted campaign)' });
+    if (r.banner_still_live) title.appendChild(el('span', { class: 'pill live', text: 'banner live' }));
+    if (r.banner_locked) title.appendChild(el('span', { class: 'pill', text: 'locked' }));
+    card.appendChild(title);
+    card.appendChild(metaLine('Reason', r.reason_label));
+    if (r.note) card.appendChild(metaLine('Note', r.note));
+    card.appendChild(metaLine('Reported by', r.reporter_username || '(deleted user)'));
+    card.appendChild(metaLine('When', r.created_at ? new Date(r.created_at + 'Z').toLocaleString() : ''));
+
+    const box = el('div', { class: 'banner-box' });
+    const url = r.snapshot && r.snapshot.banner_url;
+    if (url && /^https:\/\//i.test(url) && r.banner_still_live) {
+      const img = el('img', { alt: 'Reported banner', referrerPolicy: 'no-referrer' });
+      img.src = url;
+      box.appendChild(img);
+    } else {
+      box.appendChild(el('div', { class: 'banner-gone', text: r.status === 'open'
+        ? 'The reported banner is no longer live (replaced or removed).' : 'Image not shown for resolved reports.' }));
+    }
+    card.appendChild(box);
+
+    if (r.status !== 'open') {
+      card.appendChild(metaLine('Outcome', r.resolution || 'resolved'));
+      return card;
+    }
+
+    const msg = el('textarea', { rows: 2, maxLength: 300, placeholder: 'Optional message shown to the Story Weaver with the removal notice' });
+    card.appendChild(msg);
+    const actions = el('div', { class: 'actions' });
+    [['Remove banner', 'remove', 'act danger'], ['Remove and lock', 'remove_and_lock', 'act lock'], ['Dismiss', 'dismiss', 'act']].forEach(([label, action, cls]) => {
+      const b = el('button', { class: cls, text: label });
+      b.addEventListener('click', () => resolve(r.id, action, msg.value, actions));
+      actions.appendChild(b);
+    });
+    card.appendChild(actions);
+    return card;
+  }
+
+  async function resolve(id, action, message, actionsEl) {
+    if (action !== 'dismiss' && !confirm(action === 'remove_and_lock'
+      ? 'Remove this banner and stop the campaign from uploading a new one?' : 'Remove this banner?')) return;
+    actionsEl.querySelectorAll('button').forEach(b => b.disabled = true);
+    try {
+      const resp = await fetchWithAuth('/api/moderation/reports/' + encodeURIComponent(id) + '/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, message: message.trim() || null }),
+      });
+      if (!resp || !resp.ok) { alert('That did not work. Reload and try again.'); }
+    } catch (e) { alert('That did not work. Reload and try again.'); }
+    load();
+  }
+
+  document.getElementById('tabOpen').addEventListener('click', () => setTab('open'));
+  document.getElementById('tabResolved').addEventListener('click', () => setTab('resolved'));
+  function setTab(s) {
+    currentStatus = s;
+    document.getElementById('tabOpen').classList.toggle('active', s === 'open');
+    document.getElementById('tabResolved').classList.toggle('active', s === 'resolved');
+    load();
+  }
+  load();
+</script>
+</body>
+</html>

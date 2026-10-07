@@ -213,3 +213,62 @@ def send_digest_email(to_email: str, lines: list, unsubscribe_url: str) -> None:
     except Exception as e:
         logger.error(f"Failed to send digest email: {e}")
         raise
+
+
+def send_report_email(to_emails: list, report: dict) -> None:
+    """
+    Tells the admin(s) that someone reported content. `report` holds plain strings:
+    content_label, campaign_name, reason, note, reporter. Everything user-controlled is
+    HTML-escaped. The reported image is deliberately a link, not an inline <img>, so an
+    offensive image never loads into an inbox preview; review happens on the admin page.
+    """
+    import html as _html
+
+    if not to_emails:
+        logger.warning("Report email skipped: no admin recipients configured (set ADMIN_USER_IDS)")
+        return
+
+    api_key      = os.getenv("RESEND_API_KEY", "")
+    from_email   = os.getenv("FROM_EMAIL", "no-reply@gameoctane.com")
+    frontend_url = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
+    esc = lambda v: _html.escape(str(v or ""))
+    review_url = f"{frontend_url}/admin-reports.html"
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#b91c1c;margin-top:0;">New report: {esc(report.get("content_label"))}</h2>
+  <p><strong>Campaign:</strong> {esc(report.get("campaign_name"))}</p>
+  <p><strong>Reason:</strong> {esc(report.get("reason"))}</p>
+  <p><strong>Note:</strong> {esc(report.get("note")) or "(none)"}</p>
+  <p><strong>Reported by:</strong> {esc(report.get("reporter"))}</p>
+  <p><a href="{esc(review_url)}" style="background:#d4a017;color:#1a1d29;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Review reports</a></p>
+  <p style="color:#999;font-size:12px;">Sign in as an admin to see the image and act on it. Nothing in this email changes anything.</p>
+</body>
+</html>"""
+
+    if not api_key:
+        logger.warning("RESEND_API_KEY not set - printing report email to console instead")
+        _safe_print(f"REPORT EMAIL to {to_emails}: {report}")
+        return
+
+    try:
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "from": f"TBA App <{from_email}>",
+                "to": list(to_emails),
+                "subject": "TBA report: " + str(report.get("content_label") or "content"),
+                "html": html_content,
+            },
+            timeout=10,
+        )
+        if not resp.ok:
+            logger.error(f"Resend API error {resp.status_code}: {resp.text}")
+            resp.raise_for_status()
+        logger.info(f"Report email sent to {len(to_emails)} admin(s)")
+    except Exception as e:
+        logger.error(f"Failed to send report email: {e}")
+        raise
