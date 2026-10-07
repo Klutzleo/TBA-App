@@ -3055,13 +3055,17 @@
     <div id="campaignNameBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:3px 8px;font-size:0.75rem;color:var(--text-muted);font-style:italic;border-bottom:1px solid rgba(255,255,255,0.05);"></div>
     <!-- Campaign banner strip: only when the SW has uploaded one. Collapsible, and hidden on phones to keep the chat roomy. -->
     <div id="campaignBannerStrip" class="cb-strip" style="display:none;">
-      <div id="campaignBannerHost"></div>
-      <button type="button" id="campaignBannerHide" class="cb-strip-hide" title="Hide banner" aria-label="Hide banner">&times;</button>
+      <div class="cb-strip-inner">
+        <div id="campaignBannerHost"></div>
+        <button type="button" id="campaignBannerHide" class="cb-strip-hide" title="Hide banner" aria-label="Hide banner">&times;</button>
+      </div>
     </div>
     <div id="campaignSourceBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:4px 10px;font-size:0.78rem;color:var(--text-muted);border-bottom:1px solid rgba(255,255,255,0.05);"></div>
     <style>
-      .cb-strip { position: relative; border-bottom: 1px solid rgba(255,255,255,0.08); background: #000; }
-      .cb-strip .cb-banner { margin: 0; border-radius: 0; height: 120px; }
+      .cb-strip { border-bottom: 1px solid rgba(255,255,255,0.08); background: #000; }
+      /* Same 4:1 shape as the cards, centered and capped so it never turns into a thin slit on a wide monitor */
+      .cb-strip-inner { position: relative; max-width: 720px; margin: 0 auto; }
+      .cb-strip .cb-banner { margin: 0; border-radius: 0; }
       .cb-strip-hide { position: absolute; top: 6px; left: 8px; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 1rem; line-height: 1; z-index: 6; }
       @media (max-width: 640px) { #campaignBannerStrip { display: none !important; } }
     </style>
@@ -4427,8 +4431,8 @@
         </div>
         <!-- Banner -->
         <div>
-          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Banner</label>
-          <div id="gsBannerPreview" style="height:80px; border-radius:8px; overflow:hidden; background:#13151f; border:1px solid var(--border-color); margin-bottom:8px;"></div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Banner<span id="gsBannerTip"></span></label>
+          <div id="gsBannerPreview" style="aspect-ratio:4/1; width:100%; border-radius:8px; overflow:hidden; background:#13151f; border:1px solid var(--border-color); margin-bottom:8px;"></div>
           <input type="file" id="gsBannerFile" accept="image/jpeg,image/png,image/webp" style="display:none;">
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn-secondary btn" id="gsBannerUpload" style="padding:5px 12px; font-size:0.8rem;">Upload banner</button>
@@ -7505,7 +7509,7 @@
     // updates the strip under the header straight away; other members see it on their next load.
     const gameBannerEditor = CampaignShared.createBannerTagsEditor({
       ids: { preview: 'gsBannerPreview', file: 'gsBannerFile', upload: 'gsBannerUpload', remove: 'gsBannerRemove',
-             hint: 'gsBannerHint', msg: 'gsBannerMsg', genres: 'gsGenres', rating: 'gsRating',
+             hint: 'gsBannerHint', msg: 'gsBannerMsg', tip: 'gsBannerTip', genres: 'gsGenres', rating: 'gsRating',
              sourceGroup: 'gsSourceGroup', showSource: 'gsShowSource', sourceHint: 'gsSourceHint' },
       getCampaignId: () => campaignId,
       onBannerChange: (url) => {

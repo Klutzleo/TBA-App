@@ -232,17 +232,59 @@
   // cfg.getCampaignId(): current campaign id.  cfg.onBannerChange(url|null): called after upload/remove.
   const BANNER_MAX_BYTES = 3 * 1024 * 1024;
   const MAX_GENRES = 5;
-  const BANNER_HINT = 'JPEG, PNG or WebP, up to 3MB. Wide images work best (about 3:1). Banners can be seen by anyone browsing and can be reported, so keep them suitable for your content rating.';
+  const BANNER_MIN_WIDTH = 800;       // narrower than this looks blurry once it is stretched across a card
+  const BANNER_RATIO_MIN = 3, BANNER_RATIO_MAX = 5.5;  // outside this range the 4:1 crop cuts a lot away
+  const BANNER_HINT = 'Recommended: 1600 x 400 px (4:1). JPEG, PNG or WebP, under 3MB.';
+  const BANNER_TIP_HTML = `
+    <strong>Banner guide</strong>
+    <ul>
+      <li><b>Size:</b> 1600 x 400 px (4:1) works best. Minimum width is 800 px.</li>
+      <li><b>Format:</b> JPEG, PNG or WebP, under 3MB. No GIFs or animated images.</li>
+      <li><b>Where it shows:</b> the top of your campaign card in Browse and My Campaigns, and a strip under the header in the game.</li>
+      <li><b>Cropping:</b> it is shown as a wide strip, so edges may be cut off. Keep faces, text and key details in the middle.</li>
+      <li><b>Keep it suitable</b> for your content rating. Anyone browsing can see it and report it, and banners that break the rules are removed.</li>
+    </ul>`;
+
+  // Read an image file's pixel size in the browser (before anything is uploaded).
+  function readImageSize(file) {
+    return new Promise(resolve => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve({ w: img.naturalWidth, h: img.naturalHeight }); };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
 
   function createBannerTagsEditor(cfg) {
     const el = key => document.getElementById(cfg.ids[key]);
     const headers = () => ({ Authorization: 'Bearer ' + token() });
     let locked = false;
 
-    function say(text, isErr) {
+    function say(text, isErr, isWarn) {
       const m = el('msg');
       m.textContent = text || '';
-      m.style.color = isErr ? '#f87171' : '#34d399';
+      m.style.color = isErr ? '#f87171' : (isWarn ? '#fbbf24' : '#34d399');
+    }
+
+    // Tooltip next to the "Banner" label (optional: only if the page gives us a host element)
+    if (cfg.ids.tip && el('tip')) {
+      const tip = el('tip');
+      tip.className = 'cb-tip';
+      tip.tabIndex = 0;
+      tip.setAttribute('role', 'button');
+      tip.setAttribute('aria-label', 'Banner guide');
+      tip.innerHTML = '?<span class="cb-tip-box" role="tooltip">' + BANNER_TIP_HTML + '</span>';
+      // The box is position:fixed so a scrolling modal can't clip it; keep it fully on screen.
+      const placeTip = () => {
+        const box = tip.querySelector('.cb-tip-box');
+        const r = tip.getBoundingClientRect();
+        const w = Math.min(290, window.innerWidth * 0.78);
+        box.style.width = w + 'px';
+        box.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+        box.style.top = (r.bottom + 6) + 'px';
+      };
+      ['mouseenter', 'focus', 'click', 'touchstart'].forEach(ev => tip.addEventListener(ev, placeTip));
     }
 
     function renderPreview(banner_url, isLocked) {
@@ -296,6 +338,14 @@
     async function upload(file) {
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { say('Please choose a JPEG, PNG or WebP image.', true); return; }
       if (file.size > BANNER_MAX_BYTES) { say('That image is over 3MB. Please choose a smaller one.', true); return; }
+      const dims = await readImageSize(file);
+      if (!dims) { say('That image could not be read. Please try a different file.', true); return; }
+      if (dims.w < BANNER_MIN_WIDTH) {
+        say('That image is only ' + dims.w + ' px wide. Please use one at least ' + BANNER_MIN_WIDTH + ' px wide (1600 x 400 is ideal) so it stays sharp.', true);
+        return;
+      }
+      const ratio = dims.w / dims.h;
+      const offShape = ratio < BANNER_RATIO_MIN || ratio > BANNER_RATIO_MAX;
       say('Uploading...');
       const form = new FormData();
       form.append('file', file);
@@ -304,7 +354,11 @@
         const body = await resp.json().catch(() => ({}));
         if (!resp.ok) { say(typeof body.detail === 'string' ? body.detail : 'Upload failed.', true); return; }
         renderPreview(body.banner_url, false);
-        say('Banner updated.');
+        if (offShape) {
+          say('Banner updated. Heads up: this image is ' + dims.w + ' x ' + dims.h + ' and will be cropped to a wide 4:1 strip, so anything near the top or bottom may be cut off.', false, true);
+        } else {
+          say('Banner updated.');
+        }
         if (cfg.onBannerChange) cfg.onBannerChange(body.banner_url);
       } catch (e) {
         say('Upload failed. Please try again.', true);
@@ -361,7 +415,7 @@
 
   // ---- Styles (scoped with the cb- prefix so they cannot clash with either page) -----------------
   const css = `
-    .cb-banner { position: relative; height: 110px; margin: -20px -20px 14px; border-radius: 12px 12px 0 0; overflow: hidden; background: #13151f; }
+    .cb-banner { position: relative; aspect-ratio: 4 / 1; margin: -20px -20px 14px; border-radius: 12px 12px 0 0; overflow: hidden; background: #13151f; }
     .cb-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .cb-banner-default { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     .cb-banner-default span { font-size: 3rem; font-weight: 800; color: rgba(255,255,255,0.22); }
@@ -378,6 +432,13 @@
     .cb-source { font-size: 0.8rem; color: #b0b3ba; margin: 0 0 10px; }
     .cb-source a { color: #d4af37; text-decoration: none; }
     .cb-source a:hover { text-decoration: underline; }
+    .cb-tip { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin-left: 6px; border-radius: 50%; border: 1px solid #6a7086; color: #a2a7b8; font-size: 0.72rem; font-weight: 700; line-height: 1; cursor: help; text-transform: none; letter-spacing: normal; vertical-align: middle; }
+    .cb-tip:hover, .cb-tip:focus { color: #d4af37; border-color: #d4af37; outline: none; }
+    .cb-tip-box { display: none; position: fixed; left: 8px; top: 8px; width: 290px; max-width: 78vw; z-index: 10001; background: #1c2130; border: 1px solid #3a3f54; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.55); color: #e4e6eb; font-size: 0.78rem; font-weight: 400; line-height: 1.45; text-align: left; cursor: default; }
+    .cb-tip:hover .cb-tip-box, .cb-tip:focus .cb-tip-box, .cb-tip:focus-within .cb-tip-box { display: block; }
+    .cb-tip-box strong { color: #d4af37; display: block; margin-bottom: 4px; }
+    .cb-tip-box ul { margin: 0; padding-left: 16px; }
+    .cb-tip-box li { margin: 0 0 4px; }
     .cb-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 16px; }
     .cb-overlay.open { display: flex; }
     .cb-dialog { background: #1c2130; border: 1px solid #3a3f54; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; color: #e4e6eb; }

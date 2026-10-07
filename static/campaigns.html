@@ -942,8 +942,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Banner</label>
-                    <div id="settings-banner-preview" style="height:90px;border-radius:8px;overflow:hidden;background:#13151f;border:1px solid #3a3f54;margin-bottom:8px;"></div>
+                    <label>Banner<span id="settings-banner-tip"></span></label>
+                    <div id="settings-banner-preview" style="aspect-ratio:4/1;width:100%;border-radius:8px;overflow:hidden;background:#13151f;border:1px solid #3a3f54;margin-bottom:8px;"></div>
                     <input type="file" id="settings-banner-file" accept="image/jpeg,image/png,image/webp" style="display:none;">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <button type="button" class="btn-secondary btn btn-small" id="settings-banner-upload-btn">Upload banner</button>
@@ -1633,7 +1633,7 @@
         // Banner + tags editor: shared with game.html (static/js/campaign-shared.js)
         const bannerEditor = CampaignShared.createBannerTagsEditor({
             ids: { preview: 'settings-banner-preview', file: 'settings-banner-file', upload: 'settings-banner-upload-btn',
-                   remove: 'settings-banner-remove-btn', hint: 'settings-banner-hint', msg: 'settings-banner-msg',
+                   remove: 'settings-banner-remove-btn', hint: 'settings-banner-hint', msg: 'settings-banner-msg', tip: 'settings-banner-tip',
                    genres: 'settings-genres', rating: 'settings-content-rating', sourceGroup: 'settings-source-group',
                    showSource: 'settings-show-source', sourceHint: 'settings-source-hint' },
             getCampaignId: () => document.getElementById('settings-campaign-id').value,
