@@ -3053,6 +3053,18 @@
         <i data-lucide="coffee" style="width:18px;height:18px;"></i><span>Support on Ko-fi</span></a>
     </div>
     <div id="campaignNameBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:3px 8px;font-size:0.75rem;color:var(--text-muted);font-style:italic;border-bottom:1px solid rgba(255,255,255,0.05);"></div>
+    <!-- Campaign banner strip: only when the SW has uploaded one. Collapsible, and hidden on phones to keep the chat roomy. -->
+    <div id="campaignBannerStrip" class="cb-strip" style="display:none;">
+      <div id="campaignBannerHost"></div>
+      <button type="button" id="campaignBannerHide" class="cb-strip-hide" title="Hide banner" aria-label="Hide banner">&times;</button>
+    </div>
+    <div id="campaignSourceBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:4px 10px;font-size:0.78rem;color:var(--text-muted);border-bottom:1px solid rgba(255,255,255,0.05);"></div>
+    <style>
+      .cb-strip { position: relative; border-bottom: 1px solid rgba(255,255,255,0.08); background: #000; }
+      .cb-strip .cb-banner { margin: 0; border-radius: 0; height: 120px; }
+      .cb-strip-hide { position: absolute; top: 6px; left: 8px; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 1rem; line-height: 1; z-index: 6; }
+      @media (max-width: 640px) { #campaignBannerStrip { display: none !important; } }
+    </style>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -4891,6 +4903,7 @@
   </div>
 
   <script src="/js/auth-helper.js"></script>
+  <script src="/js/campaign-shared.js"></script>
   <script src="/js/lucide.min.js"></script>
   <script>document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });</script>
   <script src="/js/notification-drawer.js"></script>
@@ -15461,8 +15474,48 @@
           document.getElementById('campaignSubtitle').textContent = c.name;
           document.getElementById('campaignNameBar').textContent = c.name;
           document.title = `${c.name} — TBA`;
+          renderCampaignBannerStrip(c);
+          renderCampaignSourceCredit(c);
         }
       }).catch(() => {});
+
+    // Banner strip under the header. Players can report it from the "..." menu; the SW manages it in
+    // campaign settings. A member can hide it for themselves (remembered per campaign on this device).
+    function renderCampaignBannerStrip(c) {
+      const strip = document.getElementById('campaignBannerStrip');
+      const host = document.getElementById('campaignBannerHost');
+      if (!strip || !host || !c.banner_url || !CampaignShared.cbSafeUrl(c.banner_url)) return;
+      let hidden = false;
+      try { hidden = localStorage.getItem('tba_banner_hidden_' + c.id) === '1'; } catch (_) {}
+      if (hidden) return;
+      host.innerHTML = CampaignShared.cbBannerHtml(c, { reportable: userRole !== 'SW' });
+      document.getElementById('campaignBannerHide').onclick = () => {
+        strip.style.display = 'none';
+        try { localStorage.setItem('tba_banner_hidden_' + c.id, '1'); } catch (_) {}
+      };
+      strip.style.display = 'block';
+    }
+
+    // "Based on X by @author" next to the name. The server only sends it to members when the SW opted in.
+    function renderCampaignSourceCredit(c) {
+      if (!c.source_title) return;
+      const bar = document.getElementById('campaignSourceBar');
+      if (!bar) return;
+      bar.style.display = 'block';
+      bar.append('Based on ');
+      if (c.source_package_id) {
+        const a = document.createElement('a');
+        a.href = '/lba.html?entry=' + encodeURIComponent(c.source_package_id);
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = c.source_title;
+        a.style.color = 'inherit';
+        bar.appendChild(a);
+      } else {
+        bar.append(c.source_title);
+      }
+      if (c.source_author_username) bar.append(' by @' + c.source_author_username);
+    }
 
     // Load active effects for everyone
     loadEffects();

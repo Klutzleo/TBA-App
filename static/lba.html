@@ -385,6 +385,9 @@
 
     renderUserInfo();
     loadEntries();
+    // Deep link from a campaign's "Based on" credit
+    const _entryParam = new URLSearchParams(window.location.search).get('entry');
+    if (_entryParam && /^[0-9a-f-]{36}$/i.test(_entryParam)) openDetail(_entryParam);
     if (window.lucide) lucide.createIcons();
   </script>
 </body>
