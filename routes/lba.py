@@ -446,6 +446,9 @@ async def start_campaign_from_package(
         join_code=generate_join_code(db),
         story_weaver_id=current_user.id,
         created_by_user_id=current_user.id,
+        # Starts private: the SW still has to edit the story's title/tagline and set things up, so it
+        # shouldn't appear in Browse (or be joinable from it) until they choose to make it public.
+        is_public=False,
         sw_notes="\n\n".join(sw_notes_parts),
         # Browse tags and credit carry over from the story. Title and author are copied in so the
         # credit survives the package later being unpublished or deleted.

@@ -296,3 +296,5 @@ def test_start_campaign_copies_tags_and_credit_from_the_story(client, world):
     assert c.source_author_user_id == world["outsider"].id
     assert c.show_source_in_game is False  # spoiler guard defaults on
     assert c.banner_url is None  # covers are not shared between LBA and campaigns (yet)
+    assert c.is_public is False  # not in Browse until the SW chooses to publish it
+    assert str(c.id) not in browse(client, world["h_out"])
