@@ -946,8 +946,8 @@
                     <div id="settings-banner-preview" style="height:90px;border-radius:8px;overflow:hidden;background:#13151f;border:1px solid #3a3f54;margin-bottom:8px;"></div>
                     <input type="file" id="settings-banner-file" accept="image/jpeg,image/png,image/webp" style="display:none;">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button type="button" class="btn-secondary btn btn-small" id="settings-banner-upload-btn" onclick="document.getElementById('settings-banner-file').click()">Upload banner</button>
-                        <button type="button" class="btn-secondary btn btn-small" id="settings-banner-remove-btn" onclick="removeBanner()">Remove banner</button>
+                        <button type="button" class="btn-secondary btn btn-small" id="settings-banner-upload-btn">Upload banner</button>
+                        <button type="button" class="btn-secondary btn btn-small" id="settings-banner-remove-btn">Remove banner</button>
                     </div>
                     <p id="settings-banner-hint" style="margin-top: 8px; font-size: 0.85rem; color: #b0b3ba;"></p>
                     <p id="settings-banner-msg" style="margin-top: 6px; font-size: 0.85rem; min-height: 1.2em;"></p>
@@ -1450,7 +1450,7 @@
                 document.getElementById('settings-max-characters').value = campaign.max_characters_per_player || 1;
                 document.getElementById('settings-max-spectators').value = campaign.max_spectators != null ? campaign.max_spectators : '';
                 document.getElementById('settings-join-code').textContent = campaign.join_code;
-                fillBannerAndTags(campaign);
+                bannerEditor.fill(campaign);
 
                 document.getElementById('settings-modal').classList.add('active');
 
@@ -1630,120 +1630,15 @@
         }
 
         // Update campaign
-        // ── Banner + tags (settings modal) ──────────────────────────────────────────
-        const BANNER_MAX_BYTES = 3 * 1024 * 1024;
-        const MAX_GENRES = 5;
-        const BANNER_HINT = 'JPEG, PNG or WebP, up to 3MB. Wide images work best (about 3:1). Banners can be seen by anyone browsing and can be reported, so keep them suitable for your content rating.';
-
-        function settingsBannerMsg(text, isErr) {
-            const el = document.getElementById('settings-banner-msg');
-            el.textContent = text || '';
-            el.style.color = isErr ? '#f87171' : '#34d399';
-        }
-
-        function renderSettingsBannerPreview(campaign) {
-            const box = document.getElementById('settings-banner-preview');
-            box.replaceChildren();
-            const url = CampaignShared.cbSafeUrl(campaign.banner_url);
-            if (url) {
-                const img = document.createElement('img');
-                img.src = url;
-                img.alt = 'Current banner';
-                img.referrerPolicy = 'no-referrer';
-                img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
-                box.appendChild(img);
-            } else {
-                const none = document.createElement('div');
-                none.textContent = 'No banner';
-                none.style.cssText = 'height:100%;display:flex;align-items:center;justify-content:center;color:#6a7086;font-size:0.85rem;';
-                box.appendChild(none);
-            }
-            document.getElementById('settings-banner-remove-btn').style.display = url ? '' : 'none';
-            const locked = !!campaign.banner_locked;
-            document.getElementById('settings-banner-upload-btn').disabled = locked;
-            document.getElementById('settings-banner-hint').textContent = locked
-                ? 'Banner uploads are turned off for this campaign.'
-                : BANNER_HINT;
-        }
-
-        function buildGenreBoxes(selected) {
-            const wrap = document.getElementById('settings-genres');
-            wrap.replaceChildren();
-            Object.entries(CampaignShared.GENRE_LABELS).forEach(([value, label]) => {
-                const l = document.createElement('label');
-                l.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:400;font-size:0.85rem;background:#1a1d29;border:1px solid #3a3f54;border-radius:14px;padding:4px 10px;cursor:pointer;';
-                const cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.value = value;
-                cb.style.cssText = 'width:auto;padding:0;';
-                cb.checked = selected.includes(value);
-                cb.addEventListener('change', limitGenres);
-                l.appendChild(cb);
-                l.appendChild(document.createTextNode(label));
-                wrap.appendChild(l);
-            });
-            limitGenres();
-        }
-
-        function limitGenres() {
-            const boxes = Array.from(document.querySelectorAll('#settings-genres input'));
-            const full = boxes.filter(b => b.checked).length >= MAX_GENRES;
-            boxes.forEach(b => { b.disabled = full && !b.checked; });
-        }
-
-        function fillBannerAndTags(campaign) {
-            settingsBannerMsg('');
-            renderSettingsBannerPreview(campaign);
-            buildGenreBoxes(campaign.genres || []);
-            document.getElementById('settings-content-rating').value = campaign.content_rating || '';
-            const group = document.getElementById('settings-source-group');
-            if (campaign.source_title) {
-                group.style.display = '';
-                document.getElementById('settings-show-source').checked = !!campaign.show_source_in_game;
-                document.getElementById('settings-source-hint').textContent =
-                    'This campaign is based on "' + campaign.source_title + '". Browse always shows the credit. Leave this off so players are not tempted to read the story ahead of time.';
-            } else {
-                group.style.display = 'none';
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('settings-banner-file').addEventListener('change', async (ev) => {
-                const file = ev.target.files[0];
-                ev.target.value = '';
-                if (!file) return;
-                if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { settingsBannerMsg('Please choose a JPEG, PNG or WebP image.', true); return; }
-                if (file.size > BANNER_MAX_BYTES) { settingsBannerMsg('That image is over 3MB. Please choose a smaller one.', true); return; }
-                const campaignId = document.getElementById('settings-campaign-id').value;
-                settingsBannerMsg('Uploading...');
-                const form = new FormData();
-                form.append('file', file);
-                try {
-                    const resp = await fetchWithAuth(`/api/campaigns/${campaignId}/banner`, { method: 'POST', body: form });
-                    if (!resp) return;
-                    const body = await resp.json().catch(() => ({}));
-                    if (!resp.ok) { settingsBannerMsg(typeof body.detail === 'string' ? body.detail : 'Upload failed.', true); return; }
-                    renderSettingsBannerPreview({ banner_url: body.banner_url, banner_locked: false });
-                    settingsBannerMsg('Banner updated.');
-                    loadMyCampaigns();
-                } catch (e) {
-                    settingsBannerMsg('Upload failed. Please try again.', true);
-                }
-            });
+        // Banner + tags editor: shared with game.html (static/js/campaign-shared.js)
+        const bannerEditor = CampaignShared.createBannerTagsEditor({
+            ids: { preview: 'settings-banner-preview', file: 'settings-banner-file', upload: 'settings-banner-upload-btn',
+                   remove: 'settings-banner-remove-btn', hint: 'settings-banner-hint', msg: 'settings-banner-msg',
+                   genres: 'settings-genres', rating: 'settings-content-rating', sourceGroup: 'settings-source-group',
+                   showSource: 'settings-show-source', sourceHint: 'settings-source-hint' },
+            getCampaignId: () => document.getElementById('settings-campaign-id').value,
+            onBannerChange: () => loadMyCampaigns(),
         });
-
-        async function removeBanner() {
-            const campaignId = document.getElementById('settings-campaign-id').value;
-            try {
-                const resp = await fetchWithAuth(`/api/campaigns/${campaignId}/banner`, { method: 'DELETE' });
-                if (!resp || !resp.ok) { settingsBannerMsg('Could not remove the banner.', true); return; }
-                renderSettingsBannerPreview({ banner_url: null, banner_locked: document.getElementById('settings-banner-upload-btn').disabled });
-                settingsBannerMsg('Banner removed.');
-                loadMyCampaigns();
-            } catch (e) {
-                settingsBannerMsg('Could not remove the banner.', true);
-            }
-        }
 
         async function updateCampaign(event) {
             event.preventDefault();
@@ -1759,12 +1654,8 @@
                 max_players: parseInt(document.getElementById('settings-max-players').value),
                 max_characters_per_player: parseInt(document.getElementById('settings-max-characters').value),
                 max_spectators: document.getElementById('settings-max-spectators').value !== '' ? parseInt(document.getElementById('settings-max-spectators').value) : null,
-                genres: Array.from(document.querySelectorAll('#settings-genres input:checked')).map(i => i.value),
-                content_rating: document.getElementById('settings-content-rating').value || null
+                ...bannerEditor.getValues()
             };
-            if (document.getElementById('settings-source-group').style.display !== 'none') {
-                data.show_source_in_game = document.getElementById('settings-show-source').checked;
-            }
 
             try {
                 await apiCall(`/api/campaigns/${campaignId}`, {

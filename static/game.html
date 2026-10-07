@@ -4425,6 +4425,38 @@
           </select>
           <button class="btn" style="width:100%; padding:6px 14px; font-size:0.85rem;" onclick="saveCharacterMode()">Save Mode</button>
         </div>
+        <!-- Banner -->
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Banner</label>
+          <div id="gsBannerPreview" style="height:80px; border-radius:8px; overflow:hidden; background:#13151f; border:1px solid var(--border-color); margin-bottom:8px;"></div>
+          <input type="file" id="gsBannerFile" accept="image/jpeg,image/png,image/webp" style="display:none;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn-secondary btn" id="gsBannerUpload" style="padding:5px 12px; font-size:0.8rem;">Upload banner</button>
+            <button type="button" class="btn-secondary btn" id="gsBannerRemove" style="padding:5px 12px; font-size:0.8rem;">Remove banner</button>
+          </div>
+          <div id="gsBannerHint" style="font-size:0.75rem; color:var(--text-muted); margin-top:6px;"></div>
+          <div id="gsBannerMsg" style="font-size:0.78rem; min-height:1.1em; margin-top:4px;"></div>
+        </div>
+        <!-- Browse tags -->
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Genres <span style="text-transform:none; letter-spacing:normal;">(pick up to 5)</span></label>
+          <div id="gsGenres" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;"></div>
+          <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Content Rating</label>
+          <select id="gsRating"
+            style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); padding:7px 8px; margin-bottom:12px;">
+            <option value="">Not set</option>
+            <option value="all_ages">All ages</option>
+            <option value="teen">Teen</option>
+            <option value="mature">Mature</option>
+          </select>
+          <div id="gsSourceGroup" style="display:none; margin-bottom:12px;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-primary); cursor:pointer;">
+              <input type="checkbox" id="gsShowSource" style="width:auto;"> Show the source story to players in the game
+            </label>
+            <div id="gsSourceHint" style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;"></div>
+          </div>
+          <button class="btn" style="width:100%; padding:6px 14px; font-size:0.85rem;" onclick="saveCampaignTags()">Save Tags</button>
+        </div>
         <button class="btn-secondary btn" onclick="closeCampaignSettings()">Close</button>
       </div>
     </div>
@@ -7455,6 +7487,7 @@
           document.getElementById('settingsCampaignName').value = camp.name || '';
           document.getElementById('settingsCharMode').value = camp.character_creation_mode || 'open';
           document.getElementById('settingsJoinCode').textContent = camp.join_code || '—';
+          gameBannerEditor.fill(camp);
         }
         if (dcResp.ok) {
           const dc = await dcResp.json();
@@ -7466,6 +7499,37 @@
 
     function closeCampaignSettings() {
       document.getElementById('campaignSettingsModal').classList.remove('active');
+    }
+
+    // Banner + tags editor, shared with campaigns.html (static/js/campaign-shared.js). A change here
+    // updates the strip under the header straight away; other members see it on their next load.
+    const gameBannerEditor = CampaignShared.createBannerTagsEditor({
+      ids: { preview: 'gsBannerPreview', file: 'gsBannerFile', upload: 'gsBannerUpload', remove: 'gsBannerRemove',
+             hint: 'gsBannerHint', msg: 'gsBannerMsg', genres: 'gsGenres', rating: 'gsRating',
+             sourceGroup: 'gsSourceGroup', showSource: 'gsShowSource', sourceHint: 'gsSourceHint' },
+      getCampaignId: () => campaignId,
+      onBannerChange: (url) => {
+        try { localStorage.removeItem('tba_banner_hidden_' + campaignId); } catch (_) {}
+        campaignInfo.banner_url = url;
+        renderCampaignBannerStrip(campaignInfo);
+      },
+    });
+
+    async function saveCampaignTags() {
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(gameBannerEditor.getValues())
+        });
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          throw new Error(typeof body.detail === 'string' ? body.detail : 'Failed to save');
+        }
+        showPanelToast('Tags saved', 'success');
+      } catch (e) {
+        showPanelToast('Could not save tags: ' + e.message, 'error');
+      }
     }
 
     async function openCampaignStats() {
@@ -15474,6 +15538,7 @@
           document.getElementById('campaignSubtitle').textContent = c.name;
           document.getElementById('campaignNameBar').textContent = c.name;
           document.title = `${c.name} — TBA`;
+          campaignInfo = c;
           renderCampaignBannerStrip(c);
           renderCampaignSourceCredit(c);
         }
@@ -15481,10 +15546,14 @@
 
     // Banner strip under the header. Players can report it from the "..." menu; the SW manages it in
     // campaign settings. A member can hide it for themselves (remembered per campaign on this device).
+    let campaignInfo = {};  // last GET /api/campaigns/{id} payload, so the strip can re-render after an edit
     function renderCampaignBannerStrip(c) {
       const strip = document.getElementById('campaignBannerStrip');
       const host = document.getElementById('campaignBannerHost');
-      if (!strip || !host || !c.banner_url || !CampaignShared.cbSafeUrl(c.banner_url)) return;
+      if (!strip || !host) return;
+      strip.style.display = 'none';
+      host.innerHTML = '';
+      if (!c.banner_url || !CampaignShared.cbSafeUrl(c.banner_url)) return;
       let hidden = false;
       try { hidden = localStorage.getItem('tba_banner_hidden_' + c.id) === '1'; } catch (_) {}
       if (hidden) return;

@@ -226,6 +226,139 @@
     };
   };
 
+
+  // ---- Banner + tags editor (used by the SW settings on campaigns.html and in game.html) ---------
+  // cfg.ids: element ids {preview, file, upload, remove, hint, msg, genres, rating, sourceGroup, showSource, sourceHint}
+  // cfg.getCampaignId(): current campaign id.  cfg.onBannerChange(url|null): called after upload/remove.
+  const BANNER_MAX_BYTES = 3 * 1024 * 1024;
+  const MAX_GENRES = 5;
+  const BANNER_HINT = 'JPEG, PNG or WebP, up to 3MB. Wide images work best (about 3:1). Banners can be seen by anyone browsing and can be reported, so keep them suitable for your content rating.';
+
+  function createBannerTagsEditor(cfg) {
+    const el = key => document.getElementById(cfg.ids[key]);
+    const headers = () => ({ Authorization: 'Bearer ' + token() });
+    let locked = false;
+
+    function say(text, isErr) {
+      const m = el('msg');
+      m.textContent = text || '';
+      m.style.color = isErr ? '#f87171' : '#34d399';
+    }
+
+    function renderPreview(banner_url, isLocked) {
+      locked = !!isLocked;
+      const box = el('preview');
+      box.replaceChildren();
+      const url = cbSafeUrl(banner_url);
+      if (url) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Current banner';
+        img.referrerPolicy = 'no-referrer';
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+        box.appendChild(img);
+      } else {
+        const none = document.createElement('div');
+        none.textContent = 'No banner';
+        none.style.cssText = 'height:100%;display:flex;align-items:center;justify-content:center;color:#6a7086;font-size:0.85rem;';
+        box.appendChild(none);
+      }
+      el('remove').style.display = url ? '' : 'none';
+      el('upload').disabled = locked;
+      el('hint').textContent = locked ? 'Banner uploads are turned off for this campaign.' : BANNER_HINT;
+    }
+
+    function limitGenres() {
+      const boxes = Array.from(el('genres').querySelectorAll('input'));
+      const full = boxes.filter(b => b.checked).length >= MAX_GENRES;
+      boxes.forEach(b => { b.disabled = full && !b.checked; });
+    }
+
+    function buildGenres(selected) {
+      const wrap = el('genres');
+      wrap.replaceChildren();
+      Object.entries(GENRE_LABELS).forEach(([value, label]) => {
+        const l = document.createElement('label');
+        l.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:400;font-size:0.85rem;background:#1a1d29;border:1px solid #3a3f54;border-radius:14px;padding:4px 10px;cursor:pointer;text-transform:none;letter-spacing:normal;color:#e4e6eb;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = value;
+        cb.style.cssText = 'width:auto;padding:0;margin:0;';
+        cb.checked = selected.includes(value);
+        cb.addEventListener('change', limitGenres);
+        l.appendChild(cb);
+        l.appendChild(document.createTextNode(label));
+        wrap.appendChild(l);
+      });
+      limitGenres();
+    }
+
+    async function upload(file) {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { say('Please choose a JPEG, PNG or WebP image.', true); return; }
+      if (file.size > BANNER_MAX_BYTES) { say('That image is over 3MB. Please choose a smaller one.', true); return; }
+      say('Uploading...');
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const resp = await fetch(`/api/campaigns/${cfg.getCampaignId()}/banner`, { method: 'POST', headers: headers(), body: form });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok) { say(typeof body.detail === 'string' ? body.detail : 'Upload failed.', true); return; }
+        renderPreview(body.banner_url, false);
+        say('Banner updated.');
+        if (cfg.onBannerChange) cfg.onBannerChange(body.banner_url);
+      } catch (e) {
+        say('Upload failed. Please try again.', true);
+      }
+    }
+
+    async function remove() {
+      try {
+        const resp = await fetch(`/api/campaigns/${cfg.getCampaignId()}/banner`, { method: 'DELETE', headers: headers() });
+        if (!resp.ok) { say('Could not remove the banner.', true); return; }
+        renderPreview(null, locked);
+        say('Banner removed.');
+        if (cfg.onBannerChange) cfg.onBannerChange(null);
+      } catch (e) {
+        say('Could not remove the banner.', true);
+      }
+    }
+
+    el('upload').addEventListener('click', () => el('file').click());
+    el('remove').addEventListener('click', remove);
+    el('file').addEventListener('change', ev => {
+      const file = ev.target.files[0];
+      ev.target.value = '';
+      if (file) upload(file);
+    });
+
+    return {
+      /** Fill the controls from a campaign response (the SW's view of it). */
+      fill(c) {
+        say('');
+        renderPreview(c.banner_url, c.banner_locked);
+        buildGenres(c.genres || []);
+        el('rating').value = c.content_rating || '';
+        const group = el('sourceGroup');
+        if (c.source_title) {
+          group.style.display = '';
+          el('showSource').checked = !!c.show_source_in_game;
+          el('sourceHint').textContent = 'This campaign is based on "' + c.source_title + '". Browse always shows the credit. Leave this off so players are not tempted to read the story ahead of time.';
+        } else {
+          group.style.display = 'none';
+        }
+      },
+      /** The tag fields ready to send in a campaign PATCH/PUT. */
+      getValues() {
+        const out = {
+          genres: Array.from(el('genres').querySelectorAll('input:checked')).map(i => i.value),
+          content_rating: el('rating').value || null,
+        };
+        if (el('sourceGroup').style.display !== 'none') out.show_source_in_game = el('showSource').checked;
+        return out;
+      },
+    };
+  }
+
   // ---- Styles (scoped with the cb- prefix so they cannot clash with either page) -----------------
   const css = `
     .cb-banner { position: relative; height: 110px; margin: -20px -20px 14px; border-radius: 12px 12px 0 0; overflow: hidden; background: #13151f; }
@@ -266,6 +399,6 @@
 
   window.CampaignShared = {
     GENRE_LABELS, RATING_LABELS, cbEsc, cbSafeUrl, cbRelativeTime,
-    cbBannerHtml, cbChipsHtml, cbActivityHtml, cbSourceHtml,
+    cbBannerHtml, cbChipsHtml, cbActivityHtml, cbSourceHtml, createBannerTagsEditor,
   };
 })();
