@@ -6308,6 +6308,7 @@
       renderChatToolbar();
       updatePuppetBanner();
       renderPendingCheckBar();
+      if (character && character.type === 'puppet' && character.id) loadPuppetAbilities(character.id);
     }
 
     // Shows/hides the "Puppeting: X — mechanics only" banner to match activeSpeaker.
@@ -6476,20 +6477,39 @@
     }
 
     // Render the formatting + macro toolbar above the input
+    // Abilities for whoever is speaking. A puppeted PC is neither one of my own characters nor an NPC, so
+    // its abilities are fetched on demand (the SW may read any PC's abilities) and cached by character id.
+    const _puppetAbilities = {};
+    function abilitiesForActiveSpeaker() {
+      if (!activeSpeaker || !activeSpeaker.id) return [];
+      if (activeSpeaker.type === 'puppet') {
+        return (_puppetAbilities[activeSpeaker.id] || []).filter(a => a.macro_command);
+      }
+      // Own characters first, then NPCs
+      const charData = [...(playerCharacters || []), ...(campaignNPCs || [])]
+        .find(c => c.id === activeSpeaker.id);
+      return charData && charData.abilities ? charData.abilities.filter(a => a.macro_command) : [];
+    }
+
+    async function loadPuppetAbilities(characterId) {
+      try {
+        const resp = await fetch(`/api/characters/${characterId}/abilities`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        _puppetAbilities[characterId] = Array.isArray(data) ? data : (data.abilities || []);
+        // Only repaint if they are still the one being puppeted
+        if (activeSpeaker && activeSpeaker.type === 'puppet' && activeSpeaker.id === characterId) renderChatToolbar();
+      } catch (_) { /* the toolbar just stays without macro buttons */ }
+    }
+
     function renderChatToolbar() {
       const toolbar = document.getElementById('chatToolbar');
       if (!toolbar) return;
 
-      // Find abilities for the active speaker (PC/NPC/Ally with a character id)
-      let abilities = [];
-      if (activeSpeaker && activeSpeaker.id) {
-        // Try playerCharacters first, then campaignNPCs
-        const charData = [...(playerCharacters || []), ...(campaignNPCs || [])]
-          .find(c => c.id === activeSpeaker.id);
-        if (charData && charData.abilities) {
-          abilities = charData.abilities.filter(a => a.macro_command);
-        }
-      }
+      // Find abilities for the active speaker (own PC/Ally, NPC, or a puppeted PC)
+      const abilities = abilitiesForActiveSpeaker();
 
       // Always show at minimum the B/I buttons once connected
       if (!ws) {
@@ -17178,12 +17198,7 @@
     input.value = document.getElementById('messageInput').value;
     // Render the same toolbar as the main chat, but targeting expandedInput
     const tb = document.getElementById('expandedToolbar');
-    let abilities = [];
-    if (activeSpeaker && activeSpeaker.id) {
-      const charData = [...(playerCharacters || []), ...(campaignNPCs || [])]
-        .find(c => c.id === activeSpeaker.id);
-      if (charData && charData.abilities) abilities = charData.abilities.filter(a => a.macro_command);
-    }
+    const abilities = abilitiesForActiveSpeaker();
     tb.innerHTML = `
       <button class="fmt-btn" title="Bold (**text**)" onclick="wrapExpandedText('**','**','bold text')"><strong>B</strong></button>
       <button class="fmt-btn" title="Italic (*text*)" onclick="wrapExpandedText('*','*','italic text')"><em style="font-family:Georgia,serif;">I</em></button>
