@@ -240,8 +240,8 @@
     <ul>
       <li><b>Size:</b> 1600 x 400 px (4:1) works best. Minimum width is 800 px.</li>
       <li><b>Format:</b> JPEG, PNG or WebP, under 3MB. No GIFs or animated images.</li>
-      <li><b>Where it shows:</b> the top of your campaign card in Browse and My Campaigns, and a strip under the header in the game.</li>
-      <li><b>Cropping:</b> it is shown as a wide strip, so edges may be cut off. Keep faces, text and key details in the middle.</li>
+      <li><b>Where it shows:</b> the top of your campaign card in Browse and My Campaigns, and behind the header at the top of the game (dimmed so the title stays readable).</li>
+      <li><b>Cropping:</b> the game header is a thin band, so only a slice of the image shows there. Keep faces, text and key details in the middle.</li>
       <li><b>Keep it suitable</b> for your content rating. Anyone browsing can see it and report it, and banners that break the rules are removed.</li>
     </ul>`;
 

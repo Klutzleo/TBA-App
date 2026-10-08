@@ -2970,7 +2970,7 @@
   <div id="achievement-toast-stack"></div>
   <div class="app-container">
     <!-- Header -->
-    <header class="header">
+    <header class="header" id="pageHeader">
       <!-- Hamburger menu (mobile only) -->
       <button id="hamburgerBtn" class="hamburger-btn">
         <span></span>
@@ -2988,6 +2988,9 @@
         </div>
       </div>
       <div class="connection-status">
+        <button type="button" id="coverReportBtn" class="tbacv-report-btn" style="display:none;" title="Report campaign cover image"
+          aria-label="Report campaign cover image" onclick="openReportBannerModal(campaignId)">
+          <i data-lucide="flag" style="width:15px;height:15px;"></i></button>
         <a href="/profile.html" title="My Profile" class="hdr-collapse"
           style="display:inline-flex;align-items:center;padding:2px 6px;margin-right:4px;opacity:0.7;text-decoration:none;color:inherit;">
           <i data-lucide="user" style="width:18px;height:18px;"></i></a>
@@ -3028,6 +3031,22 @@
         </button>
       </div>
     </header>
+    <script>
+      // First paint: reuse the cover from the last visit so the header doesn't pop in after the campaign data loads.
+      // (applyCampaignCover() below corrects it as soon as the real data arrives.)
+      (function () {
+        try {
+          var cid = new URLSearchParams(location.search).get('campaign_id');
+          var c = JSON.parse(localStorage.getItem('tba_cover_' + cid) || 'null');
+          if (c && typeof c.url === 'string' && /^https:\/\/[^\s"'<>]+$/i.test(c.url)) {
+            var h = document.getElementById('pageHeader');
+            h.style.setProperty('--tbacv-hdr-img', 'url("' + c.url + '")');
+            h.style.setProperty('--tbacv-hdr-y', (Number.isFinite(c.y) ? c.y : 50) + '%');
+            h.classList.add('tbacv-hdr-cover');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <div id="hdrMoreMenu" class="hdr-more-menu" role="menu">
       <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();toggleNotificationDrawer()">
         <i data-lucide="scroll" style="width:18px;height:18px;"></i><span>Notifications</span>
@@ -3053,21 +3072,20 @@
         <i data-lucide="coffee" style="width:18px;height:18px;"></i><span>Support on Ko-fi</span></a>
     </div>
     <div id="campaignNameBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:3px 8px;font-size:0.75rem;color:var(--text-muted);font-style:italic;border-bottom:1px solid rgba(255,255,255,0.05);"></div>
-    <!-- Campaign banner strip: only when the SW has uploaded one. Collapsible, and hidden on phones to keep the chat roomy. -->
-    <div id="campaignBannerStrip" class="tbacv-strip" style="display:none;">
-      <div class="tbacv-strip-inner">
-        <div id="campaignBannerHost"></div>
-        <button type="button" id="campaignBannerHide" class="tbacv-strip-hide" title="Hide banner" aria-label="Hide banner">&times;</button>
-      </div>
-    </div>
     <div id="campaignSourceBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:4px 10px;font-size:0.78rem;color:var(--text-muted);border-bottom:1px solid rgba(255,255,255,0.05);"></div>
     <style>
-      .tbacv-strip { border-bottom: 1px solid rgba(255,255,255,0.08); background: #000; }
-      /* Same 4:1 shape as the cards, centered and capped so it never turns into a thin slit on a wide monitor */
-      .tbacv-strip-inner { position: relative; max-width: 720px; margin: 0 auto; }
-      .tbacv-strip .tbacv-cover { margin: 0; border-radius: 0; }
-      .tbacv-strip-hide { position: absolute; top: 6px; left: 8px; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 1rem; line-height: 1; z-index: 6; }
-      @media (max-width: 640px) { #campaignBannerStrip { display: none !important; } }
+      /* Campaign cover: the SW's image sits behind the page header, dimmed so the title and buttons stay readable.
+         It is a background on the existing header, so it costs no screen space and works on phones too. */
+      #pageHeader { position: relative; isolation: isolate; }
+      #pageHeader.tbacv-hdr-cover::before {
+        content: ''; position: absolute; inset: 0; z-index: -1;
+        background-image: linear-gradient(rgba(10,12,20,0.58), rgba(10,12,20,0.80)), var(--tbacv-hdr-img);
+        background-size: cover; background-position: center var(--tbacv-hdr-y, 50%);
+      }
+      #pageHeader.tbacv-hdr-cover .header-title h1 { text-shadow: 0 1px 8px rgba(0,0,0,0.9); }
+      #pageHeader.tbacv-hdr-cover .brand-kicker { color: rgba(255,255,255,0.78); }
+      .tbacv-report-btn { background: none; border: none; cursor: pointer; padding: 6px; margin-right: 4px; border-radius: 8px; color: #a2a7b8; display: flex; align-items: center; opacity: 0.75; }
+      .tbacv-report-btn:hover { opacity: 1; color: #f87171; }
     </style>
 
     <!-- Main Content -->
@@ -7533,9 +7551,8 @@
              sourceGroup: 'gsSourceGroup', showSource: 'gsShowSource', sourceHint: 'gsSourceHint' },
       getCampaignId: () => campaignId,
       onBannerChange: (url) => {
-        try { localStorage.removeItem('tba_banner_hidden_' + campaignId); } catch (_) {}
         campaignInfo.banner_url = url;
-        renderCampaignBannerStrip(campaignInfo);
+        applyCampaignCover(campaignInfo);
       },
     });
 
@@ -15563,30 +15580,35 @@
           document.getElementById('campaignNameBar').textContent = c.name;
           document.title = `${c.name} — TBA`;
           campaignInfo = c;
-          renderCampaignBannerStrip(c);
+          applyCampaignCover(c);
           renderCampaignSourceCredit(c);
         }
       }).catch(() => {});
 
-    // Banner strip under the header. Players can report it from the "..." menu; the SW manages it in
-    // campaign settings. A member can hide it for themselves (remembered per campaign on this device).
-    let campaignInfo = {};  // last GET /api/campaigns/{id} payload, so the strip can re-render after an edit
-    function renderCampaignBannerStrip(c) {
-      const strip = document.getElementById('campaignBannerStrip');
-      const host = document.getElementById('campaignBannerHost');
-      if (!strip || !host) return;
-      strip.style.display = 'none';
-      host.innerHTML = '';
-      if (!c.banner_url || !CampaignShared.cbSafeUrl(c.banner_url)) return;
-      let hidden = false;
-      try { hidden = localStorage.getItem('tba_banner_hidden_' + c.id) === '1'; } catch (_) {}
-      if (hidden) return;
-      host.innerHTML = CampaignShared.cbBannerHtml(c, { reportable: userRole !== 'SW' });
-      document.getElementById('campaignBannerHide').onclick = () => {
-        strip.style.display = 'none';
-        try { localStorage.setItem('tba_banner_hidden_' + c.id, '1'); } catch (_) {}
-      };
-      strip.style.display = 'block';
+    // Campaign cover: set as a dimmed background on the page header. Players can report it with the flag button;
+    // the SW manages it in campaign settings. The last cover is cached per campaign so the header paints with it
+    // straight away on the next visit (see the small script right after the header), not after the data loads.
+    let campaignInfo = {};  // last GET /api/campaigns/{id} payload, so the header can update after an edit
+    function applyCampaignCover(c) {
+      const header = document.getElementById('pageHeader');
+      if (!header) return;
+      const url = CampaignShared.cbSafeUrl(c.banner_url);
+      const y = Number.isFinite(c.banner_focus_y) ? c.banner_focus_y : 50;
+      if (url) {
+        header.style.setProperty('--tbacv-hdr-img', 'url("' + url + '")');
+        header.style.setProperty('--tbacv-hdr-y', y + '%');
+        header.classList.add('tbacv-hdr-cover');
+      } else {
+        header.classList.remove('tbacv-hdr-cover');
+        header.style.removeProperty('--tbacv-hdr-img');
+        header.style.removeProperty('--tbacv-hdr-y');
+      }
+      const reportBtn = document.getElementById('coverReportBtn');
+      if (reportBtn) reportBtn.style.display = (url && userRole !== 'SW') ? '' : 'none';
+      try {
+        if (url) localStorage.setItem('tba_cover_' + campaignId, JSON.stringify({ url, y }));
+        else localStorage.removeItem('tba_cover_' + campaignId);
+      } catch (_) {}
     }
 
     // "Based on X by @author" next to the name. The server only sends it to members when the SW opted in.
