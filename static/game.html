@@ -3054,19 +3054,19 @@
     </div>
     <div id="campaignNameBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:3px 8px;font-size:0.75rem;color:var(--text-muted);font-style:italic;border-bottom:1px solid rgba(255,255,255,0.05);"></div>
     <!-- Campaign banner strip: only when the SW has uploaded one. Collapsible, and hidden on phones to keep the chat roomy. -->
-    <div id="campaignBannerStrip" class="cb-strip" style="display:none;">
-      <div class="cb-strip-inner">
+    <div id="campaignBannerStrip" class="tbacv-strip" style="display:none;">
+      <div class="tbacv-strip-inner">
         <div id="campaignBannerHost"></div>
-        <button type="button" id="campaignBannerHide" class="cb-strip-hide" title="Hide banner" aria-label="Hide banner">&times;</button>
+        <button type="button" id="campaignBannerHide" class="tbacv-strip-hide" title="Hide banner" aria-label="Hide banner">&times;</button>
       </div>
     </div>
     <div id="campaignSourceBar" style="display:none;background:rgba(0,0,0,0.25);text-align:center;padding:4px 10px;font-size:0.78rem;color:var(--text-muted);border-bottom:1px solid rgba(255,255,255,0.05);"></div>
     <style>
-      .cb-strip { border-bottom: 1px solid rgba(255,255,255,0.08); background: #000; }
+      .tbacv-strip { border-bottom: 1px solid rgba(255,255,255,0.08); background: #000; }
       /* Same 4:1 shape as the cards, centered and capped so it never turns into a thin slit on a wide monitor */
-      .cb-strip-inner { position: relative; max-width: 720px; margin: 0 auto; }
-      .cb-strip .cb-banner { margin: 0; border-radius: 0; }
-      .cb-strip-hide { position: absolute; top: 6px; left: 8px; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 1rem; line-height: 1; z-index: 6; }
+      .tbacv-strip-inner { position: relative; max-width: 720px; margin: 0 auto; }
+      .tbacv-strip .tbacv-cover { margin: 0; border-radius: 0; }
+      .tbacv-strip-hide { position: absolute; top: 6px; left: 8px; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 1rem; line-height: 1; z-index: 6; }
       @media (max-width: 640px) { #campaignBannerStrip { display: none !important; } }
     </style>
 

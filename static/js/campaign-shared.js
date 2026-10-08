@@ -62,30 +62,30 @@
     const initial = cbEsc((campaign.name || '?').trim().charAt(0).toUpperCase());
     const inner = url
       ? `<img src="${cbEsc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
-      : `<div class="cb-banner-default" style="${cbDefaultBannerStyle(campaign)}"><span>${initial}</span></div>`;
+      : `<div class="tbacv-cover-default" style="${cbDefaultBannerStyle(campaign)}"><span>${initial}</span></div>`;
     const safeId = /^[0-9a-f-]{36}$/i.test(String(campaign.id)) ? String(campaign.id) : '';
     const menu = (opts.reportable && url && safeId)
-      ? `<div class="cb-menu-wrap">
-           <button type="button" class="cb-menu-btn" aria-label="More options" onclick="cbToggleMenu(event)">&#8943;</button>
-           <div class="cb-menu" role="menu">
+      ? `<div class="tbacv-menu-wrap">
+           <button type="button" class="tbacv-menu-btn" aria-label="More options" onclick="cbToggleMenu(event)">&#8943;</button>
+           <div class="tbacv-menu" role="menu">
              <button type="button" role="menuitem" onclick="cbReportClick(event, '${safeId}')">Report campaign banner</button>
            </div>
          </div>`
       : '';
-    return `<div class="cb-banner">${inner}${menu}</div>`;
+    return `<div class="tbacv-cover">${inner}${menu}</div>`;
   }
 
   function cbChipsHtml(campaign) {
-    const chips = (campaign.genres || []).map(g => `<span class="cb-chip">${cbEsc(GENRE_LABELS[g] || g)}</span>`);
+    const chips = (campaign.genres || []).map(g => `<span class="tbacv-chip">${cbEsc(GENRE_LABELS[g] || g)}</span>`);
     if (campaign.content_rating) {
-      chips.push(`<span class="cb-chip ${campaign.content_rating === 'mature' ? 'cb-chip-mature' : ''}">${cbEsc(RATING_LABELS[campaign.content_rating] || campaign.content_rating)}</span>`);
+      chips.push(`<span class="tbacv-chip ${campaign.content_rating === 'mature' ? 'tbacv-chip-mature' : ''}">${cbEsc(RATING_LABELS[campaign.content_rating] || campaign.content_rating)}</span>`);
     }
-    return chips.length ? `<div class="cb-chips">${chips.join('')}</div>` : '';
+    return chips.length ? `<div class="tbacv-chips">${chips.join('')}</div>` : '';
   }
 
   function cbActivityHtml(campaign) {
     const when = cbRelativeTime(campaign.last_activity_at);
-    return when ? `<div class="campaign-meta-item cb-activity"><span>Last post ${cbEsc(when)}</span></div>` : '';
+    return when ? `<div class="campaign-meta-item tbacv-activity"><span>Last post ${cbEsc(when)}</span></div>` : '';
   }
 
   function cbSourceHtml(campaign) {
@@ -94,21 +94,21 @@
       ? `<a href="/lba.html?entry=${encodeURIComponent(campaign.source_package_id)}">${cbEsc(campaign.source_title)}</a>`
       : cbEsc(campaign.source_title);
     const by = campaign.source_author_username ? ` by @${cbEsc(campaign.source_author_username)}` : '';
-    return `<div class="cb-source">Based on ${title}${by}</div>`;
+    return `<div class="tbacv-source">Based on ${title}${by}</div>`;
   }
 
   // ---- "..." menu on a banner ------------------------------------------------------------------
   window.cbToggleMenu = function (ev) {
     ev.stopPropagation();
-    const menu = ev.currentTarget.parentElement.querySelector('.cb-menu');
+    const menu = ev.currentTarget.parentElement.querySelector('.tbacv-menu');
     const open = menu.classList.contains('open');
-    document.querySelectorAll('.cb-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.tbacv-menu.open').forEach(m => m.classList.remove('open'));
     if (!open) menu.classList.add('open');
   };
-  document.addEventListener('click', () => document.querySelectorAll('.cb-menu.open').forEach(m => m.classList.remove('open')));
+  document.addEventListener('click', () => document.querySelectorAll('.tbacv-menu.open').forEach(m => m.classList.remove('open')));
   window.cbReportClick = function (ev, campaignId) {
     ev.stopPropagation();
-    document.querySelectorAll('.cb-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.tbacv-menu.open').forEach(m => m.classList.remove('open'));
     window.openReportBannerModal(campaignId);
   };
 
@@ -131,19 +131,19 @@
     if (overlay) return overlay;
     overlay = document.createElement('div');
     overlay.id = 'cbReportOverlay';
-    overlay.className = 'cb-overlay';
+    overlay.className = 'tbacv-overlay';
     overlay.innerHTML = `
-      <div class="cb-dialog" role="dialog" aria-modal="true" aria-labelledby="cbReportTitle">
+      <div class="tbacv-dialog" role="dialog" aria-modal="true" aria-labelledby="cbReportTitle">
         <h3 id="cbReportTitle">Report campaign banner</h3>
-        <p class="cb-dialog-sub">Tell us what's wrong with this banner. Reports are private. The campaign's Story Weaver is not told who reported it.</p>
+        <p class="tbacv-dialog-sub">Tell us what's wrong with this banner. Reports are private. The campaign's Story Weaver is not told who reported it.</p>
         <label for="cbReportReason">Reason</label>
         <select id="cbReportReason"></select>
         <label for="cbReportNote" id="cbReportNoteLabel">Details (optional)</label>
         <textarea id="cbReportNote" maxlength="500" rows="3" placeholder="Anything that helps us review it"></textarea>
-        <div class="cb-dialog-msg" id="cbReportMsg" aria-live="polite"></div>
-        <div class="cb-dialog-actions">
-          <button type="button" class="cb-btn cb-btn-ghost" id="cbReportCancel">Cancel</button>
-          <button type="button" class="cb-btn cb-btn-danger" id="cbReportSend">Send report</button>
+        <div class="tbacv-dialog-msg" id="cbReportMsg" aria-live="polite"></div>
+        <div class="tbacv-dialog-actions">
+          <button type="button" class="tbacv-btn tbacv-btn-ghost" id="cbReportCancel">Cancel</button>
+          <button type="button" class="tbacv-btn tbacv-btn-danger" id="cbReportSend">Send report</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -168,7 +168,7 @@
   function setMsg(text, kind) {
     const el = document.getElementById('cbReportMsg');
     el.textContent = text || '';
-    el.className = 'cb-dialog-msg' + (kind ? ' ' + kind : '');
+    el.className = 'tbacv-dialog-msg' + (kind ? ' ' + kind : '');
   }
 
   window.openReportBannerModal = async function (campaignId) {
@@ -270,14 +270,14 @@
     // Tooltip next to the "Banner" label (optional: only if the page gives us a host element)
     if (cfg.ids.tip && el('tip')) {
       const tip = el('tip');
-      tip.className = 'cb-tip';
+      tip.className = 'tbacv-tip';
       tip.tabIndex = 0;
       tip.setAttribute('role', 'button');
       tip.setAttribute('aria-label', 'Banner guide');
-      tip.innerHTML = '?<span class="cb-tip-box" role="tooltip">' + BANNER_TIP_HTML + '</span>';
+      tip.innerHTML = '?<span class="tbacv-tip-box" role="tooltip">' + BANNER_TIP_HTML + '</span>';
       // The box is position:fixed so a scrolling modal can't clip it; keep it fully on screen.
       const placeTip = () => {
-        const box = tip.querySelector('.cb-tip-box');
+        const box = tip.querySelector('.tbacv-tip-box');
         const r = tip.getBoundingClientRect();
         const w = Math.min(290, window.innerWidth * 0.78);
         box.style.width = w + 'px';
@@ -413,46 +413,46 @@
     };
   }
 
-  // ---- Styles (scoped with the cb- prefix so they cannot clash with either page) -----------------
+  // ---- Styles (scoped with the tbacv- prefix so they cannot clash with either page) -----------------
   const css = `
-    .cb-banner { position: relative; aspect-ratio: 4 / 1; margin: -20px -20px 14px; border-radius: 12px 12px 0 0; overflow: hidden; background: #13151f; }
-    .cb-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .cb-banner-default { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-    .cb-banner-default span { font-size: 3rem; font-weight: 800; color: rgba(255,255,255,0.22); }
-    .cb-menu-wrap { position: absolute; top: 6px; right: 6px; }
-    .cb-menu-btn { background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; width: 30px; height: 28px; font-size: 1.1rem; line-height: 1; cursor: pointer; }
-    .cb-menu { display: none; position: absolute; right: 0; top: 32px; background: #1c2130; border: 1px solid #3a3f54; border-radius: 8px; min-width: 190px; z-index: 5; box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
-    .cb-menu.open { display: block; }
-    .cb-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: #e4e6eb; padding: 10px 12px; font-size: 0.85rem; cursor: pointer; }
-    .cb-menu button:hover { background: #2a3048; }
-    .cb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
-    .cb-chip { font-size: 0.72rem; color: #c4c8d4; background: #2a3048; border: 1px solid #3a3f54; border-radius: 10px; padding: 2px 9px; }
-    .cb-chip-mature { color: #fca5a5; border-color: #7c4a4a; }
-    .cb-activity { color: #8ec5a0; }
-    .cb-source { font-size: 0.8rem; color: #b0b3ba; margin: 0 0 10px; }
-    .cb-source a { color: #d4af37; text-decoration: none; }
-    .cb-source a:hover { text-decoration: underline; }
-    .cb-tip { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin-left: 6px; border-radius: 50%; border: 1px solid #6a7086; color: #a2a7b8; font-size: 0.72rem; font-weight: 700; line-height: 1; cursor: help; text-transform: none; letter-spacing: normal; vertical-align: middle; }
-    .cb-tip:hover, .cb-tip:focus { color: #d4af37; border-color: #d4af37; outline: none; }
-    .cb-tip-box { display: none; position: fixed; left: 8px; top: 8px; width: 290px; max-width: 78vw; z-index: 10001; background: #1c2130; border: 1px solid #3a3f54; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.55); color: #e4e6eb; font-size: 0.78rem; font-weight: 400; line-height: 1.45; text-align: left; cursor: default; }
-    .cb-tip:hover .cb-tip-box, .cb-tip:focus .cb-tip-box, .cb-tip:focus-within .cb-tip-box { display: block; }
-    .cb-tip-box strong { color: #d4af37; display: block; margin-bottom: 4px; }
-    .cb-tip-box ul { margin: 0; padding-left: 16px; }
-    .cb-tip-box li { margin: 0 0 4px; }
-    .cb-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 16px; }
-    .cb-overlay.open { display: flex; }
-    .cb-dialog { background: #1c2130; border: 1px solid #3a3f54; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; color: #e4e6eb; }
-    .cb-dialog h3 { margin: 0 0 6px; color: #f87171; font-size: 1.1rem; }
-    .cb-dialog-sub { margin: 0 0 14px; font-size: 0.82rem; color: #a2a7b8; }
-    .cb-dialog label { display: block; font-size: 0.82rem; color: #a2a7b8; margin: 10px 0 4px; }
-    .cb-dialog select, .cb-dialog textarea { width: 100%; background: #232838; border: 1px solid #3a3f54; color: #e4e6eb; border-radius: 6px; padding: 8px; font: inherit; font-size: 0.9rem; }
-    .cb-dialog-msg { min-height: 20px; margin-top: 10px; font-size: 0.85rem; }
-    .cb-dialog-msg.ok { color: #34d399; } .cb-dialog-msg.err { color: #f87171; }
-    .cb-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-    .cb-btn { border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid #3a3f54; }
-    .cb-btn-ghost { background: #232838; color: #e4e6eb; }
-    .cb-btn-danger { background: rgba(248,113,113,0.18); color: #f87171; border-color: #f87171; }
-    .cb-btn:disabled { opacity: .55; cursor: default; }
+    .tbacv-cover { position: relative; aspect-ratio: 4 / 1; margin: -20px -20px 14px; border-radius: 12px 12px 0 0; overflow: hidden; background: #13151f; }
+    .tbacv-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .tbacv-cover-default { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .tbacv-cover-default span { font-size: 3rem; font-weight: 800; color: rgba(255,255,255,0.22); }
+    .tbacv-menu-wrap { position: absolute; top: 6px; right: 6px; }
+    .tbacv-menu-btn { background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; width: 30px; height: 28px; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+    .tbacv-menu { display: none; position: absolute; right: 0; top: 32px; background: #1c2130; border: 1px solid #3a3f54; border-radius: 8px; min-width: 190px; z-index: 5; box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
+    .tbacv-menu.open { display: block; }
+    .tbacv-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: #e4e6eb; padding: 10px 12px; font-size: 0.85rem; cursor: pointer; }
+    .tbacv-menu button:hover { background: #2a3048; }
+    .tbacv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+    .tbacv-chip { font-size: 0.72rem; color: #c4c8d4; background: #2a3048; border: 1px solid #3a3f54; border-radius: 10px; padding: 2px 9px; }
+    .tbacv-chip-mature { color: #fca5a5; border-color: #7c4a4a; }
+    .tbacv-activity { color: #8ec5a0; }
+    .tbacv-source { font-size: 0.8rem; color: #b0b3ba; margin: 0 0 10px; }
+    .tbacv-source a { color: #d4af37; text-decoration: none; }
+    .tbacv-source a:hover { text-decoration: underline; }
+    .tbacv-tip { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin-left: 6px; border-radius: 50%; border: 1px solid #6a7086; color: #a2a7b8; font-size: 0.72rem; font-weight: 700; line-height: 1; cursor: help; text-transform: none; letter-spacing: normal; vertical-align: middle; }
+    .tbacv-tip:hover, .tbacv-tip:focus { color: #d4af37; border-color: #d4af37; outline: none; }
+    .tbacv-tip-box { display: none; position: fixed; left: 8px; top: 8px; width: 290px; max-width: 78vw; z-index: 10001; background: #1c2130; border: 1px solid #3a3f54; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.55); color: #e4e6eb; font-size: 0.78rem; font-weight: 400; line-height: 1.45; text-align: left; cursor: default; }
+    .tbacv-tip:hover .tbacv-tip-box, .tbacv-tip:focus .tbacv-tip-box, .tbacv-tip:focus-within .tbacv-tip-box { display: block; }
+    .tbacv-tip-box strong { color: #d4af37; display: block; margin-bottom: 4px; }
+    .tbacv-tip-box ul { margin: 0; padding-left: 16px; }
+    .tbacv-tip-box li { margin: 0 0 4px; }
+    .tbacv-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 16px; }
+    .tbacv-overlay.open { display: flex; }
+    .tbacv-dialog { background: #1c2130; border: 1px solid #3a3f54; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; color: #e4e6eb; }
+    .tbacv-dialog h3 { margin: 0 0 6px; color: #f87171; font-size: 1.1rem; }
+    .tbacv-dialog-sub { margin: 0 0 14px; font-size: 0.82rem; color: #a2a7b8; }
+    .tbacv-dialog label { display: block; font-size: 0.82rem; color: #a2a7b8; margin: 10px 0 4px; }
+    .tbacv-dialog select, .tbacv-dialog textarea { width: 100%; background: #232838; border: 1px solid #3a3f54; color: #e4e6eb; border-radius: 6px; padding: 8px; font: inherit; font-size: 0.9rem; }
+    .tbacv-dialog-msg { min-height: 20px; margin-top: 10px; font-size: 0.85rem; }
+    .tbacv-dialog-msg.ok { color: #34d399; } .tbacv-dialog-msg.err { color: #f87171; }
+    .tbacv-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+    .tbacv-btn { border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid #3a3f54; }
+    .tbacv-btn-ghost { background: #232838; color: #e4e6eb; }
+    .tbacv-btn-danger { background: rgba(248,113,113,0.18); color: #f87171; border-color: #f87171; }
+    .tbacv-btn:disabled { opacity: .55; cursor: default; }
   `;
   const style = document.createElement('style');
   style.textContent = css;
