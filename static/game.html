@@ -7560,6 +7560,7 @@
       onBannerChange: (url) => {
         campaignInfo.banner_url = url;
         applyCampaignCover(campaignInfo);
+        if (typeof activeTab !== 'undefined' && activeTab === 'images') loadImages();
       },
       // live: the header follows the slider while it moves; the value is saved when it is released
       onFocusChange: (y) => {
@@ -8193,11 +8194,13 @@
     function renderImageGallery(images) {
       const gallery = document.getElementById('imageGallery');
       if (!gallery) return;
+      gallery.innerHTML = '';
+      const coverUrl = CampaignShared.cbSafeUrl(campaignInfo.banner_url);
+      if (coverUrl) gallery.appendChild(buildCoverTile(coverUrl));
       if (!images.length) {
-        gallery.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px;grid-column:1/-1;font-size:0.9rem;">No images uploaded yet.</div>';
+        gallery.insertAdjacentHTML('beforeend', '<div style="color:var(--text-muted);text-align:center;padding:40px;grid-column:1/-1;font-size:0.9rem;">No images uploaded yet.</div>');
         return;
       }
-      gallery.innerHTML = '';
       images.forEach(img => {
         const card = document.createElement('div');
         card.dataset.imageId = img.id;
@@ -8240,8 +8243,62 @@
         card.appendChild(delBtn);
         card.appendChild(meta1);
         card.appendChild(meta2);
+        if (isSW()) {
+          const useBtn = document.createElement('button');
+          useBtn.className = 'tbacv-use-cover';
+          useBtn.type = 'button';
+          useBtn.textContent = 'Use as cover';
+          useBtn.title = 'Make this picture the campaign cover (behind the header)';
+          useBtn.style.cssText = 'display:block;width:calc(100% - 12px);margin:0 6px 6px;padding:4px 6px;font-size:0.72rem;font-weight:600;background:none;border:1px solid var(--border-color);border-radius:5px;color:var(--text-secondary);cursor:pointer;';
+          useBtn.onclick = (e) => { e.stopPropagation(); useImageAsCover(img.id, useBtn); };
+          card.appendChild(useBtn);
+        }
         gallery.appendChild(card);
       });
+    }
+
+    // The current cover, shown first so it is easy to see what is set (and a reminder it is not a chat post).
+    function buildCoverTile(url) {
+      const tile = document.createElement('div');
+      tile.className = 'tbacv-cover-tile';
+      tile.style.cssText = 'grid-column:1/-1;background:var(--bg-secondary);border:1px solid var(--accent-primary);border-radius:8px;overflow:hidden;';
+      const pic = document.createElement('img');
+      pic.src = url;
+      pic.alt = 'Campaign cover';
+      pic.referrerPolicy = 'no-referrer';
+      pic.style.cssText = 'width:100%;aspect-ratio:4/1;max-height:170px;object-fit:cover;display:block;cursor:pointer;object-position:50% '
+        + CampaignShared.cbFocus(campaignInfo.banner_focus_y) + '%;';
+      pic.onclick = () => window.open(url, '_blank');
+      const label = document.createElement('div');
+      label.style.cssText = 'padding:5px 8px;font-size:0.75rem;color:var(--accent-primary);font-weight:700;letter-spacing:0.04em;';
+      label.textContent = isSW() ? 'CAMPAIGN COVER · change it in Campaign Settings, or pick a picture below' : 'CAMPAIGN COVER';
+      tile.appendChild(pic);
+      tile.appendChild(label);
+      return tile;
+    }
+
+    async function useImageAsCover(messageId, btn) {
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Setting cover...';
+      try {
+        const resp = await fetch(`/api/campaigns/${campaignId}/banner/from-image`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: messageId })
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not set the cover');
+        campaignInfo.banner_url = body.banner_url;
+        campaignInfo.banner_focus_y = body.banner_focus_y === undefined ? 50 : body.banner_focus_y;
+        applyCampaignCover(campaignInfo);
+        showPanelToast('Cover updated', 'success');
+        loadImages();
+      } catch (e) {
+        showPanelToast(e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = label;
+      }
     }
 
     function renderImageMessage(data) {

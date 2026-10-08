@@ -47,6 +47,23 @@ def upload_to_r2(contents: bytes, key: str, content_type: str) -> str:
     return f"{public_url_base}/{key}"
 
 
+def r2_key_from_url(url: str):
+    """The storage key for one of OUR public URLs, or None for anything else (other hosts, empty, junk)."""
+    base = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
+    if not url or not base or not url.startswith(base + "/"):
+        return None
+    return url[len(base) + 1:]
+
+
+def fetch_r2_object(key: str, max_bytes: int) -> bytes:
+    """Read an object's bytes from storage, refusing anything larger than max_bytes."""
+    bucket = os.environ.get("R2_BUCKET_NAME", "tba-assets")
+    body = get_r2_client().get_object(Bucket=bucket, Key=key)["Body"].read(max_bytes + 1)
+    if len(body) > max_bytes:
+        raise ValueError("object too large")
+    return body
+
+
 def delete_banner_from_r2(url: str) -> bool:
     """Delete a campaign banner object by its public URL. Returns True if it was deleted.
 

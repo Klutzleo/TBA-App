@@ -886,6 +886,51 @@ async def upload_campaign_banner(
     return await _set_cover_from_bytes(db, campaign, contents)
 
 
+class CoverFromImage(BaseModel):
+    message_id: UUID  # an image shown in the campaign's Images tab
+
+
+@router.post("/{campaign_id}/banner/from-image")
+async def use_image_as_cover(
+    campaign_id: UUID,
+    req: CoverFromImage,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Make one of the campaign's Images-tab pictures the cover (Story Weaver only).
+
+    The image is found by its message id, never by a URL from the browser. It must belong to THIS campaign's images
+    folder. It is then copied, checked and re-encoded exactly like an upload, and saved as its own cover file, so
+    removing the cover later never touches the original picture."""
+    from starlette.concurrency import run_in_threadpool
+    from routes.upload import fetch_r2_object, r2_key_from_url
+
+    campaign = _require_sw(campaign_id, current_user, db)
+    if campaign.banner_locked:
+        raise HTTPException(status_code=403, detail="Banner uploads are turned off for this campaign")
+
+    msg = db.query(Message).filter(
+        Message.id == req.message_id,
+        Message.campaign_id == campaign.id,
+        Message.message_type == "image_upload",
+        Message.deleted_at.is_(None),
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    key = r2_key_from_url((msg.extra_data or {}).get("url", ""))
+    parts = key.split("/") if key else []
+    if len(parts) != 4 or parts[0] != "campaigns" or parts[1] != str(campaign.id) or parts[2] != "images" or ".." in key:
+        raise HTTPException(status_code=400, detail="That image can't be used as a cover.")
+
+    try:
+        raw = await run_in_threadpool(fetch_r2_object, key, BANNER_UPLOAD_MAX_BYTES)
+    except Exception as e:
+        logger.warning(f"could not read image {key} for use as a cover: {e}")
+        raise HTTPException(status_code=502, detail="Could not read that image. Please try again.")
+    return await _set_cover_from_bytes(db, campaign, raw)
+
+
 @router.delete("/{campaign_id}/banner")
 def remove_campaign_banner(
     campaign_id: UUID,
