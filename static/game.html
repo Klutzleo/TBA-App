@@ -4451,6 +4451,12 @@
         <div>
           <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Banner<span id="gsBannerTip"></span></label>
           <div id="gsBannerPreview" style="aspect-ratio:4/1; width:100%; border-radius:8px; overflow:hidden; background:#13151f; border:1px solid var(--border-color); margin-bottom:8px;"></div>
+          <div id="gsBannerHprev" style="display:none;"></div>
+          <div id="gsBannerFocusRow" style="margin-bottom:10px; display:none;">
+            <label for="gsBannerFocus" style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:2px;">Header focus <span style="text-transform:none;">(which part of the picture shows in the header)</span></label>
+            <input type="range" id="gsBannerFocus" min="0" max="100" step="1" value="50" style="width:100%;padding:0;margin:4px 0 0;accent-color:#d4af37;background:none;border:none;">
+            <div style="display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-muted);"><span>Top</span><span>Middle</span><span>Bottom</span></div>
+          </div>
           <input type="file" id="gsBannerFile" accept="image/jpeg,image/png,image/webp" style="display:none;">
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn-secondary btn" id="gsBannerUpload" style="padding:5px 12px; font-size:0.8rem;">Upload banner</button>
@@ -7547,12 +7553,27 @@
     // updates the strip under the header straight away; other members see it on their next load.
     const gameBannerEditor = CampaignShared.createBannerTagsEditor({
       ids: { preview: 'gsBannerPreview', file: 'gsBannerFile', upload: 'gsBannerUpload', remove: 'gsBannerRemove',
-             hint: 'gsBannerHint', msg: 'gsBannerMsg', tip: 'gsBannerTip', genres: 'gsGenres', rating: 'gsRating',
+             hint: 'gsBannerHint', msg: 'gsBannerMsg', tip: 'gsBannerTip', hprev: 'gsBannerHprev', focus: 'gsBannerFocus', focusRow: 'gsBannerFocusRow',
+             genres: 'gsGenres', rating: 'gsRating',
              sourceGroup: 'gsSourceGroup', showSource: 'gsShowSource', sourceHint: 'gsSourceHint' },
       getCampaignId: () => campaignId,
       onBannerChange: (url) => {
         campaignInfo.banner_url = url;
         applyCampaignCover(campaignInfo);
+      },
+      // live: the header follows the slider while it moves; the value is saved when it is released
+      onFocusChange: (y) => {
+        campaignInfo.banner_focus_y = y;
+        applyCampaignCover(campaignInfo);
+      },
+      onFocusCommit: async (y) => {
+        try {
+          await fetch(`/api/campaigns/${campaignId}`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ banner_focus_y: y })
+          });
+        } catch (_) { /* Save Tags also sends it */ }
       },
     });
 

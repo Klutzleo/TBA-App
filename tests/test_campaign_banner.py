@@ -13,10 +13,20 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
-JPEG = b"\xff\xd8\xff\xe0" + b"0" * 64
-WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"0" * 64
 CDN = "https://cdn.example.com"
+
+
+def make_image(fmt="PNG", size=(1600, 400), color=(40, 110, 160)):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", size, color).save(buf, format=fmt)
+    return buf.getvalue()
+
+
+PNG = make_image("PNG")
+JPEG = make_image("JPEG")
+WEBP = make_image("WEBP")
 
 
 @pytest.fixture(scope="module")
@@ -71,10 +81,11 @@ def world(client):
 @pytest.fixture(autouse=True)
 def fake_storage(monkeypatch):
     import routes.upload as up
-    calls = {"uploaded": [], "deleted": []}
+    calls = {"uploaded": [], "deleted": [], "bodies": []}
 
     def fake_upload(contents, key, content_type):
         calls["uploaded"].append((key, content_type, len(contents)))
+        calls["bodies"].append(contents)
         return f"{CDN}/{key}"
 
     monkeypatch.setattr(up, "upload_to_r2", fake_upload)
@@ -94,15 +105,38 @@ def put_banner(client, headers, campaign, data=PNG, name="b.png", ctype="image/p
 
 # ------------------------------------------------------------------ upload
 
-def test_sw_can_upload_png_jpeg_and_webp(client, world, fake_storage):
+def test_sw_can_upload_png_jpeg_and_webp_and_it_is_stored_as_a_small_jpeg(client, world, fake_storage):
     c = world["make_campaign"](world["sw"])
-    for data, ext in ((PNG, "png"), (JPEG, "jpg"), (WEBP, "webp")):
+    for data in (PNG, JPEG, WEBP):
         r = put_banner(client, world["h_sw"], c, data=data)
         assert r.status_code == 200, r.text
-        assert r.json()["banner_url"].endswith("." + ext)
-    key, _, _ = fake_storage["uploaded"][-1]
-    assert key.startswith(f"campaigns/{c.id}/banner/")
-    assert fresh(world, c).banner_url.endswith(".webp")
+        assert r.json()["banner_url"].endswith(".jpg")
+        assert r.json()["banner_focus_y"] == 50
+    key, content_type, _ = fake_storage["uploaded"][-1]
+    assert key.startswith(f"campaigns/{c.id}/banner/") and key.endswith(".jpg")
+    assert content_type == "image/jpeg"
+    assert fake_storage["bodies"][-1][:3] == b"\xff\xd8\xff"  # what we store is the re-encoded JPEG, not the upload
+    assert fresh(world, c).banner_url.endswith(".jpg")
+
+
+def test_stored_cover_is_resized_and_has_no_metadata(client, world, fake_storage):
+    import io
+    from PIL import Image
+    c = world["make_campaign"](world["sw"])
+    big = Image.new("RGB", (3600, 900), (10, 20, 30))
+    exif = Image.Exif()
+    exif[0x010F] = "SomeCamera"            # Make
+    exif[0x8825] = {1: "N", 2: (40.0, 44.0, 0.0)}  # a GPS block, like a phone photo
+    buf = io.BytesIO()
+    big.save(buf, format="JPEG", exif=exif)
+    assert b"Exif" in buf.getvalue()  # the test image really carries metadata
+    r = put_banner(client, world["h_sw"], c, data=buf.getvalue(), name="photo.jpg", ctype="image/jpeg")
+    assert r.status_code == 200, r.text
+    stored = fake_storage["bodies"][-1]
+    out = Image.open(io.BytesIO(stored))
+    assert out.size == (1920, 480)          # shrunk to the widest place it is ever shown, same proportions
+    assert b"Exif" not in stored and not out.getexif()  # location and camera data are gone
+    assert len(stored) < len(buf.getvalue())
 
 
 def test_replacing_a_banner_deletes_the_old_file(client, world, fake_storage):
@@ -137,11 +171,48 @@ def test_uploads_are_checked_by_real_bytes_not_the_claimed_type(client, world):
     assert fresh(world, c).banner_url is None
 
 
-def test_oversize_banner_is_rejected(client, world):
+def test_oversize_upload_is_rejected(client, world):
     c = world["make_campaign"](world["sw"])
-    from routes.campaigns import BANNER_MAX_BYTES
-    assert put_banner(client, world["h_sw"], c, data=PNG + b"0" * BANNER_MAX_BYTES).status_code == 400
-    assert put_banner(client, world["h_sw"], c, data=PNG + b"0" * (BANNER_MAX_BYTES - len(PNG))).status_code == 200
+    from routes.campaigns import BANNER_UPLOAD_MAX_BYTES
+    r = put_banner(client, world["h_sw"], c, data=PNG + b"0" * BANNER_UPLOAD_MAX_BYTES)
+    assert r.status_code == 400 and "10MB" in r.json()["detail"]
+    assert fresh(world, c).banner_url is None
+
+
+def test_image_that_is_too_narrow_or_corrupt_is_rejected_with_a_clear_message(client, world):
+    c = world["make_campaign"](world["sw"])
+    narrow = put_banner(client, world["h_sw"], c, data=make_image("PNG", size=(640, 160)))
+    assert narrow.status_code == 400 and "640 px wide" in narrow.json()["detail"]
+    # looks like a PNG by its first bytes, but is not one
+    corrupt = put_banner(client, world["h_sw"], c, data=b"\x89PNG\r\n\x1a\n" + b"not really a png" * 20)
+    assert corrupt.status_code == 400 and "could not be read" in corrupt.json()["detail"]
+    assert fresh(world, c).banner_url is None
+
+
+def test_new_upload_resets_the_focus_to_the_middle(client, world):
+    c = world["make_campaign"](world["sw"])
+    put_banner(client, world["h_sw"], c)
+    client.patch(f"/api/campaigns/{c.id}", headers=world["h_sw"], json={"banner_focus_y": 10})
+    assert fresh(world, c).banner_focus_y == 10
+    put_banner(client, world["h_sw"], c, data=JPEG)
+    assert fresh(world, c).banner_focus_y == 50
+
+
+def test_focus_is_validated_and_sw_only(client, world):
+    c = world["make_campaign"](world["sw"])
+    world["add_member"](c, world["player"])
+    for bad in (-1, 101, 5.5, "abc"):
+        assert client.patch(f"/api/campaigns/{c.id}", headers=world["h_sw"], json={"banner_focus_y": bad}).status_code == 422
+    assert client.patch(f"/api/campaigns/{c.id}", headers=world["h_pl"], json={"banner_focus_y": 20}).status_code == 403
+    ok = client.patch(f"/api/campaigns/{c.id}", headers=world["h_sw"], json={"banner_focus_y": 0})
+    assert ok.status_code == 200 and ok.json()["banner_focus_y"] == 0
+    assert fresh(world, c).banner_focus_y == 0
+
+
+def test_focus_is_sent_with_the_campaign_so_every_card_and_header_can_use_it(client, world):
+    c = world["make_campaign"](world["sw"], is_public=True, banner_url=f"{CDN}/campaigns/x/banner/a.jpg", banner_focus_y=70)
+    row = browse(client, world["h_out"])[str(c.id)]
+    assert row["banner_focus_y"] == 70
 
 
 def test_locked_campaign_cannot_upload_but_can_clear(client, world, fake_storage):

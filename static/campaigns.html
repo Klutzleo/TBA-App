@@ -944,6 +944,12 @@
                 <div class="form-group">
                     <label>Banner<span id="settings-banner-tip"></span></label>
                     <div id="settings-banner-preview" style="aspect-ratio:4/1;width:100%;border-radius:8px;overflow:hidden;background:#13151f;border:1px solid #3a3f54;margin-bottom:8px;"></div>
+                    <div id="settings-banner-hprev" style="display:none;"></div>
+                    <div id="settings-banner-focus-row" style="margin-bottom:10px;display:none;">
+                        <label for="settings-banner-focus" style="font-weight:400;font-size:0.85rem;margin-bottom:2px;">Header focus <span style="color:#b0b3ba;">(which part of the picture shows in the game header)</span></label>
+                        <input type="range" id="settings-banner-focus" min="0" max="100" step="1" value="50" style="width:100%;padding:0;margin:4px 0 0;accent-color:#d4af37;background:none;border:none;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:#b0b3ba;"><span>Top</span><span>Middle</span><span>Bottom</span></div>
+                    </div>
                     <input type="file" id="settings-banner-file" accept="image/jpeg,image/png,image/webp" style="display:none;">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <button type="button" class="btn-secondary btn btn-small" id="settings-banner-upload-btn">Upload banner</button>
@@ -1634,6 +1640,7 @@
         const bannerEditor = CampaignShared.createBannerTagsEditor({
             ids: { preview: 'settings-banner-preview', file: 'settings-banner-file', upload: 'settings-banner-upload-btn',
                    remove: 'settings-banner-remove-btn', hint: 'settings-banner-hint', msg: 'settings-banner-msg', tip: 'settings-banner-tip',
+                   hprev: 'settings-banner-hprev', focus: 'settings-banner-focus', focusRow: 'settings-banner-focus-row',
                    genres: 'settings-genres', rating: 'settings-content-rating', sourceGroup: 'settings-source-group',
                    showSource: 'settings-show-source', sourceHint: 'settings-source-hint' },
             getCampaignId: () => document.getElementById('settings-campaign-id').value,

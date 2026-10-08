@@ -39,6 +39,9 @@ httpx==0.27.0
 websockets>=13.0,<14
 tzdata  # zoneinfo needs this explicitly — Windows has no system tz database, and slim Docker images often strip it too
 
+# Cover images are validated and re-encoded on the server (backend/cover_image.py)
+Pillow>=10.4,<13
+
 # Dev tools
 pytest==8.3.2
 yamllint==1.35.1

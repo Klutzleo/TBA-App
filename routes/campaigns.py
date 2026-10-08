@@ -71,6 +71,7 @@ class CampaignResponse(BaseModel):
     # Browse / banner fields
     banner_url: Optional[str] = None
     banner_locked: Optional[bool] = None  # SW view only
+    banner_focus_y: Optional[int] = None  # 0 top .. 100 bottom: which slice of the cover shows
     genres: Optional[List[str]] = None
     content_rating: Optional[str] = None
     last_activity_at: Optional[datetime] = None  # newest message in the campaign
@@ -103,6 +104,7 @@ class CampaignUpdate(BaseModel):
     genres: Optional[List[str]] = None
     content_rating: Optional[str] = None  # explicit null clears it
     show_source_in_game: Optional[bool] = None
+    banner_focus_y: Optional[int] = Field(None, ge=0, le=100)
 
     @field_validator("genres")
     @classmethod
@@ -128,7 +130,7 @@ class CampaignUpdate(BaseModel):
 
 
 # Banner uploads: images only, validated by their actual bytes (not the client's claimed type).
-BANNER_MAX_BYTES = 3 * 1024 * 1024
+BANNER_UPLOAD_MAX_BYTES = 10 * 1024 * 1024  # what a user may send; what we store is always re-encoded and far smaller
 
 
 def _sniff_image(data: bytes):
@@ -163,6 +165,7 @@ def _extra_fields(c, extras: dict, show_source: bool, is_sw: bool) -> dict:
     banner_locked and show_source_in_game are only for the SW's own view."""
     out = {
         "banner_url": c.banner_url,
+        "banner_focus_y": c.banner_focus_y if c.banner_focus_y is not None else 50,
         "genres": list(c.genres or []),
         "content_rating": c.content_rating,
         "last_activity_at": extras["activity"].get(c.id),
@@ -812,6 +815,8 @@ async def update_campaign(
         campaign.content_rating = updates.content_rating  # None clears it
     if updates.show_source_in_game is not None:
         campaign.show_source_in_game = updates.show_source_in_game
+    if updates.banner_focus_y is not None:
+        campaign.banner_focus_y = updates.banner_focus_y
 
     db.commit()
     db.refresh(campaign)
@@ -830,6 +835,37 @@ async def update_campaign(
     return campaign
 
 
+async def _set_cover_from_bytes(db: Session, campaign: Campaign, raw: bytes) -> dict:
+    """Validate, re-encode and store `raw` as the campaign cover. The only way banner_url is ever written.
+
+    Nothing the user sent is stored as-is: backend/cover_image.py turns it into a small, metadata-free JPEG."""
+    from starlette.concurrency import run_in_threadpool
+    from backend.cover_image import CoverImageError, process_cover_image
+    from routes.upload import delete_banner_from_r2, upload_to_r2
+
+    if not _sniff_image(raw):  # cheap early reject before spending CPU decoding it
+        raise HTTPException(status_code=400, detail="The image must be a JPEG, PNG, or WebP file.")
+    try:
+        jpeg, _w, _h = await run_in_threadpool(process_cover_image, raw)
+    except CoverImageError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    key = f"campaigns/{campaign.id}/banner/{uuid4()}.jpg"
+    try:
+        url = upload_to_r2(jpeg, key, "image/jpeg")
+    except Exception as e:
+        logger.warning(f"banner upload to R2 failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed. Please try again.")
+
+    old_url = campaign.banner_url
+    campaign.banner_url = url
+    campaign.banner_focus_y = 50  # a new picture starts centered
+    db.commit()
+    if old_url:
+        delete_banner_from_r2(old_url)  # best effort; the DB already points at the new file
+    return {"banner_url": url, "banner_focus_y": 50}
+
+
 @router.post("/{campaign_id}/banner")
 async def upload_campaign_banner(
     campaign_id: UUID,
@@ -837,37 +873,17 @@ async def upload_campaign_banner(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Set the campaign banner (Story Weaver only). JPEG/PNG/WebP up to 3MB, checked by real bytes.
+    """Set the campaign cover (Story Weaver only). JPEG/PNG/WebP up to 10MB, at least 800px wide.
 
-    This is the ONLY way banner_url is ever written: it can't be set through a settings PATCH, so
-    every banner is a file we host and can remove."""
-    from routes.upload import delete_banner_from_r2, upload_to_r2
-
+    The upload is checked by its real bytes and re-encoded to a small JPEG before it is stored."""
     campaign = _require_sw(campaign_id, current_user, db)
     if campaign.banner_locked:
         raise HTTPException(status_code=403, detail="Banner uploads are turned off for this campaign")
 
-    contents = await file.read(BANNER_MAX_BYTES + 1)
-    if len(contents) > BANNER_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Banner too large. Max 3MB.")
-    sniffed = _sniff_image(contents)
-    if not sniffed:
-        raise HTTPException(status_code=400, detail="Banner must be a JPEG, PNG, or WebP image")
-    content_type, ext = sniffed
-
-    key = f"campaigns/{campaign.id}/banner/{uuid4()}.{ext}"
-    try:
-        url = upload_to_r2(contents, key, content_type)
-    except Exception as e:
-        logger.warning(f"banner upload to R2 failed: {e}")
-        raise HTTPException(status_code=500, detail="Upload failed. Please try again.")
-
-    old_url = campaign.banner_url
-    campaign.banner_url = url
-    db.commit()
-    if old_url:
-        delete_banner_from_r2(old_url)  # best effort; the DB already points at the new file
-    return {"banner_url": url}
+    contents = await file.read(BANNER_UPLOAD_MAX_BYTES + 1)
+    if len(contents) > BANNER_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="That image is over 10MB. Please choose a smaller one.")
+    return await _set_cover_from_bytes(db, campaign, contents)
 
 
 @router.delete("/{campaign_id}/banner")

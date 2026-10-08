@@ -61,7 +61,7 @@
     const url = cbSafeUrl(campaign.banner_url);
     const initial = cbEsc((campaign.name || '?').trim().charAt(0).toUpperCase());
     const inner = url
-      ? `<img src="${cbEsc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+      ? `<img src="${cbEsc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" style="object-position:50% ${cbFocus(campaign.banner_focus_y)}%">`
       : `<div class="tbacv-cover-default" style="${cbDefaultBannerStyle(campaign)}"><span>${initial}</span></div>`;
     const safeId = /^[0-9a-f-]{36}$/i.test(String(campaign.id)) ? String(campaign.id) : '';
     const menu = (opts.reportable && url && safeId)
@@ -73,6 +73,11 @@
          </div>`
       : '';
     return `<div class="tbacv-cover">${inner}${menu}</div>`;
+  }
+
+  function cbFocus(y) {
+    const n = Number(y);
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : 50;
   }
 
   function cbChipsHtml(campaign) {
@@ -230,18 +235,18 @@
   // ---- Banner + tags editor (used by the SW settings on campaigns.html and in game.html) ---------
   // cfg.ids: element ids {preview, file, upload, remove, hint, msg, genres, rating, sourceGroup, showSource, sourceHint}
   // cfg.getCampaignId(): current campaign id.  cfg.onBannerChange(url|null): called after upload/remove.
-  const BANNER_MAX_BYTES = 3 * 1024 * 1024;
+  const BANNER_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;  // what may be sent; the server shrinks what it stores
   const MAX_GENRES = 5;
   const BANNER_MIN_WIDTH = 800;       // narrower than this looks blurry once it is stretched across a card
   const BANNER_RATIO_MIN = 3, BANNER_RATIO_MAX = 5.5;  // outside this range the 4:1 crop cuts a lot away
-  const BANNER_HINT = 'Recommended: 1600 x 400 px (4:1). JPEG, PNG or WebP, under 3MB.';
+  const BANNER_HINT = 'Recommended: 1600 x 400 px (4:1). JPEG, PNG or WebP, up to 10MB. We resize it for you.';
   const BANNER_TIP_HTML = `
     <strong>Banner guide</strong>
     <ul>
       <li><b>Size:</b> 1600 x 400 px (4:1) works best. Minimum width is 800 px.</li>
-      <li><b>Format:</b> JPEG, PNG or WebP, under 3MB. No GIFs or animated images.</li>
+      <li><b>Format:</b> JPEG, PNG or WebP, up to 10MB. We shrink it automatically and remove any location data from photos. No GIFs or animation.</li>
       <li><b>Where it shows:</b> the top of your campaign card in Browse and My Campaigns, and behind the header at the top of the game (dimmed so the title stays readable).</li>
-      <li><b>Cropping:</b> the game header is a thin band, so only a slice of the image shows there. Keep faces, text and key details in the middle.</li>
+      <li><b>Cropping:</b> the game header is a thin band, so only a slice of the image shows there. Use the <b>Header focus</b> slider to choose which part. Keep faces and text away from the very top and bottom.</li>
       <li><b>Keep it suitable</b> for your content rating. Anyone browsing can see it and report it, and banners that break the rules are removed.</li>
     </ul>`;
 
@@ -287,17 +292,48 @@
       ['mouseenter', 'focus', 'click', 'touchstart'].forEach(ev => tip.addEventListener(ev, placeTip));
     }
 
-    function renderPreview(banner_url, isLocked) {
+    // The header preview shows roughly what the game header looks like: the cover, dimmed, with the campaign title on it.
+    function renderHeaderPreview(url, y) {
+      if (!cfg.ids.hprev || !el('hprev')) return;
+      const box = el('hprev');
+      box.replaceChildren();
+      if (!url) { box.style.display = 'none'; return; }
+      box.style.cssText = 'display:flex;align-items:center;aspect-ratio:10/1;min-height:34px;width:100%;border-radius:8px;overflow:hidden;margin:0 0 8px;padding:0 12px;box-sizing:border-box;'
+        + 'border-bottom:2px solid #d4af37;background-image:linear-gradient(rgba(10,12,20,0.58),rgba(10,12,20,0.80)),url("' + url + '");'
+        + 'background-size:cover;background-position:center ' + y + '%;';
+      const title = document.createElement('span');
+      title.textContent = 'Your campaign';
+      title.style.cssText = 'color:#d4af37;font-weight:700;font-size:0.85rem;text-shadow:0 1px 6px rgba(0,0,0,0.9);';
+      box.appendChild(title);
+    }
+
+    function currentFocus() {
+      return cfg.ids.focus && el('focus') ? cbFocus(el('focus').value) : 50;
+    }
+
+    function applyFocus(y) {
+      y = cbFocus(y);
+      if (cfg.ids.focus && el('focus')) el('focus').value = y;
+      const img = el('preview').querySelector('img');
+      if (img) img.style.objectPosition = '50% ' + y + '%';
+      if (cfg.ids.hprev && el('hprev')) el('hprev').style.backgroundPosition = 'center ' + y + '%';
+    }
+
+    function renderPreview(banner_url, isLocked, focusY) {
       locked = !!isLocked;
       const box = el('preview');
       box.replaceChildren();
       const url = cbSafeUrl(banner_url);
+      const y = cbFocus(focusY === undefined ? currentFocus() : focusY);
+      renderHeaderPreview(url, y);
+      if (cfg.ids.focusRow && el('focusRow')) el('focusRow').style.display = url ? '' : 'none';
+      if (cfg.ids.focus && el('focus')) el('focus').value = y;
       if (url) {
         const img = document.createElement('img');
         img.src = url;
         img.alt = 'Current banner';
         img.referrerPolicy = 'no-referrer';
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;object-position:50% ' + y + '%;';
         box.appendChild(img);
       } else {
         const none = document.createElement('div');
@@ -337,7 +373,7 @@
 
     async function upload(file) {
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { say('Please choose a JPEG, PNG or WebP image.', true); return; }
-      if (file.size > BANNER_MAX_BYTES) { say('That image is over 3MB. Please choose a smaller one.', true); return; }
+      if (file.size > BANNER_UPLOAD_MAX_BYTES) { say('That image is over 10MB. Please choose a smaller one.', true); return; }
       const dims = await readImageSize(file);
       if (!dims) { say('That image could not be read. Please try a different file.', true); return; }
       if (dims.w < BANNER_MIN_WIDTH) {
@@ -353,7 +389,8 @@
         const resp = await fetch(`/api/campaigns/${cfg.getCampaignId()}/banner`, { method: 'POST', headers: headers(), body: form });
         const body = await resp.json().catch(() => ({}));
         if (!resp.ok) { say(typeof body.detail === 'string' ? body.detail : 'Upload failed.', true); return; }
-        renderPreview(body.banner_url, false);
+        renderPreview(body.banner_url, false, body.banner_focus_y === undefined ? 50 : body.banner_focus_y);
+        if (cfg.onFocusChange) cfg.onFocusChange(cbFocus(body.banner_focus_y === undefined ? 50 : body.banner_focus_y));
         if (offShape) {
           say('Banner updated. Heads up: this image is ' + dims.w + ' x ' + dims.h + ' and will be cropped to a wide 4:1 strip, so anything near the top or bottom may be cut off.', false, true);
         } else {
@@ -369,7 +406,7 @@
       try {
         const resp = await fetch(`/api/campaigns/${cfg.getCampaignId()}/banner`, { method: 'DELETE', headers: headers() });
         if (!resp.ok) { say('Could not remove the banner.', true); return; }
-        renderPreview(null, locked);
+        renderPreview(null, locked, 50);
         say('Banner removed.');
         if (cfg.onBannerChange) cfg.onBannerChange(null);
       } catch (e) {
@@ -377,6 +414,10 @@
       }
     }
 
+    if (cfg.ids.focus && el('focus')) {
+      el('focus').addEventListener('input', () => { applyFocus(el('focus').value); if (cfg.onFocusChange) cfg.onFocusChange(currentFocus()); });
+      el('focus').addEventListener('change', () => { if (cfg.onFocusCommit) cfg.onFocusCommit(currentFocus()); });
+    }
     el('upload').addEventListener('click', () => el('file').click());
     el('remove').addEventListener('click', remove);
     el('file').addEventListener('change', ev => {
@@ -389,7 +430,7 @@
       /** Fill the controls from a campaign response (the SW's view of it). */
       fill(c) {
         say('');
-        renderPreview(c.banner_url, c.banner_locked);
+        renderPreview(c.banner_url, c.banner_locked, c.banner_focus_y === undefined || c.banner_focus_y === null ? 50 : c.banner_focus_y);
         buildGenres(c.genres || []);
         el('rating').value = c.content_rating || '';
         const group = el('sourceGroup');
@@ -407,6 +448,7 @@
           genres: Array.from(el('genres').querySelectorAll('input:checked')).map(i => i.value),
           content_rating: el('rating').value || null,
         };
+        if (cfg.ids.focus && el('focus')) out.banner_focus_y = currentFocus();
         if (el('sourceGroup').style.display !== 'none') out.show_source_in_game = el('showSource').checked;
         return out;
       },
@@ -460,6 +502,6 @@
 
   window.CampaignShared = {
     GENRE_LABELS, RATING_LABELS, cbEsc, cbSafeUrl, cbRelativeTime,
-    cbBannerHtml, cbChipsHtml, cbActivityHtml, cbSourceHtml, createBannerTagsEditor,
+    cbBannerHtml, cbChipsHtml, cbActivityHtml, cbSourceHtml, createBannerTagsEditor, cbFocus,
   };
 })();

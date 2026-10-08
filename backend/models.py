@@ -341,6 +341,8 @@ class Campaign(Base):
     # an admin after a removal to stop a repeat offender re-uploading.
     banner_url = Column(Text, nullable=True)
     banner_locked = Column(Boolean, nullable=False, default=False)
+    # Which slice of the cover shows in the thin game header and the card crop: 0 = top edge, 50 = middle, 100 = bottom.
+    banner_focus_y = Column(Integer, nullable=False, default=50)
 
     # Browse tags. Same vocabulary as LBA (LBA_GENRES / LBA_CONTENT_RATINGS) so filters can be shared later.
     genres = Column(JSONB, nullable=False, default=list)
