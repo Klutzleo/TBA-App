@@ -9450,6 +9450,15 @@
       return swCard;
     }
 
+    // Summon appeared (gold) or went away (grey). One builder so the live card and the reloaded history card match.
+    function buildSummonNoticeCard(text, created) {
+      const el = document.createElement('div');
+      el.className = 'message-card message-combat';
+      el.style.cssText = `border-left:3px solid ${created ? '#d4af37' : '#6b7280'};padding:8px 12px;`;
+      el.innerHTML = `<span style="color:${created ? '#d4af37;font-weight:600' : '#9ca3af'};">${escHtml(text || '')}</span>`;
+      return el;
+    }
+
     // Story Weaver: have a summon act. The server rolls it exactly like the summoner casting the ability at that target.
     function openSummonActPicker(roll) {
       const old = document.getElementById('summonActPicker');
@@ -12701,6 +12710,12 @@
 
                 storeAndDisplayMessage(container, { type: 'ability_cast', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
+              // Summon appeared / went away: same gold and grey cards as when they happened live
+              else if (msg.message_type === 'summon_created' || msg.message_type === 'summon_dismissed') {
+                const created = msg.message_type === 'summon_created';
+                storeAndDisplayMessage(buildSummonNoticeCard(msg.content, created),
+                  { type: msg.message_type, timestamp: msg.timestamp, message_id: msg.id, ...(msg.extra_data || {}) });
+              }
               // ✅ Handle initiative rolls from database
               else if (msg.message_type === 'initiative_roll') {
                 console.log('🎲 Loading initiative roll from history:', msg);
@@ -14510,11 +14525,7 @@
                 max_dp: data.durability,
               });
               if (userRole === 'SW') renderInitiativeTracker();
-              const el = document.createElement('div');
-              el.className = 'message-card message-combat';
-              el.style.cssText = 'border-left:3px solid #d4af37;padding:8px 12px;';
-              el.innerHTML = `<span style="color:#d4af37;font-weight:600;">${escHtml(data.message)}</span>`;
-              addMessage(el, '', data, false);
+              addMessage(buildSummonNoticeCard(data.message, true), '', data, false);
               showPanelToast(`✨ ${data.summon_name} summoned!`, 'info');
 
             } else if (data.type === 'summon_hit') {
@@ -14529,11 +14540,7 @@
               const idx = currentInitiativeOrder.findIndex(r => r.summon_id === data.summon_id);
               if (idx !== -1) currentInitiativeOrder.splice(idx, 1);
               if (userRole === 'SW') renderInitiativeTracker();
-              const el = document.createElement('div');
-              el.className = 'message-card message-combat';
-              el.style.cssText = 'border-left:3px solid #6b7280;padding:8px 12px;';
-              el.innerHTML = `<span style="color:#9ca3af;">${escHtml(data.message)}</span>`;
-              addMessage(el, '', data, false);
+              addMessage(buildSummonNoticeCard(data.message, false), '', data, false);
               showPanelToast(`💨 ${data.summon_name} dismissed`, 'info');
 
             } else if (data.type === 'summon_dp_drain') {
