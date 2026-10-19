@@ -1841,10 +1841,12 @@
       background: rgba(245, 158, 11, 0.08);
       border: 1px solid rgba(245, 158, 11, 0.3);
       border-radius: var(--radius-sm);
-      padding: 2px 8px;
+      padding: 1px 7px;
       cursor: pointer;
       margin-top: 4px;
       display: block;
+      width: fit-content;   /* never stretches across the card, so it is hard to hit by accident */
+      font-size: 0.72rem;
       transition: background 0.2s;
     }
     .bap-retro-btn:hover { background: rgba(245, 158, 11, 0.22); }
@@ -4071,7 +4073,7 @@
             <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Attack:</strong> Roll your weapon die + your stat (PP/IP/SP) + Edge. Beat the defender's roll to deal damage.</div>
             <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Defend:</strong> Roll your defense die + your stat + Edge. Higher = less damage taken.</div>
             <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Initiative:</strong> 1d6 + PP + Edge. Highest goes first.</div>
-            <div><strong style="color:#fb923c;">BAP token</strong> — awarded by the SW for bold, creative, or hilarious plays. Adds a bonus die to your next roll. Use it wisely!</div>
+            <div><strong style="color:#fb923c;">BAP</strong> — the SW adds it to a roll when you do something bold, creative, or hilarious. It applies to that one roll only.</div>
           </div>
         </div>
 
@@ -4643,7 +4645,6 @@
         <ul style="margin:0 0 16px 18px; line-height:1.8; color:var(--text-secondary);">
           <li>💀 Your character enters <strong>The Calling</strong></li>
           <li>⚔️ It's your <strong>turn in combat</strong></li>
-          <li>✦ The SW awards you a <strong>BAP token</strong></li>
           <li>✅ Your character is <strong>approved</strong> or rejected</li>
         </ul>
         <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
@@ -5014,7 +5015,6 @@
     let currentActor = currentUser.username; // Will be updated when character data loads
     // Determine role: SW has no character_id AND no role param; players without active chars pass role=player
     let userRole = characterId ? 'player' : (urlRoleParam === 'player' ? 'Spectator' : 'SW');
-    let bapArmed = false; // Player has activated BAP token for next roll
     let messagesOffset = { story: 0, ooc: 0 }; // Per-tab pagination offsets
     let tabHasMore = { story: false, ooc: false }; // Per-tab Load More state
     const messagesLimit = 50; // How many messages to load per request
@@ -6907,59 +6907,137 @@
     }
 
     // ===================================================================
-    // BAP TOKEN SYSTEM
+    // BAP is never banked. The Story Weaver adds it to ONE specific roll with the Boost button (below), and the
+    // few things that include it automatically (a stat check the SW granted BAP for, and Combos) do so on the roll.
     // ===================================================================
 
-    async function grantBapToken(charId, tokenType) {
-      const menu = document.querySelector('.context-menu');
-      if (menu) menu.remove();
-      try {
-        const resp = await fetch(`/api/characters/${charId}/grant-bap-token`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token_type: tokenType })
-        });
-        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
-        // WS bap_granted broadcast will update all clients
-      } catch (e) {
-        showPanelToast(`BAP grant failed: ${e.message}`, 'error');
+    // ── Ability cast card: one builder for a live cast, a cast loaded from history, and a cast rebuilt after a Boost ──
+    function castBreakdownLines(r, et) {
+      const lines = [];
+      if (!r.success && r.message === 'Target not found') { lines.push(`❌ ${r.target}: Target not found`); return lines; }
+      if (et === 'damage') {
+        lines.push(`vs ${r.target}  →  ${r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp} → ${r.new_dp})` : '💨 Miss'}`);
+        lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
+        lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
+      } else if (et === 'heal') {
+        lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
+        lines.push(`  💚 Roll: ${r.roll_breakdown}`);
+      } else if (et === 'buff') {
+        lines.push(`→ ${r.target}  ${r.buff_stat || ''} +${r.buff_modifier} for ${r.buff_duration} round${r.buff_duration !== 1 ? 's' : ''}`);
+      } else if (et === 'debuff') {
+        if (r.success) {
+          lines.push(`vs ${r.target}  →  💥 ${r.debuff_stat || ''} -${Math.abs(r.debuff_modifier || 0)} for ${r.debuff_duration} round${r.debuff_duration !== 1 ? 's' : ''}`);
+        } else {
+          lines.push(`vs ${r.target}  →  💨 Resisted`);
+        }
+        lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
+        lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
       }
+      return lines;
     }
 
-    async function revokeBapToken(charId) {
-      const menu = document.querySelector('.context-menu');
-      if (menu) menu.remove();
-      try {
-        const resp = await fetch(`/api/characters/${charId}/revoke-bap-token`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
-        // WS bap_revoked broadcast will update all clients
-      } catch (e) {
-        showPanelToast(`BAP revoke failed: ${e.message}`, 'error');
-      }
+    // The roll a Boost would add to: the first target's attack, heal or debuff roll. A buff has no roll.
+    function castBoostBase(d) {
+      const r = (d.results || []).find(x => x && x.message !== 'Target not found');
+      if (!r) return null;
+      if (d.effect_type === 'damage' && r.attack_roll !== undefined) return r.attack_roll;
+      if (d.effect_type === 'heal' && r.healing !== undefined) return r.healing;
+      if (d.effect_type === 'debuff' && r.caster_roll !== undefined) return r.caster_roll;
+      return null;
     }
 
-    async function awardRetroactiveBap(attackerId, messageId, btn, container) {
-      if (!attackerId || !messageId) return;
-      btn.disabled = true;
-      btn.innerHTML = '<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Awarding…';
-      if (window.lucide) lucide.createIcons({ el: btn });
-      try {
-        const resp = await fetch(`/api/characters/${attackerId}/bap-retroactive`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message_id: messageId })
+    function buildAbilityCastCard(data, tsStr, messageId) {
+      const container = document.createElement('div');
+      container.className = 'message-card message-combat';
+      container.dataset.castTs = tsStr || '';
+
+      const narrative = document.createElement('div');
+      narrative.style.fontStyle = 'italic';
+      narrative.style.marginTop = '2px';
+      narrative.textContent = data.narrative || '';
+
+      let bd = null, tog = null;
+      if (Array.isArray(data.results) && data.results.length > 0) {
+        bd = document.createElement('div');
+        bd.style.cssText = 'font-family:monospace;font-size:12px;margin-top:4px;margin-bottom:4px;color:var(--text-secondary);white-space:pre';
+        bd.style.display = isSW() ? 'block' : 'none';
+        data.results.forEach(r => castBreakdownLines(r, data.effect_type).forEach(l => { bd.textContent += l + '\n'; }));
+        tog = document.createElement('a');
+        tog.href = '#';
+        tog.style.fontSize = '11px';
+        tog.textContent = isSW() ? 'Hide details' : 'Show details';
+        tog.addEventListener('click', e => {
+          e.preventDefault();
+          const showing = bd.style.display !== 'none';
+          bd.style.display = showing ? 'none' : 'block';
+          tog.textContent = showing ? 'Show details' : 'Hide details';
         });
-        if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail); }
-        // WS bap_retroactive broadcast will update all clients' cards
-      } catch (e) {
-        btn.disabled = false;
-        btn.innerHTML = '<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Award BAP';
-        if (window.lucide) lucide.createIcons({ el: btn });
-        showPanelToast(`Error: ${e.message}`, 'error');
       }
+
+      container.appendChild(makeHeaderRow(tsStr, `${data.caster} casts ${data.ability_name}!`, { toggle: tog, tab: 'STORY', icon: 'sparkles' }));
+      container.appendChild(narrative);
+      if (bd) container.appendChild(bd);
+
+      // DP bars per target (damage or heal results)
+      if (Array.isArray(data.results)) {
+        data.results.forEach(r => {
+          if (r.old_dp === undefined || r.new_dp === undefined) return;
+          if (data.effect_type === 'damage' && !(r.damage > 0)) return;
+          const hpBar = document.createElement('div');
+          hpBar.style.cssText = 'margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;';
+          const lbl = document.createElement('div');
+          lbl.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px;';
+          lbl.textContent = `${r.target} Damage Points`;
+          hpBar.appendChild(lbl);
+          const maxDP = Math.max(r.old_dp, r.new_dp, 10);
+          const oldPct = (r.old_dp / maxDP) * 100;
+          const newPct = (r.new_dp / maxDP) * 100;
+          const outer = document.createElement('div');
+          outer.style.cssText = 'width:100%;height:20px;background:#333;border-radius:4px;overflow:hidden;position:relative;';
+          const barOld = document.createElement('div');
+          barOld.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${oldPct}%;background:#666;`;
+          const barNew = document.createElement('div');
+          barNew.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${newPct}%;background:${newPct > 50 ? '#10b981' : (newPct > 20 ? '#f59e0b' : '#ef4444')};`;
+          const txt = document.createElement('div');
+          txt.style.cssText = 'position:absolute;width:100%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);';
+          txt.textContent = `${r.old_dp} → ${r.new_dp} DP`;
+          outer.appendChild(barOld);
+          outer.appendChild(barNew);
+          outer.appendChild(txt);
+          hpBar.appendChild(outer);
+          container.appendChild(hpBar);
+        });
+      }
+
+      const uses = document.createElement('div');
+      uses.style.cssText = 'font-size:12px;color:var(--text-muted)';
+      uses.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
+      container.appendChild(uses);
+
+      // Boost: add BAP (and/or a tether) to THIS cast only, once. A buff has no roll, so it gets no button.
+      const base = castBoostBase(data);
+      if (isSW() && data.caster_char_id && messageId && !data.boost_applied && base !== null) {
+        const boostBtn = document.createElement('button');
+        boostBtn.className = 'bap-retro-btn boost-retro-btn';
+        boostBtn.innerHTML = '<i data-lucide="zap" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Boost';
+        if (window.lucide) lucide.createIcons({ el: boostBtn });
+        boostBtn.onclick = () => openBoostModal(
+          data.caster_char_id, messageId, 'ability_cast', base,
+          data.bap || 1, data.tethers || [],
+          `${data.caster} — ${data.ability_name}: ${base}`
+        );
+        container.appendChild(boostBtn);
+      }
+      return container;
+    }
+
+    // After a Boost: rebuild the card from its updated data, keeping its place and timestamp.
+    function refreshAbilityCastCard(card, update) {
+      const stored = (allMessages || []).find(m => m._element === card);
+      if (!stored) return;
+      Object.assign(stored, { results: update.results, narrative: update.narrative, boost_applied: true, boosts: update.boosts });
+      const fresh = buildAbilityCastCard(stored, card.dataset.castTs, update.message_id);
+      card.replaceChildren(...fresh.childNodes);
     }
 
     // ===================================================================
@@ -6976,14 +7054,16 @@
       const optionsEl = document.getElementById('boostModalOptions');
       optionsEl.innerHTML = '';
 
-      // BAP checkbox
-      const bapRow = document.createElement('div');
-      bapRow.className = 'boost-option';
-      bapRow.innerHTML = `
-        <input type="checkbox" id="boostChkBap" onchange="updateBoostPreview()">
-        <label for="boostChkBap"><i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>BAP</label>
-        <span class="boost-modifier">+${bap}</span>`;
-      optionsEl.appendChild(bapRow);
+      // BAP checkbox (not offered when BAP is already inside this roll, e.g. a check the SW granted BAP for)
+      if (bap > 0) {
+        const bapRow = document.createElement('div');
+        bapRow.className = 'boost-option';
+        bapRow.innerHTML = `
+          <input type="checkbox" id="boostChkBap" onchange="updateBoostPreview()">
+          <label for="boostChkBap"><i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>BAP</label>
+          <span class="boost-modifier">+${bap}</span>`;
+        optionsEl.appendChild(bapRow);
+      }
 
       // Tether checkboxes
       (tethers || []).forEach((t, i) => {
@@ -11176,30 +11256,6 @@
       } catch (e) {}
     }
 
-    function toggleBapArmed() {
-      bapArmed = !bapArmed;
-      const btn = document.getElementById('bapArmBtn');
-      if (btn) {
-        btn.innerHTML = `<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>${bapArmed ? 'BAP ARMED!' : 'USE BAP'}`;
-        if (window.lucide) lucide.createIcons({ el: btn });
-        btn.style.background = bapArmed ? '#d97706' : '';
-        btn.style.color = bapArmed ? '#fff' : '';
-        btn.style.animation = bapArmed ? 'pulse 1s infinite' : '';
-      }
-      if (bapArmed) showPanelToast('✦ BAP armed — applies to your next roll!', 'success');
-    }
-
-    function disarmBap() {
-      bapArmed = false;
-      const btn = document.getElementById('bapArmBtn');
-      if (btn) {
-        btn.innerHTML = '<i data-lucide="star" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>USE BAP';
-        if (window.lucide) lucide.createIcons({ el: btn });
-        btn.style.background = '';
-        btn.style.color = '';
-        btn.style.animation = '';
-      }
-    }
 
     // '#d3c088' = a light gold tint for an "active" top-bar toggle — softer than
     // the brand gold (--accent-primary #d4af37) so it doesn't shout over the grey
@@ -12602,112 +12658,8 @@
               }
               // ✅ Handle ability casts from database
               else if (msg.message_type === 'ability_cast') {
-                console.log('✨ Loading ability cast from history:', msg);
                 const data = msg.extra_data || {};
-
-                const container = document.createElement('div');
-                container.className = 'message-card message-combat';
-
-                const narrative = document.createElement('div');
-                narrative.style.fontStyle = 'italic';
-                narrative.style.marginTop = '2px';
-                narrative.textContent = data.narrative || '';
-
-                const buildBreakdownLinesHist = (r, et) => {
-                  const lines = [];
-                  if (!r.success && r.message === 'Target not found') { lines.push(`❌ ${r.target}: Target not found`); return lines; }
-                  if (et === 'damage') {
-                    lines.push(`vs ${r.target}  →  ${r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp} → ${r.new_dp})` : '💨 Miss'}`);
-                    lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
-                    lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
-                  } else if (et === 'heal') {
-                    lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
-                    lines.push(`  💚 Roll: ${r.roll_breakdown}`);
-                  } else if (et === 'buff') {
-                    lines.push(`→ ${r.target}  ${r.buff_stat || ''} +${r.buff_modifier} for ${r.buff_duration} round${r.buff_duration !== 1 ? 's' : ''}`);
-                  } else if (et === 'debuff') {
-                    if (r.success) {
-                      lines.push(`vs ${r.target}  →  💥 ${r.debuff_stat || ''} -${Math.abs(r.debuff_modifier || 0)} for ${r.debuff_duration} round${r.debuff_duration !== 1 ? 's' : ''}`);
-                    } else {
-                      lines.push(`vs ${r.target}  →  💨 Resisted`);
-                    }
-                    lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
-                    lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
-                  }
-                  return lines;
-                };
-
-                let castHistBd = null, castHistTog = null;
-                if (Array.isArray(data.results) && data.results.length > 0) {
-                  castHistBd = document.createElement('div');
-                  castHistBd.style.cssText = 'font-family:monospace;font-size:12px;margin-top:4px;margin-bottom:4px;color:var(--text-secondary);white-space:pre';
-                  castHistBd.style.display = isSW() ? 'block' : 'none';
-                  data.results.forEach(r => buildBreakdownLinesHist(r, data.effect_type).forEach(l => { castHistBd.textContent += l + '\n'; }));
-                  castHistTog = document.createElement('a');
-                  castHistTog.href = '#';
-                  castHistTog.style.fontSize = '11px';
-                  castHistTog.textContent = isSW() ? 'Hide details' : 'Show details';
-                  castHistTog.addEventListener('click', e => {
-                    e.preventDefault();
-                    const showing = castHistBd.style.display !== 'none';
-                    castHistBd.style.display = showing ? 'none' : 'block';
-                    castHistTog.textContent = showing ? 'Show details' : 'Hide details';
-                  });
-                }
-
-                container.appendChild(makeHeaderRow(fmtTs(msg.timestamp), `${data.caster} casts ${data.ability_name}!`, { toggle: castHistTog, tab: 'STORY', icon: 'sparkles' }));
-                container.appendChild(narrative);
-                if (castHistBd) container.appendChild(castHistBd);
-
-                // DP bars per target (damage or heal results)
-                if (Array.isArray(data.results)) {
-                  data.results.forEach(r => {
-                    if (r.old_dp === undefined || r.new_dp === undefined) return;
-                    if (data.effect_type === 'damage' && !(r.damage > 0)) return;
-                    const _hpBar = document.createElement('div');
-                    _hpBar.style.cssText = 'margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;';
-                    const _dpLbl = document.createElement('div');
-                    _dpLbl.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px;';
-                    _dpLbl.textContent = `${r.target} Damage Points`;
-                    _hpBar.appendChild(_dpLbl);
-                    const _maxDP = Math.max(r.old_dp, r.new_dp, 10);
-                    const _oldPct = (r.old_dp / _maxDP) * 100;
-                    const _newPct = (r.new_dp / _maxDP) * 100;
-                    const _outer = document.createElement('div');
-                    _outer.style.cssText = 'width:100%;height:20px;background:#333;border-radius:4px;overflow:hidden;position:relative;';
-                    const _barOld = document.createElement('div');
-                    _barOld.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_oldPct}%;background:#666;`;
-                    const _barNew = document.createElement('div');
-                    _barNew.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_newPct}%;background:${_newPct > 50 ? '#10b981' : (_newPct > 20 ? '#f59e0b' : '#ef4444')};`;
-                    const _dpTxt = document.createElement('div');
-                    _dpTxt.style.cssText = 'position:absolute;width:100%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);';
-                    _dpTxt.textContent = `${r.old_dp} → ${r.new_dp} DP`;
-                    _outer.appendChild(_barOld);
-                    _outer.appendChild(_barNew);
-                    _outer.appendChild(_dpTxt);
-                    _hpBar.appendChild(_outer);
-                    container.appendChild(_hpBar);
-                  });
-                }
-
-                const usesInfo = document.createElement('div');
-                usesInfo.style.cssText = 'font-size:12px;color:var(--text-muted)';
-                usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
-                container.appendChild(usesInfo);
-
-                if (isSW() && data.caster_char_id) {
-                  const bapBtn = document.createElement('button');
-                  bapBtn.className = 'btn btn-sm';
-                  bapBtn.style.cssText = 'margin-top:6px;font-size:0.78rem;padding:2px 10px;background:#78350f;border-color:#92400e;color:#fde68a;';
-                  bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Award BAP'; if (window.lucide) lucide.createIcons({ el: bapBtn });
-                  bapBtn.onclick = async () => {
-                    bapBtn.disabled = true;
-                    await grantBapToken(data.caster_char_id, 'encounter');
-                    bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>BAP Awarded!'; if (window.lucide) lucide.createIcons({ el: bapBtn });
-                    bapBtn.style.opacity = '0.5';
-                  };
-                  container.appendChild(bapBtn);
-                }
+                const container = buildAbilityCastCard(data, fmtTs(msg.timestamp), msg.id);
 
                 storeAndDisplayMessage(container, { type: 'ability_cast', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
@@ -12860,7 +12812,7 @@
                 const el = document.createElement('div');
                 el.className = 'message-card message-system';
                 el.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;background:rgba(245,158,11,0.08);';
-                el.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(d.character_name)}</strong> awarded a BAP token! <strong>${escHtml(d.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${d.new_total}</strong> ✦`;
+                el.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(d.character_name)}</strong> got BAP on a check! <strong>${escHtml(d.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${d.new_total}</strong> ✦`;
                 storeAndDisplayMessage(el, { type: 'bap_announce', timestamp: msg.timestamp, message_id: msg.id, actor: 'system' });
               }
               else if (msg.message_type === 'bap_granted' || msg.message_type === 'bap_revoked') {
@@ -13577,34 +13529,6 @@
               document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
               loadCharacters();
 
-            } else if (data.type === 'bap_granted') {
-              const typeLabels = { encounter: 'this encounter', '24hrs': 'next 24 hrs', sw_choice: "SW's choice" };
-              const grantEl = document.createElement('div');
-              grantEl.className = 'message-card message-system';
-              grantEl.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;';
-              grantEl.innerHTML = `✦ <strong>${escHtml(data.character_name)}</strong> received a <strong style="color:#f59e0b;">BAP token</strong>${data.token_type ? ` — ${typeLabels[data.token_type] || data.token_type}` : ''}`;
-              if (data.message_id) grantEl.dataset.messageId = data.message_id;
-              document.getElementById('chatMessages').appendChild(grantEl);
-              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
-              loadCharacters();
-              if (data.owner_id === currentUser?.id) {
-                showPanelToast('✦ You received a BAP token!', 'warning');
-                loadBubbleBar();
-              }
-
-            } else if (data.type === 'bap_revoked') {
-              const revokeEl = document.createElement('div');
-              revokeEl.className = 'message-card message-system';
-              revokeEl.style.cssText = 'border-left:3px solid #6b7280;padding-left:12px;';
-              revokeEl.innerHTML = `✦ <strong>${escHtml(data.character_name)}</strong>'s BAP token was <span style="color:#6b7280;">revoked</span>`;
-              document.getElementById('chatMessages').appendChild(revokeEl);
-              document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
-              loadCharacters();
-              if (data.owner_id === currentUser?.id) {
-                showPanelToast('Your BAP token was revoked.', 'info');
-                loadBubbleBar();
-              }
-
             } else if (data.type === 'bap_retroactive') {
               // Update the specific combat card in the DOM
               const card = document.querySelector(`[data-message-id="${data.message_id}"]`);
@@ -14138,7 +14062,7 @@
               const bapAnnounce = document.createElement('div');
               bapAnnounce.className = 'message-card message-system';
               bapAnnounce.style.cssText = 'border-left:3px solid #f59e0b;padding-left:12px;background:rgba(245,158,11,0.08);';
-              bapAnnounce.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(data.character_name)}</strong> awarded a BAP token! <strong>${escHtml(data.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${data.new_total}</strong> ✦`;
+              bapAnnounce.innerHTML = `✦ <strong style="color:#f59e0b;">${escHtml(data.character_name)}</strong> got BAP on a check! <strong>${escHtml(data.stat_name)} Check</strong> rises to <strong style="color:#f59e0b;">${data.new_total}</strong> ✦`;
               storeAndDisplayMessage(bapAnnounce, { type: 'bap_announce', actor: 'system', _tab: 'story' });
 
             } else if (data.type === 'boosts_applied') {
@@ -14146,6 +14070,7 @@
               const card = document.querySelector(`[data-message-id="${data.message_id}"]`);
               if (card) {
                 card.querySelectorAll('.bap-retro-btn, .boost-retro-btn').forEach(el => el.remove());
+                if (data.roll_type === 'ability_cast') refreshAbilityCastCard(card, data);
                 // Stat roll header total
                 const totalSpan = card.querySelector(`[data-stat-total="${data.message_id}"]`);
                 if (totalSpan && data.roll_type === 'stat') {
@@ -14209,6 +14134,8 @@
                 ? `${escHtml(data.stat_name || '')} Check`
                 : data.roll_type === 'stat_check'
                 ? `${escHtml(data.stat || '')} Check`
+                : data.roll_type === 'ability_cast'
+                ? escHtml(data.ability_name || 'Cast')
                 : 'Attack';
 
               const outcomeFlip = (data.roll_type === 'stat_check' && data.old_outcome && data.old_outcome !== data.outcome)
@@ -14228,154 +14155,7 @@
 
             } else if (data.type === 'ability_cast') {
               // Ability/spell/technique cast result
-              const container = document.createElement('div');
-              container.className = 'message-card message-combat';
-
-              // Compact header row: [time] · ✨ Name casts Ability!  [toggle]  STORY
-              const castHeaderRow = document.createElement('div');
-              castHeaderRow.className = 'msg-header-row';
-
-              const castTsSpan = document.createElement('span');
-              castTsSpan.style.color = 'var(--text-muted)';
-              castTsSpan.style.fontSize = '0.8em';
-              castTsSpan.style.fontWeight = 'normal';
-              castTsSpan.textContent = `[${new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}]`;
-              castHeaderRow.appendChild(castTsSpan);
-
-              const castTitle = document.createElement('span');
-              castTitle.style.fontWeight = 'bold';
-              setHeaderTitle(castTitle, 'sparkles', `${data.caster} casts ${data.ability_name}!`);
-              castHeaderRow.appendChild(castTitle);
-
-              // Narrative (outcome text only — no redundant "X casts Y!" prefix)
-              const narrative = document.createElement('div');
-              narrative.style.fontStyle = 'italic';
-              narrative.style.marginTop = '2px';
-              narrative.textContent = data.narrative || '';
-
-              // Per-target roll breakdowns (collapsible — SW always open, players toggle)
-              const buildBreakdownLines = (r, effect_type) => {
-                const lines = [];
-                if (!r.success && r.message === 'Target not found') {
-                  lines.push(`❌ ${r.target}: Target not found`);
-                  return lines;
-                }
-                if (effect_type === 'damage') {
-                  const outcome = r.damage > 0 ? `💥 ${r.damage} dmg (DP ${r.old_dp} → ${r.new_dp})` : `💨 Miss`;
-                  lines.push(`vs ${r.target}  →  ${outcome}`);
-                  lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
-                  lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
-                } else if (effect_type === 'heal') {
-                  lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
-                  lines.push(`  💚 Roll: ${r.roll_breakdown}`);
-                } else if (effect_type === 'buff') {
-                  lines.push(`→ ${r.target}  ${r.buff_stat || ''} +${r.buff_modifier} for ${r.buff_duration} round${r.buff_duration !== 1 ? 's' : ''}`);
-                } else if (effect_type === 'debuff') {
-                  if (r.success) {
-                    lines.push(`vs ${r.target}  →  💥 ${r.debuff_stat || ''} -${Math.abs(r.debuff_modifier || 0)} for ${r.debuff_duration} round${r.debuff_duration !== 1 ? 's' : ''}`);
-                  } else {
-                    lines.push(`vs ${r.target}  →  💨 Resisted`);
-                  }
-                  lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
-                  lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
-                }
-                return lines;
-              };
-
-              const tabIndicator = document.createElement('span');
-              tabIndicator.className = 'message-tab-indicator';
-              tabIndicator.textContent = 'STORY';
-
-              if (Array.isArray(data.results) && data.results.length > 0) {
-                const bd = document.createElement('div');
-                bd.style.fontFamily = 'monospace';
-                bd.style.fontSize = '12px';
-                bd.style.marginTop = '4px';
-                bd.style.marginBottom = '4px';
-                bd.style.color = 'var(--text-secondary)';
-                bd.style.whiteSpace = 'pre';
-                bd.style.display = isSW() ? 'block' : 'none';
-
-                data.results.forEach(r => {
-                  buildBreakdownLines(r, data.effect_type).forEach(line => {
-                    bd.textContent += line + '\n';
-                  });
-                });
-
-                const toggle = document.createElement('a');
-                toggle.href = '#';
-                toggle.style.fontSize = '11px';
-                toggle.textContent = isSW() ? 'Hide details' : 'Show details';
-                toggle.addEventListener('click', (e) => {
-                  e.preventDefault();
-                  const showing = bd.style.display !== 'none';
-                  bd.style.display = showing ? 'none' : 'block';
-                  toggle.textContent = showing ? 'Show details' : 'Hide details';
-                });
-
-                castHeaderRow.appendChild(toggle);
-                castHeaderRow.appendChild(tabIndicator);
-                container.appendChild(castHeaderRow);
-                container.appendChild(narrative);
-                container.appendChild(bd);
-              } else {
-                castHeaderRow.appendChild(tabIndicator);
-                container.appendChild(castHeaderRow);
-                container.appendChild(narrative);
-              }
-
-              // DP bars per target (damage or heal results)
-              if (Array.isArray(data.results)) {
-                data.results.forEach(r => {
-                  if (r.old_dp === undefined || r.new_dp === undefined) return;
-                  if (data.effect_type === 'damage' && !(r.damage > 0)) return;
-                  const hpBarContainer = document.createElement('div');
-                  hpBarContainer.style.cssText = 'margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;';
-                  const dpLabel = document.createElement('div');
-                  dpLabel.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px;';
-                  dpLabel.textContent = `${r.target} Damage Points`;
-                  hpBarContainer.appendChild(dpLabel);
-                  const _maxDP = Math.max(r.old_dp, r.new_dp, 10);
-                  const _oldPct = (r.old_dp / _maxDP) * 100;
-                  const _newPct = (r.new_dp / _maxDP) * 100;
-                  const dpBarOuter = document.createElement('div');
-                  dpBarOuter.style.cssText = 'width:100%;height:20px;background:#333;border-radius:4px;overflow:hidden;position:relative;';
-                  const dpBarOld = document.createElement('div');
-                  dpBarOld.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_oldPct}%;background:#666;`;
-                  const dpBarNew = document.createElement('div');
-                  dpBarNew.style.cssText = `position:absolute;left:0;top:0;height:100%;width:${_newPct}%;background:${_newPct > 50 ? '#10b981' : (_newPct > 20 ? '#f59e0b' : '#ef4444')};`;
-                  const dpText = document.createElement('div');
-                  dpText.style.cssText = 'position:absolute;width:100%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);';
-                  dpText.textContent = `${r.old_dp} → ${r.new_dp} DP`;
-                  dpBarOuter.appendChild(dpBarOld);
-                  dpBarOuter.appendChild(dpBarNew);
-                  dpBarOuter.appendChild(dpText);
-                  hpBarContainer.appendChild(dpBarOuter);
-                  container.appendChild(hpBarContainer);
-                });
-              }
-
-              // Uses remaining
-              const usesInfo = document.createElement('div');
-              usesInfo.style.fontSize = '12px';
-              usesInfo.style.color = 'var(--text-muted)';
-              usesInfo.textContent = `Uses remaining: ${data.uses_remaining}/${data.max_uses}`;
-              container.appendChild(usesInfo);
-
-              // BAP button (SW only)
-              if (isSW() && (data.caster_char_id || data.character_id)) {
-                const bapBtn = document.createElement('button');
-                bapBtn.className = 'btn btn-sm';
-                bapBtn.style.cssText = 'margin-top:6px;font-size:0.78rem;padding:2px 10px;background:#78350f;border-color:#92400e;color:#fde68a;';
-                bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>Award BAP'; if (window.lucide) lucide.createIcons({ el: bapBtn });
-                bapBtn.onclick = async () => {
-                  bapBtn.disabled = true;
-                  await grantBapToken(data.caster_char_id || data.character_id, 'encounter');
-                  bapBtn.innerHTML = '<i data-lucide="star" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>BAP Awarded!'; if (window.lucide) lucide.createIcons({ el: bapBtn });
-                  bapBtn.style.opacity = '0.5';
-                };
-                container.appendChild(bapBtn);
-              }
+              const container = buildAbilityCastCard(data, fmtNow(), data.message_id);
 
               storeAndDisplayMessage(container, data);
 
@@ -15066,7 +14846,6 @@
         if (isOverrideSpeaker(activeSpeaker)) {
           payload.attacker_id = activeSpeaker.id;
         }
-        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
 
       } else if (textLower.startsWith('/cast') || textLower.startsWith('/technique')) {
@@ -15078,7 +14857,6 @@
         if (isOverrideSpeaker(activeSpeaker)) {
           payload.attacker_id = activeSpeaker.id;
         }
-        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
 
       } else if (textLower.startsWith('/s ') || text === '/s') {
@@ -15108,7 +14886,6 @@
         if (isOverrideSpeaker(activeSpeaker)) {
           payload.character_id = activeSpeaker.id;
         }
-        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
 
       } else if (textLower.startsWith('/scene') && isSW()) {
@@ -15274,7 +15051,6 @@
         if (isOverrideSpeaker(activeSpeaker)) {
           payload.character_id = activeSpeaker.id;
         }
-        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
 
       } else if (/^\/roll/i.test(cmdLower)) {
@@ -15292,7 +15068,6 @@
         if (isOverrideSpeaker(activeSpeaker)) {
           payload.attacker_id = activeSpeaker.id;
         }
-        if (bapArmed) { payload.use_bap = true; disarmBap(); }
         ws.send(JSON.stringify(payload));
       }
     }
@@ -16556,7 +16331,7 @@
         if (window.lucide) lucide.createIcons({ el: boostBtn });
         boostBtn.onclick = () => openBoostModal(
           data.character_id, data.message_id, 'stat_check', data.player_total,
-          data.bap || 1, data.available_tethers || [],
+          data.bap_applied ? 0 : (data.bap || 1), data.available_tethers || [],
           `${data.character_name} — ${data.stat} Check`
         );
         div.appendChild(boostBtn);

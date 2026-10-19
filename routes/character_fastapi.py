@@ -3034,144 +3034,6 @@ async def set_character_level(
     return {"success": True, "new_level": new_level}
 
 
-# ============================================================================
-# BAP TOKEN SYSTEM
-# ============================================================================
-
-@character_blp_fastapi.post("/{character_id}/grant-bap-token")
-async def grant_bap_token(
-    character_id: str,
-    request: Request,
-    req: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    SW grants a banked BAP token to a character.
-    Body: { token_type: 'encounter' | '24hrs' | 'sw_choice' }
-    """
-    from uuid import UUID
-    from datetime import datetime, timedelta, timezone
-    from backend.models import CampaignMembership
-
-    char_uuid = UUID(character_id)
-    char = db.query(Character).filter(Character.id == char_uuid).first()
-    if not char:
-        raise HTTPException(status_code=404, detail="Character not found")
-
-    membership = db.query(CampaignMembership).filter(
-        CampaignMembership.campaign_id == char.campaign_id,
-        CampaignMembership.user_id == current_user.id
-    ).first()
-    if not membership or membership.role != 'story_weaver':
-        raise HTTPException(status_code=403, detail="SW only")
-
-    token_type = req.get("token_type", "sw_choice")
-    if token_type not in ("encounter", "24hrs", "sw_choice"):
-        raise HTTPException(status_code=400, detail="token_type must be 'encounter', '24hrs', or 'sw_choice'")
-
-    char.bap_token_active = True
-    char.bap_token_type = token_type
-    char.bap_token_expires_at = (
-        datetime.now(timezone.utc) + timedelta(hours=24) if token_type == "24hrs" else None
-    )
-
-    type_labels = {"encounter": "this encounter", "24hrs": "the next 24 hours", "sw_choice": "SW's choice"}
-    duration_label = type_labels.get(token_type, token_type)
-    bap_msg = Message(
-        campaign_id=char.campaign_id,
-        party_id=None,
-        sender_id=current_user.id,
-        sender_name="Story Weaver",
-        message_type="bap_granted",
-        content=f"✦ BAP token granted to {char.name} ({duration_label})",
-        extra_data={"character_id": str(char.id), "character_name": char.name, "token_type": token_type}
-    )
-    db.add(bap_msg)
-    db.commit()
-    db.refresh(char)
-
-    owner_id = str(char.user_id) if char.user_id else str(char.owner_id)
-    try:
-        from routes.campaign_websocket import broadcast_bap_granted
-        import asyncio
-        asyncio.create_task(broadcast_bap_granted(
-            char.campaign_id, str(char.id), char.name, owner_id, token_type, message_id=str(bap_msg.id)
-        ))
-    except Exception as _be:
-        logger.warning(f"Could not broadcast bap_granted: {_be}")
-
-    # Push notify the player who owns this character
-    if char.user_id:
-        try:
-            from backend.notifications import send_push
-            type_labels = {"encounter": "this encounter", "24hrs": "the next 24 hours", "sw_choice": "when you choose"}
-            duration = type_labels.get(token_type, token_type)
-            send_push(
-                db, str(char.user_id),
-                "✦ BAP Token Granted!",
-                f"The SW awarded a BAP token to {char.name} — usable {duration}.",
-                url=f"/game.html?campaign_id={char.campaign_id}&character_id={char.id}&role=player",
-                campaign_id=str(char.campaign_id)
-            )
-        except Exception as _pe:
-            logger.warning(f"Push notification failed (bap_token): {_pe}")
-
-    return {"character_id": str(char.id), "bap_token_active": True, "bap_token_type": token_type}
-
-
-@character_blp_fastapi.post("/{character_id}/revoke-bap-token")
-async def revoke_bap_token(
-    character_id: str,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """SW revokes a character's BAP token."""
-    from uuid import UUID
-    from backend.models import CampaignMembership
-
-    char_uuid = UUID(character_id)
-    char = db.query(Character).filter(Character.id == char_uuid).first()
-    if not char:
-        raise HTTPException(status_code=404, detail="Character not found")
-
-    membership = db.query(CampaignMembership).filter(
-        CampaignMembership.campaign_id == char.campaign_id,
-        CampaignMembership.user_id == current_user.id
-    ).first()
-    if not membership or membership.role != 'story_weaver':
-        raise HTTPException(status_code=403, detail="SW only")
-
-    char.bap_token_active = False
-    char.bap_token_expires_at = None
-    char.bap_token_type = None
-
-    revoke_msg = Message(
-        campaign_id=char.campaign_id,
-        party_id=None,
-        sender_id=current_user.id,
-        sender_name="Story Weaver",
-        message_type="bap_revoked",
-        content=f"✦ BAP token revoked from {char.name}",
-        extra_data={"character_id": str(char.id), "character_name": char.name}
-    )
-    db.add(revoke_msg)
-    db.commit()
-
-    owner_id = str(char.user_id) if char.user_id else str(char.owner_id)
-    try:
-        from routes.campaign_websocket import broadcast_bap_revoked
-        import asyncio
-        asyncio.create_task(broadcast_bap_revoked(
-            char.campaign_id, str(char.id), char.name, owner_id
-        ))
-    except Exception as _be:
-        logger.warning(f"Could not broadcast bap_revoked: {_be}")
-
-    return {"character_id": str(char.id), "bap_token_active": False}
-
-
 @character_blp_fastapi.post("/{character_id}/bap-retroactive")
 async def bap_retroactive(
     character_id: str,
@@ -3382,6 +3244,139 @@ async def bap_stat_roll(
 # Combined Boost (BAP + Tethers) — retroactive roll boost
 # ============================================================
 
+async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message_id, current_user):
+    """Add a boost (BAP and/or tethers) to ONE ability cast, after the fact.
+
+    Damage casts re-resolve every target (hit or miss, damage, the target's DP), heals heal more, debuffs can flip
+    from resisted to landed. A buff has no roll, so there is nothing to add to. Applies to this cast only, once."""
+    import asyncio
+    from sqlalchemy.orm.attributes import flag_modified
+    from backend.models import Ability, ActiveEffect
+    from routes.campaign_websocket import BUFF_DEBUFF_TABLE, manager
+
+    if msg.message_type != "ability_cast" or str(extra.get("caster_char_id")) != str(char.id):
+        raise HTTPException(status_code=400, detail="That roll does not belong to this character")
+    effect_type = extra.get("effect_type")
+    if effect_type == "buff":
+        raise HTTPException(status_code=400, detail="A buff has no roll, so there is nothing to boost")
+    if effect_type not in ("damage", "heal", "debuff"):
+        raise HTTPException(status_code=400, detail="This cast can't be boosted")
+
+    label = " + ".join(
+        f"BAP(+{b['bonus']})" if b["type"] == "bap" else f"Tether({b['modifier']:+d})" for b in boosts
+    )
+
+    def with_boost(breakdown, new_total):
+        base = (breakdown or "").rsplit(" = ", 1)[0]
+        return f"{base} + {label} = {new_total}"
+
+    ability_name = extra.get("ability_name") or "ability"
+    results = [dict(r) for r in (extra.get("results") or [])]
+    narrative_parts = []
+    old_total = new_total = None
+
+    for r in results:
+        if r.get("message") == "Target not found":
+            continue
+        target = db.query(Character).filter(
+            Character.name == r.get("target"), Character.campaign_id == char.campaign_id
+        ).first()
+        name = r.get("target")
+
+        if effect_type == "damage":
+            if r.get("attack_roll") is None:
+                continue
+            old_attack, old_damage = r["attack_roll"], r.get("damage", 0)
+            new_attack = old_attack + total_bonus
+            margin = new_attack - (r.get("defense_roll") or 0)
+            damage = max(0, margin)
+            if target is not None and damage != old_damage:
+                # same floor the weapon-attack Boost uses; never above max DP
+                target.dp = min(target.max_dp, max(-10, (target.dp or 0) - (damage - old_damage)))
+            r.update(attack_roll=new_attack, margin=margin, damage=damage, outcome="hit" if damage > 0 else "miss",
+                     new_dp=target.dp if target is not None else r.get("new_dp"), boost_bonus=total_bonus,
+                     attack_breakdown=with_boost(r.get("attack_breakdown"), new_attack))
+            narrative_parts.append(
+                f"{name} takes {damage} damage (DP: {r.get('old_dp')} → {r.get('new_dp')})" if damage > 0
+                else f"{name} dodges the attack!")
+            if old_total is None:
+                old_total, new_total = old_attack, new_attack
+
+        elif effect_type == "heal":
+            old_heal = r.get("healing", 0)
+            healing = max(0, old_heal + total_bonus)
+            if target is not None:
+                target.dp = min(target.max_dp, (target.dp or 0) + (healing - old_heal))
+            r.update(healing=healing, new_dp=target.dp if target is not None else r.get("new_dp"), boost_bonus=total_bonus,
+                     roll_breakdown=with_boost(r.get("roll_breakdown"), healing))
+            narrative_parts.append(f"{name} restores {healing} DP (DP: {r.get('old_dp')} → {r.get('new_dp')})")
+            if old_total is None:
+                old_total, new_total = old_heal, healing
+
+        else:  # debuff
+            if r.get("caster_roll") is None:
+                continue
+            was_landed = bool(r.get("success"))
+            old_caster = r["caster_roll"]
+            new_caster = old_caster + total_bonus
+            margin = new_caster - (r.get("defense_roll") or 0)
+            landed = margin > 0
+            modifier = BUFF_DEBUFF_TABLE.get(extra.get("ability_die"), 1)
+            ability_row = db.query(Ability).filter(
+                Ability.character_id == char.id, Ability.display_name == ability_name).first()
+            debuff_stat = (ability_row.debuff_stat if ability_row and ability_row.debuff_stat else None) or extra.get("power_source")
+            r.update(caster_roll=new_caster, margin=margin, debuff_strength=max(0, margin), success=landed,
+                     boost_bonus=total_bonus, attack_breakdown=with_boost(r.get("attack_breakdown"), new_caster))
+            if landed and not was_landed and target is not None:
+                db.add(ActiveEffect(campaign_id=char.campaign_id, character_id=target.id, name=ability_name,
+                                    modifier=-modifier, modifier_type=(debuff_stat or "custom").lower(),
+                                    duration_rounds=modifier, applied_by=char.name))
+                r.update(debuff_modifier=-modifier, debuff_duration=modifier, debuff_stat=debuff_stat)
+            elif was_landed and not landed and target is not None:
+                effect = db.query(ActiveEffect).filter(
+                    ActiveEffect.character_id == target.id, ActiveEffect.name == ability_name,
+                    ActiveEffect.applied_by == char.name).order_by(ActiveEffect.created_at.desc()).first()
+                if effect:
+                    db.delete(effect)
+                for k in ("debuff_modifier", "debuff_duration", "debuff_stat"):
+                    r.pop(k, None)
+            narrative_parts.append(
+                f"{name} is afflicted by {ability_name}! ({r.get('debuff_stat')} -{modifier} for {modifier} "
+                f"round{'s' if modifier != 1 else ''})" if landed else f"{name} resists {ability_name}!")
+            if old_total is None:
+                old_total, new_total = old_caster, new_caster
+
+    if old_total is None:
+        raise HTTPException(status_code=400, detail="There is no roll on this cast to boost")
+
+    narrative = " ".join(narrative_parts)
+    extra.update(results=results, narrative=narrative, boost_applied=True, boosts=boosts)
+    msg.extra_data = extra
+    flag_modified(msg, "extra_data")
+    db.commit()
+
+    try:
+        from backend.stats_tracker import commit_stats, track_boost
+        track_boost(db, str(current_user.id), str(char.id), any(b["type"] == "bap" for b in boosts),
+                    sum(1 for b in boosts if b["type"] == "tether"))
+        commit_stats(db, str(current_user.id))
+    except Exception as _se:
+        logger.warning(f"Stats track_boost failed: {_se}")
+
+    try:
+        asyncio.create_task(manager.broadcast(char.campaign_id, {
+            "type": "boosts_applied", "message_id": message_id, "character_id": str(char.id),
+            "character_name": char.name, "roll_type": "ability_cast", "effect_type": effect_type,
+            "ability_name": ability_name, "results": results, "narrative": narrative,
+            "old_total": old_total, "new_total": new_total, "total_bonus": total_bonus, "boosts": boosts,
+        }))
+    except Exception as _e:
+        logger.warning(f"boosts_applied broadcast failed: {_e}")
+
+    return {"message_id": message_id, "boost_applied": True, "old_total": old_total, "new_total": new_total,
+            "results": results, "boosts": boosts}
+
+
 @character_blp_fastapi.post("/{character_id}/apply-boosts")
 async def apply_boosts(
     character_id: str,
@@ -3425,6 +3420,9 @@ async def apply_boosts(
     msg = db.query(Message).filter(Message.id == message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
+
+    if str(msg.campaign_id) != str(char.campaign_id):
+        raise HTTPException(status_code=404, detail="Message not found")  # not a roll from this campaign
 
     extra = dict(msg.extra_data or {})
     if extra.get("boost_applied"):
@@ -3531,6 +3529,8 @@ async def apply_boosts(
             raise HTTPException(status_code=400, detail="Env Check boosts aren't supported yet")
         if check_req.status != "resolved":
             raise HTTPException(status_code=400, detail="Stat Check hasn't resolved yet")
+        if use_bap and check_req.bap_granted:
+            raise HTTPException(status_code=400, detail="BAP was already granted for this check")
 
         old_total = check_req.player_total or 0
         old_outcome = check_req.outcome
@@ -3600,6 +3600,9 @@ async def apply_boosts(
             "new_outcome": new_outcome,
             "boosts": boosts,
         }
+
+    elif roll_type == "ability_cast":
+        return await _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message_id, current_user)
 
     else:  # combat
         individual_rolls = extra.get("individual_rolls", [])

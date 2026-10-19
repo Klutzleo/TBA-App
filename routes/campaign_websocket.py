@@ -1270,14 +1270,9 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             ).all() if fx.modifier_type in ('pp', 'ip', 'sp', 'defense')
         )
 
-        # BAP: consume token if armed
-        use_bap = data.get("use_bap", False)
+        # BAP is never banked. The Story Weaver adds it to one specific roll afterwards (Boost), so a roll
+        # always starts without any.
         bap_bonus = 0
-        if use_bap and attacker.bap_token_active:
-            bap_bonus = attacker.bap or 0
-            attacker.bap_token_active = False
-            attacker.bap_token_expires_at = None
-            db.commit()
 
         # Active Tethers ride every roll while the SW has them switched on.
         attacker_tether_modifier, attacker_tether_rows = _active_tethers(attacker)
@@ -2260,7 +2255,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 "results": results,
                 "narrative": narrative,
                 "uses_remaining": ability.uses_remaining,
-                "max_uses": ability.max_uses
+                "max_uses": ability.max_uses,
+                # what the Story Weaver's Boost dialog needs to add BAP / a tether to THIS cast afterwards
+                "bap": caster.bap or 1,
+                "tethers": [t for t in (caster.tethers or []) if t.get("modifier", 0) != 0],
             }
         )
         db.add(ability_message)
@@ -2283,6 +2281,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         )
         _broadcast_payload = broadcast.model_dump(mode='json')
         _broadcast_payload["message_id"] = str(ability_message.id)
+        _broadcast_payload["bap"] = caster.bap or 1
+        _broadcast_payload["tethers"] = [t for t in (caster.tethers or []) if t.get("modifier", 0) != 0]
         await manager.broadcast(campaign_id, _broadcast_payload)
 
         # If any target triggered The Calling, save and broadcast it now
@@ -2601,16 +2601,8 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
     _stat_tether_mod, _stat_active_tethers = _active_tethers(character)
     total = die_roll + stat_value + edge + _stat_tether_mod
 
-    # BAP token usage
-    use_bap = data.get("use_bap", False)
+    # BAP is never banked: the Story Weaver adds it to this specific roll afterwards (Boost).
     bap_bonus = 0
-    if use_bap and character.bap_token_active:
-        bap_bonus = character.bap or 0
-        total += bap_bonus
-        character.bap_token_active = False
-        character.bap_token_expires_at = None
-        character.bap_token_type = None
-        db.commit()
 
     # Build breakdown text showing the math
     bap_part = f" + BAP({bap_bonus})" if bap_bonus else ""
@@ -2659,7 +2651,6 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
         "text": result_text,
         "breakdown": breakdown_text,
         "bap_bonus": bap_bonus,
-        "bap_token_consumed": bap_bonus > 0,
         "bap": character.bap or 1,
         "tethers": [t for t in (character.tethers or []) if t.get("modifier", 0) != 0],
     })
@@ -3104,11 +3095,6 @@ async def _handle_stat_check_request(campaign_uuid: UUID, sw_user_id: UUID, data
             logger.warning(f"track_group_check_sent failed: {_se}")
 
     for _tc in loop_chars:
-        if bap_granted:
-            _tc.bap_token_active = True
-            _tc.bap_token_type = "sw_choice"
-            db.commit()
-
         req = StatCheckRequest(
             campaign_id=campaign_uuid,
             character_id=_tc.id,
@@ -3238,7 +3224,9 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
     debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
     tether_modifier, tether_rows = _active_tethers(char)
 
-    player_total = die_roll + stat_value + edge + debuff_modifier + tether_modifier
+    # "Grant BAP for this check": the Story Weaver approved BAP for THIS roll, so it is part of the total.
+    bap_applied = (char.bap or 1) if req.bap_granted else 0
+    player_total = die_roll + stat_value + edge + debuff_modifier + tether_modifier + bap_applied
     sw_total = req.sw_roll
     outcome = "win" if player_total > sw_total else "loss"
     margin = player_total - sw_total
@@ -3293,6 +3281,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
         "outcome": outcome,
         "margin": margin,
         "bap_granted": req.bap_granted,
+        "bap_applied": bap_applied,  # already inside player_total; a later Boost must not add it again
         "rolled_by_sw": rolled_by_sw,
         "bap": char.bap or 1,
         # Tethers not already active (and therefore not already baked into
@@ -3983,30 +3972,6 @@ async def broadcast_achievement_awarded(campaign_id: UUID, user_id, newly_awarde
                 except Exception:
                     pass
             await manager.broadcast(campaign_id, announce_payload)
-
-
-async def broadcast_bap_granted(campaign_id: UUID, character_id: str, character_name: str, owner_id: str, token_type: str, message_id: str = None):
-    """SW granted a BAP token to a character. All clients update the party panel."""
-    payload = {
-        "type": "bap_granted",
-        "character_id": character_id,
-        "character_name": character_name,
-        "owner_id": owner_id,
-        "token_type": token_type
-    }
-    if message_id:
-        payload["message_id"] = message_id
-    await manager.broadcast(campaign_id, payload)
-
-
-async def broadcast_bap_revoked(campaign_id: UUID, character_id: str, character_name: str, owner_id: str):
-    """SW revoked a BAP token. All clients update the party panel."""
-    await manager.broadcast(campaign_id, {
-        "type": "bap_revoked",
-        "character_id": character_id,
-        "character_name": character_name,
-        "owner_id": owner_id
-    })
 
 
 async def broadcast_bap_retroactive(
@@ -5686,7 +5651,8 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
         stat_map = {"PP": char.pp, "IP": char.ip, "SP": char.sp}
         power_stat = stat_map.get(ability.power_source, 0)
         rolls = roll_dice(ability.die)
-        total = sum(rolls) + power_stat + (char.edge or 0)
+        bap = char.bap or 1  # a Combo always gets full BAP, automatically, on the roll itself
+        total = sum(rolls) + power_stat + (char.edge or 0) + bap
         # Deduct 2 uses (combo cost)
         ability.uses_remaining = max(0, (ability.uses_remaining or 0) - 2)
         return {
@@ -5696,6 +5662,7 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
             "power_source": ability.power_source,
             "power_stat": power_stat,
             "edge": char.edge or 0,
+            "bap": bap,
             "rolls": rolls,
             "total": total,
             "effect_type": ability.effect_type,
@@ -5705,15 +5672,9 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
     acceptor_result = _roll_for(acceptor_char, combo.acceptor_ability_slot)
 
-    # Grant a BAP token to both (matches the app's real BAP mechanism — a token
-    # flag, not a numeric pool; `current_bap` below was never a real column and
-    # crashed every time a Combo actually fired in production).
-    proposer_bap = proposer_char.bap or 1
-    acceptor_bap = acceptor_char.bap or 1
-    proposer_char.bap_token_active = True
-    proposer_char.bap_token_type = "encounter"
-    acceptor_char.bap_token_active = True
-    acceptor_char.bap_token_type = "encounter"
+    # BAP is already inside both totals above (full BAP, automatic). It is never banked for later.
+    proposer_bap = proposer_result.get("bap", proposer_char.bap or 1)
+    acceptor_bap = acceptor_result.get("bap", acceptor_char.bap or 1)
 
     combo.status = "fired"
     db.commit()
@@ -6111,7 +6072,8 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
         stat_map = {"PP": char.pp, "IP": char.ip, "SP": char.sp}
         power_stat = stat_map.get(ability.power_source, 0)
         rolls = roll_dice(ability.die)
-        total = sum(rolls) + power_stat + (char.edge or 0)
+        bap = char.bap or 1  # a Combo always gets full BAP, automatically, on the roll itself
+        total = sum(rolls) + power_stat + (char.edge or 0) + bap
         ability.uses_remaining = max(0, (ability.uses_remaining or 0) - 2)
         return {
             "slot": slot,
@@ -6120,6 +6082,7 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
             "power_source": ability.power_source,
             "power_stat": power_stat,
             "edge": char.edge or 0,
+            "bap": bap,
             "rolls": rolls,
             "total": total,
             "effect_type": ability.effect_type,
@@ -6130,12 +6093,11 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
     partner_a_result = _roll_for(partner_a_char, combo.partner_a_ability_slot)
     partner_b_result = _roll_for(partner_b_char, combo.partner_b_ability_slot)
 
-    bap_granted = {}
-    for c in (proposer_char, partner_a_char, partner_b_char):
-        b = c.bap or 1
-        c.bap_token_active = True
-        c.bap_token_type = "encounter"
-        bap_granted[str(c.id)] = b
+    # BAP is already inside all three totals above (full BAP, automatic). It is never banked for later.
+    bap_granted = {
+        str(c.id): r.get("bap", c.bap or 1)
+        for c, r in ((proposer_char, proposer_result), (partner_a_char, partner_a_result), (partner_b_char, partner_b_result))
+    }
 
     combo.status = "fired"
     db.commit()
