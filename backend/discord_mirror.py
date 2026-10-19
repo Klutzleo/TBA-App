@@ -110,7 +110,20 @@ DENYLIST_TYPES = {
     # stays true even if a future edit adds a generic text/content field to
     # the request payload.
     "stat_check_request", "env_check_request",
+    # STORY ONLY. The Discord channel is a public window onto the Story tab, nothing else. Table talk and private
+    # messages never mirror (a whisper used to be posted here word for word).
+    "chat_ooc", "chat_whisper",
+    # Not part of the story feed: the Lore tab, inventory/loot changes, the pin bar, and SW/admin bookkeeping.
+    "lore_created", "lore_updated", "lore_deleted",
+    "item_added", "item_given", "item_equip_changed", "item_used",
+    "message_pinned", "message_unpinned",
+    "campaign_renamed", "npc_visibility_changed", "abilities_restored",
+    "character_level_set", "character_archived", "character_deleted",
 }
+
+# Whatever its event type, anything sent in one of these chat modes is not story and never mirrors. This is the
+# structural guard: it also catches new event types (or images) that carry a chat_mode but were never listed above.
+NON_STORY_CHAT_MODES = {"ooc", "whisper"}
 
 def _int(v, default=0):
     try:
@@ -244,6 +257,8 @@ def enqueue_outbound(campaign_id, message: dict):
 
     msg_type = message.get("type")
     if not msg_type or msg_type in DENYLIST_TYPES:
+        return
+    if str(message.get("chat_mode") or "").lower() in NON_STORY_CHAT_MODES:
         return
     if msg_type == "system" and str(message.get("text", "")).startswith("❌"):
         return
