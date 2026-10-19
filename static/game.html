@@ -9451,11 +9451,12 @@
     }
 
     // Summon appeared (gold) or went away (grey). One builder so the live card and the reloaded history card match.
-    function buildSummonNoticeCard(text, created) {
+    function buildSummonNoticeCard(text, kind) {
+      const look = { created: ['#d4af37', '#d4af37;font-weight:600'], dismissed: ['#6b7280', '#9ca3af'], drain: ['#7c3aed', '#a78bfa'] }[kind] || ['#6b7280', '#9ca3af'];
       const el = document.createElement('div');
       el.className = 'message-card message-combat';
-      el.style.cssText = `border-left:3px solid ${created ? '#d4af37' : '#6b7280'};padding:8px 12px;`;
-      el.innerHTML = `<span style="color:${created ? '#d4af37;font-weight:600' : '#9ca3af'};">${escHtml(text || '')}</span>`;
+      el.style.cssText = `border-left:3px solid ${look[0]};padding:8px 12px;`;
+      el.innerHTML = `<span style="color:${look[1]};">${escHtml(text || '')}</span>`;
       return el;
     }
 
@@ -12711,9 +12712,9 @@
                 storeAndDisplayMessage(container, { type: 'ability_cast', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // Summon appeared / went away: same gold and grey cards as when they happened live
-              else if (msg.message_type === 'summon_created' || msg.message_type === 'summon_dismissed') {
-                const created = msg.message_type === 'summon_created';
-                storeAndDisplayMessage(buildSummonNoticeCard(msg.content, created),
+              else if (msg.message_type === 'summon_created' || msg.message_type === 'summon_dismissed' || msg.message_type === 'summon_dp_drain') {
+                const kind = { summon_created: 'created', summon_dismissed: 'dismissed', summon_dp_drain: 'drain' }[msg.message_type];
+                storeAndDisplayMessage(buildSummonNoticeCard(msg.content, kind),
                   { type: msg.message_type, timestamp: msg.timestamp, message_id: msg.id, ...(msg.extra_data || {}) });
               }
               // ✅ Handle initiative rolls from database
@@ -14525,7 +14526,7 @@
                 max_dp: data.durability,
               });
               if (userRole === 'SW') renderInitiativeTracker();
-              addMessage(buildSummonNoticeCard(data.message, true), '', data, false);
+              addMessage(buildSummonNoticeCard(data.message, 'created'), '', data, false);
               showPanelToast(`✨ ${data.summon_name} summoned!`, 'info');
 
             } else if (data.type === 'summon_hit') {
@@ -14540,7 +14541,7 @@
               const idx = currentInitiativeOrder.findIndex(r => r.summon_id === data.summon_id);
               if (idx !== -1) currentInitiativeOrder.splice(idx, 1);
               if (userRole === 'SW') renderInitiativeTracker();
-              addMessage(buildSummonNoticeCard(data.message, false), '', data, false);
+              addMessage(buildSummonNoticeCard(data.message, 'dismissed'), '', data, false);
               showPanelToast(`💨 ${data.summon_name} dismissed`, 'info');
 
             } else if (data.type === 'summon_dp_drain') {
@@ -14550,11 +14551,7 @@
                 if (dpEl) dpEl.textContent = data.new_dp;
               }
               showPanelToast(`🔗 ${data.summon_name} drains 1 DP from ${data.character_name}`, 'warning');
-              const el = document.createElement('div');
-              el.className = 'message-card message-combat';
-              el.style.cssText = 'border-left:3px solid #7c3aed;padding:8px 12px;';
-              el.innerHTML = `<span style="color:#a78bfa;">${escHtml(data.message)}</span>`;
-              addMessage(el, '', data, true);
+              addMessage(buildSummonNoticeCard(data.message, 'drain'), '', data, true);
 
             } else if (data.type === 'abilities_restored') {
               // Party rest - abilities restored

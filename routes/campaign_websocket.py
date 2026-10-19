@@ -5040,13 +5040,24 @@ async def advance_turn(
             if dp_drain_events:
                 db.commit()
                 for evt in dp_drain_events:
+                    drain_text = f"🔗 {evt['summon_name']} drains 1 DP from {evt['character_name']}. (DP: {evt['new_dp'] + 1} → {evt['new_dp']})"
+                    # saved, so the notice is still in the feed after a refresh
+                    drain_msg = Message(
+                        campaign_id=campaign_uuid, party_id=None, sender_id=UUID(evt["character_id"]),
+                        sender_name=evt["summon_name"], message_type="summon_dp_drain", content=drain_text,
+                        extra_data={"character_id": evt["character_id"], "character_name": evt["character_name"],
+                                    "new_dp": evt["new_dp"], "summon_name": evt["summon_name"]},
+                    )
+                    db.add(drain_msg)
+                    db.commit()
                     await manager.broadcast(campaign_uuid, {
                         "type": "summon_dp_drain",
                         "character_id": evt["character_id"],
                         "character_name": evt["character_name"],
                         "new_dp": evt["new_dp"],
                         "summon_name": evt["summon_name"],
-                        "message": f"🔗 {evt['summon_name']} drains 1 DP from {evt['character_name']}. (DP: {evt['new_dp'] + 1} → {evt['new_dp']})",
+                        "message": drain_text,
+                        "message_id": str(drain_msg.id),
                     })
 
         # Decrement active effects only for the character whose turn just ended
