@@ -583,6 +583,36 @@ async def campaign_websocket(
                         "ability_name": pending["ability_name"],
                     })
 
+            elif message_type == "summon_act":
+                # The Story Weaver (or the summoner's player) has the summon act on its turn: same as the
+                # summoner casting their summon ability at a target, without having to type the command.
+                try:
+                    act_summon = db.query(Character).filter(
+                        Character.id == UUID(str(data.get("summon_id"))),
+                        Character.is_summon == True,  # noqa: E712
+                        Character.campaign_id == str(campaign_uuid)
+                    ).first()
+                except (ValueError, TypeError, AttributeError):
+                    act_summon = None
+                act_target = str(data.get("target") or "").strip()
+                act_summoner = db.query(Character).filter(Character.id == act_summon.summoner_id).first() if act_summon and act_summon.summoner_id else None
+                act_ability = db.query(Ability).filter(
+                    Ability.character_id == act_summoner.id, Ability.is_summon == True  # noqa: E712
+                ).first() if act_summoner else None
+                if not act_summon or not act_summoner or not act_ability or not act_ability.macro_command:
+                    await websocket.send_json({"type": "system", "text": "❌ That summon can't act right now."})
+                elif not (await is_story_weaver(campaign_uuid, user_uuid, db) or str(act_summoner.user_id) == str(user_uuid)):
+                    await websocket.send_json({"type": "system", "text": "❌ Only the Story Weaver or the summoner can command a summon."})
+                elif not act_target or "]" in act_target or "\n" in act_target:
+                    await websocket.send_json({"type": "system", "text": "❌ Pick a target for the summon."})
+                else:
+                    await handle_ability_cast(campaign_uuid, {
+                        "type": "ability_cast",
+                        "raw_command": f"{act_ability.macro_command} @[{act_target}]",
+                        "speaker_id": str(act_summoner.id),
+                        "speaker_type": "pc",
+                    }, websocket, user_uuid, db)
+
             elif message_type == "dismiss_summon":
                 summon_id = data.get("summon_id")
                 if summon_id:
@@ -1489,146 +1519,11 @@ BUFF_DEBUFF_TABLE = {
 async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "Ability", db: Session,
                               target_names: list = None):
     """
-    Two-mode summon handler:
-
-    SUMMON MODE (no active summon):
-      Creates the summon NPC, adds to initiative, deducts 1 use.
-      Requires no target.
-
-    COMMAND MODE (summon already active):
-      Routes the summon's action through the normal effect pipeline
-      (damage / heal / debuff) using the caster's stats + summon's die.
-      Requires a target (@Name).
+    Creates the summon (a temporary NPC sharing the caster's initiative slot) and spends 1 use. No target needed.
+    A summon that is already out is not handled here: handle_ability_cast runs its action through the normal
+    damage/heal/debuff pipeline.
     """
     from uuid import uuid4 as _uuid4
-
-    # Check for an existing active summon from this caster
-    existing = db.query(Character).filter(
-        Character.summoner_id == caster.id,
-        Character.is_summon == True,  # noqa: E712
-        Character.campaign_id == str(campaign_id)
-    ).first()
-
-    # ── COMMAND MODE ────────────────────────────────────────────────────────
-    if existing:
-        if not target_names:
-            await manager.broadcast(campaign_id, {
-                "type": "system",
-                "text": f"❌ {existing.name} is already summoned. Command it with: {ability.macro_command} @Target"
-            })
-            return
-
-        power_stat = caster.ip  # Summons always use IP
-        results = []
-        narrative_parts = []
-
-        for target_name in target_names:
-            target = db.query(Character).filter(
-                Character.name == target_name,
-                Character.campaign_id == str(campaign_id)
-            ).first()
-            if not target:
-                results.append({"target": target_name, "success": False, "message": "Target not found"})
-                continue
-
-            attack_rolls = roll_dice(ability.die)
-            attack_total = sum(attack_rolls) + power_stat + caster.edge
-
-            if ability.effect_type == "damage":
-                if target.is_summon:
-                    # Summon vs summon — count as a hit
-                    target.dp -= 1
-                    db.commit()
-                    results.append({"target": target_name, "success": True, "outcome": "summon_hit", "damage": 1,
-                                    "old_dp": target.dp + 1, "new_dp": target.dp})
-                    if target.dp <= 0:
-                        summon_id = str(target.id)
-                        summon_name_t = target.name
-                        db.query(InitiativeRoll).filter(InitiativeRoll.character_id == target.id).delete()
-                        db.delete(target)
-                        db.commit()
-                        defeat_msg = Message(
-                            campaign_id=campaign_id,
-                            party_id=None,
-                            sender_id=caster.id,
-                            sender_name=summon_name_t,
-                            message_type="summon_dismissed",
-                            content=f"💨 {summon_name_t} has been defeated and vanishes!",
-                            extra_data={"summon_id": summon_id, "summon_name": summon_name_t, "reason": "defeated"}
-                        )
-                        db.add(defeat_msg)
-                        db.commit()
-                        await manager.broadcast(campaign_id, {
-                            "type": "summon_dismissed", "summon_id": summon_id,
-                            "summon_name": summon_name_t, "reason": "defeated",
-                            "message": f"💨 {summon_name_t} has been defeated and vanishes!",
-                            "message_id": str(defeat_msg.id),
-                        })
-                    continue
-
-                def_rolls = roll_dice(target.defense_die)
-                target_stat = target.ip
-                defense_total = sum(def_rolls) + target_stat + (target.edge or 0)
-                margin = attack_total - defense_total
-                damage = max(0, margin)
-                old_dp = target.dp
-                target.dp -= damage
-                db.commit()
-                if damage > 0:
-                    await cancel_holding_combos_on_damage(campaign_id, target.id, db)
-                outcome = "hit" if damage > 0 else "miss"
-                atk_bd = f"{ability.die}=[{'+'.join(str(r) for r in attack_rolls)}]+IP({power_stat})+Edge({caster.edge})={attack_total}"
-                def_bd = f"{target.defense_die}=[{'+'.join(str(r) for r in def_rolls)}]+IP({target_stat})+Edge({target.edge or 0})={defense_total}"
-                results.append({"target": target_name, "success": True, "damage": damage,
-                                 "old_dp": old_dp, "new_dp": target.dp, "outcome": outcome,
-                                 "attack_roll": attack_total, "attack_breakdown": atk_bd,
-                                 "defense_roll": defense_total, "defense_breakdown": def_bd, "margin": margin})
-                if damage > 0:
-                    narrative_parts.append(f"{target_name} takes {damage} damage (DP: {old_dp} → {target.dp})")
-                else:
-                    narrative_parts.append(f"{target_name} dodges!")
-
-            elif ability.effect_type == "heal":
-                heal_amount = sum(attack_rolls) + power_stat + caster.edge
-                old_dp = target.dp
-                target.dp = min(target.dp + heal_amount, target.max_dp)
-                actual = target.dp - old_dp
-                db.commit()
-                results.append({"target": target_name, "success": True, "heal": actual,
-                                 "old_dp": old_dp, "new_dp": target.dp, "outcome": "healed"})
-                narrative_parts.append(f"{target_name} recovers {actual} DP (DP: {old_dp} → {target.dp})")
-
-            elif ability.effect_type == "debuff":
-                def_rolls = roll_dice(target.defense_die)
-                target_stat = target.ip
-                defense_total = sum(def_rolls) + target_stat + (target.edge or 0)
-                if attack_total > defense_total:
-                    modifier = BUFF_DEBUFF_TABLE.get(ability.die, 1)
-                    duration = modifier
-                    results.append({"target": target_name, "success": True, "outcome": "debuffed",
-                                     "modifier": -modifier, "duration": duration})
-                    narrative_parts.append(f"{target_name} is weakened by {existing.name}!")
-                else:
-                    results.append({"target": target_name, "success": True, "outcome": "resisted"})
-                    narrative_parts.append(f"{target_name} resists {existing.name}'s effect!")
-
-        # Deduct 1 ability use for commanding
-        ability.uses_remaining -= 1
-        db.commit()
-
-        await manager.broadcast(campaign_id, {
-            "type": "ability_cast",
-            "caster": caster.name,
-            "ability_name": f"{existing.name} (command)",
-            "ability_die": ability.die,
-            "effect_type": ability.effect_type,
-            "power_source": "IP",
-            "results": results,
-            "narrative": " | ".join(narrative_parts) if narrative_parts else f"{existing.name} acts!",
-            "uses_remaining": ability.uses_remaining,
-            "max_uses": ability.max_uses,
-        })
-        return
 
     # ── SUMMON MODE ─────────────────────────────────────────────────────────
     # No active summon — create it
@@ -1823,17 +1718,39 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             })
             return
 
-        # Check uses remaining
-        if ability.uses_remaining <= 0:
+        # --- Summon gate ---
+        # Casting a summon ability with no summon out just summons it (no target). With one already out,
+        # the cast is the summon ACTING: it falls through to the normal damage/heal/debuff pipeline below
+        # (same rolls, same Calling, same history card and Boost), costs no use, and needs a target.
+        acting_summon = None
+        if ability.is_summon:
+            acting_summon = db.query(Character).filter(
+                Character.summoner_id == caster.id,
+                Character.is_summon == True,  # noqa: E712
+                Character.campaign_id == campaign_id
+            ).first()
+            if not acting_summon:
+                if ability.uses_remaining <= 0:
+                    await manager.broadcast(campaign_id, {
+                        "type": "system",
+                        "text": f"❌ {ability.display_name} has no uses remaining! ({ability.uses_remaining}/{ability.max_uses})"
+                    })
+                    return
+                await _handle_summon_cast(campaign_id, caster, ability, db, target_names=target_names)
+                return
+            if not target_names and ability.effect_type != "heal":
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": f"❌ {acting_summon.name} is already summoned. Pick a target for it: {macro_command} @[Target]"
+                })
+                return
+
+        # Check uses remaining (a summon that is already out acts for free)
+        if not acting_summon and ability.uses_remaining <= 0:
             await manager.broadcast(campaign_id, {
                 "type": "system",
                 "text": f"❌ {ability.display_name} has no uses remaining! ({ability.uses_remaining}/{ability.max_uses})"
             })
-            return
-
-        # --- Summon gate ---
-        if ability.is_summon:
-            await _handle_summon_cast(campaign_id, caster, ability, db, target_names=target_names)
             return
 
         # --- AOE approval gate ---
@@ -2229,12 +2146,15 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
         # Decrement uses only if at least one target was actually found (not a typo/miss-target)
         all_targets_missing = results and all(r.get("message") == "Target not found" for r in results)
-        if not all_targets_missing:
+        if not all_targets_missing and not acting_summon:
             ability.uses_remaining -= 1
         db.commit()
 
         # Generate narrative (header already shows caster + ability, so just show outcomes)
         narrative = " ".join(narrative_parts)
+
+        # A summon that acts gets its own card header ("The Progeny acts!") instead of a second cast of the spell
+        card_ability_name = ability.display_name
 
         # Persist to database first so the broadcast can carry a message_id
         ability_message = Message(
@@ -2242,12 +2162,13 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             party_id=None,  # Visible to all tabs
             sender_id=str(user_id),
             sender_name=caster.name,
-            content=f"{caster.name} casts {ability.display_name}",
+            content=f"{caster.name} casts {card_ability_name}",
             message_type="ability_cast",
             extra_data={
                 "caster": caster.name,
                 "caster_char_id": str(caster.id),
-                "ability_name": ability.display_name,
+                "ability_name": card_ability_name,
+                "acting_summon": acting_summon.name if acting_summon else None,
                 "ability_die": ability.die,
                 "power_source": ability.power_source,
                 "effect_type": ability.effect_type,
@@ -2268,7 +2189,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         # Broadcast result
         broadcast = AbilityCastBroadcast(
             caster=caster.name,
-            ability_name=ability.display_name,
+            ability_name=card_ability_name,
             ability_die=ability.die,
             power_source=ability.power_source,
             effect_type=ability.effect_type,
@@ -2281,6 +2202,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         )
         _broadcast_payload = broadcast.model_dump(mode='json')
         _broadcast_payload["message_id"] = str(ability_message.id)
+        _broadcast_payload["acting_summon"] = acting_summon.name if acting_summon else None
         _broadcast_payload["bap"] = caster.bap or 1
         _broadcast_payload["tethers"] = [t for t in (caster.tethers or []) if t.get("modifier", 0) != 0]
         await manager.broadcast(campaign_id, _broadcast_payload)
@@ -4067,6 +3989,21 @@ def _sort_initiative_rolls(rolls, db):
     return sorted(rolls, key=sort_key)
 
 
+def summon_order_fields(char, db) -> dict:
+    """Extra initiative-row fields for a summon (empty for everyone else). Without these the row
+    forgets it is a summon after any reload or re-sort, and loses its pips, Dismiss and Act buttons."""
+    if not char or not getattr(char, "is_summon", False):
+        return {}
+    summoner = db.query(Character).filter(Character.id == char.summoner_id).first() if char.summoner_id else None
+    return {
+        "is_summon": True,
+        "summon_id": str(char.id),
+        "summoner_id": str(char.summoner_id) if char.summoner_id else None,
+        "summoner_name": summoner.name if summoner else None,
+        "summoner_user_id": str(summoner.user_id) if summoner and summoner.user_id else None,
+    }
+
+
 def _build_updated_order(encounter, db):
     """Sorted initiative order for the SW tracker: the rolls so far, plus a
     'waiting…' placeholder for every roster combatant who hasn't rolled yet."""
@@ -4096,6 +4033,7 @@ def _build_updated_order(encounter, db):
                 entry["max_dp"] = c.max_dp
                 entry["user_id"] = str(c.user_id) if c.user_id else None
                 entry["is_npc"] = bool(c.is_npc)
+                entry.update(summon_order_fields(c, db))
         order.append(entry)
 
     for slot in _encounter_roster.get(str(encounter.id), []):
@@ -4692,6 +4630,7 @@ async def show_initiative_order(
                     if char:
                         entry["dp"] = char.dp
                         entry["max_dp"] = char.max_dp
+                        entry.update(summon_order_fields(char, db))
                 visible_rolls.append(entry)
         else:
             # Players only see non-silent rolls

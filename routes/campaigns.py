@@ -1910,7 +1910,7 @@ async def get_initiative_state(
 ):
     """Return the active encounter's initiative order for page-load hydration."""
     from backend.models import Encounter, InitiativeRoll
-    from routes.campaign_websocket import _sort_initiative_rolls
+    from routes.campaign_websocket import _sort_initiative_rolls, summon_order_fields
 
     membership = db.query(CampaignMembership).filter(
         CampaignMembership.campaign_id == campaign_id,
@@ -1954,6 +1954,7 @@ async def get_initiative_state(
                 entry["dp"] = char.dp
                 entry["max_dp"] = char.max_dp
                 entry["user_id"] = str(char.user_id) if char.user_id else None
+                entry.update(summon_order_fields(char, db))
         result.append(entry)
 
     return {

@@ -53,7 +53,7 @@ def world():
     db.close()
 
 
-def cast(world, user, caster, speaker_type=None):
+def cast(world, user, caster, speaker_type=None, command="/summon"):
     from routes import campaign_websocket as cw
     db = world["db"]
     sent = []
@@ -64,7 +64,7 @@ def cast(world, user, caster, speaker_type=None):
     original = cw.manager.broadcast
     cw.manager.broadcast = fake_broadcast
     try:
-        payload = {"type": "ability_cast", "raw_command": "/summon"}
+        payload = {"type": "ability_cast", "raw_command": command}
         if speaker_type:
             payload.update(speaker_id=str(caster.id), speaker_type=speaker_type)
         asyncio.run(cw.handle_ability_cast(world["camp"].id, payload, None, user.id, db))
@@ -109,3 +109,85 @@ def test_summoning_spends_one_use_and_a_second_cast_commands_the_existing_summon
     cast(world, world["player"], caster, speaker_type="pc")
     from backend.models import Character
     assert world["db"].query(Character).filter_by(summoner_id=caster.id, is_summon=True).count() == 1
+
+
+def _dummy(world, name, dp=30):
+    from backend.models import Character
+    d = Character(id=uuid.uuid4(), name=name, owner_id=str(world["sw"].id), campaign_id=world["camp"].id, is_npc=True,
+                  level=1, pp=1, ip=1, sp=1, dp=dp, max_dp=dp, edge=0, attack_style="1d4", defense_die="1d4")
+    world["db"].add(d)
+    world["db"].commit()
+    return d
+
+
+def _fixed_dice(values):
+    """Patch both places the cast code rolls from: attack die first, then the defender's die."""
+    import contextlib
+    from unittest import mock
+    seq = iter(values)
+    return contextlib.ExitStack(), mock.patch("routes.campaign_websocket.roll_dice", side_effect=lambda *_a, **_k: [next(seq)])
+
+
+def test_a_summon_that_is_out_acts_like_a_real_attack_and_costs_no_use(world):
+    """The reported bug: with the summon out, '/summon @Target' produced a card with no roll and nothing happened."""
+    from backend.models import Ability, Message
+    caster = world["pc"]("Actor")
+    cast(world, world["player"], caster, speaker_type="pc")                      # summons it (1 use spent)
+    target = _dummy(world, "Scarecrow")
+    _, patch = _fixed_dice([5, 2])                                                # attack 5+IP3+Edge1=9, defense 2+1+0=3
+    with patch:
+        sent = cast(world, world["player"], caster, speaker_type="pc", command="/summon @[Scarecrow]")
+    world["db"].expire_all()
+    card = next(m for m in sent if m.get("type") == "ability_cast")
+    assert card["acting_summon"] == "The Progeny"
+    assert card["results"][0]["damage"] == 6 and card["results"][0]["new_dp"] == 24
+    assert "attack_breakdown" in card["results"][0]
+    assert card["message_id"]                                                     # saved, so it survives a refresh and can be Boosted
+    saved = world["db"].query(Message).filter_by(id=card["message_id"]).one()
+    assert saved.extra_data["caster_char_id"] == str(caster.id)
+    ability = world["db"].query(Ability).filter_by(character_id=caster.id).one()
+    assert ability.uses_remaining == 2, "summoning cost one use; commanding it must not cost another"
+
+
+def test_commanding_a_summon_with_no_target_asks_for_one_and_does_nothing(world):
+    caster = world["pc"]("Aimless")
+    cast(world, world["player"], caster, speaker_type="pc")
+    sent = cast(world, world["player"], caster, speaker_type="pc")
+    assert not any(m.get("type") == "ability_cast" for m in sent)
+    assert any("Pick a target" in (m.get("text") or "") for m in sent)
+
+
+def test_summon_commands_work_with_no_uses_left(world):
+    from backend.models import Ability
+    caster = world["pc"]("Spent")
+    cast(world, world["player"], caster, speaker_type="pc")
+    ab = world["db"].query(Ability).filter_by(character_id=caster.id).one()
+    ab.uses_remaining = 0
+    world["db"].commit()
+    _dummy(world, "Straw Man")
+    _, patch = _fixed_dice([4, 1])
+    with patch:
+        sent = cast(world, world["player"], caster, speaker_type="pc", command="/summon @[Straw Man]")
+    assert any(m.get("type") == "ability_cast" for m in sent)
+
+
+def test_summoning_with_no_uses_left_is_refused(world):
+    from backend.models import Ability
+    caster = world["pc"]("Empty")
+    ab = world["db"].query(Ability).filter_by(character_id=caster.id).one()
+    ab.uses_remaining = 0
+    world["db"].commit()
+    sent = cast(world, world["player"], caster, speaker_type="pc")
+    assert summon_of(world, caster) is None
+    assert any("no uses remaining" in (m.get("text") or "") for m in sent)
+
+
+def test_initiative_rows_remember_they_are_summons(world):
+    """After a reload or re-sort the row used to turn into a plain NPC (no pips, Dismiss or Act)."""
+    from routes.campaign_websocket import summon_order_fields
+    caster = world["pc"]("Remembered")
+    cast(world, world["player"], caster, speaker_type="pc")
+    s = summon_of(world, caster)
+    f = summon_order_fields(s, world["db"])
+    assert f["is_summon"] and f["summon_id"] == str(s.id) and f["summoner_name"] == "Remembered"
+    assert summon_order_fields(caster, world["db"]) == {}

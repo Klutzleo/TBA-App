@@ -6974,7 +6974,7 @@
         });
       }
 
-      container.appendChild(makeHeaderRow(tsStr, `${data.caster} casts ${data.ability_name}!`, { toggle: tog, tab: 'STORY', icon: 'sparkles' }));
+      container.appendChild(makeHeaderRow(tsStr, data.acting_summon ? `${data.acting_summon} acts!` : `${data.caster} casts ${data.ability_name}!`, { toggle: tog, tab: 'STORY', icon: 'sparkles' }));
       container.appendChild(narrative);
       if (bd) container.appendChild(bd);
 
@@ -9450,6 +9450,41 @@
       return swCard;
     }
 
+    // Story Weaver: have a summon act. The server rolls it exactly like the summoner casting the ability at that target.
+    function openSummonActPicker(roll) {
+      const old = document.getElementById('summonActPicker');
+      if (old) old.remove();
+      const seen = new Set([roll.name]);
+      const names = [];
+      [...(campaignPCs || []), ...(campaignNPCs || [])].forEach(c => {
+        if (c && c.name && !seen.has(c.name)) { seen.add(c.name); names.push(c.name); }
+      });
+      const wrap = document.createElement('div');
+      wrap.id = 'summonActPicker';
+      wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+      wrap.innerHTML = `
+        <div style="background:var(--bg-card,#1a1d2b);border:1px solid rgba(212,175,55,0.5);border-radius:10px;padding:16px;width:100%;max-width:340px;">
+          <div style="font-weight:700;color:#d4af37;margin-bottom:4px;">${escHtml(roll.name)} acts</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">Choose a target. It rolls like ${escHtml(roll.summoner_name || 'its summoner')} casting the spell, and costs no use.</div>
+          <select id="summonActTarget" style="width:100%;padding:8px;border-radius:6px;background:#0f1117;color:inherit;border:1px solid rgba(255,255,255,0.15);">
+            ${names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}
+          </select>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+            <button id="summonActCancel" class="btn" style="padding:6px 12px;">Cancel</button>
+            <button id="summonActGo" class="btn btn-primary" style="padding:6px 14px;">Act</button>
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+      const close = () => wrap.remove();
+      wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+      wrap.querySelector('#summonActCancel').onclick = close;
+      wrap.querySelector('#summonActGo').onclick = () => {
+        const target = wrap.querySelector('#summonActTarget').value;
+        if (target) sendWs({ type: 'summon_act', summon_id: roll.summon_id, target });
+        close();
+      };
+    }
+
     // NPCs and summons: a slimmer row, no card
     function buildSlimRow(roll, idx) {
       const isActive = idx === currentTurnIndex;
@@ -9488,7 +9523,10 @@
           ${sub}
           ${dpBar}
         </span>
+        ${roll.is_summon && roll.summon_id && isSW() ? `<button class="is-act" title="Have ${escHtml(roll.name)} act" style="background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.5);border-radius:5px;color:#d4af37;font-size:0.72rem;font-weight:700;padding:2px 9px;cursor:pointer;">Act</button>` : ''}
         <button class="is-x" title="${roll.is_summon ? 'Dismiss summon' : 'Remove from initiative'}" aria-label="${roll.is_summon ? 'Dismiss summon' : 'Remove from initiative'}"><i data-lucide="x" style="width:14px;height:14px;"></i></button>`;
+      const actBtn = row.querySelector('.is-act');
+      if (actBtn) actBtn.addEventListener('click', (e) => { e.stopPropagation(); openSummonActPicker(roll); });
       row.querySelector('.is-x').addEventListener('click', (e) => {
         e.stopPropagation();
         if (roll.is_summon && roll.summon_id) {
