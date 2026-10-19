@@ -1671,6 +1671,10 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
         sp=caster.sp,
         edge=caster.edge or 0,
         bap=0,
+        # The database requires both on every character. A summon attacks with the ability's die, so attack_style is only
+        # a placeholder, but it defends with the caster's Defense Die (see the Summons rules).
+        attack_style=caster.attack_style or "1d4",
+        defense_die=caster.defense_die or "1d4",
         max_uses_per_encounter=0,
         status='active',
         visible_to_players=True,
