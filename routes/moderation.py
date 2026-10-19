@@ -44,7 +44,22 @@ def _admin_ids() -> set:
     return {i.strip() for i in os.getenv("ADMIN_USER_IDS", "").split(",") if i.strip()}
 
 
+def _moderation_inbox() -> list:
+    """Addresses from the optional MODERATION_EMAIL setting (comma separated), read on every call.
+    Anything that isn't shaped like an email address is ignored, so a typo can't swallow reports."""
+    out = []
+    for raw in os.getenv("MODERATION_EMAIL", "").split(","):
+        addr = raw.strip()
+        if addr and "@" in addr and " " not in addr and addr not in out:
+            out.append(addr)
+    return out
+
+
 def _admin_emails(db: Session) -> list:
+    """Where report emails go: the MODERATION_EMAIL inbox if one is set, otherwise the email on each admin account."""
+    inbox = _moderation_inbox()
+    if inbox:
+        return inbox
     ids = []
     for raw in _admin_ids():
         try:

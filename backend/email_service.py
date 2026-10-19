@@ -6,6 +6,8 @@ Required environment variables:
     RESEND_API_KEY — API key from Resend dashboard
     FROM_EMAIL     — verified sender, e.g. no-reply@gameoctane.com
     FRONTEND_URL   — defaults to https://tba-app-production.up.railway.app
+    MODERATION_EMAIL — optional; where content-report emails go (comma separated). If unset, they go to the
+                       email on each account listed in ADMIN_USER_IDS.
 """
 
 import hashlib

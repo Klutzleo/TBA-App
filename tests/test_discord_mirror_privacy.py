@@ -87,3 +87,13 @@ def test_edits_and_deletes_of_unmirrored_messages_cannot_post_anything(mirror):
     import inspect
     src = inspect.getsource(dm._process_outbound_item)
     assert 'action == "edit"' in src and "if not row:" in src
+
+
+@pytest.mark.parametrize("event", [
+    {"type": "achievement_announced", "name": "OG", "earner_name": "SpeckXY", "description": "Joined early", "points": 5},
+    {"type": "achievement_awarded", "name": "OG", "description": "Joined early", "points": 5},
+])
+def test_achievements_are_not_mirrored(mirror, event):
+    # They carry no text/content/message field, so the mirror has nothing to post. If someone adds one, this fails
+    # on purpose and forces a decision about whether achievements belong in the public Discord channel.
+    assert mirror(event) is None

@@ -300,3 +300,46 @@ def test_r2_delete_helper_only_touches_campaign_banner_keys(monkeypatch):
     ):
         assert up.delete_banner_from_r2(bad) is False
     assert len(deleted) == 1
+
+
+# ---------------------------------------------------------------- where report emails go
+
+def fresh_reporter(world):
+    """A brand-new user, so the per-user daily report limit used up by earlier tests doesn't interfere."""
+    import uuid as _uuid
+    from backend.auth.jwt import create_access_token
+    from backend.models import User
+    u = User(id=_uuid.uuid4(), email=f"fresh_{_uuid.uuid4().hex[:8]}@example.com", username=f"fresh_{_uuid.uuid4().hex[:8]}", hashed_password="x")
+    world["db"].add(u)
+    world["db"].commit()
+    return {"Authorization": f"Bearer {create_access_token(str(u.id), u.email, u.username)}"}
+
+
+def test_reports_go_to_the_moderation_inbox_when_one_is_set(client, world, fakes, monkeypatch):
+    monkeypatch.setenv("MODERATION_EMAIL", "TBA@gameoctane.com")
+    c = world["make_campaign"](world["sw"])
+    assert report(client, fresh_reporter(world), c).status_code == 200
+    to, _payload = fakes["emails"][-1]
+    assert to == ["TBA@gameoctane.com"]
+    assert world["admin"].email not in to  # the admin account's own address is not used when an inbox is set
+
+
+def test_several_inboxes_can_be_listed_and_junk_is_ignored(client, world, fakes, monkeypatch):
+    monkeypatch.setenv("MODERATION_EMAIL", " tba@gameoctane.com , not-an-address,  ,second@example.com ,tba@gameoctane.com")
+    c = world["make_campaign"](world["sw"])
+    report(client, fresh_reporter(world), c)
+    assert fakes["emails"][-1][0] == ["tba@gameoctane.com", "second@example.com"]
+
+
+def test_a_setting_with_no_usable_address_falls_back_to_the_admin_accounts(client, world, fakes, monkeypatch):
+    monkeypatch.setenv("MODERATION_EMAIL", "oops, ,no at sign")
+    c = world["make_campaign"](world["sw"])
+    report(client, fresh_reporter(world), c)
+    assert fakes["emails"][-1][0] == [world["admin"].email]
+
+
+def test_without_the_setting_reports_still_go_to_the_admin_account(client, world, fakes, monkeypatch):
+    monkeypatch.delenv("MODERATION_EMAIL", raising=False)
+    c = world["make_campaign"](world["sw"])
+    report(client, fresh_reporter(world), c)
+    assert fakes["emails"][-1][0] == [world["admin"].email]
