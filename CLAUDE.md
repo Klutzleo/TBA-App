@@ -115,14 +115,17 @@ says 3.10 but is ignored. Local 3.11 matches prod.
 - Since prod is live and played daily: prefer additive, backward-compatible DB
   changes; call out anything that needs a migration + code deploy in lockstep.
 
-## Current focus
+## Project status (read first, update last)
 
-Post-launch polish. Near-term per `PROJECT_STATUS.md`: Triple Combo in
-`campaign_websocket.py`, then Ascension levels 11–15. Combo cancellation
-(proposer takes damage before firing → cancel, acceptor's turn resumes
-normally) shipped.
+`PROJECT_STATUS.md` is how Jason and Claude stay in sync across sessions. A morning job reads it across all his repos. It has drifted behind the code before, so verify against the code and `git log` before trusting its task list.
 
-`PROJECT_STATUS.md` runs a bit behind the code — e.g. it lists the grief-tether
-weight fix as pending, but `routes/bonds.py` `break_bond` already takes an
-SW-selected `weight` (clamped −5..−1). Verify against the code before trusting
-its task list.
+- **Before starting work:** read `PROJECT_STATUS.md`. If it looks older than the recent git history, say so and fix it.
+- **Before finishing a session:** update `PROJECT_STATUS.md`:
+  - `Last session` — date, what changed, where you stopped.
+  - `Resume here` — the first file for the next session.
+  - `waiting_on` — `jason`, `claude`, `external` or `none`. If a decision is Jason's, put the question in `decision` and what you will do on a yes in `if_go`.
+  - `focus`, `next_milestone`, `momentum` if they changed.
+- Only write what you verified from the code, git history or a test. Say plainly what was not run.
+- Do not change `excitement` or `priority`; those are Jason's.
+- Anything a later session needs (plans, decisions, design notes) goes in the repo, for example `docs/plans/`, not only in a local folder or local memory file. Cloud and scheduled sessions cannot read files on Jason's PC.
+- Near-term work lives in the status file's `Next up`; this file no longer duplicates it.
