@@ -298,7 +298,15 @@
       const box = el('hprev');
       box.replaceChildren();
       if (!url) { box.style.display = 'none'; return; }
-      box.style.cssText = 'display:flex;align-items:center;aspect-ratio:10/1;min-height:34px;width:100%;border-radius:8px;overflow:hidden;margin:0 0 8px;padding:0 12px;box-sizing:border-box;'
+      // Use the real game header's proportions when it is on the page (it is a thin strip that changes with the
+      // window width), so what is dragged here is what shows up there. Elsewhere (campaigns list) use a typical shape.
+      let ratio = 10;
+      const hdr = document.getElementById('pageHeader');
+      if (hdr) {
+        const r = hdr.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) ratio = Math.min(40, Math.max(3, r.width / r.height));
+      }
+      box.style.cssText = 'display:flex;align-items:center;aspect-ratio:' + ratio.toFixed(2) + '/1;min-height:18px;width:100%;border-radius:8px;overflow:hidden;margin:0 0 8px;padding:0 12px;box-sizing:border-box;'
         + 'border-bottom:2px solid #d4af37;background-image:linear-gradient(rgba(10,12,20,0.58),rgba(10,12,20,0.80)),url("' + url + '");'
         + 'background-size:cover;background-position:center ' + y + '%;';
       const title = document.createElement('span');
