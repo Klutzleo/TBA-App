@@ -38,3 +38,15 @@ def uses_for_level(level: int) -> int:
 
 def weapon_options(level: int) -> list:
     return list(level_stats(level)["weapon_options"])
+
+
+_BUFF_STEPS = ["1d6", "1d8", "1d10", "1d12", "2d6", "2d8"]
+
+
+def combo_step_modifier(die: str) -> int:
+    """A buff or debuff made in a Combo counts one step higher on the buff table (rules v3.1), capped at the top of the
+    table (+4). Example: a 1d6 spell is +1 on its own and +2 in a Combo; a 2d8 spell stays at +4."""
+    if die not in _BUFF_STEPS:
+        return BUFF_DEBUFF_MODIFIER_BY_DIE.get(die, 1)
+    nxt = _BUFF_STEPS[min(_BUFF_STEPS.index(die) + 1, len(_BUFF_STEPS) - 1)]
+    return min(4, BUFF_DEBUFF_MODIFIER_BY_DIE[nxt])

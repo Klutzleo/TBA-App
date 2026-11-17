@@ -2900,7 +2900,7 @@
   <div id="tripleComboProposeModal" class="combo-modal-overlay" style="display:none;">
     <div class="combo-modal">
       <h3><i data-lucide="zap" style="width:18px;height:18px;color:#a78bfa;"></i>Start a Triple Combo</h3>
-      <div class="combo-subtitle">Choose two partners — all three of you must be bonded to each other and at level 10. Both must accept before it fires.</div>
+      <div class="combo-subtitle">Choose two partners — all three of you must be bonded to each other and at level 11 or higher (Ascension). Both must accept before it fires.</div>
       <div id="tripleComboPartnerList"></div>
       <div class="combo-modal-actions">
         <button class="btn-combo-cancel" onclick="closeTripleComboProposeModal()">Cancel</button>
@@ -14422,6 +14422,10 @@
               document.getElementById('comboAbilityModal').style.display = 'none';
               showComboAbilityPicker(data);
 
+            } else if (data.type === 'combo_pick_rejected') {
+              showPanelToast(`❌ ${escHtml(data.message || 'That pick cannot fire')}`, 'error');
+              if (_lastComboPickerData) comboPickerBack();
+
             } else if (data.type === 'combo_cancelled') {
               // Proposer took damage while holding — combo is off, acceptor takes their turn normally
               _holdingComboIds.delete(data.proposer_character_id);
@@ -16589,13 +16593,14 @@
 
   // ── Ability picker (fires when it's your turn with a combo ready) ────────
   function showComboAbilityPicker(data) {
+    _lastComboPickerData = { kind: 'combo', data };
     _activeComboId = data.combo_id;
     document.getElementById('comboAbilityTitle').textContent = `${data.bond_name || 'Combo'} — Choose Your Ability`;
     document.getElementById('comboAbilitySubtitle').textContent =
       `Firing with ${escHtml(data.partner_name)}. Pick the ability you'll use.`;
     const list = document.getElementById('comboAbilityList');
     list.innerHTML = (data.your_abilities || []).map(a => `
-      <button class="combo-ability-btn" onclick="selectComboAbility(${a.slot})" ${a.uses_remaining <= 0 ? 'disabled' : ''}>
+      <button class="combo-ability-btn" onclick="chooseComboAbility('combo', ${a.slot}, '${a.effect_type || ''}', '${escHtml(a.name).replace(/'/g, '')}')" ${a.uses_remaining <= 0 ? 'disabled' : ''}>
         <div>
           <div>${escHtml(a.name)}</div>
           <div style="font-size:0.72rem;color:#6b7280;">${a.die} · ${a.power_source} · ${a.uses_remaining} uses</div>
@@ -16606,9 +16611,43 @@
     document.getElementById('comboAbilityModal').style.display = 'flex';
   }
 
-  function selectComboAbility(slot) {
+  // Rules v3.1: a Combo is fully resolved by the app, so each player picks WHO their ability hits (or helps) when it fires.
+  let _lastComboPickerData = null;
+  function _comboTargetNames() {
+    const names = [];
+    [...(campaignPCs || []), ...(campaignNPCs || [])].forEach(c => { if (c && c.name && !names.includes(c.name)) names.push(c.name); });
+    return names;
+  }
+  function chooseComboAbility(kind, slot, effectType, abilityName) {
+    const needsTarget = effectType === 'damage' || effectType === 'debuff';
+    const listEl = document.getElementById(kind === 'triple' ? 'tripleComboAbilityList' : 'comboAbilityList');
+    const options = _comboTargetNames().map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+    listEl.innerHTML = `
+      <div style="padding:6px 2px;">
+        <div style="font-weight:700;margin-bottom:6px;">${abilityName}</div>
+        <label style="font-size:0.78rem;color:#9ca3af;display:block;margin-bottom:4px;">${needsTarget ? 'Target' : 'Target (blank = yourself)'}</label>
+        <select id="comboTargetSelect" class="form-input" style="width:100%;margin-bottom:10px;">
+          ${needsTarget ? '<option value="" disabled selected>Choose a target…</option>' : '<option value="">Myself</option>'}${options}
+        </select>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" onclick="comboPickerBack()" style="padding:6px 12px;">Back</button>
+          <button class="btn btn-primary" onclick="fireComboPick('${kind}', ${slot}, ${needsTarget})" style="padding:6px 14px;">Fire</button>
+        </div>
+      </div>`;
+  }
+  function comboPickerBack() {
+    if (!_lastComboPickerData) return;
+    (_lastComboPickerData.kind === 'triple' ? showTripleComboAbilityPicker : showComboAbilityPicker)(_lastComboPickerData.data);
+  }
+  function fireComboPick(kind, slot, needsTarget) {
+    const target = (document.getElementById('comboTargetSelect') || {}).value || '';
+    if (needsTarget && !target) { showPanelToast('Choose a target first', 'info'); return; }
+    if (kind === 'triple') selectTripleComboAbility(slot, target); else selectComboAbility(slot, target);
+  }
+
+  function selectComboAbility(slot, target) {
     if (!_activeComboId) return;
-    ws.send(JSON.stringify({ type: 'combo_ability_select', combo_id: _activeComboId, slot }));
+    ws.send(JSON.stringify({ type: 'combo_ability_select', combo_id: _activeComboId, slot, target: target || null }));
     document.getElementById('comboAbilityList').innerHTML = '';
     document.getElementById('comboAbilityWaiting').style.display = 'block';
   }
@@ -16635,12 +16674,14 @@
           <div class="combo-roll-ability">${escHtml(p.ability_name)}</div>
           <div class="combo-roll-total">${p.total}</div>
           ${bd(rollBreak(p))}
+          ${p.summary ? `<div class="combo-roll-breakdown" style="color:var(--text-primary);">${escHtml(p.summary)}</div>` : ''}
         </div>
         <div class="combo-roll-block">
           <div class="combo-roll-name">${escHtml(a.name)}</div>
           <div class="combo-roll-ability">${escHtml(a.ability_name)}</div>
           <div class="combo-roll-total">${a.total}</div>
           ${bd(rollBreak(a))}
+          ${a.summary ? `<div class="combo-roll-breakdown" style="color:var(--text-primary);">${escHtml(a.summary)}</div>` : ''}
         </div>
       </div>`;
     if (window.lucide) lucide.createIcons({ el });
@@ -16696,7 +16737,7 @@
     for (let i = 0; i < partners.length; i++) {
       for (let j = i + 1; j < partners.length; j++) {
         const pa = partners[i], pb = partners[j];
-        if (levelOf(pa.id) !== 10 || levelOf(pb.id) !== 10) continue;
+        if (!(levelOf(pa.id) >= 11) || !(levelOf(pb.id) >= 11)) continue;
         const thirdLeg = _campaignBonds.find(b =>
           (b.character_id_a === pa.id && b.character_id_b === pb.id) ||
           (b.character_id_a === pb.id && b.character_id_b === pa.id)
@@ -16712,7 +16753,7 @@
   function openTripleComboProposeModal() {
     const candidates = myTriangleCandidates();
     if (!candidates.length) {
-      showPanelToast('No valid Triple Combo triangle — need two partners at level 10, all bonded to each other', 'info');
+      showPanelToast('No valid Triple Combo triangle — all three of you must be level 11+ (Ascension) and bonded to each other', 'info');
       return;
     }
     const list = document.getElementById('tripleComboPartnerList');
@@ -16766,13 +16807,14 @@
 
   // ── Ability picker (fires on the last acceptor's turn) ────────────────────
   function showTripleComboAbilityPicker(data) {
+    _lastComboPickerData = { kind: 'triple', data };
     _activeTripleComboId = data.combo_id;
     document.getElementById('tripleComboAbilityTitle').textContent = `${data.bond_name || 'Triple Combo'} — Choose Your Ability`;
     document.getElementById('tripleComboAbilitySubtitle').textContent =
       `Firing with ${(data.partner_names || []).map(escHtml).join(' and ')}. Pick the ability you'll use.`;
     const list = document.getElementById('tripleComboAbilityList');
     list.innerHTML = (data.your_abilities || []).map(a => `
-      <button class="combo-ability-btn" onclick="selectTripleComboAbility(${a.slot})" ${a.uses_remaining <= 0 ? 'disabled' : ''}>
+      <button class="combo-ability-btn" onclick="chooseComboAbility('triple', ${a.slot}, '${a.effect_type || ''}', '${escHtml(a.name).replace(/'/g, '')}')" ${a.uses_remaining <= 0 ? 'disabled' : ''}>
         <div>
           <div>${escHtml(a.name)}</div>
           <div style="font-size:0.72rem;color:#6b7280;">${a.die} · ${a.power_source} · ${a.uses_remaining} uses</div>
@@ -16783,9 +16825,9 @@
     document.getElementById('tripleComboAbilityModal').style.display = 'flex';
   }
 
-  function selectTripleComboAbility(slot) {
+  function selectTripleComboAbility(slot, target) {
     if (!_activeTripleComboId) return;
-    ws.send(JSON.stringify({ type: 'triple_combo_ability_select', combo_id: _activeTripleComboId, slot }));
+    ws.send(JSON.stringify({ type: 'triple_combo_ability_select', combo_id: _activeTripleComboId, slot, target: target || null }));
     document.getElementById('tripleComboAbilityList').innerHTML = '';
     document.getElementById('tripleComboAbilityWaiting').style.display = 'block';
   }
@@ -16800,6 +16842,7 @@
           <div class="combo-roll-ability">${escHtml(r.ability_name)}</div>
           <div class="combo-roll-total">${r.total}</div>
           ${bd(rollBreak(r))}
+          ${r.summary ? `<div class="combo-roll-breakdown" style="color:var(--text-primary);">${escHtml(r.summary)}</div>` : ''}
         </div>`;
     const el = document.createElement('div');
     el.className = 'combo-card';

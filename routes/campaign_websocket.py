@@ -5123,7 +5123,7 @@ async def advance_turn(
                 _Ability.character_id == char.id
             ).order_by(_Ability.slot_number).all()
             return [{"slot": a.slot_number, "name": a.display_name, "die": a.die,
-                      "power_source": a.power_source, "uses_remaining": pool_remaining(char)}
+                      "power_source": a.power_source, "effect_type": a.effect_type, "uses_remaining": pool_remaining(char)}
                      for a in abilities]
 
         if active_roll.character_id:
@@ -5400,6 +5400,17 @@ async def _handle_combo_propose(campaign_uuid: UUID, user_uuid: UUID, data: dict
         await websocket.send_json({"type": "error", "message": "You already have a pending combo"})
         return
 
+    # Each named Combo can only fire once per encounter (rules v3.1). A cancelled one does not count.
+    already_fired = db.query(PendingCombo).filter(
+        PendingCombo.encounter_id == encounter.id,
+        PendingCombo.bond_id == bond.id,
+        PendingCombo.status == "fired",
+    ).first()
+    if already_fired:
+        await websocket.send_json({"type": "error",
+                                   "message": f"{bond.combo_name or 'That Combo'} has already fired this encounter"})
+        return
+
     # Find acceptor character + their user
     acceptor_char = db.query(Character).filter(Character.id == partner_character_id).first()
     if not acceptor_char:
@@ -5554,6 +5565,14 @@ async def _handle_combo_ability_select(campaign_uuid: UUID, user_uuid: UUID, dat
         await websocket.send_json({"type": "error", "message": "You are not part of this combo"})
         return
 
+    my_char = proposer_char if is_proposer else acceptor_char
+    target_name = (data.get("target") or "").strip() or None
+    problem = _combo_pick_error(db, my_char, campaign_uuid, slot, target_name)
+    if problem:
+        await websocket.send_json({"type": "combo_pick_rejected", "combo_id": str(combo.id), "message": problem})
+        return
+    _combo_targets.setdefault(str(combo.id), {})[str(my_char.id)] = target_name
+
     if is_proposer:
         combo.proposer_ability_slot = slot
     else:
@@ -5575,6 +5594,175 @@ async def _handle_combo_ability_select(campaign_uuid: UUID, user_uuid: UUID, dat
         await _resolve_combo(campaign_uuid, combo, db)
 
 
+# Targets picked at the moment a Combo fires: {combo id: {character id: target name}}. In-process on purpose, like the
+# AOE and encounter maps; they only live for the few seconds between both players choosing and the Combo resolving.
+_combo_targets: dict = {}
+
+
+def _combo_pick_error(db, char, campaign_uuid, slot, target_name):
+    """Why this ability pick cannot fire in a Combo, or None if it is fine."""
+    ability = db.query(Ability).filter(Ability.character_id == char.id, Ability.slot_number == slot).first()
+    if not ability:
+        return "That ability slot does not exist"
+    if pool_remaining(char) <= 0:
+        return f"{char.name} has no uses remaining"
+    if ability.effect_type in ("damage", "debuff"):
+        if not target_name:
+            return f"{ability.display_name} needs a target"
+        t = db.query(Character).filter(Character.name == target_name, Character.campaign_id == str(campaign_uuid)).first()
+        if not t:
+            return f"Target '{target_name}' not found"
+        if t.is_object:
+            return f"{t.name} can't be hit by a Combo"
+    return None
+
+
+async def _combo_activation(campaign_uuid, db, char, slot, target_name, *, bonus=0):
+    """One participant's half of a Combo, fully resolved (rules v3.1). Rolls the ability with the character's own BAP
+    added automatically, spends 1 use, then does what the ability does to its target: damage (the target defends, like any
+    spell), a heal, a buff, or a debuff (resisted with 1d6 + stat + Edge). Buffs and debuffs count one step higher on the
+    buff table. `bonus` is the Triple Combo +2. Returns (result dict, buff/debuff intents to apply together)."""
+    from backend.models import EncounterHeal
+    from backend.leveling import combo_step_modifier
+
+    ability = db.query(Ability).filter(Ability.character_id == char.id, Ability.slot_number == slot).first()
+    if not ability:
+        return ({"slot": slot, "ability_name": "Basic Attack", "die": "1d4", "rolls": [1], "total": 1,
+                 "error": "Ability not found", "effect_type": None, "summary": "No ability in that slot"}, [])
+
+    stat_label = (ability.power_source or "PP").upper()
+    power_stat = {"PP": char.pp, "IP": char.ip, "SP": char.sp}.get(stat_label, 0) or 0
+    rolls = roll_dice(ability.die)
+    bap = char.bap or 1                       # a Combo always gets full BAP, automatically, on the roll itself
+    fx = effect_modifier(db, char.id, stat_label)
+    total = sum(rolls) + power_stat + (char.edge or 0) + bap + bonus + fx
+    spend_use(char, 1)                        # 1 use per character, from the shared pool (rules v3.1)
+    et = ability.effect_type
+
+    out = {
+        "slot": slot, "ability_name": ability.display_name, "die": ability.die, "power_source": ability.power_source,
+        "power_stat": power_stat, "edge": char.edge or 0, "bap": bap, "rolls": rolls, "total": total,
+        "effect_type": et, "uses_remaining": pool_remaining(char), "bonus": bonus, "effects": fx,
+        "target": None, "summary": "",
+    }
+    intents = []
+    default_self = et in ("heal", "buff")
+    tname = target_name or (char.name if default_self else None)
+    target = (db.query(Character).filter(Character.name == tname, Character.campaign_id == str(campaign_uuid)).first()
+              if tname else None)
+    if et in ("damage", "debuff", "heal", "buff") and target is None:
+        out["summary"] = "No target, so nothing happened"
+        return out, intents
+    out["target"] = target.name if target else None
+
+    if et == "damage":
+        if target.is_object:
+            out["summary"] = f"{target.name} can't be hit"
+            return out, intents
+        if target.is_summon:
+            t_label, t_stat, t_owner = summon_stat_for(db, target)
+            t_edge = (t_owner.edge if t_owner else target.edge) or 0
+        else:
+            t_label = stat_label
+            t_stat = {"PP": target.pp, "IP": target.ip, "SP": target.sp}.get(stat_label, 0) or 0
+            t_edge = target.edge or 0
+        def_rolls = roll_dice(target.defense_die)
+        t_fx = effect_modifier(db, target.id, t_label)
+        defense = sum(def_rolls) + t_stat + t_edge + t_fx
+        margin = total - defense
+        out.update(defense_roll=defense, margin=margin)
+        if target.is_summon:
+            if margin > 0:
+                target.dp -= 1
+                db.commit()
+                if target.dp <= 0:
+                    await _remove_summon(campaign_uuid, target, db, reason="defeated",
+                                         text=f"💨 {target.name} has been defeated and vanishes!", actor_user_id=char.id)
+                out.update(damage=1, summary=f"💥 hits {target.name} (1 durability, {max(target.dp, 0)} left)")
+            else:
+                out.update(damage=0, summary=f"💨 {target.name} holds ({total} vs {defense})")
+            return out, intents
+        damage = max(0, margin)
+        old_dp = target.dp
+        target.dp = target.dp - damage
+        db.commit()
+        out.update(damage=damage, old_dp=old_dp, new_dp=target.dp)
+        if damage > 0:
+            out["summary"] = f"💥 {damage} damage to {target.name} (DP {old_dp} → {target.dp})  [{total} vs {defense}]"
+            await cancel_holding_combos_on_damage(campaign_uuid, target.id, db)
+        else:
+            out["summary"] = f"💨 {target.name} holds ({total} vs {defense})"
+        if target.dp <= -10 and not target.is_npc and not target.in_calling:
+            await _trigger_the_calling(target, campaign_uuid, db)
+        if (target.dp or 0) <= 0:
+            await _dismiss_summons_of(campaign_uuid, target, db, f"{target.name} dropped to 0 DP.")
+        return out, intents
+
+    if et == "heal":
+        enc = db.query(Encounter).filter(Encounter.campaign_id == campaign_uuid, Encounter.is_active == True).first()  # noqa: E712
+        if target.is_summon:
+            out["summary"] = f"{target.name} is a summon: heals do nothing for it"
+        elif target.in_calling:
+            out["summary"] = f"{target.name} is in The Calling. No one can heal them first"
+        elif enc is not None and db.query(EncounterHeal).filter(
+                EncounterHeal.encounter_id == enc.id, EncounterHeal.target_character_id == target.id).first():
+            out["summary"] = f"{target.name} was already healed this encounter"
+        else:
+            old_dp = target.dp
+            target.dp = min(target.max_dp, max(0, old_dp) + total)    # a heal wakes you: negative DP goes to 0 first
+            if enc is not None:
+                db.add(EncounterHeal(encounter_id=enc.id, target_character_id=target.id, healer_character_id=char.id,
+                                     ability_name=ability.display_name, amount=target.dp - old_dp))
+            db.commit()
+            out.update(healing=target.dp - old_dp, old_dp=old_dp, new_dp=target.dp)
+            out["summary"] = f"💚 {target.name} restores {target.dp - old_dp} DP (DP {old_dp} → {target.dp})"
+        return out, intents
+
+    stat_key = (ability.debuff_stat or ability.power_source or "PP").lower()
+    mod = combo_step_modifier(ability.die)
+    if et == "buff":
+        intents.append({"target": target, "stat": stat_key, "modifier": mod, "name": ability.display_name,
+                        "caster": char.name, "result": out})
+        out["summary"] = f"✨ {target.name} {stat_key.upper()} +{mod} for {BUFF_DURATION} rounds"
+        return out, intents
+
+    if et == "debuff":
+        t_stat = {"PP": target.pp, "IP": target.ip, "SP": target.sp}.get(stat_label, 0) or 0
+        def_rolls = roll_dice("1d6")      # resisted with 1d6 + the same stat + Edge, never the Defense Die
+        defense = sum(def_rolls) + t_stat + (target.edge or 0) + effect_modifier(db, target.id, stat_label)
+        out.update(defense_roll=defense, margin=total - defense)
+        if total > defense:
+            intents.append({"target": target, "stat": stat_key, "modifier": -mod, "name": ability.display_name,
+                            "caster": char.name, "result": out})
+            out["summary"] = f"💥 {target.name} {stat_key.upper()} -{mod} for {BUFF_DURATION} rounds  [{total} vs {defense}]"
+        else:
+            out["summary"] = f"💨 {target.name} resists ({total} vs {defense})"
+        return out, intents
+
+    out["summary"] = ""
+    return out, intents
+
+
+async def _apply_combo_intents(campaign_uuid, db, intents):
+    """Apply the buffs and debuffs a Combo produced. If two of them hit the same stat on the same target with the same
+    sign, the stronger one takes over (they do not stack)."""
+    groups = {}
+    for it in intents:
+        key = (str(it["target"].id), it["stat"], 1 if it["modifier"] > 0 else -1)
+        groups.setdefault(key, []).append(it)
+    for items in groups.values():
+        items.sort(key=lambda i: abs(i["modifier"]), reverse=True)
+        win = items[0]
+        add_effect(db, campaign_id=campaign_uuid, character_id=win["target"].id, name=win["name"],
+                   modifier=win["modifier"], modifier_type=win["stat"], duration_rounds=BUFF_DURATION,
+                   applied_by=win["caster"])
+        for lost in items[1:]:
+            lost["result"]["summary"] += "  (the stronger effect on the same stat takes over)"
+    if groups:
+        db.commit()
+        await _broadcast_effects(campaign_uuid, db)
+
+
 async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     """Both slots locked — roll both abilities, grant BAP, broadcast result."""
     from backend.models import Ability
@@ -5583,37 +5771,12 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
     acceptor_char = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
 
-    def _roll_for(char, slot) -> dict:
-        ability = db.query(Ability).filter(
-            Ability.character_id == char.id,
-            Ability.slot_number == slot,
-        ).first()
-        if not ability:
-            return {"slot": slot, "ability_name": "Basic Attack", "die": "1d4",
-                    "rolls": [1], "total": 1, "error": "Ability not found"}
-        stat_map = {"PP": char.pp, "IP": char.ip, "SP": char.sp}
-        power_stat = stat_map.get(ability.power_source, 0)
-        rolls = roll_dice(ability.die)
-        bap = char.bap or 1  # a Combo always gets full BAP, automatically, on the roll itself
-        total = sum(rolls) + power_stat + (char.edge or 0) + bap
-        # A Combo costs 1 use per character, from the shared pool (rules v3.1)
-        spend_use(char, 1)
-        return {
-            "slot": slot,
-            "ability_name": ability.display_name,
-            "die": ability.die,
-            "power_source": ability.power_source,
-            "power_stat": power_stat,
-            "edge": char.edge or 0,
-            "bap": bap,
-            "rolls": rolls,
-            "total": total,
-            "effect_type": ability.effect_type,
-            "uses_remaining": pool_remaining(char),
-        }
-
-    proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
-    acceptor_result = _roll_for(acceptor_char, combo.acceptor_ability_slot)
+    picks = _combo_targets.pop(str(combo.id), {})
+    proposer_result, proposer_intents = await _combo_activation(
+        campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)))
+    acceptor_result, acceptor_intents = await _combo_activation(
+        campaign_uuid, db, acceptor_char, combo.acceptor_ability_slot, picks.get(str(acceptor_char.id)))
+    await _apply_combo_intents(campaign_uuid, db, proposer_intents + acceptor_intents)
 
     # BAP is already inside both totals above (full BAP, automatic). It is never banked for later.
     proposer_bap = proposer_result.get("bap", proposer_char.bap or 1)
@@ -5706,7 +5869,7 @@ def _combo_conflict(db: Session, encounter_id, character_id) -> bool:
 
 async def _handle_triple_combo_propose(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
     """Player proposes a Triple Combo to two bonded partners on their turn.
-    Requires bilateral Bonds between all 3 characters and all 3 at level 10."""
+    Requires bilateral Bonds between all 3 characters and all 3 at level 11 or higher (Ascension)."""
     from backend.models import Bond, PendingTripleCombo, Encounter, InitiativeRoll
 
     partner_a_id = data.get("partner_a_character_id")
@@ -5755,8 +5918,8 @@ async def _handle_triple_combo_propose(campaign_uuid: UUID, user_uuid: UUID, dat
         await websocket.send_json({"type": "error", "message": "Partner character not found"})
         return
 
-    if proposer_char.level != 10 or partner_a.level != 10 or partner_b.level != 10:
-        await websocket.send_json({"type": "error", "message": "All three characters must be level 10 to Triple Combo"})
+    if min(proposer_char.level or 0, partner_a.level or 0, partner_b.level or 0) < 11:
+        await websocket.send_json({"type": "error", "message": "All three characters must be level 11 or higher (Ascension) to Triple Combo"})
         return
 
     def _find_bond(char_x_id, char_y_id):
@@ -5977,6 +6140,13 @@ async def _handle_triple_combo_ability_select(campaign_uuid: UUID, user_uuid: UU
         await websocket.send_json({"type": "error", "message": "You are not part of this combo"})
         return
 
+    target_name = (data.get("target") or "").strip() or None
+    problem = _combo_pick_error(db, locked_char, campaign_uuid, slot, target_name)
+    if problem:
+        await websocket.send_json({"type": "combo_pick_rejected", "combo_id": str(combo.id), "message": problem, "triple": True})
+        return
+    _combo_targets.setdefault(str(combo.id), {})[str(locked_char.id)] = target_name
+
     setattr(combo, f"{role}_ability_slot", slot)
     db.commit()
 
@@ -6004,37 +6174,14 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
     partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
     partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
 
-    def _roll_for(char, slot) -> dict:
-        ability = db.query(Ability).filter(
-            Ability.character_id == char.id,
-            Ability.slot_number == slot,
-        ).first()
-        if not ability:
-            return {"slot": slot, "ability_name": "Basic Attack", "die": "1d4",
-                    "rolls": [1], "total": 1, "error": "Ability not found"}
-        stat_map = {"PP": char.pp, "IP": char.ip, "SP": char.sp}
-        power_stat = stat_map.get(ability.power_source, 0)
-        rolls = roll_dice(ability.die)
-        bap = char.bap or 1  # a Combo always gets full BAP, automatically, on the roll itself
-        total = sum(rolls) + power_stat + (char.edge or 0) + bap
-        spend_use(char, 1)  # 1 use per character, from the shared pool (rules v3.1)
-        return {
-            "slot": slot,
-            "ability_name": ability.display_name,
-            "die": ability.die,
-            "power_source": ability.power_source,
-            "power_stat": power_stat,
-            "edge": char.edge or 0,
-            "bap": bap,
-            "rolls": rolls,
-            "total": total,
-            "effect_type": ability.effect_type,
-            "uses_remaining": pool_remaining(char),
-        }
-
-    proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
-    partner_a_result = _roll_for(partner_a_char, combo.partner_a_ability_slot)
-    partner_b_result = _roll_for(partner_b_char, combo.partner_b_ability_slot)
+    picks = _combo_targets.pop(str(combo.id), {})
+    proposer_result, i1 = await _combo_activation(
+        campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)), bonus=2)
+    partner_a_result, i2 = await _combo_activation(
+        campaign_uuid, db, partner_a_char, combo.partner_a_ability_slot, picks.get(str(partner_a_char.id)), bonus=2)
+    partner_b_result, i3 = await _combo_activation(
+        campaign_uuid, db, partner_b_char, combo.partner_b_ability_slot, picks.get(str(partner_b_char.id)), bonus=2)
+    await _apply_combo_intents(campaign_uuid, db, i1 + i2 + i3)   # Triple Combo bonus: every roll gets +2
 
     # BAP is already inside all three totals above (full BAP, automatic). It is never banked for later.
     bap_granted = {
