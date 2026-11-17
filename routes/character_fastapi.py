@@ -17,6 +17,7 @@ from backend.character_utils import (
     get_available_attack_styles
 )
 from backend.leveling import uses_for_level as _uses_for_level
+from backend.uses import pool_remaining as _pool_remaining, pool_max as _pool_max, refill as _refill_uses, restore as _restore_uses
 from routes.schemas.character import (
     CharacterCreate,
     CharacterUpdate,
@@ -1895,8 +1896,9 @@ async def get_character_abilities(
                 "effect_type": ability.effect_type,
                 "die": ability.die,
                 "is_aoe": ability.is_aoe,
-                "max_uses": ability.max_uses,
-                "uses_remaining": ability.uses_remaining
+                # one shared pool per character (rules v3.1), shown on every ability
+                "max_uses": _pool_max(character),
+                "uses_remaining": _pool_remaining(character)
             })
 
         return {"abilities": abilities_list}
@@ -1952,8 +1954,8 @@ async def patch_ability(
         "die":           ability.die,
         "is_aoe":        ability.is_aoe,
         "debuff_stat":   ability.debuff_stat,
-        "max_uses":      ability.max_uses,
-        "uses_remaining":ability.uses_remaining,
+        "max_uses":      _pool_max(char),
+        "uses_remaining":_pool_remaining(char),
     }
 
 
@@ -2586,31 +2588,16 @@ async def restore_ability_uses(
     ).first()
     if not membership or membership.role != "story_weaver":
         raise HTTPException(status_code=403, detail="Only Story Weaver can restore ability uses")
-    abilities = db.query(Ability).filter(Ability.character_id == char.id).all()
-    if not abilities:
-        return {"character_id": str(char.id), "restored": 0, "message": "No abilities found"}
-    restore_all = req.get("restore_all", False)
-    amount = int(req.get("amount", 1))
-    restored = 0
-    if restore_all:
-        for ability in abilities:
-            ability.uses_remaining = ability.max_uses
-            restored += 1
+    # One shared pool per character (rules v3.1): restore_all refills it, otherwise add `amount` back (capped)
+    before = _pool_remaining(char)
+    if req.get("restore_all", False):
+        _refill_uses(char)
     else:
-        # Add `amount` uses back, filling depleted abilities first
-        remaining_to_add = amount
-        for ability in sorted(abilities, key=lambda a: a.uses_remaining):
-            if remaining_to_add <= 0:
-                break
-            can_add = ability.max_uses - ability.uses_remaining
-            if can_add > 0:
-                add = min(can_add, remaining_to_add)
-                ability.uses_remaining += add
-                restored += add
-                remaining_to_add -= add
+        _restore_uses(char, int(req.get("amount", 1)))
     db.commit()
-    total_remaining = sum(a.uses_remaining for a in abilities)
-    return {"character_id": str(char.id), "restored": restored, "total_remaining": total_remaining}
+    total_remaining = _pool_remaining(char)
+    restored = total_remaining - before
+    return {"character_id": str(char.id), "restored": restored, "total_remaining": total_remaining, "max_uses": _pool_max(char)}
 
 @character_blp_fastapi.post("/{character_id}/battle-scar")
 async def add_battle_scar(
@@ -2872,6 +2859,7 @@ async def level_up_character(
     char.defense_die = stats["defense_die"]
     char.attack_style = weapon_die
 
+    char.current_uses = char.max_uses_per_encounter   # refill the shared pool
     # Also update ability max_uses to match new level
     abilities = db.query(Ability).filter(Ability.character_id == char.id).all()
     for ability in abilities:
@@ -3000,6 +2988,7 @@ async def set_character_level(
     else:
         char.dp = min(char.dp or 0, stats["max_dp"])
 
+    char.current_uses = char.max_uses_per_encounter   # refill the shared pool
     # Update ability uses to match new level
     abilities = db.query(Ability).filter(Ability.character_id == char.id).all()
     for ability in abilities:

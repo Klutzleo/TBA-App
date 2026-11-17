@@ -48,7 +48,8 @@ def world():
     def pc(owner, campaign, name):
         c = Character(id=uuid.uuid4(), name=name, owner_id=str(owner.id), user_id=owner.id,
                       campaign_id=campaign.id, pp=2, ip=2, sp=2, dp=10, max_dp=10,
-                      attack_style="melee", defense_die="1d6")
+                      attack_style="melee", defense_die="1d6",
+                      max_uses_per_encounter=3, current_uses=0)   # empty shared pool: every cast is refused
         db.add(c)
         db.commit()
         db.add(Ability(id=uuid.uuid4(), character_id=c.id, slot_number=1, ability_type="technique",

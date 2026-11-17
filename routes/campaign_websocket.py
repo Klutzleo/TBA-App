@@ -25,6 +25,7 @@ from backend.db import get_db
 from backend.models import Party, Character, User, CampaignMembership, Message, Ability, Encounter, InitiativeRoll, NPC, Campaign, ActiveEffect
 from backend.auth.jwt import decode_access_token
 from backend.roll_logic import roll_dice
+from backend.uses import spend as spend_use, pool_remaining, pool_max, refill as refill_uses
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -1590,8 +1591,8 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
         )
         db.add(summon_roll)
 
-    # Deduct 1 ability use
-    ability.uses_remaining -= 1
+    # Spend 1 use from the caster's shared pool
+    spend_use(caster, 1)
     db.commit()
 
     summon_msg = Message(
@@ -1715,10 +1716,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 Character.campaign_id == campaign_id
             ).first()
             if not acting_summon:
-                if ability.uses_remaining <= 0:
+                if pool_remaining(caster) <= 0:
                     await manager.broadcast(campaign_id, {
                         "type": "system",
-                        "text": f"❌ {ability.display_name} has no uses remaining! ({ability.uses_remaining}/{ability.max_uses})"
+                        "text": f"❌ {caster.name} has no uses remaining! ({pool_remaining(caster)}/{pool_max(caster)})"
                     })
                     return
                 await _handle_summon_cast(campaign_id, caster, ability, db, target_names=target_names)
@@ -1731,10 +1732,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 return
 
         # Check uses remaining (a summon that is already out acts for free)
-        if not acting_summon and ability.uses_remaining <= 0:
+        if not acting_summon and pool_remaining(caster) <= 0:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "text": f"❌ {ability.display_name} has no uses remaining! ({ability.uses_remaining}/{ability.max_uses})"
+                "text": f"❌ {caster.name} has no uses remaining! ({pool_remaining(caster)}/{pool_max(caster)})"
             })
             return
 
@@ -2111,7 +2112,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         # Decrement uses only if at least one target was actually found (not a typo/miss-target)
         all_targets_missing = results and all(r.get("message") == "Target not found" for r in results)
         if not all_targets_missing and not acting_summon:
-            ability.uses_remaining -= 1
+            spend_use(caster, 1)
         db.commit()
 
         # Generate narrative (header already shows caster + ability, so just show outcomes)
@@ -2139,8 +2140,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 "targets": target_names,
                 "results": results,
                 "narrative": narrative,
-                "uses_remaining": ability.uses_remaining,
-                "max_uses": ability.max_uses,
+                "uses_remaining": pool_remaining(caster),
+                "max_uses": pool_max(caster),
                 # what the Story Weaver's Boost dialog needs to add BAP / a tether to THIS cast afterwards
                 "bap": caster.bap or 1,
                 "tethers": [t for t in (caster.tethers or []) if t.get("modifier", 0) != 0],
@@ -2160,8 +2161,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             targets=target_names,
             results=results,
             narrative=narrative,
-            uses_remaining=ability.uses_remaining,
-            max_uses=ability.max_uses,
+            uses_remaining=pool_remaining(caster),
+            max_uses=pool_max(caster),
             caster_char_id=str(caster.id)
         )
         _broadcast_payload = broadcast.model_dump(mode='json')
@@ -2205,7 +2206,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 "message_id": str(calling_msg.id)
             })
 
-        logger.info(f"[{request_id}] {caster.name} cast {ability.display_name} ({ability.uses_remaining}/{ability.max_uses} uses left)")
+        logger.info(f"[{request_id}] {caster.name} cast {ability.display_name} ({pool_remaining(caster)}/{pool_max(caster)} uses left)")
 
     except Exception as e:
         logger.error(f"Ability cast error: {str(e)}", exc_info=True)
@@ -4672,6 +4673,8 @@ async def end_encounter(
         for ability in abilities:
             ability.uses_remaining = ability.max_uses
             restored_count += 1
+        for _c in characters:
+            refill_uses(_c)   # the shared pool is what casting actually spends
 
         # Reset has_faced_calling_this_encounter for all active PCs
         for char in characters:
@@ -5080,7 +5083,7 @@ async def advance_turn(
                 _Ability.character_id == char.id
             ).order_by(_Ability.slot_number).all()
             return [{"slot": a.slot_number, "name": a.display_name, "die": a.die,
-                      "power_source": a.power_source, "uses_remaining": a.uses_remaining or 0}
+                      "power_source": a.power_source, "uses_remaining": pool_remaining(char)}
                      for a in abilities]
 
         if active_roll.character_id:
@@ -5553,8 +5556,8 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
         rolls = roll_dice(ability.die)
         bap = char.bap or 1  # a Combo always gets full BAP, automatically, on the roll itself
         total = sum(rolls) + power_stat + (char.edge or 0) + bap
-        # Deduct 2 uses (combo cost)
-        ability.uses_remaining = max(0, (ability.uses_remaining or 0) - 2)
+        # A Combo costs 1 use per character, from the shared pool (rules v3.1)
+        spend_use(char, 1)
         return {
             "slot": slot,
             "ability_name": ability.display_name,
@@ -5566,7 +5569,7 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
             "rolls": rolls,
             "total": total,
             "effect_type": ability.effect_type,
-            "uses_remaining": ability.uses_remaining,
+            "uses_remaining": pool_remaining(char),
         }
 
     proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
@@ -5974,7 +5977,7 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
         rolls = roll_dice(ability.die)
         bap = char.bap or 1  # a Combo always gets full BAP, automatically, on the roll itself
         total = sum(rolls) + power_stat + (char.edge or 0) + bap
-        ability.uses_remaining = max(0, (ability.uses_remaining or 0) - 2)
+        spend_use(char, 1)  # 1 use per character, from the shared pool (rules v3.1)
         return {
             "slot": slot,
             "ability_name": ability.display_name,
@@ -5986,7 +5989,7 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
             "rolls": rolls,
             "total": total,
             "effect_type": ability.effect_type,
-            "uses_remaining": ability.uses_remaining,
+            "uses_remaining": pool_remaining(char),
         }
 
     proposer_result = _roll_for(proposer_char, combo.proposer_ability_slot)
@@ -6148,6 +6151,8 @@ async def restore_all_abilities(
         for ability in abilities:
             ability.uses_remaining = ability.max_uses
             restored_count += 1
+        for _c in characters:
+            refill_uses(_c)   # the shared pool is what casting actually spends
 
         db.commit()
 

@@ -40,7 +40,8 @@ def world():
 
     def pc(name):
         c = Character(id=uuid.uuid4(), name=name, owner_id=str(player.id), user_id=player.id, campaign_id=camp.id,
-                      level=2, pp=2, ip=3, sp=1, dp=15, max_dp=15, edge=1, attack_style="1d6", defense_die="1d8")
+                      level=2, pp=2, ip=3, sp=1, dp=15, max_dp=15, edge=1, attack_style="1d6", defense_die="1d8",
+                      max_uses_per_encounter=4, current_uses=4)   # level 2: one shared pool of level + 2
         db.add(c)
         db.commit()
         db.add(Ability(id=uuid.uuid4(), character_id=c.id, slot_number=1, ability_type="spell",
@@ -99,12 +100,10 @@ def test_sw_can_summon_for_a_puppeted_pc(world):
 
 
 def test_summoning_spends_one_use_and_a_second_cast_commands_the_existing_summon(world):
-    from backend.models import Ability
     caster = world["pc"]("Spender")
     sent = cast(world, world["player"], caster, speaker_type="pc")  # the real client always names the speaker
     world["db"].expire_all()
-    ability = world["db"].query(Ability).filter_by(character_id=caster.id).one()
-    assert ability.uses_remaining == 2, [m.get("text") or m.get("message") for m in sent]
+    assert caster.current_uses == 3, [m.get("text") or m.get("message") for m in sent]   # 4 in the pool, summoning cost 1
     # casting again with no target does not create a second summon
     cast(world, world["player"], caster, speaker_type="pc")
     from backend.models import Character
@@ -145,8 +144,7 @@ def test_a_summon_that_is_out_acts_like_a_real_attack_and_costs_no_use(world):
     assert card["message_id"]                                                     # saved, so it survives a refresh and can be Boosted
     saved = world["db"].query(Message).filter_by(id=card["message_id"]).one()
     assert saved.extra_data["caster_char_id"] == str(caster.id)
-    ability = world["db"].query(Ability).filter_by(character_id=caster.id).one()
-    assert ability.uses_remaining == 2, "summoning cost one use; commanding it must not cost another"
+    assert caster.current_uses == 3, "summoning cost one use from the pool; commanding it must not cost another"
 
 
 def test_commanding_a_summon_with_no_target_asks_for_one_and_does_nothing(world):
@@ -161,8 +159,7 @@ def test_summon_commands_work_with_no_uses_left(world):
     from backend.models import Ability
     caster = world["pc"]("Spent")
     cast(world, world["player"], caster, speaker_type="pc")
-    ab = world["db"].query(Ability).filter_by(character_id=caster.id).one()
-    ab.uses_remaining = 0
+    caster.current_uses = 0                                        # the shared pool is empty
     world["db"].commit()
     _dummy(world, "Straw Man")
     _, patch = _fixed_dice([4, 1])
@@ -174,8 +171,7 @@ def test_summon_commands_work_with_no_uses_left(world):
 def test_summoning_with_no_uses_left_is_refused(world):
     from backend.models import Ability
     caster = world["pc"]("Empty")
-    ab = world["db"].query(Ability).filter_by(character_id=caster.id).one()
-    ab.uses_remaining = 0
+    caster.current_uses = 0
     world["db"].commit()
     sent = cast(world, world["player"], caster, speaker_type="pc")
     assert summon_of(world, caster) is None

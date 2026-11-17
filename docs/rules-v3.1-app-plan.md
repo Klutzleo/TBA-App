@@ -66,7 +66,10 @@ extra hand-typed copies: the help table and the SW set-level popup). Shipping or
   characters, current DP never above new max, run with no active encounter.
 - Needs your answer on NPCs (question 5).
 
-**Phase 3: shared uses pool (structural).**
+**Phase 3: shared uses pool (structural). BUILT on branch rules-v3.1-phase3, not yet on main.** Implemented with
+`backend/uses.py` over the existing Character.max_uses_per_encounter / current_uses columns, so no migration is
+needed (the Phase 2 migration already set both). Combo cost moved to 1 use per character here, since the same lines
+changed (Phase 7 keeps the rest of the Combo work). Summons acting are still free until Phase 6.
 - Casts spend from `Character.current_uses` (max `max_uses_per_encounter`); per-ability `uses_remaining/max_uses`
   stop mattering. The ability list shows one pool number. Encounter end and rest restore the pool.
 - Migration: set each character's pool from the new table and current pool from the existing abilities'

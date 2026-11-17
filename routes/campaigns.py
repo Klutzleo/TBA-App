@@ -17,6 +17,7 @@ from backend.db import get_db
 from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect, CampaignLastVisited, Ability, LBA_CONTENT_RATINGS, LBA_GENRES, LbaPackage
 from backend.auth.jwt import get_current_user
 from backend.leveling import uses_for_level as _uses_for_level
+from backend.uses import pool_remaining as _pool_remaining, pool_max as _pool_max
 from sqlalchemy import or_, func, cast, String
 
 router = APIRouter(tags=["campaigns"])
@@ -1031,8 +1032,8 @@ async def get_campaign_members(
         char_data = None
         if character:
             abilities = db.query(Ability).filter(Ability.character_id == character.id).all()
-            total_uses_remaining = sum(a.uses_remaining for a in abilities) if abilities else 0
-            max_uses = character.max_uses_per_encounter or _uses_for_level(character.level or 1)
+            total_uses_remaining = _pool_remaining(character)   # one shared pool (rules v3.1)
+            max_uses = _pool_max(character)
             char_data = {
                 "id": str(character.id),
                 "user_id": str(character.user_id) if character.user_id else None,
