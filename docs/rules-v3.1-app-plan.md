@@ -93,7 +93,10 @@ is implemented as: with no encounter running, a heal spell costs no use and has 
   do not count. Shows a "Healed this encounter" mark on the target.
 - Needs a migration (new table).
 
-**Phase 6: summons rework.**
+**Phase 6: summons rework. BUILT on branch rules-v3.1-phase6, not yet on main.** No migration. Hooks that make a summon
+vanish when its summoner drops to 0 DP cover weapon attacks and spell damage immediately, plus a safety net
+(`_cleanup_orphan_summons`) at every turn advance and whenever the summon tries to act, so Env Check damage and the SW's
+manual damage are caught too, just not instantly.
 - Free and instant to call (no use, no action); each round it acts spends 1 shared use; out of uses it fades;
   summoner at 0 DP removes it; remove the DP drain and its notice; acts right after the summoner's turn
   (initiative row stays, the Act button stays, now spends a use); no heals on a summon.

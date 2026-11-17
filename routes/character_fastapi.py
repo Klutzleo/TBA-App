@@ -3270,6 +3270,7 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
     results = [dict(r) for r in (extra.get("results") or [])]
     narrative_parts = []
     old_total = new_total = None
+    boosted_summons = []
 
     for r in results:
         if _boost_skips_target(r):   # not found, a summon, in The Calling, already healed: nothing was rolled for it
@@ -3286,6 +3287,10 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
             new_attack = old_attack + total_bonus
             margin = new_attack - (r.get("defense_roll") or 0)
             damage = max(0, margin)
+            if target is not None and target.is_summon:
+                # a summon has hits, not DP: the boosted attack either beats its defense (1 hit) or it does not
+                damage, old_damage = (1 if margin > 0 else 0), (1 if old_damage > 0 else 0)
+                boosted_summons.append(target)
             if target is not None and damage != old_damage:
                 # same floor the weapon-attack Boost uses; never above max DP
                 target.dp = min(target.max_dp, max(-10, (target.dp or 0) - (damage - old_damage)))
@@ -3350,6 +3355,11 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
     msg.extra_data = extra
     flag_modified(msg, "extra_data")
     db.commit()
+    for _sm in boosted_summons:      # a Boost that turned a miss into the last hit defeats the summon
+        if (_sm.dp or 0) <= 0:
+            from routes.campaign_websocket import _remove_summon
+            await _remove_summon(char.campaign_id, _sm, db, reason="defeated",
+                                 text=f"💨 {_sm.name} has been defeated and vanishes!", actor_user_id=current_user.id)
 
     try:
         from backend.stats_tracker import commit_stats, track_boost

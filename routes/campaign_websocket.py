@@ -618,39 +618,20 @@ async def campaign_websocket(
             elif message_type == "dismiss_summon":
                 summon_id = data.get("summon_id")
                 if summon_id:
-                    from uuid import UUID as _UUID
                     try:
                         summon = db.query(Character).filter(
-                            Character.id == _UUID(summon_id),
+                            Character.id == UUID(str(summon_id)),
                             Character.is_summon == True,  # noqa: E712
                             Character.campaign_id == str(campaign_uuid)
                         ).first()
                         if summon:
-                            summoner_id = str(summon.summoner_id) if summon.summoner_id else None
-                            summon_name = summon.name
-                            db.query(InitiativeRoll).filter(InitiativeRoll.character_id == summon.id).delete()
-                            db.delete(summon)
-                            db.commit()
-                            dismiss_msg = Message(
-                                campaign_id=campaign_uuid,
-                                party_id=None,
-                                sender_id=summoner_id or str(user_uuid),
-                                sender_name=summon_name,
-                                message_type="summon_dismissed",
-                                content=f"💨 {summon_name} has been dismissed.",
-                                extra_data={"summon_id": summon_id, "summon_name": summon_name, "summoner_id": summoner_id, "reason": "dismissed"}
-                            )
-                            db.add(dismiss_msg)
-                            db.commit()
-                            await manager.broadcast(campaign_uuid, {
-                                "type": "summon_dismissed",
-                                "summon_id": summon_id,
-                                "summon_name": summon_name,
-                                "summoner_id": summoner_id,
-                                "reason": "dismissed",
-                                "message": f"💨 {summon_name} has been dismissed.",
-                                "message_id": str(dismiss_msg.id),
-                            })
+                            owner = db.query(Character).filter(Character.id == summon.summoner_id).first() if summon.summoner_id else None
+                            if not (await is_story_weaver(campaign_uuid, user_uuid, db)
+                                    or (owner is not None and str(owner.user_id) == str(user_uuid))):
+                                await websocket.send_json({"type": "system", "text": "❌ Only the Story Weaver or the summoner can dismiss a summon."})
+                            else:
+                                await _remove_summon(campaign_uuid, summon, db, reason="dismissed",
+                                                     text=f"💨 {summon.name} has been dismissed.", actor_user_id=user_uuid)
                     except Exception as _e:
                         logger.warning(f"dismiss_summon failed: {_e}")
 
@@ -1264,6 +1245,12 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         stat_type = "pp"
         attacker_stat_value = attacker.pp
         defender_stat_value = defender.pp
+        # A summon defends with its summoner's Defense Die + the stat used for the summoning spell + Edge (rules v3.1)
+        defender_def_stat = stat_type
+        defender_edge_for_roll = defender.edge
+        if defender.is_summon:
+            defender_def_stat, defender_stat_value, _sm_owner = summon_stat_for(db, defender)
+            defender_edge_for_roll = (_sm_owner.edge if _sm_owner else defender.edge) or 0
         
         # Get weapon bonus — legacy JSON field + equipped inventory items
         from backend.models import InventoryItem as _InvItem
@@ -1293,7 +1280,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         # Rules v3.1: a buff or debuff only changes rolls that use ITS stat (weapon attacks are Physical), and
         # only the strongest buff and strongest debuff count. Hand-added 'attack'/'defense' effects also apply here.
         attacker_effect_bonus = effect_modifier(db, attacker.id, stat_type, extra_types=("attack",))
-        defender_effect_bonus = effect_modifier(db, defender.id, stat_type, extra_types=("defense",))
+        defender_effect_bonus = effect_modifier(db, defender.id, defender_def_stat, extra_types=("defense",))
 
         # BAP is never banked. The Story Weaver adds it to one specific roll afterwards (Boost), so a roll
         # always starts without any.
@@ -1317,7 +1304,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             defender_effect_bonus=defender_effect_bonus,
             weapon_bonus=weapon_bonus,
             armor_bonus=armor_bonus,
-            defender_edge=defender.edge,
+            defender_edge=defender_edge_for_roll,
             tether_bonus=attacker_tether_modifier,
         )
         
@@ -1325,8 +1312,16 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         # Apply damage and persist to database (no floor — can go negative for The Calling)
         # =====================================================================
         old_dp = defender.dp
+        if defender.is_summon:
+            # each die that beats the summon's defense is one HIT, worth 1 durability whatever its margin
+            result["total_damage"] = (result.get("details") or {}).get("hit_count", 0)
         defender.dp = defender.dp - result["total_damage"]
         db.commit()
+        if defender.is_summon and defender.dp <= 0:
+            await _remove_summon(campaign_id, defender, db, reason="defeated",
+                                 text=f"💨 {defender.name} has been defeated and vanishes!", actor_user_id=user_id)
+        elif defender.dp <= 0 and not defender.is_summon:
+            await _dismiss_summons_of(campaign_id, defender, db, f"{defender.name} dropped to 0 DP.")
 
         logger.info(
             f"[{request_id}] {attacker.name} dealt {result['total_damage']} damage "
@@ -1502,10 +1497,75 @@ def _fx_label(n: int) -> str:
     return f" + Effects({n:+d})" if n else ""
 
 
+def summon_durability(level: int) -> int:
+    """Hits a summon survives (rules v3.1): levels 1-3 one, 4-6 two, 7-9 three, 10+ four."""
+    level = level or 1
+    return 1 if level <= 3 else 2 if level <= 6 else 3 if level <= 9 else 4
+
+
+def summon_stat_for(db, summon):
+    """(stat label, stat value, summoner) a summon defends and rolls with: the stat its summoner uses for the
+    summoning spell or technique (rules v3.1), with the summoner's Defense Die and Edge."""
+    summoner = db.query(Character).filter(Character.id == summon.summoner_id).first() if summon.summoner_id else None
+    ability = (db.query(Ability).filter(Ability.character_id == summoner.id, Ability.is_summon == True).first()  # noqa: E712
+               if summoner else None)
+    label = ((ability.power_source if ability and ability.power_source else "PP") or "PP").upper()
+    src = summoner or summon
+    value = {"PP": src.pp, "IP": src.ip, "SP": src.sp}.get(label, src.pp) or 0
+    return label, value, summoner
+
+
+async def _remove_summon(campaign_id, summon, db, *, reason, text, actor_user_id=None):
+    """Take a summon out of the game: its row, its initiative slot, a saved notice (so it survives a refresh) and a
+    broadcast. reason is 'dismissed', 'defeated', 'summoner_down' or 'out_of_uses'."""
+    summoner_id = str(summon.summoner_id) if summon.summoner_id else None
+    summon_name, summon_id = summon.name, str(summon.id)
+    db.query(InitiativeRoll).filter(InitiativeRoll.character_id == summon.id).delete()
+    db.query(ActiveEffect).filter(ActiveEffect.character_id == summon.id).delete()
+    db.delete(summon)
+    db.commit()
+    msg = Message(
+        campaign_id=campaign_id, party_id=None,
+        sender_id=summoner_id or str(actor_user_id or campaign_id), sender_name=summon_name,
+        message_type="summon_dismissed", content=text,
+        extra_data={"summon_id": summon_id, "summon_name": summon_name, "summoner_id": summoner_id, "reason": reason},
+    )
+    db.add(msg)
+    db.commit()
+    await manager.broadcast(campaign_id, {
+        "type": "summon_dismissed", "summon_id": summon_id, "summon_name": summon_name,
+        "summoner_id": summoner_id, "reason": reason, "message": text, "message_id": str(msg.id),
+    })
+
+
+async def _dismiss_summons_of(campaign_id, summoner, db, why):
+    """A summoner at 0 DP loses their summon, and healing them later does not bring it back (rules v3.1)."""
+    for summon in db.query(Character).filter(
+        Character.summoner_id == summoner.id, Character.is_summon == True,  # noqa: E712
+        Character.campaign_id == str(campaign_id),
+    ).all():
+        await _remove_summon(campaign_id, summon, db, reason="summoner_down",
+                             text=f"💨 {summon.name} vanishes: {why}")
+
+
+async def _cleanup_orphan_summons(campaign_id, db):
+    """Safety net for every path that can drop a character to 0 DP: any summon whose summoner is gone, inactive or at
+    0 DP or below is removed."""
+    for summon in db.query(Character).filter(
+        Character.is_summon == True, Character.campaign_id == str(campaign_id),  # noqa: E712
+    ).all():
+        summoner = db.query(Character).filter(Character.id == summon.summoner_id).first() if summon.summoner_id else None
+        if summoner is None or summoner.status != "active" or (summoner.dp or 0) <= 0:
+            who = summoner.name if summoner is not None else "its summoner"
+            await _remove_summon(campaign_id, summon, db, reason="summoner_down",
+                                 text=f"💨 {summon.name} vanishes: {who} is down.")
+
+
 async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "Ability", db: Session,
                               target_names: list = None):
     """
-    Creates the summon (a temporary NPC sharing the caster's initiative slot) and spends 1 use. No target needed.
+    Creates the summon (a temporary NPC sharing the caster's initiative slot). Calling it is free (no use, no action)
+    and needs no target (rules v3.1); each round it ACTS costs 1 of the summoner's uses instead.
     A summon that is already out is not handled here: handle_ability_cast runs its action through the normal
     damage/heal/debuff pipeline.
     """
@@ -1514,14 +1574,9 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
     # ── SUMMON MODE ─────────────────────────────────────────────────────────
     # No active summon — create it
 
-    # Durability: hits the summon can survive before disappearing
+    # Durability: hits the summon can survive before disappearing (1 / 2 / 3 / 4 hits by level)
     level = caster.level or 1
-    if level <= 3:
-        durability = 1
-    elif level <= 6:
-        durability = 2
-    else:
-        durability = 3  # L7+
+    durability = summon_durability(level)
 
     # Resolve the SW's user_id to satisfy owner_id NOT NULL constraint
     sw_membership = db.query(CampaignMembership).filter(
@@ -1591,8 +1646,6 @@ async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "
         )
         db.add(summon_roll)
 
-    # Spend 1 use from the caster's shared pool
-    spend_use(caster, 1)
     db.commit()
 
     summon_msg = Message(
@@ -1716,12 +1769,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 Character.campaign_id == campaign_id
             ).first()
             if not acting_summon:
-                if pool_remaining(caster) <= 0:
-                    await manager.broadcast(campaign_id, {
-                        "type": "system",
-                        "text": f"❌ {caster.name} has no uses remaining! ({pool_remaining(caster)}/{pool_max(caster)})"
-                    })
-                    return
+                # Calling a summon is free and instant: no use, no action (rules v3.1)
                 await _handle_summon_cast(campaign_id, caster, ability, db, target_names=target_names)
                 return
             if not target_names and ability.effect_type != "heal":
@@ -1729,6 +1777,17 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "type": "system",
                     "text": f"❌ {acting_summon.name} is already summoned. Pick a target for it: {macro_command} @[Target]"
                 })
+                return
+            if (caster.dp or 0) <= 0:
+                await _remove_summon(campaign_id, acting_summon, db, reason="summoner_down",
+                                     text=f"💨 {acting_summon.name} vanishes: {caster.name} is at 0 DP.")
+                return
+            # Each round it acts costs 1 of the summoner's uses (its upkeep). Out of uses, it fades.
+            _free_heal = ability.effect_type == "heal" and not db.query(Encounter).filter(
+                Encounter.campaign_id == campaign_id, Encounter.is_active == True).first()  # noqa: E712
+            if pool_remaining(caster) <= 0 and not _free_heal:
+                await _remove_summon(campaign_id, acting_summon, db, reason="out_of_uses",
+                                     text=f"💨 {acting_summon.name} fades: {caster.name} is out of uses.")
                 return
 
         # After the encounter healing is free (rules v3.1): with no encounter running a heal costs no use and has
@@ -1739,7 +1798,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 Encounter.campaign_id == campaign_id, Encounter.is_active == True).first()  # noqa: E712
         heal_is_free = ability.effect_type == "heal" and heal_encounter is None
 
-        # Check uses remaining (a summon that is already out acts for free)
+        # Check uses remaining (a summon acting was already checked above: it fades if its summoner has none)
         if not acting_summon and not heal_is_free and pool_remaining(caster) <= 0:
             await manager.broadcast(campaign_id, {
                 "type": "system",
@@ -1795,6 +1854,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         narrative_parts = []
         effects_changed = False   # a buff or debuff was added or replaced, so everyone's effect list needs a refresh
         heal_applied = False      # at least one target was actually healed
+        fx_actor = acting_summon or caster    # buffs and debuffs on a summon change the summon's own rolls
+        downed = []               # characters this cast dropped to 0 DP or below (their summons vanish)
         calling_char_id = None  # set if any target triggers The Calling
 
         if ability.effect_type == "damage":
@@ -1830,42 +1891,37 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     })
                     continue
 
-                # Summon durability: each successful hit removes 1 durability point
-                # regardless of roll margin. Auto-dismiss when durability hits 0.
+                # Rules v3.1: a summon defends with its summoner's Defense Die + the stat used for the summoning spell +
+                # Edge. A "hit" is an attack that beats that roll and would deal damage; each hit takes 1 durability.
                 if target.is_summon:
+                    sm_label, sm_stat, sm_owner = summon_stat_for(db, target)
+                    sm_atk_dice = roll_dice(ability.die)
+                    sm_atk_fx = effect_modifier(db, fx_actor.id, ability.power_source)
+                    sm_attack = sum(sm_atk_dice) + power_stat + (caster.edge or 0) + sm_atk_fx
+                    sm_def_dice = roll_dice(target.defense_die)
+                    sm_def_fx = effect_modifier(db, target.id, sm_label)
+                    sm_edge = ((sm_owner.edge if sm_owner else target.edge) or 0)
+                    sm_defense = sum(sm_def_dice) + sm_stat + sm_edge + sm_def_fx
+                    sm_extra = {
+                        "attack_roll": sm_attack, "defense_roll": sm_defense, "margin": sm_attack - sm_defense,
+                        "attack_breakdown": (f"{ability.die} = [{' + '.join(str(x) for x in sm_atk_dice)}] + "
+                                             f"{ability.power_source}({power_stat}) + Edge({caster.edge or 0}){_fx_label(sm_atk_fx)} = {sm_attack}"),
+                        "defense_breakdown": (f"{target.defense_die} = [{' + '.join(str(x) for x in sm_def_dice)}] + "
+                                              f"{sm_label}({sm_stat}) + Edge({sm_edge}){_fx_label(sm_def_fx)} = {sm_defense}"),
+                    }
+                    if sm_attack <= sm_defense:
+                        results.append({"target": target_name, "success": True, "damage": 0, "outcome": "miss",
+                                        "old_dp": target.dp, "new_dp": target.dp, "calling_triggered": False, **sm_extra})
+                        continue
                     target.dp -= 1
                     db.commit()
                     hit_label = f"{target.dp + 1} → {max(target.dp, 0)}"
                     if target.dp <= 0:
-                        summoner_id = str(target.summoner_id) if target.summoner_id else None
-                        summon_name = target.name
-                        summon_id = str(target.id)
-                        db.query(InitiativeRoll).filter(InitiativeRoll.character_id == target.id).delete()
-                        db.delete(target)
-                        db.commit()
-                        defeat_msg = Message(
-                            campaign_id=campaign_id,
-                            party_id=None,
-                            sender_id=caster.id,
-                            sender_name=summon_name,
-                            message_type="summon_dismissed",
-                            content=f"💨 {summon_name} has been defeated and vanishes!",
-                            extra_data={"summon_id": summon_id, "summon_name": summon_name, "summoner_id": summoner_id, "reason": "defeated"}
-                        )
-                        db.add(defeat_msg)
-                        db.commit()
-                        await manager.broadcast(campaign_id, {
-                            "type": "summon_dismissed",
-                            "summon_id": summon_id,
-                            "summon_name": summon_name,
-                            "summoner_id": summoner_id,
-                            "reason": "defeated",
-                            "message": f"💨 {summon_name} has been defeated and vanishes!",
-                            "message_id": str(defeat_msg.id),
-                        })
-                        results.append({"target": target_name, "success": True,
-                                        "outcome": "summon_defeated", "damage": 1,
-                                        "old_dp": 1, "new_dp": 0})
+                        await _remove_summon(campaign_id, target, db, reason="defeated",
+                                             text=f"💨 {target.name} has been defeated and vanishes!",
+                                             actor_user_id=caster.id)
+                        results.append({"target": target_name, "success": True, "outcome": "summon_defeated",
+                                        "damage": 1, "old_dp": 1, "new_dp": 0, **sm_extra})
                     else:
                         await manager.broadcast(campaign_id, {
                             "type": "summon_hit",
@@ -1874,15 +1930,14 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                             "durability_remaining": target.dp,
                             "message": f"⚡ {target.name} takes a hit! Durability: {hit_label}",
                         })
-                        results.append({"target": target_name, "success": True,
-                                        "outcome": "summon_hit", "damage": 1,
-                                        "old_dp": target.dp + 1, "new_dp": target.dp})
+                        results.append({"target": target_name, "success": True, "outcome": "summon_hit",
+                                        "damage": 1, "old_dp": target.dp + 1, "new_dp": target.dp, **sm_extra})
                     continue
 
                 # Roll attack: ability die + power stat + edge
                 attack_dice = ability.die  # e.g., "2d6"
                 attack_roll_result = roll_dice(attack_dice)  # Returns list like [3, 5]
-                caster_fx = effect_modifier(db, caster.id, ability.power_source)   # buff/debuff on the stat this spell uses
+                caster_fx = effect_modifier(db, fx_actor.id, ability.power_source)   # buff/debuff on the stat this spell uses
                 attack_total = sum(attack_roll_result) + power_stat + caster.edge + caster_fx
 
                 # Roll defense: target's defense die + matching stat + Edge
@@ -1922,6 +1977,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 if damage > 0:
                     await cancel_holding_combos_on_damage(campaign_id, target.id, db)
+                if (target.dp or 0) <= 0:
+                    downed.append(target)
 
                 outcome = "hit" if damage > 0 else "miss"
                 atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
@@ -1966,7 +2023,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 target_names = [caster.name]
 
             heal_roll_result = roll_dice(ability.die)  # Returns list
-            heal_fx = effect_modifier(db, caster.id, ability.power_source)
+            heal_fx = effect_modifier(db, fx_actor.id, ability.power_source)
             healing = sum(heal_roll_result) + power_stat + (caster.edge or 0) + heal_fx
             heal_rolls_str = " + ".join(str(r) for r in heal_roll_result)
             heal_breakdown = (f"{ability.die} = [{heal_rolls_str}] + {ability.power_source}({power_stat}) + "
@@ -2083,7 +2140,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 # Contested roll: caster's ability vs target's defense (matches spell_cast formula)
                 caster_roll = roll_dice(ability.die)  # Returns list
-                caster_fx = effect_modifier(db, caster.id, ability.power_source)
+                caster_fx = effect_modifier(db, fx_actor.id, ability.power_source)
                 caster_total = sum(caster_roll) + power_stat + caster.edge + caster_fx
 
                 # Rules v3.1: a debuff is resisted with 1d6 + the same stat + Edge, not the Defense Die
@@ -2144,11 +2201,13 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         # Decrement uses only if at least one target was actually found (not a typo/miss-target)
         all_targets_missing = results and all(r.get("message") == "Target not found" for r in results)
         spends_a_use = not heal_is_free and (ability.effect_type != "heal" or heal_applied)
-        if not all_targets_missing and not acting_summon and spends_a_use:
+        if not all_targets_missing and spends_a_use:    # a summon acting costs its summoner 1 use too
             spend_use(caster, 1)
         db.commit()
         if effects_changed:
             await _broadcast_effects(campaign_id, db)
+        for _down in downed:
+            await _dismiss_summons_of(campaign_id, _down, db, f"{_down.name} dropped to 0 DP.")
 
         # Generate narrative (header already shows caster + ability, so just show outcomes)
         narrative = " ".join(narrative_parts)
@@ -4961,6 +5020,8 @@ async def advance_turn(
             await websocket.send_json({"type": "error", "message": "No active encounter"})
             return
 
+        await _cleanup_orphan_summons(campaign_uuid, db)   # summoners downed by any path take their summons with them
+
         # Get all visible (non-silent) rolls sorted by TBA rules (same order as display)
         rolls = db.query(InitiativeRoll).filter(
             InitiativeRoll.encounter_id == encounter.id,
@@ -5014,51 +5075,7 @@ async def advance_turn(
         encounter.round_number = next_round_number(encounter.round_number, old_index, new_index)
         encounter.current_turn_index = new_index
 
-        # DP drain for active summons — fires at the start of each new round. Checked via the
-        # round_number actually changing (matches next_round_number's real "did we wrap" signal
-        # above), NOT `new_index == 0` — when the leading combatant is skipped for holding a
-        # Combo, the round can wrap without new_index ever landing on 0, and the old check
-        # silently missed drain for that round.
-        if encounter.round_number != old_round_number:
-            active_summons = db.query(Character).filter(
-                Character.campaign_id == str(campaign_uuid),
-                Character.is_summon == True,  # noqa: E712
-                Character.status == 'active'
-            ).all()
-            dp_drain_events = []
-            for summon in active_summons:
-                if summon.summoner_id:
-                    summoner = db.query(Character).filter(Character.id == summon.summoner_id).first()
-                    if summoner:
-                        summoner.dp -= 1
-                        dp_drain_events.append({
-                            "character_id": str(summoner.id),
-                            "character_name": summoner.name,
-                            "new_dp": summoner.dp,
-                            "summon_name": summon.name,
-                        })
-            if dp_drain_events:
-                db.commit()
-                for evt in dp_drain_events:
-                    drain_text = f"🔗 {evt['summon_name']} drains 1 DP from {evt['character_name']}. (DP: {evt['new_dp'] + 1} → {evt['new_dp']})"
-                    # saved, so the notice is still in the feed after a refresh
-                    drain_msg = Message(
-                        campaign_id=campaign_uuid, party_id=None, sender_id=UUID(evt["character_id"]),
-                        sender_name=evt["summon_name"], message_type="summon_dp_drain", content=drain_text,
-                        extra_data={"character_id": evt["character_id"], "character_name": evt["character_name"],
-                                    "new_dp": evt["new_dp"], "summon_name": evt["summon_name"]},
-                    )
-                    db.add(drain_msg)
-                    db.commit()
-                    await manager.broadcast(campaign_uuid, {
-                        "type": "summon_dp_drain",
-                        "character_id": evt["character_id"],
-                        "character_name": evt["character_name"],
-                        "new_dp": evt["new_dp"],
-                        "summon_name": evt["summon_name"],
-                        "message": drain_text,
-                        "message_id": str(drain_msg.id),
-                    })
+        # (v3.1: a summon no longer drains its summoner's DP. Its upkeep is 1 use each round it acts.)
 
         # Rules v3.1: every buff and debuff lasts 2 rounds, counted per ROUND (the round it was cast and the
         # next), so each effect ticks once when a new round starts, not on each character's own turn.

@@ -4,7 +4,7 @@ priority: high
 category: app
 progress: 83
 focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
-next_milestone: "Deploy v3.1 Phase 5 (healing, migration 034), then Phase 6 (summons rework)"
+next_milestone: "Deploy v3.1 Phase 6 (summons), then Phase 7 (Combos)"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -107,6 +107,8 @@ First file to open: `docs/rules-v3.1-app-plan.md` (Phase 3), then `routes/campai
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
+2026-11-17 (end): Phase 5 (healing) is LIVE incl. migration 034. Phase 6 (summons) is built and tested on branch `rules-v3.1-phase6` (283 tests), NOT deployed, no migration: calling a summon is free; each round it acts costs the summoner 1 use and it fades when they have none; no more 1 DP drain; it vanishes when its summoner drops to 0 DP; a hit must beat its defense (summoner's Defense Die + the summoning stat + Edge) and costs 1 durability (1/2/3/4 hits by level); buffs and debuffs work on a summon; dismiss is now SW or summoner only.
+
 2026-11-17 (very late): Phase 4 (buffs and debuffs) is LIVE. Phase 5 (healing) is built and tested on branch `rules-v3.1-phase5` (275 tests), NOT deployed; it adds migration 034 (`encounter_heals`). Heal = spell die + stat + Edge (+ effects), rolled once per cast; once per person per encounter; free and unlimited outside an encounter; negative DP goes to 0 then adds the roll; no healing in The Calling or on summons; a Healed mark in the party panel.
 
 2026-11-17 (later night): v3.1 Phase 3 is LIVE. Phase 4 (buffs and debuffs) is built and tested on branch `rules-v3.1-phase4` (263 tests), NOT deployed: effects tied to a stat and applied to spell rolls (they were ignored before), one buff and one debuff per stat per target with replacement, duration counted per round (cast round plus the next), debuffs resisted with 1d6 + stat + Edge instead of the Defense Die, check cards show net buff or debuff.
