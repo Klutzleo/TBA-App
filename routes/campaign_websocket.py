@@ -5772,7 +5772,7 @@ def _combo_ability_list(db, char) -> list:
             for a in db.query(Ability).filter(Ability.character_id == char.id).order_by(Ability.slot_number).all()]
 
 
-async def _reprompt_lost_picks(campaign_uuid, db, combo, chars, triple=False):
+async def _reprompt_lost_picks(campaign_uuid, db, combo, chars, triple=False, notice=None):
     """The picked targets are gone (a server restart between the picks and the result). Nothing has been rolled, spent or
     marked fired. Clear the picks and ask everyone to choose again."""
     for attr in ("proposer_ability_slot", "acceptor_ability_slot", "partner_a_ability_slot", "partner_b_ability_slot"):
@@ -5785,7 +5785,7 @@ async def _reprompt_lost_picks(campaign_uuid, db, combo, chars, triple=False):
         "combo_id": str(combo.id),
         "bond_name": (bond.combo_name if bond else None) or ("Triple Combo" if triple else "Combo"),
         "bond_description": (bond.combo_description if bond else "") or "",
-        "notice": "The server restarted before your Combo fired. Nothing was spent. Please choose again.",
+        "notice": notice or "The server restarted before your Combo fired. Nothing was spent. Please choose again.",
     }
     for ch in chars:
         if ch and ch.user_id:
@@ -5947,6 +5947,53 @@ async def _apply_combo_intents(campaign_uuid, db, intents):
         await _broadcast_effects(campaign_uuid, db)
 
 
+class _all_or_nothing:
+    """Run a resolution so that everything it saves is saved together or not at all.
+
+    While active: every `db.commit()` inside only flushes (nothing is permanent yet), and everything that would be broadcast or
+    sent to a player is held back. On a clean exit the one real commit happens and the held messages go out in order. If
+    anything raises, the whole transaction is rolled back and the held messages are discarded, so no one ever sees half a
+    Combo. The resolution must not wait on anything slow: it runs without yielding, so no other message can interleave."""
+
+    def __init__(self, db):
+        self.db = db
+        self.held = []
+
+    async def __aenter__(self):
+        self._broadcast, self._send = manager.broadcast, manager.send_to_user
+        held = self.held
+
+        async def hold_broadcast(campaign_id, message):
+            held.append(("broadcast", (campaign_id, message)))
+
+        async def hold_send(campaign_id, user_id, message):
+            held.append(("send", (campaign_id, user_id, message)))
+
+        manager.broadcast, manager.send_to_user = hold_broadcast, hold_send
+        self.db.commit = self.db.flush        # instance attribute shadows Session.commit until we restore it
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        manager.broadcast, manager.send_to_user = self._broadcast, self._send
+        del self.db.commit                      # back to the real Session.commit
+        if exc_type is not None:
+            self.db.rollback()
+            self.held.clear()
+            return False                        # the caller decides what to tell the players
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            self.held.clear()
+            raise
+        for kind, args in self.held:            # now it is real: tell everyone, in the original order
+            try:
+                await (manager.broadcast if kind == "broadcast" else manager.send_to_user)(*args)
+            except Exception as _e:
+                logger.warning(f"Combo message not delivered after commit: {_e}")
+        return False
+
+
 async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     """Both slots locked — roll both abilities, grant BAP, broadcast result."""
     from backend.models import Ability
@@ -5959,75 +6006,83 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     if picks is None or str(proposer_char.id) not in picks or str(acceptor_char.id) not in picks:
         await _reprompt_lost_picks(campaign_uuid, db, combo, [proposer_char, acceptor_char])
         return                                    # nothing rolled, spent or marked fired
-    step_up = not _combo_has_attack(db, [(proposer_char, combo.proposer_ability_slot),
-                                         (acceptor_char, combo.acceptor_ability_slot)])
-    proposer_result, proposer_intents = await _combo_activation(
-        campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)), step_up=step_up)
-    acceptor_result, acceptor_intents = await _combo_activation(
-        campaign_uuid, db, acceptor_char, combo.acceptor_ability_slot, picks.get(str(acceptor_char.id)), step_up=step_up)
-    await _apply_combo_intents(campaign_uuid, db, proposer_intents + acceptor_intents)
+    try:
+        async with _all_or_nothing(db):
+            step_up = not _combo_has_attack(db, [(proposer_char, combo.proposer_ability_slot),
+                                                 (acceptor_char, combo.acceptor_ability_slot)])
+            proposer_result, proposer_intents = await _combo_activation(
+                campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)), step_up=step_up)
+            acceptor_result, acceptor_intents = await _combo_activation(
+                campaign_uuid, db, acceptor_char, combo.acceptor_ability_slot, picks.get(str(acceptor_char.id)), step_up=step_up)
+            await _apply_combo_intents(campaign_uuid, db, proposer_intents + acceptor_intents)
 
-    # BAP is already inside both totals above (full BAP, automatic). It is never banked for later.
-    proposer_bap = proposer_result.get("bap", proposer_char.bap or 1)
-    acceptor_bap = acceptor_result.get("bap", acceptor_char.bap or 1)
+            # BAP is already inside both totals above (full BAP, automatic). It is never banked for later.
+            proposer_bap = proposer_result.get("bap", proposer_char.bap or 1)
+            acceptor_bap = acceptor_result.get("bap", acceptor_char.bap or 1)
 
-    bond_name = combo.bond.combo_name if combo.bond else "Combo"
-    bond_desc = combo.bond.combo_description if combo.bond else ""
-    combo_content = f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + {acceptor_char.name} rolls {acceptor_result['total']}!"
+            bond_name = combo.bond.combo_name if combo.bond else "Combo"
+            bond_desc = combo.bond.combo_description if combo.bond else ""
+            combo_content = f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + {acceptor_char.name} rolls {acceptor_result['total']}!"
 
-    combo_msg = Message(
-        campaign_id=campaign_uuid,
-        party_id=None,
-        sender_id=proposer_char.id,
-        sender_name=bond_name,
-        message_type="combo_resolved",
-        content=combo_content,
-        extra_data={
-            "combo_id": str(combo.id),
-            "bond_name": bond_name,
-            "bond_description": bond_desc,
-            "proposer": {"character_id": str(proposer_char.id), "name": proposer_char.name, **proposer_result},
-            "acceptor": {"character_id": str(acceptor_char.id), "name": acceptor_char.name, **acceptor_result},
-            "bap_granted": {str(proposer_char.id): proposer_bap, str(acceptor_char.id): acceptor_bap},
-        }
-    )
-    # The use and the once-per-encounter flag are committed WITH the result card, never before it
-    spend_use(proposer_char, 1)
-    spend_use(acceptor_char, 1)
-    combo.status = "fired"
-    db.add(combo_msg)
-    db.commit()
+            combo_msg = Message(
+                campaign_id=campaign_uuid,
+                party_id=None,
+                sender_id=proposer_char.id,
+                sender_name=bond_name,
+                message_type="combo_resolved",
+                content=combo_content,
+                extra_data={
+                    "combo_id": str(combo.id),
+                    "bond_name": bond_name,
+                    "bond_description": bond_desc,
+                    "proposer": {"character_id": str(proposer_char.id), "name": proposer_char.name, **proposer_result},
+                    "acceptor": {"character_id": str(acceptor_char.id), "name": acceptor_char.name, **acceptor_result},
+                    "bap_granted": {str(proposer_char.id): proposer_bap, str(acceptor_char.id): acceptor_bap},
+                }
+            )
+            # The use and the once-per-encounter flag are committed WITH the result card, never before it
+            spend_use(proposer_char, 1)
+            spend_use(acceptor_char, 1)
+            combo.status = "fired"
+            db.add(combo_msg)
+            db.commit()
 
-    await manager.broadcast(campaign_uuid, {
-        "type": "combo_resolved",
-        "combo_id": str(combo.id),
-        "bond_name": bond_name,
-        "bond_description": bond_desc,
-        "proposer": {
-            "character_id": str(proposer_char.id),
-            "name": proposer_char.name,
-            "portrait_url": proposer_char.portrait_url,
-            **proposer_result,
-        },
-        "acceptor": {
-            "character_id": str(acceptor_char.id),
-            "name": acceptor_char.name,
-            "portrait_url": acceptor_char.portrait_url,
-            **acceptor_result,
-        },
-        "bap_granted": {
-            str(proposer_char.id): proposer_bap,
-            str(acceptor_char.id): acceptor_bap,
-        },
-        "message": combo_content,
-        "message_id": str(combo_msg.id),
-    })
+            await manager.broadcast(campaign_uuid, {
+                "type": "combo_resolved",
+                "combo_id": str(combo.id),
+                "bond_name": bond_name,
+                "bond_description": bond_desc,
+                "proposer": {
+                    "character_id": str(proposer_char.id),
+                    "name": proposer_char.name,
+                    "portrait_url": proposer_char.portrait_url,
+                    **proposer_result,
+                },
+                "acceptor": {
+                    "character_id": str(acceptor_char.id),
+                    "name": acceptor_char.name,
+                    "portrait_url": acceptor_char.portrait_url,
+                    **acceptor_result,
+                },
+                "bap_granted": {
+                    str(proposer_char.id): proposer_bap,
+                    str(acceptor_char.id): acceptor_bap,
+                },
+                "message": combo_content,
+                "message_id": str(combo_msg.id),
+            })
 
-    logger.info(f"Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / {acceptor_char.name} {acceptor_result['total']}")
+            logger.info(f"Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / {acceptor_char.name} {acceptor_result['total']}")
+    except Exception:
+        # Nothing was saved: no damage, no heal, no effect, no use spent, the Combo is not marked fired.
+        logger.error(f"Combo resolution failed and was rolled back: {combo.id}", exc_info=True)
+        await _reprompt_lost_picks(campaign_uuid, db, combo, [proposer_char, acceptor_char], triple=False,
+                                   notice="Something went wrong resolving your Combo. Nothing was spent or changed. Please choose again.")
+        return
 
 
 # ============================================================
-# Triple Combo — 3 bonded L10 characters chain one strike
+# Triple Combo — 3 bonded Ascended (level 11+) characters chain one strike
 # ============================================================
 
 def _combo_conflict(db: Session, encounter_id, character_id) -> bool:
@@ -6369,78 +6424,86 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
     if picks is None or any(str(c.id) not in picks for c in chars3):
         await _reprompt_lost_picks(campaign_uuid, db, combo, chars3, triple=True)
         return                                    # nothing rolled, spent or marked fired
-    proposer_result, i1 = await _combo_activation(
-        campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)), bonus=2)
-    partner_a_result, i2 = await _combo_activation(
-        campaign_uuid, db, partner_a_char, combo.partner_a_ability_slot, picks.get(str(partner_a_char.id)), bonus=2)
-    partner_b_result, i3 = await _combo_activation(
-        campaign_uuid, db, partner_b_char, combo.partner_b_ability_slot, picks.get(str(partner_b_char.id)), bonus=2)
-    await _apply_combo_intents(campaign_uuid, db, i1 + i2 + i3)   # Triple Combo bonus: every roll gets +2
+    try:
+        async with _all_or_nothing(db):
+            proposer_result, i1 = await _combo_activation(
+                campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)), bonus=2)
+            partner_a_result, i2 = await _combo_activation(
+                campaign_uuid, db, partner_a_char, combo.partner_a_ability_slot, picks.get(str(partner_a_char.id)), bonus=2)
+            partner_b_result, i3 = await _combo_activation(
+                campaign_uuid, db, partner_b_char, combo.partner_b_ability_slot, picks.get(str(partner_b_char.id)), bonus=2)
+            await _apply_combo_intents(campaign_uuid, db, i1 + i2 + i3)   # Triple Combo bonus: every roll gets +2
 
-    # BAP is already inside all three totals above (full BAP, automatic). It is never banked for later.
-    bap_granted = {
-        str(c.id): r.get("bap", c.bap or 1)
-        for c, r in ((proposer_char, proposer_result), (partner_a_char, partner_a_result), (partner_b_char, partner_b_result))
-    }
+            # BAP is already inside all three totals above (full BAP, automatic). It is never banked for later.
+            bap_granted = {
+                str(c.id): r.get("bap", c.bap or 1)
+                for c, r in ((proposer_char, proposer_result), (partner_a_char, partner_a_result), (partner_b_char, partner_b_result))
+            }
 
-    bond_name = combo.bond_ab.combo_name if combo.bond_ab else "Triple Combo"
-    bond_desc = combo.bond_ab.combo_description if combo.bond_ab else ""
-    combo_content = (
-        f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + "
-        f"{partner_a_char.name} rolls {partner_a_result['total']} + "
-        f"{partner_b_char.name} rolls {partner_b_result['total']}!"
-    )
+            bond_name = combo.bond_ab.combo_name if combo.bond_ab else "Triple Combo"
+            bond_desc = combo.bond_ab.combo_description if combo.bond_ab else ""
+            combo_content = (
+                f"⚡ {bond_name}: {proposer_char.name} rolls {proposer_result['total']} + "
+                f"{partner_a_char.name} rolls {partner_a_result['total']} + "
+                f"{partner_b_char.name} rolls {partner_b_result['total']}!"
+            )
 
-    combo_msg = Message(
-        campaign_id=campaign_uuid,
-        party_id=None,
-        sender_id=proposer_char.id,
-        sender_name=bond_name,
-        message_type="triple_combo_resolved",
-        content=combo_content,
-        extra_data={
-            "combo_id": str(combo.id),
-            "bond_name": bond_name,
-            "bond_description": bond_desc,
-            "proposer": {"character_id": str(proposer_char.id), "name": proposer_char.name, **proposer_result},
-            "partner_a": {"character_id": str(partner_a_char.id), "name": partner_a_char.name, **partner_a_result},
-            "partner_b": {"character_id": str(partner_b_char.id), "name": partner_b_char.name, **partner_b_result},
-            "bap_granted": bap_granted,
-        }
-    )
-    # The use and the once-per-encounter flag are committed WITH the result card, never before it
-    for _c in chars3:
-        spend_use(_c, 1)
-    combo.status = "fired"
-    db.add(combo_msg)
-    db.commit()
+            combo_msg = Message(
+                campaign_id=campaign_uuid,
+                party_id=None,
+                sender_id=proposer_char.id,
+                sender_name=bond_name,
+                message_type="triple_combo_resolved",
+                content=combo_content,
+                extra_data={
+                    "combo_id": str(combo.id),
+                    "bond_name": bond_name,
+                    "bond_description": bond_desc,
+                    "proposer": {"character_id": str(proposer_char.id), "name": proposer_char.name, **proposer_result},
+                    "partner_a": {"character_id": str(partner_a_char.id), "name": partner_a_char.name, **partner_a_result},
+                    "partner_b": {"character_id": str(partner_b_char.id), "name": partner_b_char.name, **partner_b_result},
+                    "bap_granted": bap_granted,
+                }
+            )
+            # The use and the once-per-encounter flag are committed WITH the result card, never before it
+            for _c in chars3:
+                spend_use(_c, 1)
+            combo.status = "fired"
+            db.add(combo_msg)
+            db.commit()
 
-    await manager.broadcast(campaign_uuid, {
-        "type": "triple_combo_resolved",
-        "combo_id": str(combo.id),
-        "bond_name": bond_name,
-        "bond_description": bond_desc,
-        "proposer": {
-            "character_id": str(proposer_char.id), "name": proposer_char.name,
-            "portrait_url": proposer_char.portrait_url, **proposer_result,
-        },
-        "partner_a": {
-            "character_id": str(partner_a_char.id), "name": partner_a_char.name,
-            "portrait_url": partner_a_char.portrait_url, **partner_a_result,
-        },
-        "partner_b": {
-            "character_id": str(partner_b_char.id), "name": partner_b_char.name,
-            "portrait_url": partner_b_char.portrait_url, **partner_b_result,
-        },
-        "bap_granted": bap_granted,
-        "message": combo_content,
-        "message_id": str(combo_msg.id),
-    })
+            await manager.broadcast(campaign_uuid, {
+                "type": "triple_combo_resolved",
+                "combo_id": str(combo.id),
+                "bond_name": bond_name,
+                "bond_description": bond_desc,
+                "proposer": {
+                    "character_id": str(proposer_char.id), "name": proposer_char.name,
+                    "portrait_url": proposer_char.portrait_url, **proposer_result,
+                },
+                "partner_a": {
+                    "character_id": str(partner_a_char.id), "name": partner_a_char.name,
+                    "portrait_url": partner_a_char.portrait_url, **partner_a_result,
+                },
+                "partner_b": {
+                    "character_id": str(partner_b_char.id), "name": partner_b_char.name,
+                    "portrait_url": partner_b_char.portrait_url, **partner_b_result,
+                },
+                "bap_granted": bap_granted,
+                "message": combo_content,
+                "message_id": str(combo_msg.id),
+            })
 
-    logger.info(
-        f"Triple Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / "
-        f"{partner_a_char.name} {partner_a_result['total']} / {partner_b_char.name} {partner_b_result['total']}"
-    )
+            logger.info(
+                f"Triple Combo resolved: {bond_name} — {proposer_char.name} {proposer_result['total']} / "
+                f"{partner_a_char.name} {partner_a_result['total']} / {partner_b_char.name} {partner_b_result['total']}"
+            )
+    except Exception:
+        # Nothing was saved: no damage, no heal, no effect, no use spent, the Combo is not marked fired.
+        logger.error(f"Combo resolution failed and was rolled back: {combo.id}", exc_info=True)
+        await _reprompt_lost_picks(campaign_uuid, db, combo, chars3, triple=True,
+                                   notice="Something went wrong resolving your Combo. Nothing was spent or changed. Please choose again.")
+        return
 
 
 async def send_help_text(websocket: WebSocket):

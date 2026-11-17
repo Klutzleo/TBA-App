@@ -163,4 +163,9 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
 - **BAP effect: not built, waiting on Jason.** It is in the SW Guide, not the Core: a BAP moment can also give +1 or -1 until the
   start of the target's next turn, the SW picks the stat, same one-per-stat rule. The SW can already do this by hand with the
   Add Effect button.
-- **All-or-nothing Combo save (Option A): not built.**
+- **All-or-nothing Combo save (Option A): BUILT on branch rules-v3.1-atomic-combo, not yet on main, no migration.** `_all_or_nothing` in
+  `routes/campaign_websocket.py` wraps both Combo resolvers: every `db.commit()` inside only flushes, everything that would be
+  broadcast or sent to a player is held, and one real commit (damage, heals, effects, summons vanishing, a Calling starting, the uses,
+  the fired flag and the result card) happens at the end, after which the held messages go out in order. Any failure rolls it all
+  back and re-prompts the players with "Nothing was spent or changed". Known leftover: a web push notification sent from inside the
+  Calling trigger is external and cannot be taken back.
