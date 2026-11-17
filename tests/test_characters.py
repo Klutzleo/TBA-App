@@ -108,7 +108,7 @@ def _create(test_client, world, who="player", **overrides):
 
 def test_create_character_valid(test_client, world):
     """Create a valid character with level 5, owned by the caller."""
-    body = _create(test_client, world, name="TestHero", level=5, attack_style="3d4")
+    body = _create(test_client, world, name="TestHero", level=5, attack_style="2d6")
 
     assert body["name"] == "TestHero"
     assert body["level"] == 5
@@ -117,10 +117,10 @@ def test_create_character_valid(test_client, world):
     assert body["sp"] == 1
     assert body["edge"] == 2  # Level 5 → Edge 2
     assert body["bap"] == 3  # Level 5 → BAP 3
-    assert body["max_dp"] == 30  # Level 5 → 30 DP
-    assert body["dp"] == 30  # Starts at full HP
+    assert body["max_dp"] == 16  # Level 5 → 16 DP (rules v3.1: 8 + 2 per level)
+    assert body["dp"] == 16  # Starts at full HP
     assert body["defense_die"] == "1d8"  # Level 5 → 1d8
-    assert body["attack_style"] == "3d4"
+    assert body["attack_style"] == "2d6"
     assert "id" in body
 
 
@@ -171,14 +171,14 @@ def test_update_character_level_up(test_client, world):
     assert body["level"] == 6
     assert body["edge"] == 3  # Level 6 → Edge 3
     assert body["bap"] == 3  # Level 6 → BAP 3
-    assert body["max_dp"] == 35  # Level 6 → 35 DP
-    assert body["dp"] == 35  # Healed to full on level up
+    assert body["max_dp"] == 18  # Level 6 → 18 DP
+    assert body["dp"] == 18  # Healed to full on level up
     assert body["defense_die"] == "1d8"  # Level 6 → 1d8
 
 
 def test_update_character_dp(test_client, world):
     """Manually adjust a character's DP."""
-    created = _create(test_client, world, name="DPTest", level=5, attack_style="3d4")
+    created = _create(test_client, world, name="DPTest", level=5, attack_style="2d6")
 
     resp = test_client.patch(f"/api/characters/{created['id']}", headers=world["player"], json={"dp": 15})
     assert resp.status_code == 200
@@ -468,3 +468,10 @@ def test_remove_character_from_party(test_client, auth_headers):
     members_resp = test_client.get(f"/api/parties/{party_id}/members", headers=auth_headers)
     members = members_resp.json()
     assert not any(m["character"]["id"] == character_id for m in members)
+
+
+def test_a_dropped_trap_die_is_refused_at_creation(test_client, world):
+    """Rules v3.1 removed 3d4, 4d4, 5d4 and 4d6. 3d4 used to be legal at level 5."""
+    resp = test_client.post("/api/characters", headers=world["player"],
+                            json=_character(world, name="Trap", level=5, attack_style="3d4"))
+    assert resp.status_code == 400 and "not available" in resp.text

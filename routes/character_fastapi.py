@@ -16,6 +16,7 @@ from backend.character_utils import (
     get_defense_die,
     get_available_attack_styles
 )
+from backend.leveling import uses_for_level as _uses_for_level
 from routes.schemas.character import (
     CharacterCreate,
     CharacterUpdate,
@@ -211,8 +212,8 @@ async def create_character_full(
         level_stats = calculate_level_stats(req.level)
         defense_die = req.defense_die if req.defense_die else get_defense_die(req.level)
 
-        # Calculate uses per encounter (3 * level as per task)
-        max_uses = 3 * req.level
+        # Uses per encounter: level + 2 (rules v3.1)
+        max_uses = _uses_for_level(req.level)
 
         # =====================================================================
         # 5. Find Story and OOC parties for this campaign
@@ -945,7 +946,7 @@ async def create_npc(
         defense_die = get_defense_die(req.level)
 
         # Create NPC (user_id is NULL for NPCs)
-        max_uses = req.level * 3  # TBA v1.5: max_uses_per_encounter = level * 3
+        max_uses = _uses_for_level(req.level)  # rules v3.1: level + 2
         npc = Character(
             name=req.name,
             owner_id=str(current_user.id),  # Track creator
@@ -1034,7 +1035,7 @@ async def update_npc(
             npc.name = req.name
         if req.level is not None:
             level_stats = calculate_level_stats(req.level)
-            max_uses = req.level * 3  # TBA v1.5: max_uses_per_encounter = level * 3
+            max_uses = _uses_for_level(req.level)  # rules v3.1: level + 2
             npc.level = req.level
             npc.max_dp = level_stats["max_dp"]
             npc.edge = level_stats["edge"]
@@ -2042,8 +2043,8 @@ async def update_character_abilities(
                 die=ability.get('die', '1d8'),
                 is_aoe=ability.get('is_aoe', False),
                 is_summon=ability.get('is_summon', False),
-                max_uses=ability.get('max_uses', character.level * 3),
-                uses_remaining=ability.get('uses_remaining', ability.get('max_uses', character.level * 3))
+                max_uses=ability.get('max_uses', _uses_for_level(character.level)),
+                uses_remaining=ability.get('uses_remaining', ability.get('max_uses', _uses_for_level(character.level)))
             )
             db.add(new_ability)
 
@@ -2799,26 +2800,16 @@ async def cleanse_called(
 # LEVELING SYSTEM
 # ============================================================================
 
+# Derived from schemas/leveling_v3_1.json (rules v3.1). Do not hand-edit numbers here.
+from backend.leveling import CHARACTER_LEVELS as _CHARACTER_LEVELS
+
 LEVEL_TABLE = {
-    1:  {"max_dp": 10, "edge": 0, "bap": 1, "uses_per_encounter": 3,  "defense_die": "1d4"},
-    2:  {"max_dp": 15, "edge": 1, "bap": 1, "uses_per_encounter": 6,  "defense_die": "1d4"},
-    3:  {"max_dp": 20, "edge": 1, "bap": 2, "uses_per_encounter": 9,  "defense_die": "1d6"},
-    4:  {"max_dp": 25, "edge": 2, "bap": 2, "uses_per_encounter": 12, "defense_die": "1d6"},
-    5:  {"max_dp": 30, "edge": 2, "bap": 3, "uses_per_encounter": 15, "defense_die": "1d8"},
-    6:  {"max_dp": 35, "edge": 3, "bap": 3, "uses_per_encounter": 18, "defense_die": "1d8"},
-    7:  {"max_dp": 40, "edge": 3, "bap": 4, "uses_per_encounter": 21, "defense_die": "1d10"},
-    8:  {"max_dp": 45, "edge": 4, "bap": 4, "uses_per_encounter": 24, "defense_die": "1d10"},
-    9:  {"max_dp": 50, "edge": 4, "bap": 5, "uses_per_encounter": 27, "defense_die": "1d12"},
-    10: {"max_dp": 55, "edge": 5, "bap": 5, "uses_per_encounter": 30, "defense_die": "1d12"},
+    lvl: {"max_dp": r["max_dp"], "edge": r["edge"], "bap": r["bap"],
+          "uses_per_encounter": r["uses_per_encounter"], "defense_die": r["defense_die"]}
+    for lvl, r in _CHARACTER_LEVELS.items()
 }
 
-WEAPON_OPTIONS_BY_LEVEL = {
-    1: ["1d4"], 2: ["1d4"],
-    3: ["1d6", "2d4"], 4: ["1d6", "2d4"],
-    5: ["1d8", "2d6", "3d4"], 6: ["1d8", "2d6", "3d4"],
-    7: ["1d10", "2d8", "3d6", "4d4"], 8: ["1d10", "2d8", "3d6", "4d4"],
-    9: ["1d12", "2d10", "3d8", "4d6", "5d4"], 10: ["1d12", "2d10", "3d8", "4d6", "5d4"],
-}
+WEAPON_OPTIONS_BY_LEVEL = {lvl: list(r["weapon_options"]) for lvl, r in _CHARACTER_LEVELS.items()}
 
 # New ability slot unlocked at these levels
 NEW_SLOT_AT_LEVEL = {3, 5, 7, 9}
@@ -3260,7 +3251,7 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
     import asyncio
     from sqlalchemy.orm.attributes import flag_modified
     from backend.models import Ability, ActiveEffect
-    from routes.campaign_websocket import BUFF_DEBUFF_TABLE, manager
+    from routes.campaign_websocket import BUFF_DEBUFF_TABLE, BUFF_DURATION, manager
 
     if msg.message_type != "ability_cast" or str(extra.get("caster_char_id")) != str(char.id):
         raise HTTPException(status_code=400, detail="That roll does not belong to this character")
@@ -3338,8 +3329,8 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
             if landed and not was_landed and target is not None:
                 db.add(ActiveEffect(campaign_id=char.campaign_id, character_id=target.id, name=ability_name,
                                     modifier=-modifier, modifier_type=(debuff_stat or "custom").lower(),
-                                    duration_rounds=modifier, applied_by=char.name))
-                r.update(debuff_modifier=-modifier, debuff_duration=modifier, debuff_stat=debuff_stat)
+                                    duration_rounds=BUFF_DURATION, applied_by=char.name))
+                r.update(debuff_modifier=-modifier, debuff_duration=BUFF_DURATION, debuff_stat=debuff_stat)
             elif was_landed and not landed and target is not None:
                 effect = db.query(ActiveEffect).filter(
                     ActiveEffect.character_id == target.id, ActiveEffect.name == ability_name,
@@ -3349,8 +3340,8 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
                 for k in ("debuff_modifier", "debuff_duration", "debuff_stat"):
                     r.pop(k, None)
             narrative_parts.append(
-                f"{name} is afflicted by {ability_name}! ({r.get('debuff_stat')} -{modifier} for {modifier} "
-                f"round{'s' if modifier != 1 else ''})" if landed else f"{name} resists {ability_name}!")
+                f"{name} is afflicted by {ability_name}! ({r.get('debuff_stat')} -{modifier} for {BUFF_DURATION} "
+                f"rounds)" if landed else f"{name} resists {ability_name}!")
             if old_total is None:
                 old_total, new_total = old_caster, new_caster
 

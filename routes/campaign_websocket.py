@@ -1496,9 +1496,10 @@ def _dice_str(die_type: str, rolls: list) -> str:
     return f"{die_type}({inner})"
 
 
-BUFF_DEBUFF_TABLE = {
-    "1d6": 1, "1d8": 2, "1d10": 3, "1d12": 4, "2d6": 5, "2d8": 6
-}
+# Rules v3.1: size by spell die (+1 to +4) and every buff or debuff lasts 2 rounds. Both come from
+# schemas/leveling_v3_1.json. (Round-based expiry, one buff and one debuff per stat, and replace-on-recast are
+# Phase 4; for now the effect still ticks down on the affected character's own turns.)
+from backend.leveling import BUFF_DEBUFF_MODIFIER_BY_DIE as BUFF_DEBUFF_TABLE, BUFF_DEBUFF_DURATION_ROUNDS as BUFF_DURATION
 
 async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "Ability", db: Session,
                               target_names: list = None):
@@ -1994,7 +1995,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 target_names = [caster.name]
 
             modifier = BUFF_DEBUFF_TABLE.get(ability.die, 1)
-            duration = modifier
+            duration = BUFF_DURATION
             buff_stat = ability.debuff_stat or ability.power_source
 
             for target_name in target_names:
@@ -2088,7 +2089,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 if success:
                     modifier = BUFF_DEBUFF_TABLE.get(ability.die, 1)
-                    duration = modifier
+                    duration = BUFF_DURATION
                     debuff_stat = ability.debuff_stat or ability.power_source
                     effect = ActiveEffect(
                         campaign_id=campaign_id,
@@ -3394,7 +3395,7 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
         "hazard_total": hazard_total, "hazard_die": tier_die,
         "damage": damage, "outcome": outcome,
         "old_dp": old_dp, "new_dp": npc.dp, "max_dp": npc.max_dp,
-        "duration_rounds": magnitude if is_debuff else None,
+        "duration_rounds": BUFF_DURATION if is_debuff else None,
         "effect_name": effect_name,
         "calling_triggered": False, "rolled_by_sw": True,
         "object_defeated": obj_defeated,
@@ -3416,7 +3417,7 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
     if is_debuff and outcome == "loss":
         await _apply_fail_effect(campaign_uuid, npc, {
             "name": effect_name, "modifier": -magnitude, "modifier_type": "custom",
-            "duration_rounds": magnitude,
+            "duration_rounds": BUFF_DURATION,
         }, "Env Check", db)
     if obj_defeated:
         await _defeat_object(campaign_uuid, npc, db, actor_user_id=sw_user_id, source="env")
@@ -3445,7 +3446,7 @@ async def _apply_env_effect_now(campaign_uuid, sw_user_id, char, category, tier,
         db.refresh(char)
     else:  # buff
         magnitude = BUFF_DEBUFF_TABLE.get(tier_die, 1)
-        duration = magnitude
+        duration = BUFF_DURATION
         effect_name = (flavor_text or "Environmental Buff")[:60]
         await _apply_fail_effect(campaign_uuid, char, {
             "name": effect_name, "modifier": magnitude, "modifier_type": "custom",
@@ -3711,7 +3712,7 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
         "hazard_total": hazard_total, "hazard_die": req.difficulty_die,
         "damage": damage, "outcome": outcome,
         "old_dp": old_dp, "new_dp": char.dp, "max_dp": char.max_dp,
-        "duration_rounds": magnitude if is_debuff else None,
+        "duration_rounds": BUFF_DURATION if is_debuff else None,
         "effect_name": effect_name,
         "calling_triggered": calling_triggered, "rolled_by_sw": rolled_by_sw,
     }
@@ -3729,7 +3730,7 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
     if is_debuff and outcome == "loss":
         await _apply_fail_effect(campaign_uuid, char, {
             "name": effect_name, "modifier": -magnitude, "modifier_type": "custom",
-            "duration_rounds": magnitude,
+            "duration_rounds": BUFF_DURATION,
         }, "Env Check", db)
 
     if req.group_id:

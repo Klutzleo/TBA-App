@@ -1,24 +1,12 @@
 """
-Character creation and level-up utilities for TBA v1.5.
-Auto-calculates Edge, BAP, max DP from CORE_RULESET.
+Character creation and level-up utilities (rules v3.1).
+Edge, BAP, max DP, uses, weapon and defense dice all come from schemas/leveling_v3_1.json via backend.leveling.
 """
 
-from schemas.loader import CORE_RULESET
+from backend.leveling import CHARACTER_LEVELS, level_stats, weapon_options
 
-
-# DP progression by level (from TBA v1.5 rules)
-DP_BY_LEVEL = {
-    1: 10,
-    2: 15,
-    3: 20,
-    4: 25,
-    5: 30,
-    6: 35,
-    7: 40,
-    8: 45,
-    9: 50,
-    10: 55
-}
+# DP progression by level (v3.1: 8 at level 1, +2 per level). Derived, never edited here.
+DP_BY_LEVEL = {lvl: row["max_dp"] for lvl, row in CHARACTER_LEVELS.items()}
 
 
 def calculate_level_stats(level: int) -> dict:
@@ -32,7 +20,7 @@ def calculate_level_stats(level: int) -> dict:
         {
             "edge": int (0-5),
             "bap": int (1-5),
-            "max_dp": int (10-55)
+            "max_dp": int (8-26)
         }
     
     Raises:
@@ -41,13 +29,11 @@ def calculate_level_stats(level: int) -> dict:
     if level < 1 or level > 10:
         raise ValueError(f"Level must be 1-10, got {level}")
     
-    level_str = str(level)
-    level_data = CORE_RULESET.get("character_leveling", {}).get(level_str, {})
-    
+    row = level_stats(level)
     return {
-        "edge": level_data.get("Edge", 0),
-        "bap": level_data.get("BAP", 1),
-        "max_dp": DP_BY_LEVEL.get(level, 10)
+        "edge": row["edge"],
+        "bap": row["bap"],
+        "max_dp": row["max_dp"],
     }
 
 
@@ -59,18 +45,9 @@ def get_available_attack_styles(level: int) -> list[str]:
         level: Character level (1-10)
     
     Returns:
-        List of available attack die strings (e.g., ["3d4", "2d6", "1d8"])
+        List of available attack die strings, single die first (e.g., ["1d8", "2d6"])
     """
-    if level <= 2:
-        return ["1d4"]
-    elif level <= 4:
-        return ["2d4", "1d6"]
-    elif level <= 6:
-        return ["3d4", "2d6", "1d8"]
-    elif level <= 8:
-        return ["4d4", "3d6", "2d8", "1d10"]
-    else:  # 9-10
-        return ["5d4", "4d6", "3d8", "2d10", "1d12"]
+    return weapon_options(level)
 
 
 def get_defense_die(level: int) -> str:
@@ -83,16 +60,7 @@ def get_defense_die(level: int) -> str:
     Returns:
         Defense die string (e.g., "1d8")
     """
-    if level <= 2:
-        return "1d4"
-    elif level <= 4:
-        return "1d6"
-    elif level <= 6:
-        return "1d8"
-    elif level <= 8:
-        return "1d10"
-    else:  # 9-10
-        return "1d12"
+    return level_stats(level)["defense_die"]
 
 
 def validate_stats(pp: int, ip: int, sp: int) -> bool:

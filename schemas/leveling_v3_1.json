@@ -1,0 +1,130 @@
+{
+  "_about": "TBA rules v3.1, player character leveling (levels 1-10). The single source of truth for numbers: the backend reads this file, and tests/test_leveling_tables.py fails if static/game.html, create-character.html or create-ally.html drift from it. Ascension (11-15) and the Ally table are added in later phases.",
+  "version": "3.1",
+  "characters": {
+    "1": {
+      "max_dp": 8,
+      "edge": 0,
+      "bap": 1,
+      "defense_die": "1d4",
+      "weapon_options": [
+        "1d4"
+      ],
+      "uses_per_encounter": 3
+    },
+    "2": {
+      "max_dp": 10,
+      "edge": 1,
+      "bap": 1,
+      "defense_die": "1d4",
+      "weapon_options": [
+        "1d4"
+      ],
+      "uses_per_encounter": 4
+    },
+    "3": {
+      "max_dp": 12,
+      "edge": 1,
+      "bap": 2,
+      "defense_die": "1d6",
+      "weapon_options": [
+        "1d6",
+        "2d4"
+      ],
+      "uses_per_encounter": 5
+    },
+    "4": {
+      "max_dp": 14,
+      "edge": 2,
+      "bap": 2,
+      "defense_die": "1d6",
+      "weapon_options": [
+        "1d6",
+        "2d4"
+      ],
+      "uses_per_encounter": 6
+    },
+    "5": {
+      "max_dp": 16,
+      "edge": 2,
+      "bap": 3,
+      "defense_die": "1d8",
+      "weapon_options": [
+        "1d8",
+        "2d6"
+      ],
+      "uses_per_encounter": 7
+    },
+    "6": {
+      "max_dp": 18,
+      "edge": 3,
+      "bap": 3,
+      "defense_die": "1d8",
+      "weapon_options": [
+        "1d8",
+        "2d6"
+      ],
+      "uses_per_encounter": 8
+    },
+    "7": {
+      "max_dp": 20,
+      "edge": 3,
+      "bap": 4,
+      "defense_die": "1d10",
+      "weapon_options": [
+        "1d10",
+        "2d8",
+        "3d6"
+      ],
+      "uses_per_encounter": 9
+    },
+    "8": {
+      "max_dp": 22,
+      "edge": 4,
+      "bap": 4,
+      "defense_die": "1d10",
+      "weapon_options": [
+        "1d10",
+        "2d8",
+        "3d6"
+      ],
+      "uses_per_encounter": 10
+    },
+    "9": {
+      "max_dp": 24,
+      "edge": 4,
+      "bap": 5,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 11
+    },
+    "10": {
+      "max_dp": 26,
+      "edge": 5,
+      "bap": 5,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 12
+    }
+  },
+  "buff_debuff": {
+    "_about": "Buff or debuff size by the spell die that makes it. Every buff and debuff lasts 2 rounds.",
+    "modifier_by_die": {
+      "1d6": 1,
+      "1d8": 2,
+      "1d10": 2,
+      "1d12": 3,
+      "2d6": 3,
+      "2d8": 4
+    },
+    "duration_rounds": 2
+  }
+}

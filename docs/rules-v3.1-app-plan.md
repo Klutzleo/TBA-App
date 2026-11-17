@@ -47,7 +47,12 @@ No risk.
 - Scar or fear becomes a Tether; a limitation just stays (today scars go in `battle_scars`).
 - Tests: tie, clean return does not count, 4 clean returns then 5th Calling still rolls, 5th Mark dies.
 
-**Phase 2: one source of truth for the numbers.**
+**Phase 2: one source of truth for the numbers. BUILT on branch rules-v3.1-phase2 (not on main until the prod migration is approved).**
+Deviation from the plan: the pages do not fetch the numbers from an endpoint. They are static files with
+top-level consts read at load, so making them async would be risky in a 14k-line page. Instead the backend reads
+`schemas/leveling_v3_1.json` and `tests/test_leveling_tables.py` fails if any front-end copy drifts (it found two
+extra hand-typed copies: the help table and the SW set-level popup). Shipping order: deploy the code, run
+`scripts/migrate_rules_v31.py` (dry run first, then --apply, --undo available), then done.
 - New `schemas/leveling_v3_1.json` (DP, Edge, BAP, defense die, weapon options, spell dice per slot, uses, Ally table).
 - Backend reads it; the 5 front-end copies fetch it from a public endpoint (`/api/public/leveling`) instead of
   carrying their own tables. This removes the "stays in sync" problem for good.

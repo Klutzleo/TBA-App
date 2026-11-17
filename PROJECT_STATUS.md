@@ -4,7 +4,7 @@ priority: high
 category: app
 progress: 83
 focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
-next_milestone: "v3.1 Phase 1 (The Calling fixes), then Phase 2 (one leveling table + new DP/uses/dice numbers)"
+next_milestone: "Deploy v3.1 Phase 2 and run the character migration (needs Jason's go), then Phase 3 (shared uses pool)"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -107,6 +107,8 @@ First file to open: `docs/rules-v3.1-app-plan.md`, then `routes/character_fastap
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
+2026-11-17 (later): v3.1 Phase 1 (The Calling) is live in prod. Phase 2 is built on branch `rules-v3.1-phase2` and NOT deployed: one leveling file `schemas/leveling_v3_1.json` read by `backend/leveling.py`, DP 8 +2/level, uses level + 2, trap weapon dice removed, new buff table (+1,+2,+2,+3,+3,+4, 2 rounds), plus `scripts/migrate_rules_v31.py` (dry run by default, saves old values, --undo) to move existing characters. 244 tests pass; the pages were only checked for script errors in a browser, not played. The migration has NOT been run against prod and needs Jason's go-ahead (prod write). After deploy and before the migration, existing characters still show old DP.
+
 2026-11-17: Phase 0 of v3.1: replaced `Rulebook.md` with the final v3.1 Core Rules and rebuilt `LevelingTable.md` from the three tables inside it (character, Ally, vehicle). Docs only, no app code changed, branch `rules-v3.1`, not pushed. Also on that branch: the audit and plan in `docs/rules-v3.1-app-plan.md`. Tests were run (212 passed, 5 skipped) after pinning starlette to 0.38.6 locally; the app was not run.
 
 2026-11-16 (recorded from commit messages and the session): Banner header preview now uses the real game header's proportions (7375dea, checked in a browser against the real header at several focus values). Summon fixes shipped Nov 4-16: a summon that is out acts through the normal cast pipeline with a saved card and an SW Act button, summon/dismiss/drain cards keep their style after refresh. The Railway breach (Oct 21) response is complete: SECRET_KEY, API_KEY, VAPID keys, Postgres password, R2 token, Resend key and Discord bot token were all rotated and verified live; `MODERATION_EMAIL` is still not set in Railway (reports go to the admin accounts until it is). The summon DP drain and "acting is free" behavior are superseded by v3.1 (see Next up).
