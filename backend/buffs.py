@@ -62,3 +62,31 @@ def tick_round(db, campaign_id) -> list:
             expired.append(str(e.id))
             db.delete(e)
     return expired
+
+
+DAMAGE_EFFECT_TYPE = "dot"   # modifier_type of a Damage Effect (poison, burning, bleeding...). It carries no stat modifier.
+
+
+def add_damage_effect(db, *, campaign_id, character_id, name, die, stat, caster_name, duration_rounds=2):
+    """A Damage Effect landed. The target takes `die` once at the start of their next turn and may resist for half (rules
+    v3.1). A new one replaces the old one. If their next turn never comes (the encounter ends), it runs out after
+    `duration_rounds`. The caller commits."""
+    for old in db.query(ActiveEffect).filter(ActiveEffect.character_id == character_id,
+                                             ActiveEffect.modifier_type == DAMAGE_EFFECT_TYPE).all():
+        db.delete(old)
+    effect = ActiveEffect(
+        campaign_id=campaign_id, character_id=character_id, name=name, modifier=0, modifier_type=DAMAGE_EFFECT_TYPE,
+        duration_rounds=duration_rounds, applied_by=caster_name,
+        data={"die": die, "stat": (stat or "PP").upper(), "caster": caster_name, "ability": name},
+    )
+    db.add(effect)
+    return effect
+
+
+def remove_damage_effect(db, character_id, caster_name=None, name=None):
+    """Take a Damage Effect back off (a Boost that turned a landed cast into a resisted one). The caller commits."""
+    q = db.query(ActiveEffect).filter(ActiveEffect.character_id == character_id,
+                                      ActiveEffect.modifier_type == DAMAGE_EFFECT_TYPE)
+    for e in q.all():
+        if (caster_name is None or e.applied_by == caster_name) and (name is None or e.name == name):
+            db.delete(e)

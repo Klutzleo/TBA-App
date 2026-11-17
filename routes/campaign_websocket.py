@@ -26,7 +26,7 @@ from backend.models import Party, Character, User, CampaignMembership, Message, 
 from backend.auth.jwt import decode_access_token
 from backend.roll_logic import roll_dice
 from backend.uses import spend as spend_use, pool_remaining, pool_max, refill as refill_uses
-from backend.buffs import effect_modifier, add_effect, tick_round
+from backend.buffs import effect_modifier, add_effect, tick_round, add_damage_effect
 from backend.ascension import secondary_unlocked
 from routes.schemas.campaign import (
     ChatMessage,
@@ -1758,6 +1758,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             })
             return
 
+        if ability.effect_type == "healing":     # the NPC ability editor used to save "healing"; the rules call it "heal"
+            ability.effect_type = "heal"
+
         # --- Summon gate ---
         # Casting a summon ability with no summon out just summons it (no target). With one already out,
         # the cast is the summon ACTING: it falls through to the normal damage/heal/debuff pipeline below
@@ -2205,6 +2208,52 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 else:
                     narrative_parts.append(f"{target_name} resists {ability.display_name}!")
 
+        elif ability.effect_type == "dot":
+            # Damage Effects (poison, burning, bleeding, ...), rules v3.1: cast like a debuff and defended the same way
+            # (1d6 + the same stat + Edge). If it lands, the target takes the spell die ONCE at the start of their next
+            # turn and can resist it for half. A new one replaces the old one. See _resolve_damage_effects.
+            if not target_names:
+                await manager.broadcast(campaign_id, {
+                    "type": "system",
+                    "text": f"❌ {ability.display_name} requires a target. Use: {macro_command} @Target"
+                })
+                return
+            for target_name in target_names:
+                target = db.query(Character).filter(
+                    Character.name == target_name, Character.campaign_id == str(campaign_id)).first()
+                if not target:
+                    results.append({"target": target_name, "success": False, "message": "Target not found"})
+                    continue
+                if target.is_summon or target.is_object:
+                    results.append({"target": target_name, "success": False,
+                                    "message": "can't be hit by a Damage Effect (it has hits, not DP)" if target.is_summon
+                                    else "can't be hit by a Damage Effect"})
+                    continue
+                dot_roll = roll_dice(ability.die)
+                dot_fx = effect_modifier(db, fx_actor.id, ability.power_source)
+                dot_total = sum(dot_roll) + power_stat + (caster.edge or 0) + dot_fx
+                t_label = (ability.power_source or "PP").upper()
+                t_stat = {"PP": target.pp, "IP": target.ip, "SP": target.sp}.get(t_label, 0) or 0
+                t_fx = effect_modifier(db, target.id, t_label)
+                resist_roll = roll_dice("1d6")
+                resist_total = sum(resist_roll) + t_stat + (target.edge or 0) + t_fx
+                landed = dot_total > resist_total
+                results.append({
+                    "target": target_name, "success": landed, "caster_roll": dot_total, "defense_roll": resist_total,
+                    "margin": dot_total - resist_total, "dot": True, "dot_die": ability.die,
+                    "attack_breakdown": (f"{ability.die} = [{' + '.join(str(x) for x in dot_roll)}] + {ability.power_source}({power_stat}) + "
+                                         f"Edge({caster.edge or 0}){_fx_label(dot_fx)} = {dot_total}"),
+                    "defense_breakdown": (f"1d6 = [{' + '.join(str(x) for x in resist_roll)}] + {t_label}({t_stat}) + "
+                                          f"Edge({target.edge or 0}){_fx_label(t_fx)} = {resist_total}"),
+                })
+                if landed:
+                    add_damage_effect(db, campaign_id=campaign_id, character_id=target.id, name=ability.display_name,
+                                      die=ability.die, stat=ability.power_source, caster_name=caster.name)
+                    effects_changed = True
+                    narrative_parts.append(f"{target_name} is hit by {ability.display_name}! They take {ability.die} at the start of their next turn.")
+                else:
+                    narrative_parts.append(f"{target_name} resists {ability.display_name}!")
+
         # Ascension (levels 11-15, rules v3.1): the ability ALSO does its secondary effect whenever it lands. It is part of
         # the same activation: no extra use and no second roll. A debuff lands automatically; a new one on the same stat
         # replaces the old. It never deals damage.
@@ -2233,7 +2282,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 narrative_parts.append(f"✨ {sec['note']}")
 
         # Decrement uses only if at least one target was actually found (not a typo/miss-target)
-        all_targets_missing = results and all(r.get("message") == "Target not found" for r in results)
+        all_targets_missing = results and all(r.get("message") for r in results)   # nothing was rolled for any target
         spends_a_use = not heal_is_free and (ability.effect_type != "heal" or heal_applied)
         if not all_targets_missing and spends_a_use:    # a summon acting costs its summoner 1 use too
             spend_use(caster, 1)
@@ -2864,7 +2913,7 @@ async def _broadcast_effects(campaign_uuid, db):
         "effects": [{
             "id": str(e.id), "character_id": str(e.character_id) if e.character_id else None,
             "name": e.name, "modifier": e.modifier, "modifier_type": e.modifier_type,
-            "duration_rounds": e.duration_rounds, "applied_by": e.applied_by,
+            "duration_rounds": e.duration_rounds, "applied_by": e.applied_by, "data": e.data,
         } for e in effects],
     })
 
@@ -5022,6 +5071,61 @@ def next_round_number(current_round, old_index, new_index):
     round_number = current_round or 1
     return round_number + 1 if new_index <= old_index else round_number
 
+async def _resolve_damage_effects_at_turn_start(campaign_uuid, db, active_roll):
+    """Damage Effects (rules v3.1): at the start of a character's turn, each Damage Effect on them hurts them ONCE. The damage is
+    the spell die; they resist by beating or tying it with 1d6 + the stat + Edge and take half, rounded down. It can take them
+    to 0 and below, all the way to -10 and The Calling."""
+    from backend.models import ActiveEffect
+    char = None
+    if active_roll.character_id:
+        char = db.query(Character).filter(Character.id == active_roll.character_id).first()
+    elif active_roll.npc_id is not None:
+        char = db.query(Character).filter(Character.name == active_roll.name,
+                                          Character.campaign_id == str(campaign_uuid), Character.is_npc == True).first()  # noqa: E712
+    if char is None or char.is_summon:
+        return
+    for e in db.query(ActiveEffect).filter(ActiveEffect.character_id == char.id,
+                                           ActiveEffect.modifier_type == "dot").all():
+        data = e.data or {}
+        die = data.get("die") or "1d6"
+        label = (data.get("stat") or "PP").upper()
+        stat_val = {"PP": char.pp, "IP": char.ip, "SP": char.sp}.get(label, 0) or 0
+        damage_roll = sum(roll_dice(die))
+        resist_dice = roll_dice("1d6")
+        tether_mod, _ = _active_tethers(char)
+        resist_total = sum(resist_dice) + stat_val + (char.edge or 0) + effect_modifier(db, char.id, label) + tether_mod
+        resisted = resist_total >= damage_roll
+        damage = damage_roll // 2 if resisted else damage_roll
+        db.delete(e)                                          # it fires once
+        if char.status != "active" or char.in_calling:
+            db.commit()
+            continue
+        old_dp = char.dp
+        char.dp = old_dp - damage
+        db.commit()
+        text = (f"☠️ {e.name} hurts {char.name} at the start of their turn: {die} = {damage_roll}"
+                f"{' (resisted: 1d6 + ' + label + ' + Edge = ' + str(resist_total) + ', half = ' + str(damage) + ')' if resisted else ' (resist roll ' + str(resist_total) + ' was not enough)'}"
+                f". DP {old_dp} → {char.dp}")
+        msg = Message(campaign_id=campaign_uuid, party_id=None, sender_id=char.id, sender_name=char.name,
+                      message_type="damage_effect", content=text,
+                      extra_data={"character_id": str(char.id), "character_name": char.name, "effect": e.name,
+                                  "damage": damage, "damage_roll": damage_roll, "resisted": resisted,
+                                  "old_dp": old_dp, "new_dp": char.dp})
+        db.add(msg)
+        db.commit()
+        await manager.broadcast(campaign_uuid, {
+            "type": "damage_effect", "character_id": str(char.id), "character_name": char.name, "effect": e.name,
+            "damage": damage, "damage_roll": damage_roll, "resisted": resisted, "old_dp": old_dp, "new_dp": char.dp,
+            "max_dp": char.max_dp, "message": text, "message_id": str(msg.id),
+        })
+        if damage > 0:
+            await cancel_holding_combos_on_damage(campaign_uuid, char.id, db)
+        if char.dp <= -10 and not char.is_npc and not char.in_calling:
+            await _trigger_the_calling(char, campaign_uuid, db)
+        if (char.dp or 0) <= 0:
+            await _dismiss_summons_of(campaign_uuid, char, db, f"{char.name} dropped to 0 DP.")
+
+
 async def advance_turn(
     campaign_uuid: UUID,
     user_uuid: UUID,
@@ -5125,6 +5229,7 @@ async def advance_turn(
                 "modifier": e.modifier,
                 "modifier_type": e.modifier_type,
                 "duration_rounds": e.duration_rounds,
+                "data": e.data,
             }
             for e in remaining_effects
         ]
@@ -5146,6 +5251,9 @@ async def advance_turn(
             "expired_effect_ids": expired_ids,
             "skipped_holding": skipped_holders,
         })
+
+        # Damage Effects (poison, burning, bleeding) hurt at the start of the target's turn
+        await _resolve_damage_effects_at_turn_start(campaign_uuid, db, active_roll)
 
         # Check if the character whose turn it is is the acceptor of a pending combo
         def _ability_list(char):

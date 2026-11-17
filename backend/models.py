@@ -912,6 +912,7 @@ class ActiveEffect(Base):
     modifier_type  = Column(String(20),  nullable=False, default='custom')  # attack | defense | initiative | custom
     duration_rounds= Column(Integer,     nullable=True)   # NULL = permanent until removed
     applied_by     = Column(String(100), nullable=True)
+    data           = Column(JSON,        nullable=True)   # Damage Effects: {die, stat, caster, ability}
     created_at     = Column(DateTime,    default=datetime.utcnow)
 
     character = relationship("Character", foreign_keys=[character_id])

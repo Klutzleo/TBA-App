@@ -19,6 +19,7 @@ from backend.character_utils import (
     validate_ally_attack_style,
 )
 from backend.leveling import uses_for_level as _uses_for_level, ALLY_LEVELS as _ALLY_LEVELS
+from backend.buffs import add_damage_effect, remove_damage_effect
 from backend.ascension import normalize_secondary, secondary_unlocked, secondary_unlock_level
 from backend.tethers import (STORY_TETHER_LIMIT, story_tether_count, clamp_tether_modifier, net_modifier, active_net,
                              new_tether, source_of, apply_ally_death, EXTRA_SOURCES)
@@ -3307,7 +3308,7 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
     effect_type = extra.get("effect_type")
     if effect_type == "buff":
         raise HTTPException(status_code=400, detail="A buff has no roll, so there is nothing to boost")
-    if effect_type not in ("damage", "heal", "debuff"):
+    if effect_type not in ("damage", "heal", "debuff", "dot"):
         raise HTTPException(status_code=400, detail="This cast can't be boosted")
 
     label = " + ".join(
@@ -3365,6 +3366,25 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
             narrative_parts.append(f"{name} restores {healing} DP (DP: {r.get('old_dp')} → {r.get('new_dp')})")
             if old_total is None:
                 old_total, new_total = old_heal, healing
+
+        elif effect_type == "dot":
+            # a Damage Effect cast: a Boost that lands it puts it on the target, one that un-lands it takes it back off
+            if r.get("caster_roll") is None:
+                continue
+            was_landed = bool(r.get("success"))
+            new_caster = r["caster_roll"] + total_bonus
+            margin = new_caster - (r.get("defense_roll") or 0)
+            landed = margin > 0
+            r.update(caster_roll=new_caster, margin=margin, success=landed, boost_bonus=total_bonus,
+                     attack_breakdown=with_boost(r.get("attack_breakdown"), new_caster))
+            if landed and not was_landed and target is not None:
+                add_damage_effect(db, campaign_id=char.campaign_id, character_id=target.id, name=ability_name,
+                                  die=extra.get("ability_die") or "1d6", stat=extra.get("power_source"), caster_name=char.name)
+            elif was_landed and not landed and target is not None:
+                remove_damage_effect(db, target.id, caster_name=char.name, name=ability_name)
+            narrative_parts.append(f"{name} is hit by {ability_name}!" if landed else f"{name} resists {ability_name}!")
+            if old_total is None:
+                old_total, new_total = r["caster_roll"] - total_bonus, new_caster
 
         else:  # debuff
             if r.get("caster_roll") is None:

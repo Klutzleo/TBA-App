@@ -1995,6 +1995,7 @@ def _effect_to_dict(e: ActiveEffect) -> dict:
         "modifier_type": e.modifier_type,
         "duration_rounds": e.duration_rounds,
         "applied_by": e.applied_by,
+        "data": e.data,
     }
 
 

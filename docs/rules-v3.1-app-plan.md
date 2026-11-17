@@ -150,3 +150,17 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
    and heal effects (a real feature, probably its own phase)?
 5. **NPCs on the migration. ANSWERED (Nov 17, Jason): migrate all NPCs.** Hand-set boss DP will move to the table value; tell the SW to re-tune after. Original question: Convert every NPC to the new table, or only ones built from the table (not hand-set DP)?
 6. **Buff timing. ANSWERED (Nov 17, Jason): round-based, the cast round plus the next.** Original question: I plan to count rounds (the cast round plus the next), not each character's own turn. Fine?
+
+
+## Finish-v3.1 extras (after Phase 9)
+
+- **Damage Effects: BUILT on branch rules-v3.1-extras, not yet on main. Needs migration 036** (`active_effects.data`).
+  Effect type `dot` ("Damage Effect"): cast like a debuff, defended with 1d6 + stat + Edge; if it lands the target takes the spell
+  die once at the start of their next turn (resolved automatically by the server, resist for half rounded down), it can reach -10
+  and The Calling, a new one replaces the old one, a summon cannot be hit by one. Boost works on it. Side fixes found on the way:
+  a cast where no target was rolled for no longer spends a use; the NPC ability editor saved "healing", which casting never
+  recognised, so it now saves "heal" (old rows are treated as heals).
+- **BAP effect: not built, waiting on Jason.** It is in the SW Guide, not the Core: a BAP moment can also give +1 or -1 until the
+  start of the target's next turn, the SW picks the stat, same one-per-stat rule. The SW can already do this by hand with the
+  Add Effect button.
+- **All-or-nothing Combo save (Option A): not built.**

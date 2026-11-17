@@ -6956,6 +6956,12 @@
         lines.push(`  💚 Roll: ${r.roll_breakdown}`);
       } else if (et === 'buff') {
         lines.push(`→ ${r.target}  ${r.buff_stat || ''} +${r.buff_modifier} for ${r.buff_duration} round${r.buff_duration !== 1 ? 's' : ''}`);
+      } else if (et === 'dot') {
+        lines.push(r.success
+          ? `vs ${r.target}  →  ☠️ hit: they take ${r.dot_die || ''} at the start of their next turn (resist for half)`
+          : `vs ${r.target}  →  💨 Resisted`);
+        lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
+        lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
       } else if (et === 'debuff') {
         if (r.success) {
           lines.push(`vs ${r.target}  →  💥 ${r.debuff_stat || ''} -${Math.abs(r.debuff_modifier || 0)} for ${r.debuff_duration} round${r.debuff_duration !== 1 ? 's' : ''}`);
@@ -6974,7 +6980,7 @@
       if (!r) return null;
       if (d.effect_type === 'damage' && r.attack_roll !== undefined) return r.attack_roll;
       if (d.effect_type === 'heal' && r.healing !== undefined) return r.healing;
-      if (d.effect_type === 'debuff' && r.caster_roll !== undefined) return r.caster_roll;
+      if ((d.effect_type === 'debuff' || d.effect_type === 'dot') && r.caster_roll !== undefined) return r.caster_roll;
       return null;
     }
 
@@ -7839,6 +7845,11 @@
           const textColor = isDebuff ? '#f87171' : '#6ee7b7';
           const modStr = e.modifier !== 0 ? (e.modifier > 0 ? ` +${e.modifier}` : ` ${e.modifier}`) : '';
           const durStr = e.duration_rounds != null ? ` (${e.duration_rounds}r)` : '';
+          if (e.modifier_type === 'dot') {
+            const dotRemove = editable ? `<span onclick="removeEffect('${e.id}')" style="margin-left:3px;cursor:pointer;opacity:0.6;" title="Remove">×</span>` : '';
+            return `<span style="font-size:0.7rem;padding:1px 6px;border-radius:10px;background:rgba(220,38,38,0.15);border:1px solid rgba(220,38,38,0.45);color:#fca5a5;"
+              title="Damage Effect: takes ${escHtml((e.data && e.data.die) || '')} at the start of their next turn, can resist for half">☠ ${escHtml(e.name)}${e.data && e.data.die ? ' (' + escHtml(e.data.die) + ')' : ''}${dotRemove}</span>`;
+          }
           const removeBtn = editable ? `<span onclick="removeEffect('${e.id}')" style="margin-left:3px;cursor:pointer;opacity:0.6;" title="Remove">×</span>` : '';
           return `<span style="font-size:0.7rem;padding:1px 6px;border-radius:10px;background:${color};border:1px solid ${border};color:${textColor};"
             title="${e.modifier_type}${modStr}${durStr}">${escHtml(e.name)}${modStr}${durStr}${removeBtn}</span>`;
@@ -9488,7 +9499,7 @@
 
     // Summon appeared (gold) or went away (grey). One builder so the live card and the reloaded history card match.
     function buildSummonNoticeCard(text, kind) {
-      const look = { created: ['#d4af37', '#d4af37;font-weight:600'], dismissed: ['#6b7280', '#9ca3af'], drain: ['#7c3aed', '#a78bfa'] }[kind] || ['#6b7280', '#9ca3af'];
+      const look = { created: ['#d4af37', '#d4af37;font-weight:600'], dismissed: ['#6b7280', '#9ca3af'], drain: ['#7c3aed', '#a78bfa'], dot: ['#dc2626', '#fca5a5'] }[kind] || ['#6b7280', '#9ca3af'];
       const el = document.createElement('div');
       el.className = 'message-card message-combat';
       el.style.cssText = `border-left:3px solid ${look[0]};padding:8px 12px;`;
@@ -9917,9 +9928,10 @@
                 <select id="editAbility_effect_${slot.slot}" class="form-input"
                   onchange="toggleDebuffStat(this, '${slot.slot}')">
                   <option value="damage" ${existing?.effect_type === 'damage' ? 'selected' : ''}>Damage</option>
-                  <option value="healing" ${existing?.effect_type === 'healing' ? 'selected' : ''}>Healing</option>
+                  <option value="heal" ${(existing?.effect_type === 'heal' || existing?.effect_type === 'healing') ? 'selected' : ''}>Healing</option>
                   <option value="buff" ${existing?.effect_type === 'buff' ? 'selected' : ''}>Buff</option>
                   <option value="debuff" ${existing?.effect_type === 'debuff' ? 'selected' : ''}>Debuff</option>
+                  <option value="dot" ${existing?.effect_type === 'dot' ? 'selected' : ''}>Damage Effect (poison, burning, bleeding)</option>
                   <option value="utility" ${existing?.effect_type === 'utility' ? 'selected' : ''}>Utility</option>
                 </select>
               </div>
@@ -12750,8 +12762,8 @@
                 storeAndDisplayMessage(container, { type: 'ability_cast', timestamp: msg.timestamp, message_id: msg.id, ...data });
               }
               // Summon appeared / went away: same gold and grey cards as when they happened live
-              else if (msg.message_type === 'summon_created' || msg.message_type === 'summon_dismissed' || msg.message_type === 'summon_dp_drain') {
-                const kind = { summon_created: 'created', summon_dismissed: 'dismissed', summon_dp_drain: 'drain' }[msg.message_type];
+              else if (msg.message_type === 'summon_created' || msg.message_type === 'summon_dismissed' || msg.message_type === 'summon_dp_drain' || msg.message_type === 'damage_effect') {
+                const kind = { summon_created: 'created', summon_dismissed: 'dismissed', summon_dp_drain: 'drain', damage_effect: 'dot' }[msg.message_type];
                 storeAndDisplayMessage(buildSummonNoticeCard(msg.content, kind),
                   { type: msg.message_type, timestamp: msg.timestamp, message_id: msg.id, ...(msg.extra_data || {}) });
               }
@@ -14598,6 +14610,15 @@
               }
               showPanelToast(`🔗 ${data.summon_name} drains 1 DP from ${data.character_name}`, 'warning');
               addMessage(buildSummonNoticeCard(data.message, 'drain'), '', data, true);
+
+            } else if (data.type === 'damage_effect') {
+              // Poison, burning, bleeding: hurt at the start of the target's turn (rules v3.1)
+              if (data.character_id === characterId) {
+                const dpEl = document.getElementById('playerDP');
+                if (dpEl) dpEl.textContent = data.new_dp;
+              }
+              addMessage(buildSummonNoticeCard(data.message, 'dot'), '', data, true);
+              loadCharacters();
 
             } else if (data.type === 'abilities_restored') {
               // Party rest - abilities restored
