@@ -198,7 +198,8 @@ def test_a_combo_debuff_is_resisted_with_1d6_and_counts_one_step_higher(world):
     finally:
         cw.manager.broadcast = original
     assert asked[:2] == ["1d6", "1d6"], asked                      # the cast die, then 1d6 to resist, NOT the target's 1d12
-    assert [(e.modifier_type, e.modifier) for e in _effects(world, t)] == [("ip", -2)]   # 1d6 is -1, a Combo makes it -2
+    # this Combo has an ATTACK (the other side is a damage ability), so there is no step-up: a 1d6 debuff stays -1
+    assert [(e.modifier_type, e.modifier) for e in _effects(world, t)] == [("ip", -1)]
 
 
 def test_the_triple_combo_adds_two_to_every_roll(world):
@@ -254,3 +255,65 @@ def test_a_named_combo_fires_only_once_per_encounter_and_the_triple_needs_level_
     asyncio.run(cw._handle_triple_combo_propose(world["camp"].id, u1.id,
                 {"partner_a_character_id": str(b.id), "partner_b_character_id": str(c.id)}, WS(), world["db"]))
     assert any("level 11" in (m.get("message") or "") for m in sent), sent
+
+
+def test_a_debuff_with_no_attack_in_the_combo_counts_one_step_higher(world):
+    a, b = world["pc"](world["p1"], "StepA"), world["pc"](world["p2"], "StepB")
+    t = world["target"]("Plain2")
+    world["ability"](a, 1, "debuff", die="1d6", stat="IP"); world["ability"](b, 1, "buff", die="1d6", stat="PP")
+    world["encounter"]()
+    _fire(world, a, 1, t.name, b, 1, a.name, dice=[6, 1, 1])        # the debuff lands; the buff goes on A
+    assert [(e.modifier_type, e.modifier) for e in _effects(world, t)] == [("ip", -2)], "no attack: 1d6 (-1) steps up to -2"
+    assert [(e.modifier_type, e.modifier) for e in _effects(world, a)] == [("pp", 2)]
+
+
+def test_lost_picks_after_a_restart_spend_nothing_and_do_not_mark_the_combo_fired(world):
+    """Rules check: the use and the once-per-encounter flag are only committed with the result."""
+    from routes import campaign_websocket as cw
+    u1, u2 = world["new_player"]("lost1"), world["new_player"]("lost2")
+    a, b = world["pc"](u1, "LostA"), world["pc"](u2, "LostB")
+    t = world["target"]("Dummy4")
+    world["ability"](a, 1, "damage"); world["ability"](b, 1, "damage")
+    enc = world["encounter"]()
+    pending = world["PendingCombo"](id=uuid.uuid4(), encounter_id=enc.id, campaign_id=world["camp"].id,
+                                    proposer_character_id=a.id, acceptor_character_id=b.id, status="ready",
+                                    proposer_ability_slot=1, acceptor_ability_slot=1)
+    world["db"].add(pending)
+    world["db"].commit()
+    # no entry in _combo_targets: that is exactly what a restart does
+    sent = []
+
+    async def fake_send(_cid, _uid, msg):
+        sent.append(msg)
+
+    async def fake_broadcast(_cid, msg):
+        sent.append(msg)
+
+    orig_send, orig_bc = cw.manager.send_to_user, cw.manager.broadcast
+    cw.manager.send_to_user, cw.manager.broadcast = fake_send, fake_broadcast
+    try:
+        with mock.patch("routes.campaign_websocket.roll_dice", return_value=[4]):
+            asyncio.run(cw._resolve_combo(world["camp"].id, pending, world["db"]))
+    finally:
+        cw.manager.send_to_user, cw.manager.broadcast = orig_send, orig_bc
+    world["db"].expire_all()
+    assert (a.current_uses, b.current_uses) == (10, 10), "no use was spent"
+    assert t.dp == 100, "nothing was hit"
+    assert pending.status == "ready", "the Combo is not marked fired"
+    assert pending.proposer_ability_slot is None and pending.acceptor_ability_slot is None
+    assert not any(m.get("type") == "combo_resolved" for m in sent)
+    prompts = [m for m in sent if m.get("type") == "combo_fire_ready"]
+    assert len(prompts) == 2 and all("Nothing was spent" in m["notice"] for m in prompts), sent
+    assert prompts[0]["your_abilities"], "the picker can be shown again"
+
+
+def test_the_use_and_the_fired_flag_commit_with_the_result_card(world):
+    from backend.models import Message
+    a, b = world["pc"](world["p1"], "AfterA"), world["pc"](world["p2"], "AfterB")
+    t = world["target"]("Dummy5")
+    world["ability"](a, 1, "damage"); world["ability"](b, 1, "damage")
+    world["encounter"]()
+    card = _fire(world, a, 1, t.name, b, 1, t.name, dice=[4, 1, 4, 1])
+    assert card["message_id"] and world["db"].query(Message).filter_by(id=card["message_id"]).count() == 1
+    assert (a.current_uses, b.current_uses) == (9, 9)
+    assert card["proposer"]["uses_remaining"] == 9

@@ -5617,11 +5617,54 @@ def _combo_pick_error(db, char, campaign_uuid, slot, target_name):
     return None
 
 
-async def _combo_activation(campaign_uuid, db, char, slot, target_name, *, bonus=0):
+def _combo_has_attack(db, pairs) -> bool:
+    """True if any activation in the Combo is a damage ability. (Rules v3.1: only a Combo WITHOUT an attack counts its
+    buff or debuff one step higher.)"""
+    for char, slot in pairs:
+        ab = db.query(Ability).filter(Ability.character_id == char.id, Ability.slot_number == slot).first()
+        if ab and ab.effect_type == "damage":
+            return True
+    return False
+
+
+def _combo_ability_list(db, char) -> list:
+    return [{"slot": a.slot_number, "name": a.display_name, "die": a.die, "power_source": a.power_source,
+             "effect_type": a.effect_type, "uses_remaining": pool_remaining(char)}
+            for a in db.query(Ability).filter(Ability.character_id == char.id).order_by(Ability.slot_number).all()]
+
+
+async def _reprompt_lost_picks(campaign_uuid, db, combo, chars, triple=False):
+    """The picked targets are gone (a server restart between the picks and the result). Nothing has been rolled, spent or
+    marked fired. Clear the picks and ask everyone to choose again."""
+    for attr in ("proposer_ability_slot", "acceptor_ability_slot", "partner_a_ability_slot", "partner_b_ability_slot"):
+        if hasattr(combo, attr):
+            setattr(combo, attr, None)
+    db.commit()
+    bond = getattr(combo, "bond_ab", None) if triple else getattr(combo, "bond", None)
+    base = {
+        "type": "triple_combo_fire_ready" if triple else "combo_fire_ready",
+        "combo_id": str(combo.id),
+        "bond_name": (bond.combo_name if bond else None) or ("Triple Combo" if triple else "Combo"),
+        "bond_description": (bond.combo_description if bond else "") or "",
+        "notice": "The server restarted before your Combo fired. Nothing was spent. Please choose again.",
+    }
+    for ch in chars:
+        if ch and ch.user_id:
+            others = [o for o in chars if o and o.id != ch.id]
+            payload = {**base, "your_character_id": str(ch.id), "your_name": ch.name,
+                       "your_abilities": _combo_ability_list(db, ch)}
+            if triple:
+                payload["partner_names"] = [o.name for o in others]
+            else:
+                payload["partner_name"] = others[0].name if others else "Partner"
+            await manager.send_to_user(campaign_uuid, UUID(str(ch.user_id)), payload)
+
+
+async def _combo_activation(campaign_uuid, db, char, slot, target_name, *, bonus=0, step_up=False):
     """One participant's half of a Combo, fully resolved (rules v3.1). Rolls the ability with the character's own BAP
     added automatically, spends 1 use, then does what the ability does to its target: damage (the target defends, like any
-    spell), a heal, a buff, or a debuff (resisted with 1d6 + stat + Edge). Buffs and debuffs count one step higher on the
-    buff table. `bonus` is the Triple Combo +2. Returns (result dict, buff/debuff intents to apply together)."""
+    spell), a heal, a buff, or a debuff (resisted with 1d6 + stat + Edge). In a Combo with no attack, buffs and debuffs
+    count one step higher on the buff table (`step_up`). `bonus` is the Triple Combo +2. Returns (result dict, buff/debuff intents to apply together)."""
     from backend.models import EncounterHeal
     from backend.leveling import combo_step_modifier
 
@@ -5636,13 +5679,14 @@ async def _combo_activation(campaign_uuid, db, char, slot, target_name, *, bonus
     bap = char.bap or 1                       # a Combo always gets full BAP, automatically, on the roll itself
     fx = effect_modifier(db, char.id, stat_label)
     total = sum(rolls) + power_stat + (char.edge or 0) + bap + bonus + fx
-    spend_use(char, 1)                        # 1 use per character, from the shared pool (rules v3.1)
+    # The use is spent by the caller, in the same commit that writes the result card and marks the Combo fired, so a
+    # failure before that point never costs a use or burns the once-per-encounter slot.
     et = ability.effect_type
 
     out = {
         "slot": slot, "ability_name": ability.display_name, "die": ability.die, "power_source": ability.power_source,
         "power_stat": power_stat, "edge": char.edge or 0, "bap": bap, "rolls": rolls, "total": total,
-        "effect_type": et, "uses_remaining": pool_remaining(char), "bonus": bonus, "effects": fx,
+        "effect_type": et, "uses_remaining": max(0, pool_remaining(char) - 1), "bonus": bonus, "effects": fx,
         "target": None, "summary": "",
     }
     intents = []
@@ -5719,7 +5763,8 @@ async def _combo_activation(campaign_uuid, db, char, slot, target_name, *, bonus
         return out, intents
 
     stat_key = (ability.debuff_stat or ability.power_source or "PP").lower()
-    mod = combo_step_modifier(ability.die)
+    # Only a Combo WITHOUT an attack counts a buff or debuff one step higher on the buff table (rules v3.1)
+    mod = combo_step_modifier(ability.die) if step_up else BUFF_DEBUFF_TABLE.get(ability.die, 1)
     if et == "buff":
         intents.append({"target": target, "stat": stat_key, "modifier": mod, "name": ability.display_name,
                         "caster": char.name, "result": out})
@@ -5771,19 +5816,21 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
     proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
     acceptor_char = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
 
-    picks = _combo_targets.pop(str(combo.id), {})
+    picks = _combo_targets.pop(str(combo.id), None)
+    if picks is None or str(proposer_char.id) not in picks or str(acceptor_char.id) not in picks:
+        await _reprompt_lost_picks(campaign_uuid, db, combo, [proposer_char, acceptor_char])
+        return                                    # nothing rolled, spent or marked fired
+    step_up = not _combo_has_attack(db, [(proposer_char, combo.proposer_ability_slot),
+                                         (acceptor_char, combo.acceptor_ability_slot)])
     proposer_result, proposer_intents = await _combo_activation(
-        campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)))
+        campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)), step_up=step_up)
     acceptor_result, acceptor_intents = await _combo_activation(
-        campaign_uuid, db, acceptor_char, combo.acceptor_ability_slot, picks.get(str(acceptor_char.id)))
+        campaign_uuid, db, acceptor_char, combo.acceptor_ability_slot, picks.get(str(acceptor_char.id)), step_up=step_up)
     await _apply_combo_intents(campaign_uuid, db, proposer_intents + acceptor_intents)
 
     # BAP is already inside both totals above (full BAP, automatic). It is never banked for later.
     proposer_bap = proposer_result.get("bap", proposer_char.bap or 1)
     acceptor_bap = acceptor_result.get("bap", acceptor_char.bap or 1)
-
-    combo.status = "fired"
-    db.commit()
 
     bond_name = combo.bond.combo_name if combo.bond else "Combo"
     bond_desc = combo.bond.combo_description if combo.bond else ""
@@ -5805,6 +5852,10 @@ async def _resolve_combo(campaign_uuid: UUID, combo, db: Session):
             "bap_granted": {str(proposer_char.id): proposer_bap, str(acceptor_char.id): acceptor_bap},
         }
     )
+    # The use and the once-per-encounter flag are committed WITH the result card, never before it
+    spend_use(proposer_char, 1)
+    spend_use(acceptor_char, 1)
+    combo.status = "fired"
     db.add(combo_msg)
     db.commit()
 
@@ -6174,7 +6225,11 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
     partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
     partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
 
-    picks = _combo_targets.pop(str(combo.id), {})
+    picks = _combo_targets.pop(str(combo.id), None)
+    chars3 = [proposer_char, partner_a_char, partner_b_char]
+    if picks is None or any(str(c.id) not in picks for c in chars3):
+        await _reprompt_lost_picks(campaign_uuid, db, combo, chars3, triple=True)
+        return                                    # nothing rolled, spent or marked fired
     proposer_result, i1 = await _combo_activation(
         campaign_uuid, db, proposer_char, combo.proposer_ability_slot, picks.get(str(proposer_char.id)), bonus=2)
     partner_a_result, i2 = await _combo_activation(
@@ -6188,9 +6243,6 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
         str(c.id): r.get("bap", c.bap or 1)
         for c, r in ((proposer_char, proposer_result), (partner_a_char, partner_a_result), (partner_b_char, partner_b_result))
     }
-
-    combo.status = "fired"
-    db.commit()
 
     bond_name = combo.bond_ab.combo_name if combo.bond_ab else "Triple Combo"
     bond_desc = combo.bond_ab.combo_description if combo.bond_ab else ""
@@ -6217,6 +6269,10 @@ async def _resolve_triple_combo(campaign_uuid: UUID, combo, db: Session):
             "bap_granted": bap_granted,
         }
     )
+    # The use and the once-per-encounter flag are committed WITH the result card, never before it
+    for _c in chars3:
+        spend_use(_c, 1)
+    combo.status = "fired"
     db.add(combo_msg)
     db.commit()
 

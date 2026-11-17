@@ -104,10 +104,11 @@ manual damage are caught too, just not instantly.
 
 **Phase 7: Combos. BUILT on branch rules-v3.1-phase7, not yet on main. No migration.** Decisions made while building (Jason
 asked for automation, not a design review): each player picks a target when the Combo fires; a Combo buff or debuff counts
-one step higher whether or not the Combo also attacks; two same-stat effects: the stronger wins; the Triple Combo gate is now
+one step higher ONLY when the Combo has no attack (Jason, Nov 17: stick to the book); two same-stat effects: the stronger wins; the Triple Combo gate is now
 level 11+ so it is dormant until Ascension (Phase 9); the once-per-encounter check covers two-person Combos only (the Triple
 is already one-shot by its three-way hold); picked targets live in process memory for the few seconds between the picks and
-the resolve.
+the resolve; if they are lost (a restart) nothing is rolled, spent or marked fired and everyone is asked to pick again; the use
+and the fired flag are committed together with the result card.
 - Cost 1 use per character (Combo and Triple), Triple needs level 11+ (so it stays dormant until Ascension) and gets +2
   on every roll, and the card shows "heal adds BAP" and "buff/debuff one step up" as numbers. Whether Combos also apply
   their damage and effects automatically is question 4.

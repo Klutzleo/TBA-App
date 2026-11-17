@@ -14419,6 +14419,7 @@
 
             } else if (data.type === 'combo_fire_ready') {
               // Close ability modal if open (in case we're the acceptor and it auto-opens)
+              if (data.notice) showPanelToast(data.notice, 'info');
               document.getElementById('comboAbilityModal').style.display = 'none';
               showComboAbilityPicker(data);
 
@@ -14468,6 +14469,7 @@
               showPanelToast(`${escHtml(data.locked_by)} has chosen their ability. Waiting for the others…`, 'info');
 
             } else if (data.type === 'triple_combo_fire_ready') {
+              if (data.notice) showPanelToast(data.notice, 'info');
               document.getElementById('tripleComboAbilityModal').style.display = 'none';
               showTripleComboAbilityPicker(data);
 

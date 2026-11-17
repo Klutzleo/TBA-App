@@ -352,6 +352,7 @@ def test_a_fired_combo_adds_bap_to_both_rolls_and_banks_nothing(world):
     world["ability"](b, "damage", "/cb")
     combo = SimpleNamespace(id=uuid.uuid4(), proposer_character_id=a.id, acceptor_character_id=b.id, proposer_ability_slot=1,
                             acceptor_ability_slot=1, bond=SimpleNamespace(combo_name="The Test", combo_description=""), status="locked")
+    cw._combo_targets[str(combo.id)] = {str(a.id): None, str(b.id): None}   # picks made when the Combo fired
     sent = []
 
     async def fake_broadcast(_cid, msg):

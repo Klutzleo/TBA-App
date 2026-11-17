@@ -134,6 +134,7 @@ def test_a_combo_costs_one_use_per_character_from_the_pool(world):
     a, b = world["pc"]("ComboA"), world["pc"]("ComboB", level=3)    # pools 4 and 5
     combo = SimpleNamespace(id=uuid.uuid4(), proposer_character_id=a.id, acceptor_character_id=b.id,
                             proposer_ability_slot=1, acceptor_ability_slot=2, status="holding", bond=None)
+    cw._combo_targets[str(combo.id)] = {str(a.id): None, str(b.id): None}   # picks made when the Combo fired
     sent = []
 
     async def fake_broadcast(_cid, msg):
