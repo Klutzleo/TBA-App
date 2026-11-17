@@ -148,3 +148,41 @@ def test_game_page_inline_copies_match():
         row = leveling.level_stats(int(lvl))
         assert (int(dp), int(edge), int(bap), int(uses), die) == (
             row["max_dp"], row["edge"], row["bap"], row["uses_per_encounter"], row["defense_die"]), lvl
+
+
+
+# ---- the Ally table (rules v3.1): about half a player's DP, single-die weapons, a first spell from level 1 --------
+
+def _ally(field):
+    return {l: leveling.ally_stats(l)[field] for l in LEVELS}
+
+
+def test_the_ally_table_matches_the_core_rules():
+    assert list(_ally("max_dp").values()) == [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    assert list(_ally("edge").values()) == [0, 0, 1, 1, 1, 2, 2, 2, 3, 3]
+    assert list(_ally("bap").values()) == [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+    assert list(_ally("uses_per_encounter").values()) == [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    assert all(len(v) == 1 for v in _ally("weapon_options").values()), "an Ally's weapon is a single die"
+    assert list(_ally("slot_1_die").values()) == ["1d6", "1d6", "1d8", "1d8", "1d10", "1d10", "1d12", "1d12", "2d8", "2d8"]
+    assert [_ally("slot_2_die")[l] for l in LEVELS] == [None] * 6 + ["1d8", "1d8", "1d10", "1d10"]
+    with pytest.raises(ValueError):
+        leveling.ally_stats(11)                                   # Allies stop at level 10
+
+
+@pytest.mark.parametrize("page", ["static/create-character.html", "static/create-ally.html", "static/game.html"])
+def test_ally_tables_on_the_pages_match(page):
+    t = _read(page)
+    assert _numbers(t, "ALLY_DP_BY_LEVEL") == _ally("max_dp")
+    assert _numbers(t, "ALLY_EDGE_BY_LEVEL") == _ally("edge")
+    assert _numbers(t, "ALLY_BAP_BY_LEVEL") == _ally("bap")
+    assert _lists(t, "ALLY_WEAPON_OPTIONS_BY_LEVEL") == _ally("weapon_options")
+
+
+def test_the_ally_spell_dice_on_the_create_page_match():
+    t = _read("static/create-ally.html")
+    block = _block(t, "ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL")
+    slots = {}
+    for slot, body in re.findall(r"(\d+):\s*\{([^}]*)\}", block):
+        slots[int(slot)] = {int(k): v for k, v in re.findall(r"(\d+):\s*'([^']*)'", body)}
+    assert slots[1] == {l: d for l, d in _ally("slot_1_die").items()}
+    assert slots[2] == {l: d for l, d in _ally("slot_2_die").items() if d}

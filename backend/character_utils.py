@@ -3,7 +3,7 @@ Character creation and level-up utilities (rules v3.1).
 Edge, BAP, max DP, uses, weapon and defense dice all come from schemas/leveling_v3_1.json via backend.leveling.
 """
 
-from backend.leveling import CHARACTER_LEVELS, level_stats, weapon_options
+from backend.leveling import CHARACTER_LEVELS, level_stats, weapon_options, ally_stats, ally_weapon_options
 
 # DP progression by level (v3.1: 8 at level 1, +2 per level). Derived, never edited here.
 DP_BY_LEVEL = {lvl: row["max_dp"] for lvl, row in CHARACTER_LEVELS.items()}
@@ -99,4 +99,19 @@ def validate_attack_style(level: int, attack_style: str) -> bool:
             f"Attack style '{attack_style}' not available at level {level}. "
             f"Available: {', '.join(available)}"
         )
+    return True
+
+
+def calculate_ally_stats(level: int) -> dict:
+    """Edge, BAP and max DP for an Ally of this level (rules v3.1: their own table, about half a player's DP)."""
+    row = ally_stats(level)
+    return {"edge": row["edge"], "bap": row["bap"], "max_dp": row["max_dp"]}
+
+
+def validate_ally_attack_style(level: int, attack_style: str) -> bool:
+    """An Ally's weapon is a single die from the Ally table."""
+    available = ally_weapon_options(level)
+    if attack_style not in available:
+        raise ValueError(f"Attack style '{attack_style}' not available to an Ally at level {level}. "
+                         f"Available: {', '.join(available)}")
     return True

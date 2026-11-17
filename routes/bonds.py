@@ -172,8 +172,8 @@ async def break_bond(
     bond.broken_at = datetime.utcnow()
     bond.broken_by_user_id = current_user.id
 
-    # Grief Tether weight is SW-selected per the significance of the Bond, clamped to -5..-1
-    weight = max(-5, min(-1, weight))
+    # Grief Tether weight is SW-selected per the significance of the Bond, -1 to -3 (rules v3.1)
+    weight = max(-3, min(-1, weight))
 
     grief_applied = []
     for char_id in [bond.character_id_a, bond.character_id_b]:

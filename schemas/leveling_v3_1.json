@@ -1,5 +1,5 @@
 {
-  "_about": "TBA rules v3.1, player character leveling (levels 1-10). The single source of truth for numbers: the backend reads this file, and tests/test_leveling_tables.py fails if static/game.html, create-character.html or create-ally.html drift from it. Ascension (11-15) and the Ally table are added in later phases.",
+  "_about": "TBA rules v3.1, player character leveling (levels 1-10). The single source of truth for numbers: the backend reads this file, and tests/test_leveling_tables.py fails if static/game.html, create-character.html or create-ally.html drift from it. The Ally table (levels 1-10, half DP, slot 1 from level 1) is the second block. Ascension (11-15) is added in a later phase.",
   "version": "3.1",
   "characters": {
     "1": {
@@ -126,5 +126,127 @@
       "2d8": 4
     },
     "duration_rounds": 2
+  },
+  "allies": {
+    "1": {
+      "max_dp": 4,
+      "edge": 0,
+      "bap": 1,
+      "defense_die": "1d4",
+      "weapon_options": [
+        "1d4"
+      ],
+      "uses_per_encounter": 3,
+      "slot_1_die": "1d6",
+      "slot_2_die": null
+    },
+    "2": {
+      "max_dp": 5,
+      "edge": 0,
+      "bap": 1,
+      "defense_die": "1d4",
+      "weapon_options": [
+        "1d4"
+      ],
+      "uses_per_encounter": 4,
+      "slot_1_die": "1d6",
+      "slot_2_die": null
+    },
+    "3": {
+      "max_dp": 6,
+      "edge": 1,
+      "bap": 2,
+      "defense_die": "1d6",
+      "weapon_options": [
+        "1d6"
+      ],
+      "uses_per_encounter": 5,
+      "slot_1_die": "1d8",
+      "slot_2_die": null
+    },
+    "4": {
+      "max_dp": 7,
+      "edge": 1,
+      "bap": 2,
+      "defense_die": "1d6",
+      "weapon_options": [
+        "1d6"
+      ],
+      "uses_per_encounter": 6,
+      "slot_1_die": "1d8",
+      "slot_2_die": null
+    },
+    "5": {
+      "max_dp": 8,
+      "edge": 1,
+      "bap": 3,
+      "defense_die": "1d8",
+      "weapon_options": [
+        "1d8"
+      ],
+      "uses_per_encounter": 7,
+      "slot_1_die": "1d10",
+      "slot_2_die": null
+    },
+    "6": {
+      "max_dp": 9,
+      "edge": 2,
+      "bap": 3,
+      "defense_die": "1d8",
+      "weapon_options": [
+        "1d8"
+      ],
+      "uses_per_encounter": 8,
+      "slot_1_die": "1d10",
+      "slot_2_die": null
+    },
+    "7": {
+      "max_dp": 10,
+      "edge": 2,
+      "bap": 4,
+      "defense_die": "1d10",
+      "weapon_options": [
+        "1d10"
+      ],
+      "uses_per_encounter": 9,
+      "slot_1_die": "1d12",
+      "slot_2_die": "1d8"
+    },
+    "8": {
+      "max_dp": 11,
+      "edge": 2,
+      "bap": 4,
+      "defense_die": "1d10",
+      "weapon_options": [
+        "1d10"
+      ],
+      "uses_per_encounter": 10,
+      "slot_1_die": "1d12",
+      "slot_2_die": "1d8"
+    },
+    "9": {
+      "max_dp": 12,
+      "edge": 3,
+      "bap": 5,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12"
+      ],
+      "uses_per_encounter": 11,
+      "slot_1_die": "2d8",
+      "slot_2_die": "1d10"
+    },
+    "10": {
+      "max_dp": 13,
+      "edge": 3,
+      "bap": 5,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12"
+      ],
+      "uses_per_encounter": 12,
+      "slot_1_die": "2d8",
+      "slot_2_die": "1d10"
+    }
   }
 }

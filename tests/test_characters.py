@@ -475,3 +475,29 @@ def test_a_dropped_trap_die_is_refused_at_creation(test_client, world):
     resp = test_client.post("/api/characters", headers=world["player"],
                             json=_character(world, name="Trap", level=5, attack_style="3d4"))
     assert resp.status_code == 400 and "not available" in resp.text
+
+
+
+def test_an_ally_uses_its_own_table_not_the_players(test_client, world):
+    """Rules v3.1: an Ally has about half a player's DP (4 at level 1), its own pool of uses, and a single-die weapon."""
+    parent = _create(test_client, world, name="Hero2")
+    resp = _create_ally(test_client, world, parent["id"])
+    assert resp.status_code == 201, resp.text
+    ally = resp.json()
+    assert ally["max_dp"] == 4 and ally["dp"] == 4                      # a level 1 PC has 8
+    from backend.db import SessionLocal
+    from backend.models import Character
+    db = SessionLocal()
+    try:
+        row = db.query(Character).filter(Character.id == ally["id"]).one()
+        assert row.max_uses_per_encounter == 3 and row.current_uses == 3        # its own pool, level + 2
+    finally:
+        db.close()
+
+
+def test_an_ally_cannot_take_a_multi_die_weapon_or_pass_level_10(test_client, world):
+    parent = _create(test_client, world, name="Hero3")
+    bad = _create_ally(test_client, world, parent["id"], level=3, attack_style="2d4")    # a player may, an Ally may not
+    assert bad.status_code == 400 and "Ally" in bad.text
+    too_high = _create_ally(test_client, world, parent["id"], level=11, attack_style="1d12")
+    assert too_high.status_code in (400, 422)

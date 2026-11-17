@@ -19,6 +19,11 @@ MAX_LEVEL = 10  # Ascension (11-15) arrives in a later phase
 # {level: {"max_dp", "edge", "bap", "defense_die", "weapon_options", "uses_per_encounter"}}
 CHARACTER_LEVELS = {int(k): v for k, v in _DATA["characters"].items()}
 
+# Allies have their own table (rules v3.1): about half the DP, single-die weapons, a first spell from level 1, and they
+# stop at level 10. {level: {"max_dp", "edge", "bap", "defense_die", "weapon_options", "uses_per_encounter",
+# "slot_1_die", "slot_2_die"}}
+ALLY_LEVELS = {int(k): v for k, v in _DATA["allies"].items()}
+
 BUFF_DEBUFF_MODIFIER_BY_DIE = dict(_DATA["buff_debuff"]["modifier_by_die"])
 BUFF_DEBUFF_DURATION_ROUNDS = int(_DATA["buff_debuff"]["duration_rounds"])
 
@@ -50,3 +55,14 @@ def combo_step_modifier(die: str) -> int:
         return BUFF_DEBUFF_MODIFIER_BY_DIE.get(die, 1)
     nxt = _BUFF_STEPS[min(_BUFF_STEPS.index(die) + 1, len(_BUFF_STEPS) - 1)]
     return min(4, BUFF_DEBUFF_MODIFIER_BY_DIE[nxt])
+
+
+def ally_stats(level: int) -> dict:
+    """The Ally row for a level. Raises ValueError outside 1-10 (Allies stop at level 10)."""
+    if level not in ALLY_LEVELS:
+        raise ValueError(f"An Ally's level must be 1-{MAX_LEVEL}, got {level}")
+    return ALLY_LEVELS[level]
+
+
+def ally_weapon_options(level: int) -> list:
+    return list(ally_stats(level)["weapon_options"])

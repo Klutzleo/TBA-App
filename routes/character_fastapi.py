@@ -14,9 +14,13 @@ from backend.character_utils import (
     validate_stats,
     validate_attack_style,
     get_defense_die,
-    get_available_attack_styles
+    get_available_attack_styles,
+    calculate_ally_stats,
+    validate_ally_attack_style,
 )
-from backend.leveling import uses_for_level as _uses_for_level
+from backend.leveling import uses_for_level as _uses_for_level, ALLY_LEVELS as _ALLY_LEVELS
+from backend.tethers import (STORY_TETHER_LIMIT, story_tether_count, clamp_tether_modifier, net_modifier, active_net,
+                             new_tether, source_of, apply_ally_death, EXTRA_SOURCES)
 from backend.uses import pool_remaining as _pool_remaining, pool_max as _pool_max, refill as _refill_uses, restore as _restore_uses
 
 
@@ -592,7 +596,7 @@ async def update_character(
     try:
         # Handle level change (auto-recalculate stats)
         if updates.level is not None and updates.level != character.level:
-            level_stats = calculate_level_stats(updates.level)
+            level_stats = (calculate_ally_stats if character.is_ally else calculate_level_stats)(updates.level)
             character.level = updates.level
             character.edge = level_stats["edge"]
             character.bap = level_stats["bap"]
@@ -609,7 +613,7 @@ async def update_character(
         
         # Handle attack style change
         if updates.attack_style is not None:
-            validate_attack_style(character.level, updates.attack_style)
+            (validate_ally_attack_style if character.is_ally else validate_attack_style)(character.level, updates.attack_style)
             character.attack_style = updates.attack_style
         
         # Handle DP change (manual adjustment)
@@ -1781,12 +1785,13 @@ async def create_ally(
         # Validate stats
         validate_stats(req.pp, req.ip, req.sp)
 
-        # Validate attack style for level
-        validate_attack_style(req.level, req.attack_style)
-
-        # Calculate level-dependent stats (Allies use different leveling table - TODO)
-        level_stats = calculate_level_stats(req.level)
+        # Rules v3.1: an Ally uses its own leveling table (about half a player's DP, a single-die weapon) and stops at 10
+        if not 1 <= req.level <= 10:
+            raise ValueError(f"An Ally's level must be between 1 and 10, got {req.level}")
+        validate_ally_attack_style(req.level, req.attack_style)
+        level_stats = calculate_ally_stats(req.level)
         defense_die = get_defense_die(req.level)
+        ally_uses = _uses_for_level(req.level)   # an Ally has its own pool of level + 2 uses
 
         # Create Ally
         ally = Character(
@@ -1807,6 +1812,8 @@ async def create_ally(
             bap=level_stats["bap"],
             attack_style=req.attack_style,
             defense_die=defense_die,
+            max_uses_per_encounter=ally_uses,
+            current_uses=ally_uses,
             weapon=req.weapon.model_dump() if req.weapon else None,
             armor=req.armor.model_dump() if req.armor else None
         )
@@ -2329,6 +2336,9 @@ async def resolve_the_calling(
     if stat_choice not in ("ip", "sp"):
         raise HTTPException(status_code=400, detail="stat_choice must be 'ip' or 'sp'")
     bap_bonus = int(req.get("bap_bonus", 0))
+    # A Tether can add to or take from this roll when the Story Weaver says one fits the moment: they switch it on, and an
+    # active Tether rides every roll (rules v3.1). Only the strongest bonus and the strongest penalty count.
+    tether_bonus = active_net(char.tethers)[0]
 
     # Determine chosen stat value
     chosen_stat_val = char.ip if stat_choice == "ip" else char.sp
@@ -2336,7 +2346,7 @@ async def resolve_the_calling(
 
     # Player roll: 1d6 + chosen stat + edge + bap
     player_die_roll = roll_dice("1d6")[0]
-    player_total = player_die_roll + chosen_stat_val + (char.edge or 0) + bap_bonus
+    player_total = player_die_roll + chosen_stat_val + (char.edge or 0) + bap_bonus + tether_bonus
 
     # SW difficulty die scales with character level
     if char.level <= 3:
@@ -2380,6 +2390,8 @@ async def resolve_the_calling(
         # Death: archive the character and move all items to loot pool
         char.status = 'archived'
         char.dp = char.dp  # Leave DP as-is (at -10 or worse)
+        if char.is_ally:
+            apply_ally_death(db, char)   # Emptiness for its player, Grief for anyone Bonded, every Combo with it lost
         db.query(InventoryItem).filter(
             InventoryItem.character_id == char.id
         ).update({"character_id": None, "is_equipped": False}, synchronize_session=False)
@@ -2413,6 +2425,7 @@ async def resolve_the_calling(
         "player_stat": chosen_stat_val,
         "edge": char.edge or 0,
         "bap": bap_bonus,
+        "tether_bonus": tether_bonus,
         "player_total": player_total,
         "sw_die": sw_die_str,
         "sw_roll": sw_die_roll,
@@ -2636,16 +2649,25 @@ async def add_battle_scar(
     if not scar_text:
         raise HTTPException(status_code=400, detail="scar text is required")
 
+    # Rules v3.1: a scar or a fear becomes a new Tether (extra, it does not use a story slot); a limitation (like not
+    # being able to use one technique) just stays with the character.
+    kind = req.get("kind") if req.get("kind") in ("scar", "fear", "limitation") else "scar"
     existing_scars = char.battle_scars or []
     new_scar = {
         "description": scar_text,
+        "kind": kind,
         "times_called": char.times_called,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     char.battle_scars = existing_scars + [new_scar]
+    tether_added = None
+    if kind in ("scar", "fear"):
+        modifier = clamp_tether_modifier(req.get("modifier", -1), "marked") or -1
+        tether_added = new_tether(scar_text, modifier, source="marked", active=False)
+        char.tethers = list(char.tethers or []) + [tether_added]
     db.commit()
 
-    return {"message": "Battle scar saved.", "battle_scars": char.battle_scars}
+    return {"message": "Mark saved.", "battle_scars": char.battle_scars, "tether": tether_added}
 
 
 @character_blp_fastapi.post("/{character_id}/called-check")
@@ -2805,6 +2827,14 @@ LEVEL_TABLE = {
 
 WEAPON_OPTIONS_BY_LEVEL = {lvl: list(r["weapon_options"]) for lvl, r in _CHARACTER_LEVELS.items()}
 
+# Allies have their own table (rules v3.1)
+ALLY_LEVEL_TABLE = {
+    lvl: {"max_dp": r["max_dp"], "edge": r["edge"], "bap": r["bap"],
+          "uses_per_encounter": r["uses_per_encounter"], "defense_die": r["defense_die"]}
+    for lvl, r in _ALLY_LEVELS.items()
+}
+ALLY_WEAPON_OPTIONS_BY_LEVEL = {lvl: list(r["weapon_options"]) for lvl, r in _ALLY_LEVELS.items()}
+
 # New ability slot unlocked at these levels
 NEW_SLOT_AT_LEVEL = {3, 5, 7, 9}
 
@@ -2844,8 +2874,8 @@ async def level_up_character(
         raise HTTPException(status_code=400, detail="Character is already at max level (10)")
 
     new_level = current_level + 1
-    stats = LEVEL_TABLE[new_level]
-    valid_weapons = WEAPON_OPTIONS_BY_LEVEL[new_level]
+    stats = (ALLY_LEVEL_TABLE if char.is_ally else LEVEL_TABLE)[new_level]
+    valid_weapons = (ALLY_WEAPON_OPTIONS_BY_LEVEL if char.is_ally else WEAPON_OPTIONS_BY_LEVEL)[new_level]
 
     # Validate weapon die choice
     weapon_die = req.get("weapon_die", valid_weapons[0])
@@ -2973,8 +3003,8 @@ async def set_character_level(
         raise HTTPException(status_code=400, detail="Level must be between 1 and 10")
 
     current_level = char.level or 1
-    stats = LEVEL_TABLE[new_level]
-    valid_weapons = WEAPON_OPTIONS_BY_LEVEL[new_level]
+    stats = (ALLY_LEVEL_TABLE if char.is_ally else LEVEL_TABLE)[new_level]
+    valid_weapons = (ALLY_WEAPON_OPTIONS_BY_LEVEL if char.is_ally else WEAPON_OPTIONS_BY_LEVEL)[new_level]
 
     weapon_die = req.get("weapon_die", valid_weapons[0])
     if weapon_die not in valid_weapons:
@@ -3444,17 +3474,20 @@ async def apply_boosts(
         boosts.append({"type": "bap", "bonus": bap_bonus})
 
     tethers = char.tethers or []
+    picked_modifiers = []
     for tether_id in tether_ids:
         tether = next((t for t in tethers if t.get("id") == tether_id), None)
         if tether:
             modifier = tether.get("modifier", 0)
-            total_bonus += modifier
+            picked_modifiers.append(modifier)
             boosts.append({
                 "type": "tether",
                 "id": tether_id,
                 "description": tether.get("description", ""),
                 "modifier": modifier,
             })
+
+    total_bonus += net_modifier(picked_modifiers)   # only the strongest bonus and strongest penalty count
 
     if total_bonus == 0:
         raise HTTPException(status_code=400, detail="Selected boosts total 0 — nothing to apply")
@@ -4157,23 +4190,14 @@ async def add_tether(
         raise HTTPException(status_code=400, detail="description is required")
 
     existing = char.tethers or []
-    if len(existing) >= 3:
-        raise HTTPException(status_code=400, detail="Maximum 3 tethers per character")
-
-    raw_modifier = body.get("modifier", 0)
-    try:
-        modifier = max(-5, min(5, int(raw_modifier)))
-    except (TypeError, ValueError):
-        modifier = 0
+    # Marked by Death, Grief and Emptiness Tethers are extra (only the SW can add those); the rest use 3 story slots
+    source = body.get("source") if (is_sw and body.get("source") in EXTRA_SOURCES) else "story"
+    if source == "story" and story_tether_count(existing) >= STORY_TETHER_LIMIT:
+        raise HTTPException(status_code=400, detail="A character can have up to 3 story Tethers")
 
     from sqlalchemy.orm.attributes import flag_modified
-    new_tether = {
-        "id": str(uuid4()),
-        "description": description,
-        "is_active": False,
-        "modifier": modifier,
-    }
-    char.tethers = list(existing) + [new_tether]
+    new_t = new_tether(description, body.get("modifier", 0), source=source)   # Tether scale: -4 to +4 (Grief -3 to +3)
+    char.tethers = list(existing) + [new_t]
     flag_modified(char, "tethers")
     try:
         db.commit()
@@ -4223,8 +4247,7 @@ async def update_tether(
         if "is_active" in body:
             tethers[idx]["is_active"] = bool(body["is_active"])
         if "modifier" in body:
-            mod = int(body["modifier"])
-            tethers[idx]["modifier"] = max(-5, min(5, mod))
+            tethers[idx]["modifier"] = clamp_tether_modifier(body["modifier"], source_of(tethers[idx]))
     # Did activation actually flip? A repeat click (slow network, double-tap) resends the
     # same is_active — only a real flip should post a chat announcement and broadcast.
     is_active_changed = "is_active" in body and tethers[idx].get("is_active", False) != was_active
@@ -4235,9 +4258,7 @@ async def update_tether(
     from sqlalchemy.orm.attributes import flag_modified
     flag_modified(char, "tethers")
     # Recalculate combined modifier
-    char.active_tether_modifier = sum(
-        t.get("modifier", 0) for t in tethers if t.get("is_active")
-    )
+    char.active_tether_modifier = active_net(tethers)[0]   # strongest bonus + strongest penalty (rules v3.1)
     db.commit()
 
     # Broadcast tether activation to campaign — only on a real flip (see is_active_changed above)
@@ -4297,9 +4318,7 @@ async def delete_tether(
     char.tethers = tethers
     from sqlalchemy.orm.attributes import flag_modified
     flag_modified(char, "tethers")
-    char.active_tether_modifier = sum(
-        t.get("modifier", 0) for t in tethers if t.get("is_active")
-    )
+    char.active_tether_modifier = active_net(tethers)[0]   # strongest bonus + strongest penalty (rules v3.1)
     db.commit()
     return {"tethers": char.tethers, "active_tether_modifier": char.active_tether_modifier}
 

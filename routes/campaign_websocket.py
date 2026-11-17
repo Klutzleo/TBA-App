@@ -2871,15 +2871,12 @@ async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
 
 
 def _active_tethers(char):
-    """A character's currently-active Tethers: (total modifier, [{"description","modifier"}]).
+    """A character's currently-active Tethers: (net modifier, [{"description","modifier"}]).
+    Rules v3.1: only the strongest bonus and the strongest penalty count, and you take the difference.
     Recomputed from char.tethers so a stale active_tether_modifier cache can't drift.
     The SW toggles is_active when the fiction triggers the tether (and clears it after)."""
-    rows = [
-        {"description": (t.get("description") or "Tether")[:60], "modifier": int(t.get("modifier") or 0)}
-        for t in (getattr(char, "tethers", None) or [])
-        if t.get("is_active") and (t.get("modifier") or 0) != 0
-    ]
-    return sum(t["modifier"] for t in rows), rows
+    from backend.tethers import active_net
+    return active_net(getattr(char, "tethers", None))
 
 
 async def _defeat_object(campaign_uuid, obj, db, *, actor_user_id, source="check"):

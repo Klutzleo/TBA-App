@@ -599,8 +599,8 @@
         // Allies have lower DP (~80% of PC), different spell progression
         // =====================================================================
         const ALLY_DP_BY_LEVEL = {
-            1: 5, 2: 7, 3: 10, 4: 12, 5: 15,
-            6: 17, 7: 20, 8: 22, 9: 25, 10: 27
+            1: 4, 2: 5, 3: 6, 4: 7, 5: 8,
+            6: 9, 7: 10, 8: 11, 9: 12, 10: 13
         };
 
         const ALLY_EDGE_BY_LEVEL = {
@@ -629,10 +629,10 @@
             9: '1d12', 10: '1d12'
         };
 
-        // Ally Spell/Tech progression (starts at level 3, different from PCs)
+        // Ally Spell/Tech progression (rules v3.1: the first spell is there from level 1, the second from level 7)
         const ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL = {
-            // Slot 1 (Single): Unlocks L3. L3-4=1d8, L5-6=1d10, L7-8=1d12, L9-10=2d8
-            1: { 3: '1d8', 4: '1d8', 5: '1d10', 6: '1d10', 7: '1d12', 8: '1d12', 9: '2d8', 10: '2d8' },
+            // Slot 1 (Single): from L1. L1-2=1d6, L3-4=1d8, L5-6=1d10, L7-8=1d12, L9-10=2d8
+            1: { 1: '1d6', 2: '1d6', 3: '1d8', 4: '1d8', 5: '1d10', 6: '1d10', 7: '1d12', 8: '1d12', 9: '2d8', 10: '2d8' },
             // Slot 2 (AOE): Unlocks L7. L7-8=1d8, L9-10=1d10
             2: { 7: '1d8', 8: '1d8', 9: '1d10', 10: '1d10' }
         };
@@ -1006,8 +1006,8 @@
         function getAvailableSlots(level) {
             // Allies get abilities at different levels than PCs
             const slots = [];
-            if (level >= 3) {
-                slots.push({ slot: 1, type: 'single', label: 'Slot 1 (Single Target)', unlockLevel: 3 });
+            if (level >= 1) {
+                slots.push({ slot: 1, type: 'single', label: 'Slot 1 (Single Target)', unlockLevel: 1 });
             }
             if (level >= 7) {
                 slots.push({ slot: 2, type: 'aoe', label: 'Slot 2 (AOE)', unlockLevel: 7 });
@@ -1224,7 +1224,7 @@
             // Update helper text
             const helperText = document.getElementById('abilities_helper');
             if (availableSlots.length === 0) {
-                helperText.textContent = 'Allies unlock abilities at level 3+ (Slot 1: Single) and level 7+ (Slot 2: AOE)';
+                helperText.textContent = 'Allies have their first ability from level 1 (Slot 1: Single) and a second at level 7 (Slot 2: AOE)';
             } else if (availableSlots.length === 1) {
                 helperText.textContent = 'Create your Ally\'s ability (Slot 2 unlocks at level 7)';
             } else {

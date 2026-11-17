@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text  # noqa: E402
 
-from backend.leveling import MAX_LEVEL, level_stats, uses_for_level, weapon_options  # noqa: E402
+from backend.leveling import MAX_LEVEL, level_stats, uses_for_level, weapon_options, ally_stats, ally_weapon_options  # noqa: E402
 
 CHAR_BACKUP = "rules_v31_migration_backup"
 ABILITY_BACKUP = "rules_v31_migration_ability_backup"
@@ -82,7 +82,7 @@ def plan(db):
         if not 1 <= level <= MAX_LEVEL:
             skipped.append((c.name, f"level {level} outside 1-{MAX_LEVEL}"))
             continue
-        new_max = level_stats(level)["max_dp"]
+        new_max = (ally_stats if c.is_ally else level_stats)(level)["max_dp"]
         rows.append({
             "char": c, "name": c.name, "level": level, "npc": bool(c.is_npc),
             "old_max_dp": c.max_dp, "old_dp": c.dp, "new_max_dp": new_max,
@@ -90,7 +90,7 @@ def plan(db):
             "old_max_uses": c.max_uses_per_encounter, "old_current_uses": c.current_uses,
             "new_uses": uses_for_level(level),
             "old_attack_style": c.attack_style,
-            "new_attack_style": c.attack_style if c.attack_style in weapon_options(level) else weapon_options(level)[0],
+            "new_attack_style": c.attack_style if c.attack_style in (ally_weapon_options if c.is_ally else weapon_options)(level) else (ally_weapon_options if c.is_ally else weapon_options)(level)[0],
         })
     return rows, skipped
 

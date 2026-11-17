@@ -4302,7 +4302,7 @@
         <div>
           <div style="font-weight:bold;color:var(--primary);margin-bottom:6px;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.08em;">⚓ Tethers &amp; ⚡ Boosts</div>
           <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;font-size:0.82rem;color:var(--text-muted);line-height:1.6;display:grid;gap:8px;">
-            <div><strong style="color:#a78bfa;">Tethers</strong> — Emotional anchors that shape a character's story. The SW adds them via the character sheet (max 3). Each has a description and a modifier set by the SW.</div>
+            <div><strong style="color:#a78bfa;">Tethers</strong> — Emotional anchors that shape a character's story. The SW adds them via the character sheet (up to 3 story Tethers; Marked by Death, Grief and Emptiness Tethers are extra). Each has a description and a modifier from -4 to +4. If more than one applies to a roll, only the strongest bonus and the strongest penalty count.</div>
             <div><strong style="color:#f59e0b;">⚡ Boost</strong> — After any roll, the SW sees a <strong style="color:#f59e0b;">⚡ Boost</strong> button on the roll card. Click it to apply BAP and/or any tethers to that roll retroactively. One modal, one epic fanfare card — no spam.</div>
             <div style="font-size:0.78rem;opacity:0.7;">BAP is always available. Tethers only appear in the modal if the character has any with a modifier set.</div>
           </div>
@@ -4603,10 +4603,20 @@
           <div id="callingResultText" style="line-height:1.7; margin-bottom:16px;"></div>
           <!-- Scar input (scarred outcome, SW only) -->
           <div id="callingScarInput" style="display:none; margin-bottom:12px;">
-            <label style="font-size:0.85rem; color:var(--text-muted);">Describe the battle scar:</label>
+            <label style="font-size:0.85rem; color:var(--text-muted);">What does this Mark look like?</label>
+            <div style="display:flex; gap:8px; margin-top:6px;">
+              <select id="callingMarkKind" class="form-input" style="flex:1;" onchange="document.getElementById('callingMarkStrength').style.display = this.value === 'limitation' ? 'none' : ''">
+                <option value="scar">A scar or injury (becomes a Tether)</option>
+                <option value="fear">A trauma or fear (becomes a Tether)</option>
+                <option value="limitation">A limitation (just stays with them)</option>
+              </select>
+              <select id="callingMarkStrength" class="form-input" title="Tether strength">
+                <option value="-1">-1</option><option value="-2">-2</option><option value="-3">-3</option><option value="-4">-4</option>
+              </select>
+            </div>
             <textarea id="callingScarText" rows="2"
               style="width:100%; margin-top:6px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:4px; color:var(--text-primary); padding:6px; resize:vertical; box-sizing:border-box;"></textarea>
-            <button class="btn" style="width:100%; margin-top:8px;" onclick="saveBattleScar()">Save Scar</button>
+            <button class="btn" style="width:100%; margin-top:8px;" onclick="saveBattleScar()">Save Mark</button>
           </div>
           <!-- Tether prompt (appears after scar is saved) -->
           <div id="callingTetherPrompt" style="display:none; margin-bottom:12px; background:rgba(147,197,253,0.07); border:1px solid rgba(147,197,253,0.25); border-radius:8px; padding:12px;">
@@ -5534,8 +5544,8 @@
     };
     // Ally DP progression (lower than PC)
     const ALLY_DP_BY_LEVEL = {
-      1: 5, 2: 7, 3: 10, 4: 12, 5: 15,
-      6: 17, 7: 20, 8: 22, 9: 25, 10: 27
+      1: 4, 2: 5, 3: 6, 4: 7, 5: 8,
+      6: 9, 7: 10, 8: 11, 9: 12, 10: 13
     };
     const ALLY_EDGE_BY_LEVEL = {
       1: 0, 2: 0, 3: 1, 4: 1, 5: 1,
@@ -10526,17 +10536,19 @@
     async function saveBattleScar() {
       const scar = document.getElementById('callingScarText').value.trim();
       if (!scar || !callingCharId) return;
+      const kind = (document.getElementById('callingMarkKind') || {}).value || 'scar';
+      const modifier = parseInt((document.getElementById('callingMarkStrength') || {}).value || '-1', 10);
       try {
-        await fetch(`/api/characters/${callingCharId}/battle-scar`, {
+        // Rules v3.1: a scar or fear becomes a Tether on its own (extra, no story slot); a limitation just stays
+        const resp = await fetch(`/api/characters/${callingCharId}/battle-scar`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scar })
+          body: JSON.stringify({ scar, kind, modifier })
         });
+        if (!resp.ok) throw new Error((await resp.json()).detail || 'could not save');
         document.getElementById('callingScarInput').style.display = 'none';
-        // Prompt SW to optionally add as a Tether
-        const tetherPrompt = document.getElementById('callingTetherPrompt');
-        document.getElementById('callingTetherText').value = scar;
-        tetherPrompt.style.display = '';
+        showPanelToast(kind === 'limitation' ? '📝 Limitation noted' : '⚓ Added as a Tether (switch it on when it fits the moment)', 'success');
+        loadCharacters();
       } catch (e) {
         alert(`Failed to save scar: ${e.message}`);
       }
@@ -10656,10 +10668,10 @@
 
     // Quick "activate" from the party-panel — the trigger fired in the fiction.
     async function swActivateTether(charId, tetherId, lastModifier, btn) {
-      const raw = prompt('Tether modifier for this moment (-5 to +5):', String(lastModifier || 2));
+      const raw = prompt('Tether modifier for this moment (-4 to +4):', String(lastModifier || 2));
       if (raw === null) return;
-      const modifier = Math.max(-5, Math.min(5, parseInt(raw, 10) || 0));
-      if (modifier === 0) { showPanelToast('A 0 modifier does nothing — pick -5 to +5', 'error'); return; }
+      const modifier = Math.max(-4, Math.min(4, parseInt(raw, 10) || 0));
+      if (modifier === 0) { showPanelToast('A 0 modifier does nothing — pick -4 to +4', 'error'); return; }
       try {
         await _withButtonBusy(btn, 'Activate', () => fetch(`/api/characters/${charId}/tethers/${tetherId}`, {
           method: 'PATCH',
@@ -13312,7 +13324,7 @@
               resultDiv.innerHTML = `
                 <div style="font-size:1rem; font-weight:bold; color:#a78bfa; margin-bottom:10px;">🎲 FATE ROLL — ${data.character_name}</div>
                 <div style="font-family:monospace; font-size:0.9rem; color:var(--text-secondary); line-height:1.8;">
-                  Player: 1d6(${data.player_roll}) + ${data.stat_used}(${data.player_stat}) + Edge(${data.edge})${data.bap ? ` + BAP(${data.bap})` : ''} = <strong style="color:var(--text-primary);">${data.player_total}</strong><br>
+                  Player: 1d6(${data.player_roll}) + ${data.stat_used}(${data.player_stat}) + Edge(${data.edge})${data.bap ? ` + BAP(${data.bap})` : ''}${data.tether_bonus ? ` + Tether(${data.tether_bonus > 0 ? '+' : ''}${data.tether_bonus})` : ''} = <strong style="color:var(--text-primary);">${data.player_total}</strong><br>
                   SW: ${data.sw_die}(${data.sw_roll}) = <strong style="color:var(--text-primary);">${data.sw_total}</strong><br>
                   Margin: <strong style="color:${outcomeColor[data.outcome] || '#fff'};">${marginStr}</strong>
                 </div>
@@ -13328,7 +13340,7 @@
               document.getElementById('callingResultText').innerHTML =
                 `<strong>Fate Roll 🎲</strong><br>` +
                 `Player: 1d6(${data.player_roll}) + ${data.stat_used}(${data.player_stat}) + Edge(${data.edge})` +
-                `${data.bap ? ` + BAP(${data.bap})` : ''} = <strong>${data.player_total}</strong><br>` +
+                `${data.bap ? ` + BAP(${data.bap})` : ''}${data.tether_bonus ? ` + Tether(${data.tether_bonus > 0 ? '+' : ''}${data.tether_bonus})` : ''} = <strong>${data.player_total}</strong><br>` +
                 `SW: ${data.sw_die}(${data.sw_roll}) = <strong>${data.sw_total}</strong><br>` +
                 `Margin: <strong>${marginStr}</strong><br><br>` +
                 (outcomes[data.outcome] || '');
@@ -16520,7 +16532,7 @@
   }
 
   async function breakBond(bondId) {
-    const rawWeight = prompt('Break this bond. Set the Grief Tether weight (−5 to −1) based on how significant the Bond was:', '-1');
+    const rawWeight = prompt('Break this bond. Set the Grief Tether weight (−3 to −1) based on how significant the Bond was:', '-1');
     if (rawWeight === null) return;
     const weight = Math.max(-5, Math.min(-1, parseInt(rawWeight, 10) || -1));
     try {
@@ -17440,7 +17452,7 @@
               ${char.active_tether_modifier ? `<span style="font-size:0.72rem;padding:1px 6px;border-radius:3px;background:${char.active_tether_modifier > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'};color:${char.active_tether_modifier > 0 ? '#34d399' : '#f87171'};">Active: ${char.active_tether_modifier > 0 ? '+' : ''}${char.active_tether_modifier}</span>` : ''}
             </div>
             ${tList}
-            ${(char.tethers || []).length < 3 ? `<div style="display:flex;gap:6px;margin-top:8px;"><input id="swNewTether" placeholder="Add tether..." style="flex:1;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.82rem;"><button class="btn" style="font-size:0.75rem;padding:2px 8px;" onclick="swAddTether('${_swSheetCharId}')">Add</button></div>` : ''}
+            ${(char.tethers || []).filter(t => !['marked','grief','emptiness'].includes(t.source)).length < 3 ? `<div style="display:flex;gap:6px;margin-top:8px;"><input id="swNewTether" placeholder="Add tether..." style="flex:1;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.82rem;"><button class="btn" style="font-size:0.75rem;padding:2px 8px;" onclick="swAddTether('${_swSheetCharId}')">Add</button></div>` : ''}
           </div>`;
         })() : ''}
         ${Array.isArray(char.battle_scars) && char.battle_scars.length > 0 ? `<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px;margin-bottom:16px;border-left:3px solid rgba(248,113,113,0.5);"><div style="font-size:0.7rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🩸 Battle Scars (${char.battle_scars.length})</div>${char.battle_scars.map(s => `<div style="font-size:0.85rem;color:var(--text-secondary);font-style:italic;margin-bottom:3px;">"${escHtml(s.description || String(s))}"</div>`).join("")}</div>` : ""}

@@ -113,7 +113,11 @@ and the fired flag are committed together with the result card.
   on every roll, and the card shows "heal adds BAP" and "buff/debuff one step up" as numbers. Whether Combos also apply
   their damage and effects automatically is question 4.
 
-**Phase 8: Allies and Tethers.** Ally table (DP 4 to 13, slot 1 die from level 1, own pool, cap 10); Tether scale +1 to +4,
+**Phase 8: Allies and Tethers. BUILT on branch rules-v3.1-phase8, not yet on main. No migration** (prod has no Allies, and Tethers
+live in the existing JSON column). Decisions: a Marked scar or fear creates the Tether automatically (the SW picks the kind and
+-1 to -4 strength); a limitation just stays on the sheet; an ACTIVE Tether rides the Calling roll like every other roll
+(the SW switches it on when it fits the moment); an Ally's owner gets Emptiness (inactive until the SW switches it on),
+other Bonded characters get Grief (active), every Combo with the Ally is lost. Ally table (DP 4 to 13, slot 1 die from level 1, own pool, cap 10); Tether scale +1 to +4,
 strongest bonus and penalty only, Grief -1 to -3.
 
 **Phase 9: Ascension (levels 11 to 15).** Everything capped at 10 today. Edge/BAP/DP rows, one secondary effect per
