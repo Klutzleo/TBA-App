@@ -27,6 +27,7 @@ from backend.auth.jwt import decode_access_token
 from backend.roll_logic import roll_dice
 from backend.uses import spend as spend_use, pool_remaining, pool_max, refill as refill_uses
 from backend.buffs import effect_modifier, add_effect, tick_round
+from backend.ascension import secondary_unlocked
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -1856,6 +1857,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         heal_applied = False      # at least one target was actually healed
         fx_actor = acting_summon or caster    # buffs and debuffs on a summon change the summon's own rolls
         downed = []               # characters this cast dropped to 0 DP or below (their summons vanish)
+        sec_targets = []          # targets the primary effect landed on (an Ascension secondary effect rides along)
         calling_char_id = None  # set if any target triggers The Calling
 
         if ability.effect_type == "damage":
@@ -1981,6 +1983,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     downed.append(target)
 
                 outcome = "hit" if damage > 0 else "miss"
+                if damage > 0:
+                    sec_targets.append(target)
                 atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
                 def_rolls_str = " + ".join(str(r) for r in defense_roll_result)
                 atk_breakdown = f"{ability.die} = [{atk_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}){_fx_label(caster_fx)} = {attack_total}"
@@ -2061,6 +2065,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                                          healer_character_id=caster.id, ability_name=ability.display_name,
                                          amount=actual_healing))
                 heal_applied = True
+                sec_targets.append(target)
                 db.commit()
 
                 results.append({
@@ -2104,6 +2109,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     applied_by=caster.name
                 )
                 effects_changed = True
+                sec_targets.append(target)
 
                 results.append({
                     "target": target_name,
@@ -2191,12 +2197,40 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                         applied_by=caster.name
                     )
                     effects_changed = True
+                    sec_targets.append(target)
                     narrative_parts.append(f"{target_name} is afflicted by {ability.display_name}! ({debuff_stat} -{modifier} for {duration} round{'s' if duration != 1 else ''})")
                     results[-1]["debuff_modifier"] = -modifier
                     results[-1]["debuff_duration"] = duration
                     results[-1]["debuff_stat"] = debuff_stat
                 else:
                     narrative_parts.append(f"{target_name} resists {ability.display_name}!")
+
+        # Ascension (levels 11-15, rules v3.1): the ability ALSO does its secondary effect whenever it lands. It is part of
+        # the same activation: no extra use and no second roll. A debuff lands automatically; a new one on the same stat
+        # replaces the old. It never deals damage.
+        sec = ability.secondary_effect
+        if sec and sec_targets and secondary_unlocked(caster.level, ability.slot_number):
+            sec_label = f"{ability.display_name} (secondary)"
+            if sec.get("kind") == "debuff" and ability.effect_type in ("damage", "debuff"):
+                for _t in sec_targets:
+                    add_effect(db, campaign_id=campaign_id, character_id=_t.id, name=sec_label,
+                               modifier=-int(sec["strength"]), modifier_type=sec["stat"], duration_rounds=BUFF_DURATION,
+                               applied_by=caster.name)
+                    narrative_parts.append(f"✨ {_t.name} is also hit with {sec['stat'].upper()} -{sec['strength']} for {BUFF_DURATION} rounds"
+                                           + (f" ({sec['note']})" if sec.get("note") else ""))
+                effects_changed = True
+            elif sec.get("kind") == "buff":
+                # a buff rides along for the caster on an attack or a debuff, and for whoever was helped on a heal or a buff
+                receivers = [caster] if ability.effect_type in ("damage", "debuff") else sec_targets
+                for _t in receivers:
+                    add_effect(db, campaign_id=campaign_id, character_id=_t.id, name=sec_label,
+                               modifier=int(sec["strength"]), modifier_type=sec["stat"], duration_rounds=BUFF_DURATION,
+                               applied_by=caster.name)
+                    narrative_parts.append(f"✨ {_t.name} also gains {sec['stat'].upper()} +{sec['strength']} for {BUFF_DURATION} rounds"
+                                           + (f" ({sec['note']})" if sec.get("note") else ""))
+                effects_changed = True
+            elif sec.get("kind") == "note" and sec.get("note"):
+                narrative_parts.append(f"✨ {sec['note']}")
 
         # Decrement uses only if at least one target was actually found (not a typo/miss-target)
         all_targets_missing = results and all(r.get("message") == "Target not found" for r in results)

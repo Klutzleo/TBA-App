@@ -17,7 +17,8 @@ os.environ.setdefault("API_KEY", "devkey")
 
 from backend import leveling  # noqa: E402
 
-LEVELS = range(1, 11)
+LEVELS = range(1, 16)            # characters and NPCs: levels 11-15 are Ascension
+ALLY_RANGE = range(1, 11)        # Allies stop at level 10
 
 
 def _read(rel):
@@ -50,11 +51,11 @@ def _lists(text, name):
 # ---- the JSON itself matches the v3.1 Core Rules ---------------------------------------------------------
 
 def test_dp_is_8_plus_2_per_level():
-    assert [leveling.level_stats(l)["max_dp"] for l in LEVELS] == [8, 10, 12, 14, 16, 18, 20, 22, 24, 26]
+    assert [leveling.level_stats(l)["max_dp"] for l in LEVELS] == [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36]
 
 
 def test_uses_are_level_plus_two():
-    assert [leveling.uses_for_level(l) for l in LEVELS] == [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    assert [leveling.uses_for_level(l) for l in LEVELS] == [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 
 
 def test_the_four_trap_weapon_dice_are_gone():
@@ -136,14 +137,14 @@ def test_game_page_inline_copies_match():
     """The SW set-level popup and the in-game help table each carry their own hand-typed rows."""
     t = _read("static/game.html")
     popup = re.findall(r"(\d+):\s*\{ max_dp:(\d+), edge:(\d+), uses:(\d+),\s+defense:'([^']+)' \}", t)
-    assert len(popup) == 10
+    assert len(popup) == 15
     for lvl, dp, edge, uses, die in popup:
         row = leveling.level_stats(int(lvl))
         assert (int(dp), int(edge), int(uses), die) == (row["max_dp"], row["edge"], row["uses_per_encounter"], row["defense_die"]), lvl
     cell = r'<td style="padding:3px 8px;text-align:center;">'
     help_rows = re.findall(r'color:var\(--primary\);">(\d+)</td>' + cell + r"(\d+)</td>" + cell + r"(\d+)</td>" + cell
                            + r"(\d+)</td>" + cell + r"(\d+)</td>" + cell + r"(1d\d+)</td>", t)
-    assert len(help_rows) == 10
+    assert len(help_rows) == 15
     for lvl, dp, edge, bap, uses, die in help_rows:
         row = leveling.level_stats(int(lvl))
         assert (int(dp), int(edge), int(bap), int(uses), die) == (
@@ -154,7 +155,7 @@ def test_game_page_inline_copies_match():
 # ---- the Ally table (rules v3.1): about half a player's DP, single-die weapons, a first spell from level 1 --------
 
 def _ally(field):
-    return {l: leveling.ally_stats(l)[field] for l in LEVELS}
+    return {l: leveling.ally_stats(l)[field] for l in ALLY_RANGE}
 
 
 def test_the_ally_table_matches_the_core_rules():
@@ -164,7 +165,7 @@ def test_the_ally_table_matches_the_core_rules():
     assert list(_ally("uses_per_encounter").values()) == [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     assert all(len(v) == 1 for v in _ally("weapon_options").values()), "an Ally's weapon is a single die"
     assert list(_ally("slot_1_die").values()) == ["1d6", "1d6", "1d8", "1d8", "1d10", "1d10", "1d12", "1d12", "2d8", "2d8"]
-    assert [_ally("slot_2_die")[l] for l in LEVELS] == [None] * 6 + ["1d8", "1d8", "1d10", "1d10"]
+    assert [_ally("slot_2_die")[l] for l in ALLY_RANGE] == [None] * 6 + ["1d8", "1d8", "1d10", "1d10"]
     with pytest.raises(ValueError):
         leveling.ally_stats(11)                                   # Allies stop at level 10
 
@@ -186,3 +187,16 @@ def test_the_ally_spell_dice_on_the_create_page_match():
         slots[int(slot)] = {int(k): v for k, v in re.findall(r"(\d+):\s*'([^']*)'", body)}
     assert slots[1] == {l: d for l, d in _ally("slot_1_die").items()}
     assert slots[2] == {l: d for l, d in _ally("slot_2_die").items() if d}
+
+
+def test_ascension_rows_match_the_core_rules():
+    """Levels 11-15: DP 28 to 36, Edge 5/5/6/6/7, BAP 6/6/7/7/8; the dice do not reset."""
+    assert [leveling.level_stats(l)["max_dp"] for l in range(11, 16)] == [28, 30, 32, 34, 36]
+    assert [leveling.level_stats(l)["edge"] for l in range(11, 16)] == [5, 5, 6, 6, 7]
+    assert [leveling.level_stats(l)["bap"] for l in range(11, 16)] == [6, 6, 7, 7, 8]
+    for l in range(11, 16):
+        assert leveling.level_stats(l)["defense_die"] == "1d12"
+        assert leveling.weapon_options(l) == leveling.weapon_options(10)
+    with pytest.raises(ValueError):
+        leveling.level_stats(16)
+    assert leveling.MAX_LEVEL == 15 and leveling.ALLY_MAX_LEVEL == 10

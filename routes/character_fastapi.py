@@ -19,6 +19,7 @@ from backend.character_utils import (
     validate_ally_attack_style,
 )
 from backend.leveling import uses_for_level as _uses_for_level, ALLY_LEVELS as _ALLY_LEVELS
+from backend.ascension import normalize_secondary, secondary_unlocked, secondary_unlock_level
 from backend.tethers import (STORY_TETHER_LIMIT, story_tether_count, clamp_tether_modifier, net_modifier, active_net,
                              new_tether, source_of, apply_ally_death, EXTRA_SOURCES)
 from backend.uses import pool_remaining as _pool_remaining, pool_max as _pool_max, refill as _refill_uses, restore as _restore_uses
@@ -157,10 +158,10 @@ async def create_character_full(
                 raise ValueError(f"{stat_name} must be between 1 and 3, got {stat_val}")
 
         # =====================================================================
-        # 2. Validate level (1-10 for TBA v1.5)
+        # 2. Validate level (1-15: levels 11-15 are Ascension)
         # =====================================================================
-        if not 1 <= req.level <= 10:
-            raise ValueError(f"Level must be between 1 and 10, got {req.level}")
+        if not 1 <= req.level <= 15:
+            raise ValueError(f"Level must be between 1 and 15, got {req.level}")
 
         # =====================================================================
         # 3. Validate weapon_die for level
@@ -1912,7 +1913,8 @@ async def get_character_abilities(
                 "is_aoe": ability.is_aoe,
                 # one shared pool per character (rules v3.1), shown on every ability
                 "max_uses": _pool_max(character),
-                "uses_remaining": _pool_remaining(character)
+                "uses_remaining": _pool_remaining(character),
+                "secondary_effect": ability.secondary_effect,
             })
 
         return {"abilities": abilities_list}
@@ -1954,6 +1956,19 @@ async def patch_ability(
     if "effect_type"   in req: ability.effect_type   = req["effect_type"]
     if "is_aoe"        in req: ability.is_aoe        = bool(req["is_aoe"])
     if "debuff_stat"   in req: ability.debuff_stat   = req["debuff_stat"]
+    if "secondary_effect" in req:
+        # Ascension: slot N gains its secondary effect at level 10 + N. The player and Story Weaver agree it together at the
+        # table, so either may enter it.
+        try:
+            effect = normalize_secondary(req["secondary_effect"])
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if effect is not None and not secondary_unlocked(char.level, ability.slot_number):
+            raise HTTPException(status_code=400, detail=(
+                f"Slot {ability.slot_number} gains its secondary effect at level {secondary_unlock_level(ability.slot_number)}"))
+        if effect and effect["kind"] == "debuff" and ability.effect_type not in ("damage", "debuff"):
+            raise HTTPException(status_code=400, detail="A debuff secondary effect rides an attack or a debuff")
+        ability.secondary_effect = effect
 
     db.commit()
     db.refresh(ability)
@@ -1970,6 +1985,7 @@ async def patch_ability(
         "debuff_stat":   ability.debuff_stat,
         "max_uses":      _pool_max(char),
         "uses_remaining":_pool_remaining(char),
+        "secondary_effect": ability.secondary_effect,
     }
 
 
@@ -2358,8 +2374,13 @@ async def resolve_the_calling(
     else:
         sw_die_str = "1d12"
 
+    # Ascension (rules v3.1): the bonus matches the Edge the hero has gained since level 10 (+1 at 13-14, +2 at 15)
+    sw_bonus = 0 if char.level <= 12 else 1 if char.level <= 14 else 2
     sw_die_roll = roll_dice(sw_die_str)[0]
-    margin = player_total - sw_die_roll
+    sw_total = sw_die_roll + sw_bonus
+    margin = player_total - sw_total
+    if sw_bonus:
+        sw_die_str = f"{sw_die_str}+{sw_bonus}"
 
     # Determine outcome. A tie is Marked, not death (v3.1). Only a Mark counts toward the five,
     # and a Mark that would be the fifth kills instead.
@@ -2429,7 +2450,7 @@ async def resolve_the_calling(
         "player_total": player_total,
         "sw_die": sw_die_str,
         "sw_roll": sw_die_roll,
-        "sw_total": sw_die_roll,
+        "sw_total": sw_total,
         "stat_used": stat_label,
         "new_dp": char.dp,
         "times_called": char.times_called,
@@ -2870,8 +2891,9 @@ async def level_up_character(
         raise HTTPException(status_code=403, detail="Only Story Weaver can level up characters")
 
     current_level = char.level or 1
-    if current_level >= 10:
-        raise HTTPException(status_code=400, detail="Character is already at max level (10)")
+    top = 10 if char.is_ally else 15     # Allies stop at level 10; everyone else tops out at 15
+    if current_level >= top:
+        raise HTTPException(status_code=400, detail=f"Character is already at max level ({top})")
 
     new_level = current_level + 1
     stats = (ALLY_LEVEL_TABLE if char.is_ally else LEVEL_TABLE)[new_level]
@@ -2980,7 +3002,7 @@ async def set_character_level(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Set a character to any level 1-10 (SW only). Recalculates all stats.
+    Set a character to any level 1-15 (SW only; an Ally stops at 10). Recalculates all stats.
     Body: { new_level: int, weapon_die: str, heal_dp: bool }
     """
     from uuid import UUID
@@ -2999,8 +3021,8 @@ async def set_character_level(
         raise HTTPException(status_code=403, detail="Only Story Weaver can adjust character level")
 
     new_level = int(req.get("new_level", 1))
-    if new_level < 1 or new_level > 10:
-        raise HTTPException(status_code=400, detail="Level must be between 1 and 10")
+    if new_level < 1 or new_level > (10 if char.is_ally else 15):
+        raise HTTPException(status_code=400, detail="Level must be between 1 and " + ("10 for an Ally" if char.is_ally else "15"))
 
     current_level = char.level or 1
     stats = (ALLY_LEVEL_TABLE if char.is_ally else LEVEL_TABLE)[new_level]

@@ -120,7 +120,12 @@ live in the existing JSON column). Decisions: a Marked scar or fear creates the 
 other Bonded characters get Grief (active), every Combo with the Ally is lost. Ally table (DP 4 to 13, slot 1 die from level 1, own pool, cap 10); Tether scale +1 to +4,
 strongest bonus and penalty only, Grief -1 to -3.
 
-**Phase 9: Ascension (levels 11 to 15).** Everything capped at 10 today. Edge/BAP/DP rows, one secondary effect per
+**Phase 9: Ascension (levels 11 to 15). BUILT on branch rules-v3.1-phase9, not yet on main. Needs migration 035** (`abilities.secondary_effect`,
+additive). Decisions (Jason, Nov 17): secondary effects are STRUCTURED with a free-text note: {kind: debuff|buff|note, stat, strength
+1-4, note}. A debuff lands automatically on a hit and replaces the old one on the same stat; a buff goes to the caster on an
+attack or debuff and to the one helped on a heal or buff; a note-only effect is applied by hand. Not automated: an Ally's own
+secondary effect (the level 11 effect when slot 1 is an Ally), Ascension Combo evolution (a table event), and a secondary
+effect on an AOE reaches the targets the SW approved for the cast. Everything capped at 10 today. Edge/BAP/DP rows, one secondary effect per
 Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (Allies stay at 10).
 
 **Later (own plans):** Damage Effects; Kids terminology mode; `static/*.html` rules text if any shows old numbers.

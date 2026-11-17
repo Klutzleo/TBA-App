@@ -3,7 +3,7 @@ Character creation and level-up utilities (rules v3.1).
 Edge, BAP, max DP, uses, weapon and defense dice all come from schemas/leveling_v3_1.json via backend.leveling.
 """
 
-from backend.leveling import CHARACTER_LEVELS, level_stats, weapon_options, ally_stats, ally_weapon_options
+from backend.leveling import CHARACTER_LEVELS, MAX_LEVEL, level_stats, weapon_options, ally_stats, ally_weapon_options
 
 # DP progression by level (v3.1: 8 at level 1, +2 per level). Derived, never edited here.
 DP_BY_LEVEL = {lvl: row["max_dp"] for lvl, row in CHARACTER_LEVELS.items()}
@@ -26,8 +26,8 @@ def calculate_level_stats(level: int) -> dict:
     Raises:
         ValueError: If level is outside 1-10 range
     """
-    if level < 1 or level > 10:
-        raise ValueError(f"Level must be 1-10, got {level}")
+    if level < 1 or level > MAX_LEVEL:
+        raise ValueError(f"Level must be 1-{MAX_LEVEL}, got {level}")
     
     row = level_stats(level)
     return {

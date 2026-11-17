@@ -4,7 +4,7 @@ priority: high
 category: app
 progress: 83
 focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
-next_milestone: "Deploy v3.1 Phase 8 (Allies and Tethers), then Phase 9 (Ascension)"
+next_milestone: "Deploy v3.1 Phase 9 (Ascension, migration 035), then the finish-v3.1 extras (Damage Effects, BAP effect, all-or-nothing Combo save)"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -107,6 +107,8 @@ First file to open: `docs/rules-v3.1-app-plan.md` (Phase 3), then `routes/campai
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
+2026-11-17 (dawn): Phase 8 (Allies and Tethers) is LIVE. Phase 9 (Ascension) is built and tested on branch `rules-v3.1-phase9` (326 tests), NOT deployed, needs migration 035: levels 11-15 (DP 28 to 36, Edge to +7, BAP to +8) for characters and NPCs with the cap at 15 (Allies stay at 10); every level table on the three pages now goes to 15 and the drift tests guard it; The Calling's difficulty die gets +1 at 13-14 and +2 at 15; secondary effects (slot N unlocks at level 10+N) are structured {debuff|buff|note, stat, strength 1-4, note}, applied automatically when the ability lands, no extra use or roll; the SW sheet has an editor; the Triple Combo is now usable by three bonded level-11+ characters.
+
 2026-11-17 (small hours): Phase 7 (Combos) is LIVE. Phase 8 (Allies and Tethers) is built and tested on branch `rules-v3.1-phase8` (310 tests), NOT deployed, no migration: Allies use their own table (DP 4 to 13, own pool, single-die weapons, first spell from level 1, cap 10); Tethers use the -4 to +4 scale with 3 story slots plus extra Marked/Grief/Emptiness Tethers, only the strongest bonus and penalty count; a Mark's scar or fear becomes a Tether; active Tethers ride the Calling roll; an Ally's death gives its player Emptiness, other Bonded characters Grief, and ends every Combo with it; Grief is -1 to -3.
 
 2026-11-17 (end of night): Phase 6 (summons) is LIVE. Phase 7 (Combos) is built and tested on branch `rules-v3.1-phase7` (291 tests), NOT deployed, no migration: Combos are now fully resolved by the app (each player picks a target at fire time; damage with the target defending, heals with BAP and the once-per-person rule, buffs and debuffs one step higher ONLY when the Combo has no attack, stronger same-stat effect wins; lost picks after a restart re-prompt without spending anything, debuffs resisted with 1d6 + stat + Edge), the Triple Combo adds +2 to every roll and now needs level 11+, a named Combo fires once per encounter.

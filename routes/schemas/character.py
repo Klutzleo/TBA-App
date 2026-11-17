@@ -41,7 +41,7 @@ class CharacterCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     owner_id: str = Field(..., description="User ID or API key identifier")
     campaign_id: Optional[UUID] = Field(None, description="Optional campaign ID to link this character to")
-    level: int = Field(default=1, ge=1, le=10, description="Starting level (1-10)")
+    level: int = Field(default=1, ge=1, le=15, description="Starting level (1-15; 11-15 is Ascension)")
     pp: int = Field(..., ge=1, le=3)
     ip: int = Field(..., ge=1, le=3)
     sp: int = Field(..., ge=1, le=3)
@@ -81,7 +81,7 @@ class CharacterCreate(BaseModel):
 class CharacterUpdate(BaseModel):
     """Request to update an existing character."""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    level: Optional[int] = Field(None, ge=1, le=10, description="Level (auto-recalculates stats)")
+    level: Optional[int] = Field(None, ge=1, le=15, description="Level (auto-recalculates stats)")
     dp: Optional[int] = Field(None, ge=0, description="Current DP (manual adjustment)")
     pp: Optional[int] = Field(None, ge=1, le=3, description="Physical Proficiency (1-3)")
     ip: Optional[int] = Field(None, ge=1, le=3, description="Intellect Proficiency (1-3)")
@@ -352,7 +352,7 @@ class FullCharacterCreate(BaseModel):
     # Character basics
     name: str = Field(..., min_length=1, max_length=100)
     notes: Optional[str] = Field(None, max_length=500, description="Character description/backstory")
-    level: int = Field(default=1, ge=1, le=10, description="Starting level (1-10)")
+    level: int = Field(default=1, ge=1, le=15, description="Starting level (1-15; 11-15 is Ascension)")
 
     # Stats (must sum to 6)
     pp: int = Field(..., ge=1, le=3, description="Physical Power (1-3)")

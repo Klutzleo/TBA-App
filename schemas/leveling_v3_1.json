@@ -1,5 +1,5 @@
 {
-  "_about": "TBA rules v3.1, player character leveling (levels 1-10). The single source of truth for numbers: the backend reads this file, and tests/test_leveling_tables.py fails if static/game.html, create-character.html or create-ally.html drift from it. The Ally table (levels 1-10, half DP, slot 1 from level 1) is the second block. Ascension (11-15) is added in a later phase.",
+  "_about": "TBA rules v3.1, player character leveling (levels 1-10). The single source of truth for numbers: the backend reads this file, and tests/test_leveling_tables.py fails if static/game.html, create-character.html or create-ally.html drift from it. The Ally table (levels 1-10, half DP, slot 1 from level 1) is the second block. Levels 11-15 are Ascension: the dice do not reset, so the weapon and defense dice stay at their level 10 values.",
   "version": "3.1",
   "characters": {
     "1": {
@@ -113,6 +113,66 @@
         "3d8"
       ],
       "uses_per_encounter": 12
+    },
+    "11": {
+      "max_dp": 28,
+      "edge": 5,
+      "bap": 6,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 13
+    },
+    "12": {
+      "max_dp": 30,
+      "edge": 5,
+      "bap": 6,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 14
+    },
+    "13": {
+      "max_dp": 32,
+      "edge": 6,
+      "bap": 7,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 15
+    },
+    "14": {
+      "max_dp": 34,
+      "edge": 6,
+      "bap": 7,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 16
+    },
+    "15": {
+      "max_dp": 36,
+      "edge": 7,
+      "bap": 8,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 17
     }
   },
   "buff_debuff": {

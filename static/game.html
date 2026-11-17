@@ -4333,7 +4333,12 @@
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">7</td><td style="padding:3px 8px;text-align:center;">20</td><td style="padding:3px 8px;text-align:center;">3</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">9</td><td style="padding:3px 8px;text-align:center;">1d10</td></tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">8</td><td style="padding:3px 8px;text-align:center;">22</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">10</td><td style="padding:3px 8px;text-align:center;">1d10</td></tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">9</td><td style="padding:3px 8px;text-align:center;">24</td><td style="padding:3px 8px;text-align:center;">4</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">11</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
-                <tr><td style="padding:3px 8px;color:var(--primary);">10</td><td style="padding:3px 8px;text-align:center;">26</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">12</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">10</td><td style="padding:3px 8px;text-align:center;">26</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">12</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">11</td><td style="padding:3px 8px;text-align:center;">28</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">6</td><td style="padding:3px 8px;text-align:center;">13</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">12</td><td style="padding:3px 8px;text-align:center;">30</td><td style="padding:3px 8px;text-align:center;">5</td><td style="padding:3px 8px;text-align:center;">6</td><td style="padding:3px 8px;text-align:center;">14</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">13</td><td style="padding:3px 8px;text-align:center;">32</td><td style="padding:3px 8px;text-align:center;">6</td><td style="padding:3px 8px;text-align:center;">7</td><td style="padding:3px 8px;text-align:center;">15</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:3px 8px;color:var(--primary);">14</td><td style="padding:3px 8px;text-align:center;">34</td><td style="padding:3px 8px;text-align:center;">6</td><td style="padding:3px 8px;text-align:center;">7</td><td style="padding:3px 8px;text-align:center;">16</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
+                <tr><td style="padding:3px 8px;color:var(--primary);">15</td><td style="padding:3px 8px;text-align:center;">36</td><td style="padding:3px 8px;text-align:center;">7</td><td style="padding:3px 8px;text-align:center;">8</td><td style="padding:3px 8px;text-align:center;">17</td><td style="padding:3px 8px;text-align:center;">1d12</td></tr>
               </tbody>
             </table>
           </div>
@@ -4853,7 +4858,7 @@
           </div>
           <div class="form-group">
             <label class="form-label">Level *</label>
-            <input type="number" id="npcLevel" class="form-input" min="1" max="10" value="1" required>
+            <input type="number" id="npcLevel" class="form-input" min="1" max="15" value="1" required>
           </div>
           <div class="form-group">
             <label class="form-label">Stats (must sum to 6) *</label>
@@ -4915,7 +4920,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Level *</label>
-          <input type="number" id="editNpcLevel" class="form-input" min="1" max="10" required>
+          <input type="number" id="editNpcLevel" class="form-input" min="1" max="15" required>
         </div>
         <div class="form-group">
           <label class="form-label">Current DP</label>
@@ -5540,8 +5545,9 @@
     // PC/NPC DP progression (from Leveling Table v2.0)
     const PC_DP_BY_LEVEL = {
       1: 8, 2: 10, 3: 12, 4: 14, 5: 16,
-      6: 18, 7: 20, 8: 22, 9: 24, 10: 26
-    };
+      6: 18, 7: 20, 8: 22, 9: 24, 10: 26,
+      11: 28, 12: 30, 13: 32, 14: 34, 15: 36
+  };
     // Ally DP progression (lower than PC)
     const ALLY_DP_BY_LEVEL = {
       1: 4, 2: 5, 3: 6, 4: 7, 5: 8,
@@ -5565,12 +5571,22 @@
     // NPCs use PC weapon progression (multiple options per level)
     // Ordered: Single large die first → Multiple small dice
     const NPC_WEAPON_OPTIONS_BY_LEVEL = {
-      1: ['1d4'], 2: ['1d4'],
-      3: ['1d6', '2d4'], 4: ['1d6', '2d4'],
-      5: ['1d8', '2d6'], 6: ['1d8', '2d6'],
-      7: ['1d10', '2d8', '3d6'], 8: ['1d10', '2d8', '3d6'],
-      9: ['1d12', '2d10', '3d8'], 10: ['1d12', '2d10', '3d8']
-    };
+      1: ['1d4'],
+      2: ['1d4'],
+      3: ['1d6', '2d4'],
+      4: ['1d6', '2d4'],
+      5: ['1d8', '2d6'],
+      6: ['1d8', '2d6'],
+      7: ['1d10', '2d8', '3d6'],
+      8: ['1d10', '2d8', '3d6'],
+      9: ['1d12', '2d10', '3d8'],
+      10: ['1d12', '2d10', '3d8'],
+      11: ['1d12', '2d10', '3d8'],
+      12: ['1d12', '2d10', '3d8'],
+      13: ['1d12', '2d10', '3d8'],
+      14: ['1d12', '2d10', '3d8'],
+      15: ['1d12', '2d10', '3d8']
+  };
     const ALLY_SPELL_DIE_BY_SLOT_AND_LEVEL = {
       // Slot 1 (Single): Unlocks L3
       1: { 3: '1d8', 4: '1d8', 5: '1d10', 6: '1d10', 7: '1d12', 8: '1d12', 9: '2d8', 10: '2d8' },
@@ -6709,10 +6725,10 @@
     // LEVEL UP SYSTEM
     // ===================================================================
 
-    const PC_EDGE_BY_LEVEL    = {1:0,2:1,3:1,4:2,5:2,6:3,7:3,8:4,9:4,10:5};
-    const PC_BAP_BY_LEVEL     = {1:1,2:1,3:2,4:2,5:3,6:3,7:4,8:4,9:5,10:5};
-    const PC_USES_BY_LEVEL    = {1:3,2:4,3:5,4:6,5:7,6:8,7:9,8:10,9:11,10:12};
-    const PC_DEFENSE_BY_LEVEL = {1:'1d4',2:'1d4',3:'1d6',4:'1d6',5:'1d8',6:'1d8',7:'1d10',8:'1d10',9:'1d12',10:'1d12'};
+    const PC_EDGE_BY_LEVEL    = {1:0,2:1,3:1,4:2,5:2,6:3,7:3,8:4,9:4,10:5,11:5,12:5,13:6,14:6,15:7};
+    const PC_BAP_BY_LEVEL     = {1:1,2:1,3:2,4:2,5:3,6:3,7:4,8:4,9:5,10:5,11:6,12:6,13:7,14:7,15:8};
+    const PC_USES_BY_LEVEL    = {1:3,2:4,3:5,4:6,5:7,6:8,7:9,8:10,9:11,10:12,11:13,12:14,13:15,14:16,15:17};
+    const PC_DEFENSE_BY_LEVEL = {1:'1d4',2:'1d4',3:'1d6',4:'1d6',5:'1d8',6:'1d8',7:'1d10',8:'1d10',9:'1d12',10:'1d12',11:'1d12',12:'1d12',13:'1d12',14:'1d12',15:'1d12'};
     const NEW_SLOT_LEVELS     = new Set([3, 5, 7, 9]);
     const SPELL_SLOTS_BY_LEVEL = {
       1: ['1d6'], 2: ['1d6'],
@@ -6720,6 +6736,8 @@
       5: ['1d10','1d8','1d6'], 6: ['1d10','1d8','1d6'],
       7: ['1d12','1d10','1d8','1d8'], 8: ['1d12','1d10','1d8','1d8'],
       9: ['2d8','1d12','1d10','1d10','1d10'], 10: ['2d8','1d12','2d6','1d10','1d12'],
+      11: ['2d8','1d12','2d6','1d10','1d12'], 12: ['2d8','1d12','2d6','1d10','1d12'], 13: ['2d8','1d12','2d6','1d10','1d12'],
+      14: ['2d8','1d12','2d6','1d10','1d12'], 15: ['2d8','1d12','2d6','1d10','1d12'],
     };
 
     let levelUpCharId = null;
@@ -6734,7 +6752,7 @@
       const char = await resp.json();
 
       const currentLevel = char.level || 1;
-      if (currentLevel >= 10) {
+      if (currentLevel >= (char.is_ally ? 10 : 15)) {
         showPanelToast(`${charName} is already at max level!`, 'warning');
         return;
       }
@@ -6862,6 +6880,11 @@
         8:  { max_dp:22, edge:4, uses:10, defense:'1d10' },
         9:  { max_dp:24, edge:4, uses:11, defense:'1d12' },
         10: { max_dp:26, edge:5, uses:12, defense:'1d12' },
+        11: { max_dp:28, edge:5, uses:13, defense:'1d12' },
+        12: { max_dp:30, edge:5, uses:14, defense:'1d12' },
+        13: { max_dp:32, edge:6, uses:15, defense:'1d12' },
+        14: { max_dp:34, edge:6, uses:16, defense:'1d12' },
+        15: { max_dp:36, edge:7, uses:17, defense:'1d12' },
       }[newLevel];
       const rows = [
         ['Max DP',   char.max_dp,                 stats.max_dp],
@@ -9669,7 +9692,7 @@
     document.getElementById('npcLevel')?.addEventListener('input', updateNpcWeaponOptions);
     document.getElementById('editNpcLevel')?.addEventListener('input', async function() {
       const level = parseInt(this.value);
-      if (!level || level < 1 || level > 10) return;
+      if (!level || level < 1 || level > 15) return;
 
       const currentWeapon = document.getElementById('editNpcAttackStyle').value;
       const npcId = document.getElementById('editNpcId').value;
@@ -16738,7 +16761,7 @@
   function myTriangleCandidates() {
     if (!characterId) return [];
     const myLevel = (knownPCs.find(c => c.id === characterId) || {}).level;
-    if (myLevel !== 10) return [];
+    if (!(myLevel >= 11)) return [];
 
     const partners = myBonds().map(b => {
       const partnerId = b.character_id_a === characterId ? b.character_id_b : b.character_id_a;
@@ -17338,6 +17361,28 @@
                 </div>
                 <input id="swAb_macro_${i}" value="${escHtml(a.macro_command || '')}" placeholder="Macro (e.g. /fireball)"
                   style="width:100%;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:3px 7px;color:var(--text-primary);font-size:0.8rem;font-family:monospace;">
+                ${(char && (char.level || 0) >= 10 + a.slot_number) ? (() => {
+                  const se = a.secondary_effect || {};
+                  const sel = (v, cur) => (v === cur ? ' selected' : '');
+                  const fieldStyle = 'background:var(--bg-dark);border:1px solid var(--border-color);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:0.8rem;';
+                  return `
+                <div style="margin-top:8px;border-top:1px dashed rgba(167,139,250,0.35);padding-top:6px;">
+                  <span style="font-size:0.72rem;color:#a78bfa;text-transform:uppercase;letter-spacing:0.05em;">✨ Ascension effect (slot ${a.slot_number})</span>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin:2px 0 4px;">What this ability ALSO does whenever it lands. Same roll, no extra use. A debuff lands automatically.</div>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    <select id="swAb_sec_kind_${i}" style="${fieldStyle}">
+                      <option value=""${sel('', se.kind || '')}>None</option>
+                      <option value="debuff"${sel('debuff', se.kind)}>Debuff the target</option>
+                      <option value="buff"${sel('buff', se.kind)}>Buff (caster, or the one helped)</option>
+                      <option value="note"${sel('note', se.kind)}>Note only (I apply it)</option>
+                    </select>
+                    <select id="swAb_sec_stat_${i}" style="${fieldStyle}">${['pp','ip','sp'].map(x => `<option value="${x}"${sel(x, se.stat)}>${x.toUpperCase()}</option>`).join('')}</select>
+                    <select id="swAb_sec_str_${i}" style="${fieldStyle}">${[1,2,3,4].map(n => `<option value="${n}"${sel(String(n), String(se.strength || 1))}>${n}</option>`).join('')}</select>
+                  </div>
+                  <input id="swAb_sec_note_${i}" value="${escHtml(se.note || '')}" placeholder="In the story: e.g. the flame carries the dragon's will"
+                    style="width:100%;margin-top:4px;${fieldStyle}">
+                </div>`;
+                })() : ''}
                 ${(a.effect_type === 'debuff' || a.effect_type === 'buff') ? `
                 <div style="margin-top:5px;">
                   <span style="font-size:0.75rem;color:var(--text-muted);">Affects Stat:</span>
@@ -17515,11 +17560,22 @@
     const macro = document.getElementById(`swAb_macro_${idx}`)?.value.trim();
     const debuffStatEl = document.getElementById(`swAb_debuff_stat_${idx}`);
     const debuffStat = debuffStatEl ? debuffStatEl.value : null;
+    const body = { display_name: name, power_source: src, macro_command: macro, debuff_stat: debuffStat };
+    // Ascension secondary effect (only shown on slots that have unlocked one)
+    const secKind = document.getElementById(`swAb_sec_kind_${idx}`);
+    if (secKind) {
+      body.secondary_effect = secKind.value ? {
+        kind: secKind.value,
+        stat: document.getElementById(`swAb_sec_stat_${idx}`).value,
+        strength: parseInt(document.getElementById(`swAb_sec_str_${idx}`).value, 10),
+        note: document.getElementById(`swAb_sec_note_${idx}`).value.trim(),
+      } : null;
+    }
     try {
       const res = await fetch(`/api/characters/${_swSheetCharId}/abilities/${ab.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify({ display_name: name, power_source: src, macro_command: macro, debuff_stat: debuffStat }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         _swSheetAbilities[idx] = await res.json();
@@ -17856,6 +17912,10 @@
                 ${a.is_aoe ? '<span style="color:#f59e0b;">AoE</span>' : ''}
               </div>
               ${a.macro_command ? `<div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;margin-top:2px;">${escHtml(a.macro_command)}</div>` : ''}
+              ${a.secondary_effect ? `<div style="font-size:0.75rem;color:#a78bfa;margin-top:4px;">✨ Also: ${
+                a.secondary_effect.kind === 'note' ? escHtml(a.secondary_effect.note || '')
+                : `${a.secondary_effect.kind === 'debuff' ? 'debuffs' : 'buffs'} ${String(a.secondary_effect.stat || '').toUpperCase()} ${a.secondary_effect.kind === 'debuff' ? '-' : '+'}${a.secondary_effect.strength}${a.secondary_effect.note ? ' — ' + escHtml(a.secondary_effect.note) : ''}`
+              }</div>` : ''}
             </div>`).join('')
         : '<p style="color:var(--text-muted);font-size:0.85rem;">No abilities.</p>';
 

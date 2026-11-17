@@ -14,7 +14,8 @@ _PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 with open(_PATH, "r", encoding="utf-8") as _f:
     _DATA = json.load(_f)
 
-MAX_LEVEL = 10  # Ascension (11-15) arrives in a later phase
+MAX_LEVEL = 15  # levels 11-15 are Ascension
+ALLY_MAX_LEVEL = 10  # Allies stop at level 10
 
 # {level: {"max_dp", "edge", "bap", "defense_die", "weapon_options", "uses_per_encounter"}}
 CHARACTER_LEVELS = {int(k): v for k, v in _DATA["characters"].items()}
@@ -60,7 +61,7 @@ def combo_step_modifier(die: str) -> int:
 def ally_stats(level: int) -> dict:
     """The Ally row for a level. Raises ValueError outside 1-10 (Allies stop at level 10)."""
     if level not in ALLY_LEVELS:
-        raise ValueError(f"An Ally's level must be 1-{MAX_LEVEL}, got {level}")
+        raise ValueError(f"An Ally's level must be 1-{ALLY_MAX_LEVEL}, got {level}")
     return ALLY_LEVELS[level]
 
 

@@ -1,17 +1,66 @@
 {
   "character_leveling": {
-    "1": { "Edge": 0, "BAP": 1 },
-    "2": { "Edge": 1, "BAP": 1 },
-    "3": { "Edge": 1, "BAP": 2 },
-    "4": { "Edge": 2, "BAP": 2 },
-    "5": { "Edge": 2, "BAP": 3 },
-    "6": { "Edge": 3, "BAP": 3 },
-    "7": { "Edge": 3, "BAP": 4 },
-    "8": { "Edge": 4, "BAP": 4 },
-    "9": { "Edge": 4, "BAP": 5 },
-    "10": { "Edge": 5, "BAP": 5 }
+    "1": {
+      "Edge": 0,
+      "BAP": 1
+    },
+    "2": {
+      "Edge": 1,
+      "BAP": 1
+    },
+    "3": {
+      "Edge": 1,
+      "BAP": 2
+    },
+    "4": {
+      "Edge": 2,
+      "BAP": 2
+    },
+    "5": {
+      "Edge": 2,
+      "BAP": 3
+    },
+    "6": {
+      "Edge": 3,
+      "BAP": 3
+    },
+    "7": {
+      "Edge": 3,
+      "BAP": 4
+    },
+    "8": {
+      "Edge": 4,
+      "BAP": 4
+    },
+    "9": {
+      "Edge": 4,
+      "BAP": 5
+    },
+    "10": {
+      "Edge": 5,
+      "BAP": 5
+    },
+    "11": {
+      "Edge": 5,
+      "BAP": 6
+    },
+    "12": {
+      "Edge": 5,
+      "BAP": 6
+    },
+    "13": {
+      "Edge": 6,
+      "BAP": 7
+    },
+    "14": {
+      "Edge": 6,
+      "BAP": 7
+    },
+    "15": {
+      "Edge": 7,
+      "BAP": 8
+    }
   },
-
   "skill_roll": {
     "actor_die": "1d6",
     "opponent_default": "1d4",

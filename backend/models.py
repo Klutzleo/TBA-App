@@ -669,6 +669,8 @@ class Ability(Base):
     # Usage tracking (3 uses per encounter per character level)
     max_uses = Column(Integer, nullable=False, default=3)  # Total charges per encounter
     uses_remaining = Column(Integer, nullable=False, default=3)  # Current charges
+    # Ascension (levels 11-15): what the ability ALSO does whenever it lands. {kind, stat, strength, note}; see backend/ascension.py
+    secondary_effect = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
