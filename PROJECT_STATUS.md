@@ -3,8 +3,8 @@ phase: active
 priority: high
 category: app
 progress: 83
-focus: "LBA Stage 0 shipped. Deliberately pausing growth features — Ascension is next, then a possible rules revision, then LBA Stage 0.5"
-next_milestone: "Ascension levels 11-15, once Jason's NPC/Ally leveling write-up is ready"
+focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
+next_milestone: "v3.1 Phase 1 (The Calling fixes), then Phase 2 (one leveling table + new DP/uses/dice numbers)"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -15,9 +15,9 @@ uniqueness: first-mover
 viral_potential: medium
 mvp_distance: days
 waiting_on: jason                # jason / claude / external / none
-decision: "Ascension 11-15: should NPCs (and maybe Allies) level past 10 too? Your write-up unblocks the build."
-if_go: "Claude turns the write-up into a file-by-file plan (every level-10 cap site; Triple Combo gate == 10 becomes >= 10), then builds on a branch with tests and a before/after report. Needs the plan doc inside the repo (see Resume here)."
-status_verified: "2026-11-04 against git history through 2026-10-19; app not run"
+decision: "v3.1 plan questions in docs/rules-v3.1-app-plan.md section 4: retire per-ability uses for one shared pool; reset times_called to Mark count or leave; debuff defense 1d6 vs Defense Die (Core contradicts itself); automate Combo effects or keep manual; migrate all NPCs or only table-built; count buff rounds instead of per-turn. Phase 1 needs answers to the times_called and debuff-defense questions."
+if_go: "Claude builds Phase 1 (The Calling: tie is Marked, only Marks count, 5th Mark kills) on branch rules-v3.1 with tests, then Phase 2 (one leveling JSON, DP 8 +2/level, uses level+2, drop trap dice, new buff table), each phase shipped separately."
+status_verified: "2026-11-17 against the code for the v3.1 gap list; app not run; pytest 212 passed, 5 skipped"
 ---
 
 ## Why this exists
@@ -72,7 +72,8 @@ done, even if it's tempting to — this was an explicit, reasoned call, not
 a drop.
 
 ## Next up
-- [ ] **Ascension levels 11-15 — next up.** Rules locked for PCs; on hold pending Jason's write-up on whether NPCs/Allies also go past 10 (Allies have their own separate, lower stat table that doesn't extend without new numbers). Also: Triple Combo's level gate is `== 10` in both `campaign_websocket.py` and `game.html` — needs to become `>= 10` whenever Ascension ships, or an Ascended character loses Triple Combo the moment they level past 10. Full technical inventory already done, see plan doc.
+- [ ] **Rules v3.1 in the app (in progress).** Final v3.1 rules (Nov 16) are in `Rulebook.md` and `LevelingTable.md` (Phase 0, done on branch `rules-v3.1`). The app still runs v3.0 numbers and behavior: DP 10 +5/level, uses level x 3 per ability (not a pool), old buff table, a Calling tie kills, summons drain DP. Audit and 9-phase plan: `docs/rules-v3.1-app-plan.md`. Summons need a rework because v3.1 changed them after the Nov 9 gap report. Kids terminology mode is deferred.
+- [ ] **Ascension levels 11-15** comes after the v3.1 phases. Rules locked for PCs; on hold pending Jason's write-up on whether NPCs/Allies also go past 10 (Allies have their own separate, lower stat table that doesn't extend without new numbers). Also: Triple Combo's level gate is `== 10` in both `campaign_websocket.py` and `game.html` — needs to become `>= 10` whenever Ascension ships, or an Ascended character loses Triple Combo the moment they level past 10. Full technical inventory already done, see plan doc.
 - [ ] Possible broader rules revision — mentioned 2026-10-01, no detail yet, Jason to scope whenever ready.
 - [ ] LBA Stage 0.5 — Lore Builder, cloning/attribution, NPC/PC-level publishing, moderation. Fully designed in the plan doc, deliberately paused — see sequencing decision above.
 - [ ] LBA Stage 1 — lightweight reactions, SW/admin-curated "featured" picks, character-concept browser. Gate: ~25-50 published entries (soft, not a hard wall — real demand overrides the number). Comes after Stage 0.5, not before.
@@ -94,18 +95,22 @@ a drop.
 Nothing hard blocking. Ascension is blocked on Jason's NPC/Ally leveling design (not a technical blocker). GO ID is concept-stage, blocked on nothing but scoping time. Everything else is ordinary implementation work.
 
 ## Resume here
-**Ascension levels 11-15 is next** — do not jump to LBA Stage 0.5 even
-though it's fully designed, see the sequencing decision above. Resume once
-Jason shares his NPC/Ally leveling write-up; full technical inventory
-(every level-10-cap site in the codebase) is already done in the plan doc,
-so that session should move straight from his design doc to a file-by-file
-plan, not need to re-research the codebase.
+**Rules v3.1 phases, then Ascension.** Do not jump to LBA Stage 0.5 even
+though it's fully designed, see the sequencing decision above. Read
+`docs/rules-v3.1-app-plan.md` (audit, 9 phases, tests that will break, open
+questions) and work on branch `rules-v3.1`. Phase 0 (rule docs) is done.
+The v3.1 rules source files from Jason are in `docs/TBA-App-v3.1-Handoff/`
+(untracked on his PC; `notes/decisions.md` explains every rule and why).
 
-First file to open: none yet — waiting on Jason's Ascension write-up.
+First file to open: `docs/rules-v3.1-app-plan.md`, then `routes/character_fastapi.py` `resolve_the_calling` for Phase 1.
 
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
+2026-11-17: Phase 0 of v3.1: replaced `Rulebook.md` with the final v3.1 Core Rules and rebuilt `LevelingTable.md` from the three tables inside it (character, Ally, vehicle). Docs only, no app code changed, branch `rules-v3.1`, not pushed. Also on that branch: the audit and plan in `docs/rules-v3.1-app-plan.md`. Tests were run (212 passed, 5 skipped) after pinning starlette to 0.38.6 locally; the app was not run.
+
+2026-11-16 (recorded from commit messages and the session): Banner header preview now uses the real game header's proportions (7375dea, checked in a browser against the real header at several focus values). Summon fixes shipped Nov 4-16: a summon that is out acts through the normal cast pipeline with a saved card and an SW Act button, summon/dismiss/drain cards keep their style after refresh. The Railway breach (Oct 21) response is complete: SECRET_KEY, API_KEY, VAPID keys, Postgres password, R2 token, Resend key and Discord bot token were all rotated and verified live; `MODERATION_EMAIL` is still not set in Railway (reports go to the admin accounts until it is). The summon DP drain and "acting is free" behavior are superseded by v3.1 (see Next up).
+
 2026-11-04: Claude added the sync fields and brought this file up to 2026-10-19 from git history (the Oct 19 batch above was not recorded). App not run; nothing else changed. The 2026-10-19 work itself is described in What's shipped.
 
 2026-10-08: Found why the banner vanished in Brave (cookie-notice filter list), renamed classes, then redesigned the cover into a header background with focus slider, server-side image re-encode and Images-tab 'Use as cover'. Also shipped the puppet ability-button fix. Three commits for the redesign, pushed one at a time on Jason's go-ahead.

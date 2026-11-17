@@ -3,7 +3,10 @@
 Guidance for working in this repo. TBA-App is the **live** web platform for the TBA
 TTRPG system (Tools for the Bad Ass / Tools for Being Awesome). It runs in
 production on Railway at **tba-rpg.com** and is actively being played and
-playtested — treat `main` as production. Rules are at **v3.0**.
+playtested — treat `main` as production. The rules documents (`Rulebook.md`,
+`LevelingTable.md`) are **v3.1**, but the app's code is still at **v3.0** numbers and
+behavior until the phases in `docs/rules-v3.1-app-plan.md` ship. When code and the
+Rulebook disagree, the Rulebook is right and the code is the gap.
 
 ## Architecture
 
@@ -63,7 +66,9 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
   user↔campaign link; `PartyMembership` is character↔channel.
 - **Campaign** has one `story_weaver_id` (the GM). SW-gated actions use
   `require_story_weaver()` / `require_campaign_access()` from `backend/auth/jwt.py`.
-- Core rules: stats PP/IP/SP each 1–3, sum = 6. Levels 1–10 (app cap is 10).
+- Core rules: stats PP/IP/SP each 1–3, sum = 6. Levels 1–10 (app cap is 10; v3.1
+  adds Ascension 11–15, not built yet). v3.1 DP is 8 +2/level and uses are
+  level + 2 as one shared pool; the code still has the v3.0 numbers (10 +5/level, level x 3).
   Multi-die attack = each attacker die rolls independently vs the defender's single
   defense die; per-die `damage = max(0, attacker_roll − defense_roll)`, summed.
   See `LevelingTable.md` / `Rulebook.md` for DP/Edge/BAP/die progressions.
