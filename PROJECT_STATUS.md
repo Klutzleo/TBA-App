@@ -4,7 +4,7 @@ priority: high
 category: app
 progress: 83
 focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
-next_milestone: "Deploy v3.1 Phase 2 and run the character migration (needs Jason's go), then Phase 3 (shared uses pool)"
+next_milestone: "v3.1 Phase 3: one shared uses pool per character (Phases 0-2 are live)"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -95,19 +95,19 @@ a drop.
 Nothing hard blocking. Ascension is blocked on Jason's NPC/Ally leveling design (not a technical blocker). GO ID is concept-stage, blocked on nothing but scoping time. Everything else is ordinary implementation work.
 
 ## Resume here
-**Rules v3.1 phases, then Ascension.** Do not jump to LBA Stage 0.5 even
+**Rules v3.1 phases 3-9, then Ascension.** Do not jump to LBA Stage 0.5 even
 though it's fully designed, see the sequencing decision above. Read
 `docs/rules-v3.1-app-plan.md` (audit, 9 phases, tests that will break, open
-questions) and work on branch `rules-v3.1`. Phase 0 (rule docs) is done.
+questions) and work on branch `rules-v3.1`. Phases 0 (rule docs), 1 (The Calling) and 2 (numbers + migration) are done and live.
 The v3.1 rules source files from Jason are in `docs/TBA-App-v3.1-Handoff/`
 (untracked on his PC; `notes/decisions.md` explains every rule and why).
 
-First file to open: `docs/rules-v3.1-app-plan.md`, then `routes/character_fastapi.py` `resolve_the_calling` for Phase 1.
+First file to open: `docs/rules-v3.1-app-plan.md` (Phase 3), then `routes/campaign_websocket.py` `handle_ability_cast` (uses are decremented per ability today).
 
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
-2026-11-17 (later): v3.1 Phase 1 (The Calling) is live in prod. Phase 2 is built on branch `rules-v3.1-phase2` and NOT deployed: one leveling file `schemas/leveling_v3_1.json` read by `backend/leveling.py`, DP 8 +2/level, uses level + 2, trap weapon dice removed, new buff table (+1,+2,+2,+3,+3,+4, 2 rounds), plus `scripts/migrate_rules_v31.py` (dry run by default, saves old values, --undo) to move existing characters. 244 tests pass; the pages were only checked for script errors in a browser, not played. The migration has NOT been run against prod and needs Jason's go-ahead (prod write). After deploy and before the migration, existing characters still show old DP.
+2026-11-17 (end of day): v3.1 Phases 0, 1 and 2 are LIVE in prod, and the character migration has been applied (16 characters, verified: every PC and NPC is on the table DP and uses, 0 mismatches; old values saved in `rules_v31_migration_backup`, undo with `python scripts/migrate_rules_v31.py --undo`). It was applied with --force past a stale active encounter in The Scorched Lands (last touched Oct 22). The two leftover DBG test characters were deleted from prod; DBG Campaign and the dbg_ test accounts remain. Next is Phase 3 (shared uses pool). Earlier note for Phase 2: one leveling file `schemas/leveling_v3_1.json` read by `backend/leveling.py`, DP 8 +2/level, uses level + 2, trap weapon dice removed, new buff table (+1,+2,+2,+3,+3,+4, 2 rounds), plus `scripts/migrate_rules_v31.py` (dry run by default, saves old values, --undo) to move existing characters. 244 tests pass; the pages were only checked for script errors in a browser, not played. The migration has NOT been run against prod and needs Jason's go-ahead (prod write). After deploy and before the migration, existing characters still show old DP.
 
 2026-11-17: Phase 0 of v3.1: replaced `Rulebook.md` with the final v3.1 Core Rules and rebuilt `LevelingTable.md` from the three tables inside it (character, Ally, vehicle). Docs only, no app code changed, branch `rules-v3.1`, not pushed. Also on that branch: the audit and plan in `docs/rules-v3.1-app-plan.md`. Tests were run (212 passed, 5 skipped) after pinning starlette to 0.38.6 locally; the app was not run.
 
