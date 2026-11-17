@@ -2297,7 +2297,9 @@ async def resolve_the_calling(
     """
     Resolve The Calling for a character at -10 DP.
     Player chooses IP or SP; backend rolls player die and SW difficulty die.
-    Outcomes: clean (win by 4+), scarred (win by 1-3), dead (lose/tie).
+    Outcomes (rules v3.1): clean (win by 4+), scarred = Marked by Death (tie, or win by 1-3), dead (lose).
+    Only a Mark counts toward the five: a clean return does not, and if a Mark would be the fifth the
+    character dies instead.
     """
     from uuid import UUID
     from backend.roll_logic import roll_dice
@@ -2312,10 +2314,6 @@ async def resolve_the_calling(
 
     if not char.in_calling:
         raise HTTPException(status_code=400, detail="This character is not currently in The Calling")
-
-    # 5th time = permanent death, no roll allowed
-    if char.times_called >= 4:
-        raise HTTPException(status_code=400, detail="There is no fifth Calling.")
 
     stat_choice = req.get("stat_choice", "ip").lower()
     if stat_choice not in ("ip", "sp"):
@@ -2343,16 +2341,24 @@ async def resolve_the_calling(
     sw_die_roll = roll_dice(sw_die_str)[0]
     margin = player_total - sw_die_roll
 
-    # Determine outcome
+    # Determine outcome. A tie is Marked, not death (v3.1). Only a Mark counts toward the five,
+    # and a Mark that would be the fifth kills instead.
+    fifth_mark = False
     if margin >= 4:
         outcome = "clean"
-    elif margin >= 1:
+    elif margin >= 0:
         outcome = "scarred"
+        if (char.times_called or 0) >= 4:
+            outcome = "dead"
+            fifth_mark = True
     else:
         outcome = "dead"
 
     # Apply DB changes
-    char.times_called = (char.times_called or 0) + 1
+    if outcome == "scarred":
+        char.times_called = (char.times_called or 0) + 1
+    elif fifth_mark:
+        char.times_called = (char.times_called or 0) + 1  # the fifth Mark is the one that kills
     char.in_calling = False
     char.has_faced_calling_this_encounter = False  # Reset — times_called cap is the real lifetime gate
 
@@ -2383,7 +2389,8 @@ async def resolve_the_calling(
     narrative_map = {
         "clean": f"{char.name} fights back The Calling — unmarked, unbroken.",
         "scarred": f"{char.name} survives The Calling, but marked by death.",
-        "dead": f"{char.name} has fallen to The Calling. A Memory Echo remains."
+        "dead": (f"{char.name} would be Marked a fifth time, and there is no fifth Mark. A Memory Echo remains."
+                 if fifth_mark else f"{char.name} has fallen to The Calling. A Memory Echo remains.")
     }
     result_payload = {
         "type": "calling_result",
@@ -2403,6 +2410,7 @@ async def resolve_the_calling(
         "stat_used": stat_label,
         "new_dp": char.dp,
         "times_called": char.times_called,
+        "fifth_mark": fifth_mark,
         "narrative": narrative_map[outcome]
     }
 
@@ -2654,7 +2662,7 @@ async def called_check(
 ):
     """
     Trigger a Called check for a character with 'The Called' status (SW only).
-    Rolls 1d6: 1-2 nightmare (-1 next roll), 3-5 peaceful, 6 vision (+1 next roll).
+    Rolls 1d6 (rules v3.1): 1 nightmare (-1 next roll), 2-5 peaceful, 6 vision (+1 next roll).
     Broadcasts result to campaign.
     """
     from uuid import UUID
@@ -2679,7 +2687,7 @@ async def called_check(
         raise HTTPException(status_code=403, detail="Only Story Weaver can trigger Called checks")
 
     roll = roll_dice("1d6")[0]
-    if roll <= 2:
+    if roll == 1:
         effect = "nightmare"
         modifier = -1
         narrative = f"{char.name} is haunted by nightmares of The Calling. -1 to their next roll."

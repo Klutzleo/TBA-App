@@ -47,7 +47,7 @@ Growth direction: Jason is thinking bigger than just TBA — a shared cross-game
 - ✅ Combo cancellation — proposer takes damage before firing → cancel, acceptor's turn resumes normally
 - ✅ Triple Combo — full backend (3-way hold/fire state machine) + frontend (propose/accept modals, toolbar buttons)
 - ✅ Grief tether weight — SW-selectable, clamped -5..-1, on `break_bond` (`routes/bonds.py`)
-- ✅ The Called status system — full Calling roll-off (SW-vs-player, level-scaled difficulty die, margin outcomes), Marked by Death scars → optional Tether, Memory Echo on death, 5th-Calling permadeath, Called Check 1d6 table, cleansing. See "Called status — known gaps" below for the small pieces still missing.
+- ✅ The Called status system — full Calling roll-off (SW-vs-player, level-scaled difficulty die, margin outcomes), Marked by Death scars → optional Tether, Memory Echo on death, Called Check 1d6 table, cleansing. v3.1 rules (branch rules-v3.1): a tie is Marked, only Marks count, the 5th Mark kills after the roll. See "Called status — known gaps" below for the small pieces still missing.
 - ✅ Mobile/desktop UI pass (Sep 2026) — phone header collapsed to a bell + ⋯ menu, chat toolbar stays one row, sidebar merged into Session/Campaign tabs with initiative round counter, connection-down buttons now say so instead of failing silently
 - ✅ Email digest notifications (Sep 2026) — your-turn / @mention, max twice a day (9am/6pm ET), skips anyone already online or already-seen, live-revalidates "your turn" before sending, 2-day staleness cutoff, opt-out toggle + one-click unsubscribe. Live in prod as of 2026-09-29 (the Railway platform incident that briefly queued the deploy resolved; confirmed via `railway deployment list`).
 - ✅ Bug/security audit (2026-09-29) over everything since the last documented security pass — found and fixed a High-severity account-takeover hole in the digest's unsubscribe token (was signed with the same key as real login tokens, no expiry; confirmed via a read-only prod query that it was never actually exploited — no digest had sent a real token yet), plus 6 more real correctness bugs (a Postgres-only naive/aware datetime crash that would have silently killed the whole digest feature, a notification-trim data-loss bug, a public-profile privacy leak, a tether-PATCH crash risk, and two initiative-round-counter bugs). See memory `email-digest-notifications.md` / `bug-audit-cadence.md` for full detail. Also worked through the audit's lower-priority reuse/simplification/efficiency findings the same session.
@@ -85,11 +85,11 @@ a drop.
       shipped: multi-target Stat Checks. Achievement placeholder names still TBD.
 
 ### Called status — known gaps (small, optional; core mechanic is done)
-- No escalating trigger cadence by `times_called` — rulebook says 1st Calling = rests only, 2nd = rests+adventuring, 3rd-4th = +battle. App has one manual SW "Called Check" button, usable anytime regardless of count.
+- No escalating trigger cadence by `times_called` (now the Mark count) — rulebook says 1st Calling = rests only, 2nd = rests+adventuring, 3rd-4th = +battle. App has one manual SW "Called Check" button, usable anytime regardless of count.
 - The Called Check's ±1 result is narrative-only — never mechanically applied to a subsequent roll. No wiring to the Tether/Active-Effects modifier system.
 - No nightmare/vision flavor-text table — one static sentence per outcome (nightmare/peaceful/vision) rather than a bank of prompts to roll from.
 - Cosmetic: `Character.is_called`/`times_called` column comments in `backend/models.py:227-228` say "summoned" (stale, reused-column leftover).
-- `backend/achievements.py:819-822` "Death Knows My Name" (survive Calling ×5) is unreachable — the 5th Calling is always permadeath (no roll offered). Dead achievement, needs renaming/retiring or the condition changed to ×4.
+- `backend/achievements.py:819-822` "Death Knows My Name" (survive Calling ×5) was unreachable under v3.0. Under v3.1 (branch rules-v3.1) a clean return does not count toward the five and the 5th is decided by the roll, so five survivals is reachable again. Not tested against the achievement tracker yet.
 
 ## Blockers
 Nothing hard blocking. Ascension is blocked on Jason's NPC/Ally leveling design (not a technical blocker). GO ID is concept-stage, blocked on nothing but scoping time. Everything else is ordinary implementation work.

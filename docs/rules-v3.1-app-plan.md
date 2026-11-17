@@ -40,7 +40,7 @@ time, not as one big drop, because prod is played daily.
 **Phase 0: docs only.** Replace `Rulebook.md` and `LevelingTable.md` with v3.1 (Adult). Update `CLAUDE.md` rules line.
 No risk.
 
-**Phase 1: The Calling (small, behavior only, no migration).**
+**Phase 1: The Calling (small, behavior only, no migration). DONE on branch rules-v3.1, not yet on main.**
 - Tie is Marked (survive at 1 DP), not death. `routes/character_fastapi.py` `resolve_the_calling`.
 - `times_called` counts Marks only; a clean return does not count; the 5th Mark kills instead of the 5th entry.
   Remove the instant permadeath at the 3 entry sites; the roll decides, and a Mark at count 4 means death.
@@ -108,7 +108,7 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
 - New tests are listed per phase.
 
 ## 4. Questions for Jason
-1. **Shared pool.** OK to retire the per-ability uses counters in favor of one pool per character?
+1. **Shared pool. ANSWERED (Nov 17, Jason): yes, one total pool across all spells and techniques.** Original question: OK to retire the per-ability uses counters in favor of one pool per character?
 2. **Existing `times_called`. ANSWERED (Nov 17):** moot. A read-only prod query shows 0 of 19 characters have any
    Calling history (times_called, in_calling, is_called, scars all zero), so Phase 1 needs no data cleanup.
 3. **Debuff defense. ANSWERED (Nov 17, Jason):** the target rolls **1d6 + the same stat + Edge**, not the Defense
@@ -118,4 +118,4 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
 4. **Combos in the app. ANSWERED (Nov 17, Jason): automate.** Own phase after the basics (cost, Triple +2 and the level gate ship first). Original question: Keep them as roll totals the SW applies (cheapest), or automate target, defense, damage, buff
    and heal effects (a real feature, probably its own phase)?
 5. **NPCs on the migration. ANSWERED (Nov 17, Jason): migrate all NPCs.** Hand-set boss DP will move to the table value; tell the SW to re-tune after. Original question: Convert every NPC to the new table, or only ones built from the table (not hand-set DP)?
-6. **Buff timing. RECOMMENDED round-based, Jason agreed to the recommendation pending confirmation (Nov 17).** Original question: I plan to count rounds (the cast round plus the next), not each character's own turn. Fine?
+6. **Buff timing. ANSWERED (Nov 17, Jason): round-based, the cast round plus the next.** Original question: I plan to count rounds (the cast round plus the next), not each character's own turn. Fine?

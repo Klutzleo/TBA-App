@@ -1417,54 +1417,25 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 if not defender.object_revealed:
                     await _defeat_object(campaign_id, defender, db, actor_user_id=user_id, source="attack")
             elif defender.dp <= -10 and not defender.is_npc and not defender.in_calling:
-                if (defender.times_called or 0) >= 4:
-                    # 5th Calling — no roll, instant permadeath
-                    defender.status = 'archived'
-                    defender.times_called = (defender.times_called or 0) + 1
-                    db.commit()
-                    await manager.broadcast(campaign_id, {
-                        "type": "permadeath",
-                        "character_id": str(defender.id),
-                        "character_name": defender.name,
-                        "times_called": defender.times_called
-                    })
-                    await manager.broadcast(campaign_id, {
-                        "type": "character_archived",
-                        "character_id": str(defender.id),
-                        "character_name": defender.name
-                    })
-                else:
-                    # The Calling triggered!
-                    defender.in_calling = True
-                    try:
-                        from backend.stats_tracker import track_calling, commit_stats
-                        if defender.user_id:
-                            track_calling(db, str(defender.user_id), str(defender.id), campaign_id=str(campaign_id))
-                            _new = commit_stats(db, str(defender.user_id))
-                            await broadcast_achievement_awarded(campaign_id, defender.user_id, _new, db)
-                    except Exception as _se:
-                        logger.warning(f"Stats track_calling failed: {_se}")
-                    calling_msg = Message(
-                        campaign_id=campaign_id,
-                        party_id=None,
-                        sender_id=user_id,
-                        sender_name="System",
-                        message_type="calling_triggered",
-                        content=f"{defender.name} has entered The Calling!",
-                        extra_data={
-                            "character_id": str(defender.id),
-                            "defender": defender.name,
-                            "defender_new_dp": defender.dp,
-                            "defender_ip": defender.ip,
-                            "defender_sp": defender.sp,
-                            "defender_edge": defender.edge or 0,
-                            "defender_times_called": defender.times_called or 0
-                        }
-                    )
-                    db.add(calling_msg)
-                    db.commit()
-                    await manager.broadcast(campaign_id, {
-                        "type": "calling_triggered",
+                # The Calling begins the moment DP reaches -10. The roll decides what happens next;
+                # only a Mark counts toward the five (see resolve_the_calling).
+                defender.in_calling = True
+                try:
+                    from backend.stats_tracker import track_calling, commit_stats
+                    if defender.user_id:
+                        track_calling(db, str(defender.user_id), str(defender.id), campaign_id=str(campaign_id))
+                        _new = commit_stats(db, str(defender.user_id))
+                        await broadcast_achievement_awarded(campaign_id, defender.user_id, _new, db)
+                except Exception as _se:
+                    logger.warning(f"Stats track_calling failed: {_se}")
+                calling_msg = Message(
+                    campaign_id=campaign_id,
+                    party_id=None,
+                    sender_id=user_id,
+                    sender_name="System",
+                    message_type="calling_triggered",
+                    content=f"{defender.name} has entered The Calling!",
+                    extra_data={
                         "character_id": str(defender.id),
                         "defender": defender.name,
                         "defender_new_dp": defender.dp,
@@ -1472,20 +1443,33 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                         "defender_sp": defender.sp,
                         "defender_edge": defender.edge or 0,
                         "defender_times_called": defender.times_called or 0
-                    })
-                    # Push notify the player whose character entered The Calling
-                    if defender.user_id:
-                        try:
-                            from backend.notifications import send_push
-                            send_push(
-                                db, str(defender.user_id),
-                                "💀 You've entered The Calling!",
-                                f"{defender.name} has reached the threshold — return to the game.",
-                                url=f"/game.html?campaign_id={campaign_id}&character_id={defender.id}",
-                                campaign_id=str(campaign_id)
-                            )
-                        except Exception as _pe:
-                            logger.warning(f"Push notification failed (calling_triggered): {_pe}")
+                    }
+                )
+                db.add(calling_msg)
+                db.commit()
+                await manager.broadcast(campaign_id, {
+                    "type": "calling_triggered",
+                    "character_id": str(defender.id),
+                    "defender": defender.name,
+                    "defender_new_dp": defender.dp,
+                    "defender_ip": defender.ip,
+                    "defender_sp": defender.sp,
+                    "defender_edge": defender.edge or 0,
+                    "defender_times_called": defender.times_called or 0
+                })
+                # Push notify the player whose character entered The Calling
+                if defender.user_id:
+                    try:
+                        from backend.notifications import send_push
+                        send_push(
+                            db, str(defender.user_id),
+                            "💀 You've entered The Calling!",
+                            f"{defender.name} has reached the threshold — return to the game.",
+                            url=f"/game.html?campaign_id={campaign_id}&character_id={defender.id}",
+                            campaign_id=str(campaign_id)
+                        )
+                    except Exception as _pe:
+                        logger.warning(f"Push notification failed (calling_triggered): {_pe}")
             elif defender.dp <= 0:
                 # Just knocked out
                 await manager.broadcast(campaign_id, {
@@ -1913,16 +1897,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 # Check for The Calling at -10 DP (PCs only)
                 calling_triggered = False
-                permadeath_triggered = False
                 if target.dp <= -10 and not target.is_npc and not target.in_calling:
-                    if (target.times_called or 0) >= 4:
-                        # 5th Calling — instant permadeath
-                        target.status = 'archived'
-                        target.times_called = (target.times_called or 0) + 1
-                        permadeath_triggered = True
-                    else:
-                        target.in_calling = True
-                        calling_triggered = True
+                    target.in_calling = True
+                    calling_triggered = True
 
                 db.commit()
 
@@ -1960,20 +1937,6 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     calling_char_edge = target.edge or 0
                     calling_char_times = target.times_called or 0
                     calling_char_dp = target.dp
-
-                if permadeath_triggered:
-                    # 5th Calling via ability — broadcast permadeath immediately
-                    await manager.broadcast(campaign_id, {
-                        "type": "permadeath",
-                        "character_id": str(target.id),
-                        "character_name": target.name,
-                        "times_called": target.times_called
-                    })
-                    await manager.broadcast(campaign_id, {
-                        "type": "character_archived",
-                        "character_id": str(target.id),
-                        "character_name": target.name
-                    })
 
                 if damage > 0:
                     narrative_parts.append(f"{target_name} takes {damage} damage (DP: {old_dp} → {target.dp})")
@@ -3348,23 +3311,9 @@ async def _maybe_finish_group_check(campaign_uuid: UUID, group_id, kind: str, db
 
 async def _trigger_the_calling(defender, campaign_id, db: Session, actor_user_id=None):
     """Run The Calling trigger for a PC that just dropped to <= -10 DP:
-    5th-Calling permadeath, otherwise set in_calling + track + broadcast + push.
+    set in_calling + track + broadcast + push.
     Caller checks `defender.dp <= -10 and not defender.is_npc and not defender.in_calling`
     first. Mirrors the inline logic in the combat handler (which can adopt this later)."""
-    if (defender.times_called or 0) >= 4:
-        defender.status = 'archived'
-        defender.times_called = (defender.times_called or 0) + 1
-        db.commit()
-        await manager.broadcast(campaign_id, {
-            "type": "permadeath", "character_id": str(defender.id),
-            "character_name": defender.name, "times_called": defender.times_called,
-        })
-        await manager.broadcast(campaign_id, {
-            "type": "character_archived", "character_id": str(defender.id),
-            "character_name": defender.name,
-        })
-        return
-
     defender.in_calling = True
     try:
         from backend.stats_tracker import track_calling, commit_stats
