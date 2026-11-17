@@ -115,7 +115,7 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
    Die, because armor shouldn't block things like Fear or Confuse. The app uses the Defense Die today, so Phase 4
    changes it (ability debuffs, and any SW-applied debuff path). Open wording nit for Jason: the Core's Area of Effect
    paragraph still says "each target rolling their defense" for debuffs; it should say 1d6 + stat + Edge to match.
-4. **Combos in the app.** Keep them as roll totals the SW applies (cheapest), or automate target, defense, damage, buff
+4. **Combos in the app. ANSWERED (Nov 17, Jason): automate.** Own phase after the basics (cost, Triple +2 and the level gate ship first). Original question: Keep them as roll totals the SW applies (cheapest), or automate target, defense, damage, buff
    and heal effects (a real feature, probably its own phase)?
-5. **NPCs on the migration.** Convert every NPC to the new table, or only ones built from the table (not hand-set DP)?
-6. **Buff timing.** I plan to count rounds (the cast round plus the next), not each character's own turn. Fine?
+5. **NPCs on the migration. ANSWERED (Nov 17, Jason): migrate all NPCs.** Hand-set boss DP will move to the table value; tell the SW to re-tune after. Original question: Convert every NPC to the new table, or only ones built from the table (not hand-set DP)?
+6. **Buff timing. RECOMMENDED round-based, Jason agreed to the recommendation pending confirmation (Nov 17).** Original question: I plan to count rounds (the cast round plus the next), not each character's own turn. Fine?
