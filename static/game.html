@@ -6918,6 +6918,7 @@
         lines.push(`  ⚔️ Attack:  ${r.attack_breakdown}`);
         lines.push(`  🛡️ Defense: ${r.defense_breakdown}`);
       } else if (et === 'heal') {
+        if (!r.success && r.message) { lines.push(`→ ${r.target}  ❌ ${r.message}`); return lines; }
         lines.push(`→ ${r.target}  +${r.healing} DP (${r.old_dp} → ${r.new_dp})`);
         lines.push(`  💚 Roll: ${r.roll_breakdown}`);
       } else if (et === 'buff') {
@@ -6936,7 +6937,7 @@
 
     // The roll a Boost would add to: the first target's attack, heal or debuff roll. A buff has no roll.
     function castBoostBase(d) {
-      const r = (d.results || []).find(x => x && x.message !== 'Target not found');
+      const r = (d.results || []).find(x => x && !x.message);
       if (!r) return null;
       if (d.effect_type === 'damage' && r.attack_roll !== undefined) return r.attack_roll;
       if (d.effect_type === 'heal' && r.healing !== undefined) return r.healing;
@@ -9309,6 +9310,10 @@
         : (timesCalled > 0
           ? `<span title="${timesCalled} Marked by Death (the 5th is fatal)" style="font-size:0.7rem;color:${timesCalled >= 4 ? '#ff4444' : '#f87171'};opacity:0.7;cursor:default;display:inline-flex;align-items:center;gap:2px;"><i data-lucide="skull" style="width:11px;height:11px;"></i>${timesCalled}</span>`
           : '');
+      // Rules v3.1: a spell or technique can heal each person once per encounter
+      const healedBadge = char.healed_this_encounter
+        ? `<span style="font-size:0.7rem;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.35);border-radius:4px;padding:1px 5px;" title="Already healed by a spell or technique this encounter. A heal can only reach each person once.">Healed</span>`
+        : '';
       const isCalledBadge = char.is_called
         ? `<span style="font-size:0.7rem;color:#c084fc;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.35);border-radius:4px;padding:1px 5px;" title="The Called — haunted by visions and nightmares">The Called</span>`
         : '';
@@ -9383,7 +9388,7 @@
         <div class="character-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           ${lead}
           <div style="display:flex;align-items:center;gap:2px 6px;flex-wrap:wrap;flex:1;min-width:0;">
-            ${pdot}<strong>${escHtml(char.name)}</strong><span class="lvl">Lvl ${char.level}</span>${pills}${isCalledBadge}
+            ${pdot}<strong>${escHtml(char.name)}</strong><span class="lvl">Lvl ${char.level}</span>${pills}${isCalledBadge}${healedBadge}
           </div>
           <div style="display:flex;gap:4px;align-items:center;">
             ${callingSkull}
@@ -14219,6 +14224,7 @@
                   }
                 });
               }
+              if (data.effect_type === 'heal') loadCharacters();   // shows the "Healed" mark
 
             } else if (data.type === 'initiative_roll') {
               // My own roll landed → clear the pill + its request card (also fires
@@ -14365,6 +14371,7 @@
                 renderInitiativeTracker();
                 switchSidebarTab('party');
               }
+              loadCharacters();   // the encounter is over, so the "Healed" marks clear and pools show full
 
             } else if (data.type === 'initiative_clear') {
               // Initiative cleared

@@ -560,6 +560,24 @@ class CombatTurn(Base):
         return f"<CombatTurn(id={str(self.id)[:8]}..., turn={self.turn_number}, combatant={self.combatant_name}, action={self.action_type})>"
 
 
+class EncounterHeal(Base):
+    """A spell or technique healed this character during this encounter (rules v3.1: once per person per encounter).
+    Potions, rest and the Story Weaver's manual heal do not create a row. Rows are cleared when the encounter ends."""
+    __tablename__ = "encounter_heals"
+    __table_args__ = (
+        UniqueConstraint("encounter_id", "target_character_id", name="uq_encounter_heal_target"),
+        {'extend_existing': True},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    encounter_id = Column(UUID(as_uuid=True), ForeignKey("encounters.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    healer_character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)
+    ability_name = Column(String(100), nullable=True)
+    amount = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Encounter(Base):
     """
     Combat encounter tracking with initiative system.

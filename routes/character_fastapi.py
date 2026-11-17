@@ -18,6 +18,13 @@ from backend.character_utils import (
 )
 from backend.leveling import uses_for_level as _uses_for_level
 from backend.uses import pool_remaining as _pool_remaining, pool_max as _pool_max, refill as _refill_uses, restore as _restore_uses
+
+
+def _boost_skips_target(result: dict) -> bool:
+    """A cast result that carries a message was never rolled for that target (not found, a summon, in The Calling,
+    already healed this encounter). A Boost must leave it alone rather than heal or hit it with the bonus."""
+    return bool(result.get("message"))
+
 from routes.schemas.character import (
     CharacterCreate,
     CharacterUpdate,
@@ -3265,7 +3272,7 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
     old_total = new_total = None
 
     for r in results:
-        if r.get("message") == "Target not found":
+        if _boost_skips_target(r):   # not found, a summon, in The Calling, already healed: nothing was rolled for it
             continue
         target = db.query(Character).filter(
             Character.name == r.get("target"), Character.campaign_id == char.campaign_id

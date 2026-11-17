@@ -1020,6 +1020,12 @@ async def get_campaign_members(
         CampaignMembership.left_at.is_(None)
     ).all()
     
+    # Who has been healed by a spell or technique in the encounter that is running (rules v3.1: once per person)
+    from backend.models import Encounter as _Encounter, EncounterHeal as _EncounterHeal
+    _enc = db.query(_Encounter).filter(_Encounter.campaign_id == campaign_id, _Encounter.is_active == True).first()  # noqa: E712
+    healed_ids = {str(h.target_character_id) for h in db.query(_EncounterHeal).filter(
+        _EncounterHeal.encounter_id == _enc.id).all()} if _enc else set()
+
     result = []
     for member in members:
         user = db.query(User).filter(User.id == member.user_id).first()
@@ -1047,6 +1053,7 @@ async def get_campaign_members(
                 "ip": character.ip,
                 "sp": character.sp,
                 "in_calling": character.in_calling or False,
+                "healed_this_encounter": str(character.id) in healed_ids,
                 "times_called": character.times_called or 0,
                 "is_called": character.is_called or False,
                 "battle_scars": character.battle_scars or [],

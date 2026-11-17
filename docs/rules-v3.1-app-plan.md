@@ -85,7 +85,9 @@ roll's stat), `add_effect` (replaces same sign and stat) and `tick_round` (per r
   apply to the roll (net). Apply to all five creation sites above.
 - Tests: replace, net, expiry across a round change, Boost/Stat Check effects.
 
-**Phase 5: healing.**
+**Phase 5: healing. BUILT on branch rules-v3.1-phase5, not yet on main.** Needs migration 034 (the `encounter_heals` table,
+applied automatically on deploy). Reading of the rule worth confirming with Jason: "after the encounter, healing is free"
+is implemented as: with no encounter running, a heal spell costs no use and has no once-per-person limit.
 - Roll spell die + stat + Edge; once per caster-spell per target per encounter (new small table keyed by encounter and
   target, cleared when the encounter ends); at negative DP reset to 0 then add; no heals on summons; potions and rest
   do not count. Shows a "Healed this encounter" mark on the target.

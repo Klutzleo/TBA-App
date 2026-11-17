@@ -1731,8 +1731,16 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 })
                 return
 
+        # After the encounter healing is free (rules v3.1): with no encounter running a heal costs no use and has
+        # no once-per-person limit. During one, it is limited and costs a use.
+        heal_encounter = None
+        if ability.effect_type == "heal":
+            heal_encounter = db.query(Encounter).filter(
+                Encounter.campaign_id == campaign_id, Encounter.is_active == True).first()  # noqa: E712
+        heal_is_free = ability.effect_type == "heal" and heal_encounter is None
+
         # Check uses remaining (a summon that is already out acts for free)
-        if not acting_summon and pool_remaining(caster) <= 0:
+        if not acting_summon and not heal_is_free and pool_remaining(caster) <= 0:
             await manager.broadcast(campaign_id, {
                 "type": "system",
                 "text": f"❌ {caster.name} has no uses remaining! ({pool_remaining(caster)}/{pool_max(caster)})"
@@ -1786,6 +1794,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         results = []
         narrative_parts = []
         effects_changed = False   # a buff or debuff was added or replaced, so everyone's effect list needs a refresh
+        heal_applied = False      # at least one target was actually healed
         calling_char_id = None  # set if any target triggers The Calling
 
         if ability.effect_type == "damage":
@@ -1949,48 +1958,63 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     narrative_parts.append(f"{target_name} dodges the attack!")
 
         elif ability.effect_type == "heal":
-            # Healing ability (single target or AOE)
-            # If no targets specified, heal self
+            # Rules v3.1: spell die + stat + Edge, like any spell. Rolled once per cast. A spell or technique can heal
+            # the same character only once per encounter; a heal always wakes you (negative DP goes to 0 first, then
+            # the roll is added); nobody can be healed once they are in The Calling; a summon has hits, not DP.
+            from backend.models import EncounterHeal
             if not target_names:
                 target_names = [caster.name]
 
+            heal_roll_result = roll_dice(ability.die)  # Returns list
+            heal_fx = effect_modifier(db, caster.id, ability.power_source)
+            healing = sum(heal_roll_result) + power_stat + (caster.edge or 0) + heal_fx
+            heal_rolls_str = " + ".join(str(r) for r in heal_roll_result)
+            heal_breakdown = (f"{ability.die} = [{heal_rolls_str}] + {ability.power_source}({power_stat}) + "
+                              f"Edge({caster.edge or 0}){_fx_label(heal_fx)} = {healing}")
+
             for target_name in target_names:
-                # Find target character
                 target = db.query(Character).filter(
                     Character.name == target_name,
                     Character.campaign_id == str(campaign_id)
                 ).first()
 
                 if not target:
-                    results.append({
-                        "target": target_name,
-                        "success": False,
-                        "message": "Target not found"
-                    })
+                    results.append({"target": target_name, "success": False, "message": "Target not found"})
+                    continue
+                if target.is_summon:
+                    results.append({"target": target_name, "success": False,
+                                    "message": "heals do nothing for a summon (it has hits, not DP)"})
+                    continue
+                if target.in_calling:
+                    results.append({"target": target_name, "success": False,
+                                    "message": "is in The Calling. No one can heal them first"})
+                    continue
+                if heal_encounter is not None and db.query(EncounterHeal).filter(
+                        EncounterHeal.encounter_id == heal_encounter.id,
+                        EncounterHeal.target_character_id == target.id).first():
+                    results.append({"target": target_name, "success": False,
+                                    "message": "was already healed this encounter"})
                     continue
 
-                # Roll healing: ability die + power stat
-                heal_roll_result = roll_dice(ability.die)  # Returns list
-                heal_roll_total = sum(heal_roll_result)
-                healing = heal_roll_total + power_stat
-
-                # Apply healing
                 old_dp = target.dp
-                target.dp = min(target.max_dp, target.dp + healing)
+                target.dp = min(target.max_dp, max(0, old_dp) + healing)    # below 0 comes up to 0, then the roll adds
                 actual_healing = target.dp - old_dp
+                if heal_encounter is not None:
+                    db.add(EncounterHeal(encounter_id=heal_encounter.id, target_character_id=target.id,
+                                         healer_character_id=caster.id, ability_name=ability.display_name,
+                                         amount=actual_healing))
+                heal_applied = True
                 db.commit()
 
-                heal_rolls_str = " + ".join(str(r) for r in heal_roll_result)
-                heal_breakdown = f"{ability.die} = [{heal_rolls_str}] + {ability.power_source}({power_stat}) = {healing}"
                 results.append({
                     "target": target_name,
                     "success": True,
                     "healing": actual_healing,
+                    "heal_roll": healing,
                     "old_dp": old_dp,
                     "new_dp": target.dp,
                     "roll_breakdown": heal_breakdown
                 })
-
                 narrative_parts.append(f"{target_name} restores {actual_healing} DP (DP: {old_dp} → {target.dp})")
 
         elif ability.effect_type == "buff":
@@ -2119,7 +2143,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
         # Decrement uses only if at least one target was actually found (not a typo/miss-target)
         all_targets_missing = results and all(r.get("message") == "Target not found" for r in results)
-        if not all_targets_missing and not acting_summon:
+        spends_a_use = not heal_is_free and (ability.effect_type != "heal" or heal_applied)
+        if not all_targets_missing and not acting_summon and spends_a_use:
             spend_use(caster, 1)
         db.commit()
         if effects_changed:
@@ -4695,6 +4720,8 @@ async def end_encounter(
             restored_count += 1
         for _c in characters:
             refill_uses(_c)   # the shared pool is what casting actually spends
+        from backend.models import EncounterHeal as _EncounterHeal
+        db.query(_EncounterHeal).filter(_EncounterHeal.encounter_id == encounter.id).delete(synchronize_session=False)
 
         # Reset has_faced_calling_this_encounter for all active PCs
         for char in characters:
@@ -6084,7 +6111,7 @@ async def send_help_text(websocket: WebSocket):
 **Abilities & Macros:**
 • `/<custom>` - Cast abilities/spells/techniques (e.g., /heal, /fireball)
 • `/<custom> @target` - Cast on specific target(s)
-• Uses: 3 per encounter per character level
+• Uses: one shared pool per character, level + 2 per encounter
 
 **Initiative & Encounters:**
 • `/initiative` - Roll your own initiative (1d20)
