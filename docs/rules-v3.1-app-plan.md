@@ -109,10 +109,12 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
 
 ## 4. Questions for Jason
 1. **Shared pool.** OK to retire the per-ability uses counters in favor of one pool per character?
-2. **Existing `times_called`.** It currently counts clean returns too, so some characters read higher than the Mark
-   count. Leave as is, or reset to the number of Marks (their `is_called`/scars history)?
-3. **Debuff defense.** Core says the target rolls 1d6 + stat + Edge; the Area of Effect text and the app use the
-   Defense Die. Which is right?
+2. **Existing `times_called`. ANSWERED (Nov 17):** moot. A read-only prod query shows 0 of 19 characters have any
+   Calling history (times_called, in_calling, is_called, scars all zero), so Phase 1 needs no data cleanup.
+3. **Debuff defense. ANSWERED (Nov 17, Jason):** the target rolls **1d6 + the same stat + Edge**, not the Defense
+   Die, because armor shouldn't block things like Fear or Confuse. The app uses the Defense Die today, so Phase 4
+   changes it (ability debuffs, and any SW-applied debuff path). Open wording nit for Jason: the Core's Area of Effect
+   paragraph still says "each target rolling their defense" for debuffs; it should say 1d6 + stat + Edge to match.
 4. **Combos in the app.** Keep them as roll totals the SW applies (cheapest), or automate target, defense, damage, buff
    and heal effects (a real feature, probably its own phase)?
 5. **NPCs on the migration.** Convert every NPC to the new table, or only ones built from the table (not hand-set DP)?
