@@ -76,7 +76,10 @@ changed (Phase 7 keeps the rest of the Combo work). Summons acting are still fre
   remaining, capped. Additive; old columns stay.
 - Allies get their own pool the same way.
 
-**Phase 4: buffs and debuffs.**
+**Phase 4: buffs and debuffs. BUILT on branch rules-v3.1-phase4, not yet on main.** Audit finding while building it:
+spell rolls ignored buffs and debuffs entirely (only weapon attacks and checks read them, and basic attacks summed every
+stat's effects together). `backend/buffs.py` now supplies `effect_modifier` (strongest buff plus strongest debuff on the
+roll's stat), `add_effect` (replaces same sign and stat) and `tick_round` (per round).
 - Duration 2 rounds, counted per **round** (decrement when the round number changes), so a +N lasts the rest of the
   cast round and the whole next round. One buff and one debuff per stat per target; a new one replaces the old; both
   apply to the roll (net). Apply to all five creation sites above.

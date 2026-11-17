@@ -16307,8 +16307,9 @@
       const label = won ? '✓ Success' : '✗ Failure';
       const marginText = data.margin > 0 ? `+${data.margin}` : String(data.margin);
       const flavor = data.flavor_text ? `<div style="font-style:italic;color:var(--text-muted);font-size:0.82rem;margin-bottom:8px;">"${escHtml(data.flavor_text)}"</div>` : '';
-      const debuffLine = data.debuff_modifier < 0
-        ? `<div style="font-size:0.75rem;color:#f87171;">Debuff: ${data.debuff_modifier}</div>` : '';
+      // Rules v3.1: the roll carries the NET of the buff and debuff on its stat (can be a buff now)
+      const debuffLine = data.debuff_modifier
+        ? `<div style="font-size:0.75rem;color:${data.debuff_modifier < 0 ? '#f87171' : '#4ade80'};">${data.debuff_modifier < 0 ? 'Debuff' : 'Buff'}: ${data.debuff_modifier > 0 ? '+' : ''}${data.debuff_modifier}</div>` : '';
       const bapBadge = data.bap_granted ? `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:1px 6px;"><i data-lucide="star" style="width:11px;height:11px;vertical-align:middle;"></i> BAP</span>` : '';
       const swRolledBadge = data.rolled_by_sw ? `<span title="Story Weaver rolled this on the player's behalf" style="font-size:0.72rem;color:#93c5fd;background:rgba(147,197,253,0.1);border:1px solid rgba(147,197,253,0.3);border-radius:4px;padding:1px 6px;">SW rolled</span>` : '';
       const isVs = data.mode === 'vs';

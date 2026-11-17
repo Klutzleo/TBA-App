@@ -26,6 +26,7 @@ from backend.models import Party, Character, User, CampaignMembership, Message, 
 from backend.auth.jwt import decode_access_token
 from backend.roll_logic import roll_dice
 from backend.uses import spend as spend_use, pool_remaining, pool_max, refill as refill_uses
+from backend.buffs import effect_modifier, add_effect, tick_round
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -1289,17 +1290,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         armor_bonus += sum(i.bonus or 0 for i in def_inv)
 
         # Active buff/debuff effects — tracked separately for breakdown display
-        from backend.models import ActiveEffect as _ActiveEffect
-        attacker_effect_bonus = sum(
-            fx.modifier for fx in db.query(_ActiveEffect).filter(
-                _ActiveEffect.character_id == attacker.id
-            ).all() if fx.modifier_type in ('pp', 'ip', 'sp', 'attack')
-        )
-        defender_effect_bonus = sum(
-            fx.modifier for fx in db.query(_ActiveEffect).filter(
-                _ActiveEffect.character_id == defender.id
-            ).all() if fx.modifier_type in ('pp', 'ip', 'sp', 'defense')
-        )
+        # Rules v3.1: a buff or debuff only changes rolls that use ITS stat (weapon attacks are Physical), and
+        # only the strongest buff and strongest debuff count. Hand-added 'attack'/'defense' effects also apply here.
+        attacker_effect_bonus = effect_modifier(db, attacker.id, stat_type, extra_types=("attack",))
+        defender_effect_bonus = effect_modifier(db, defender.id, stat_type, extra_types=("defense",))
 
         # BAP is never banked. The Story Weaver adds it to one specific roll afterwards (Boost), so a roll
         # always starts without any.
@@ -1501,6 +1495,12 @@ def _dice_str(die_type: str, rolls: list) -> str:
 # schemas/leveling_v3_1.json. (Round-based expiry, one buff and one debuff per stat, and replace-on-recast are
 # Phase 4; for now the effect still ticks down on the affected character's own turns.)
 from backend.leveling import BUFF_DEBUFF_MODIFIER_BY_DIE as BUFF_DEBUFF_TABLE, BUFF_DEBUFF_DURATION_ROUNDS as BUFF_DURATION
+
+
+def _fx_label(n: int) -> str:
+    """' + Effects(+2)' for a roll breakdown, or nothing when no buff or debuff applies."""
+    return f" + Effects({n:+d})" if n else ""
+
 
 async def _handle_summon_cast(campaign_id: UUID, caster: "Character", ability: "Ability", db: Session,
                               target_names: list = None):
@@ -1785,6 +1785,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         # Execute based on effect type
         results = []
         narrative_parts = []
+        effects_changed = False   # a buff or debuff was added or replaced, so everyone's effect list needs a refresh
         calling_char_id = None  # set if any target triggers The Calling
 
         if ability.effect_type == "damage":
@@ -1872,7 +1873,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 # Roll attack: ability die + power stat + edge
                 attack_dice = ability.die  # e.g., "2d6"
                 attack_roll_result = roll_dice(attack_dice)  # Returns list like [3, 5]
-                attack_total = sum(attack_roll_result) + power_stat + caster.edge
+                caster_fx = effect_modifier(db, caster.id, ability.power_source)   # buff/debuff on the stat this spell uses
+                attack_total = sum(attack_roll_result) + power_stat + caster.edge + caster_fx
 
                 # Roll defense: target's defense die + matching stat + Edge
                 # IP attack → IP defense, SP attack → SP defense, PP → PP
@@ -1887,7 +1889,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 else:
                     target_def_stat = target.pp
                     target_def_stat_label = "PP"
-                defense_total = sum(defense_roll_result) + target_def_stat + target_edge
+                target_fx = effect_modifier(db, target.id, target_def_stat_label)
+                defense_total = sum(defense_roll_result) + target_def_stat + target_edge + target_fx
 
                 # Calculate damage
                 margin = attack_total - defense_total
@@ -1914,8 +1917,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 outcome = "hit" if damage > 0 else "miss"
                 atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
                 def_rolls_str = " + ".join(str(r) for r in defense_roll_result)
-                atk_breakdown = f"{ability.die} = [{atk_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}) = {attack_total}"
-                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}) = {defense_total}"
+                atk_breakdown = f"{ability.die} = [{atk_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}){_fx_label(caster_fx)} = {attack_total}"
+                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}){_fx_label(target_fx)} = {defense_total}"
                 results.append({
                     "target": target_name,
                     "success": True,
@@ -2009,7 +2012,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     results.append({"target": target_name, "success": False, "message": "Target not found"})
                     continue
 
-                effect = ActiveEffect(
+                add_effect(
+                    db,
                     campaign_id=campaign_id,
                     character_id=target.id,
                     name=ability.display_name,
@@ -2018,7 +2022,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     duration_rounds=duration,
                     applied_by=caster.name
                 )
-                db.add(effect)
+                effects_changed = True
 
                 results.append({
                     "target": target_name,
@@ -2055,9 +2059,11 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 # Contested roll: caster's ability vs target's defense (matches spell_cast formula)
                 caster_roll = roll_dice(ability.die)  # Returns list
-                caster_total = sum(caster_roll) + power_stat + caster.edge
+                caster_fx = effect_modifier(db, caster.id, ability.power_source)
+                caster_total = sum(caster_roll) + power_stat + caster.edge + caster_fx
 
-                defense_roll = roll_dice(target.defense_die)  # Returns list
+                # Rules v3.1: a debuff is resisted with 1d6 + the same stat + Edge, not the Defense Die
+                defense_roll = roll_dice("1d6")  # Returns list
                 target_edge = target.edge or 0
                 if ability.power_source == "IP":
                     target_def_stat = target.ip
@@ -2068,15 +2074,16 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 else:
                     target_def_stat = target.pp
                     target_def_stat_label = "PP"
-                defense_total = sum(defense_roll) + target_def_stat + target_edge
+                target_fx = effect_modifier(db, target.id, target_def_stat_label)
+                defense_total = sum(defense_roll) + target_def_stat + target_edge + target_fx
 
                 margin = caster_total - defense_total
                 success = margin > 0
 
                 cast_rolls_str = " + ".join(str(r) for r in caster_roll)
                 def_rolls_str = " + ".join(str(r) for r in defense_roll)
-                atk_breakdown = f"{ability.die} = [{cast_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}) = {caster_total}"
-                def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}) = {defense_total}"
+                atk_breakdown = f"{ability.die} = [{cast_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}){_fx_label(caster_fx)} = {caster_total}"
+                def_breakdown = f"1d6 = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}){_fx_label(target_fx)} = {defense_total}"
                 results.append({
                     "target": target_name,
                     "success": success,
@@ -2092,7 +2099,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     modifier = BUFF_DEBUFF_TABLE.get(ability.die, 1)
                     duration = BUFF_DURATION
                     debuff_stat = ability.debuff_stat or ability.power_source
-                    effect = ActiveEffect(
+                    add_effect(
+                        db,
                         campaign_id=campaign_id,
                         character_id=target.id,
                         name=ability.display_name,
@@ -2101,7 +2109,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                         duration_rounds=duration,
                         applied_by=caster.name
                     )
-                    db.add(effect)
+                    effects_changed = True
                     narrative_parts.append(f"{target_name} is afflicted by {ability.display_name}! ({debuff_stat} -{modifier} for {duration} round{'s' if duration != 1 else ''})")
                     results[-1]["debuff_modifier"] = -modifier
                     results[-1]["debuff_duration"] = duration
@@ -2114,6 +2122,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         if not all_targets_missing and not acting_summon:
             spend_use(caster, 1)
         db.commit()
+        if effects_changed:
+            await _broadcast_effects(campaign_id, db)
 
         # Generate narrative (header already shows caster + ability, so just show outcomes)
         narrative = " ".join(narrative_parts)
@@ -2727,6 +2737,20 @@ async def broadcast_player_joined(campaign_id: UUID, username: str):
     })
 
 
+async def _broadcast_effects(campaign_uuid, db):
+    """Push the campaign's current effect list to everyone (same shape as effects_sync)."""
+    from backend.models import ActiveEffect
+    effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_uuid).all()
+    await manager.broadcast(campaign_uuid, {
+        "type": "effects_sync",
+        "effects": [{
+            "id": str(e.id), "character_id": str(e.character_id) if e.character_id else None,
+            "name": e.name, "modifier": e.modifier, "modifier_type": e.modifier_type,
+            "duration_rounds": e.duration_rounds, "applied_by": e.applied_by,
+        } for e in effects],
+    })
+
+
 async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
     """Attach an effect to a character (e.g. a failed Env Check debuff/buff), then
     push the refreshed effect list to everyone (same shape as effects_sync).
@@ -2736,7 +2760,8 @@ async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
     from backend.models import ActiveEffect
     if not spec:
         return
-    db.add(ActiveEffect(
+    add_effect(
+        db,
         campaign_id=campaign_uuid,
         character_id=char.id,
         name=spec["name"],
@@ -2744,7 +2769,7 @@ async def _apply_fail_effect(campaign_uuid, char, spec, applied_by, db):
         modifier_type=spec.get("modifier_type", "custom"),
         duration_rounds=spec.get("duration_rounds"),
         applied_by=applied_by or "Check",
-    ))
+    )
     db.commit()
     effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_uuid).all()
     await manager.broadcast(campaign_uuid, {
@@ -3105,10 +3130,7 @@ async def _handle_stat_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict
 
     # Sum active debuff modifiers (rows are removed on expiry — presence means active)
     from backend.models import ActiveEffect
-    effects = db.query(ActiveEffect).filter(
-        ActiveEffect.character_id == char.id,
-    ).all()
-    debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
+    debuff_modifier = effect_modifier(db, char.id, req.stat)   # net of the buff and debuff on this stat
     tether_modifier, tether_rows = _active_tethers(char)
 
     # "Grant BAP for this check": the Story Weaver approved BAP for THIS roll, so it is part of the total.
@@ -3366,8 +3388,7 @@ async def _resolve_npc_env_check(campaign_uuid, sw_user_id, npc, stat, tier, tie
     die_roll = roll_dice("1d6")[0]
     stat_value = getattr(npc, stat.lower(), 1) or 1
     edge = npc.edge or 0
-    effects = db.query(ActiveEffect).filter(ActiveEffect.character_id == npc.id).all()
-    debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
+    debuff_modifier = effect_modifier(db, npc.id, stat)   # net of the buff and debuff on this stat
     resist_total = die_roll + stat_value + edge + debuff_modifier
 
     hazard_total = sum(roll_dice(tier_die))
@@ -3665,8 +3686,7 @@ async def _handle_env_check_roll(campaign_uuid: UUID, user_id: UUID, data: dict,
     die_roll = roll_dice("1d6")[0]
     stat_value = getattr(char, req.stat.lower(), 1) or 1
     edge = char.edge or 0
-    effects = db.query(ActiveEffect).filter(ActiveEffect.character_id == char.id).all()
-    debuff_modifier = sum(e.modifier for e in effects if (e.modifier or 0) < 0)
+    debuff_modifier = effect_modifier(db, char.id, req.stat)   # net of the buff and debuff on this stat
     tether_modifier, tether_rows = _active_tethers(char)
     resist_total = die_roll + stat_value + edge + debuff_modifier + tether_modifier
 
@@ -5013,34 +5033,10 @@ async def advance_turn(
                         "message_id": str(drain_msg.id),
                     })
 
-        # Decrement active effects only for the character whose turn just ended
+        # Rules v3.1: every buff and debuff lasts 2 rounds, counted per ROUND (the round it was cast and the
+        # next), so each effect ticks once when a new round starts, not on each character's own turn.
         from backend.models import ActiveEffect
-        ending_roll = rolls[old_index]
-        ending_character_id = ending_roll.character_id  # None for NPCs (uses npc_id instead)
-
-        # For NPCs, initiative rolls store npc_id (legacy npcs table) but ActiveEffects store
-        # character_id (characters table with is_npc=True). Resolve by name match.
-        if ending_character_id is None and ending_roll.npc_id is not None:
-            npc_char = db.query(Character).filter(
-                Character.name == ending_roll.name,
-                Character.campaign_id == str(campaign_uuid),
-                Character.is_npc == True,
-            ).first()
-            if npc_char:
-                ending_character_id = npc_char.id
-
-        effects = db.query(ActiveEffect).filter(ActiveEffect.campaign_id == campaign_uuid).all()
-        expired_ids = []
-        for effect in effects:
-            if effect.duration_rounds is None:
-                continue
-            # Only tick down effects on the character whose turn just ended
-            if ending_character_id is None or str(effect.character_id) != str(ending_character_id):
-                continue
-            effect.duration_rounds -= 1
-            if effect.duration_rounds <= 0:
-                expired_ids.append(str(effect.id))
-                db.delete(effect)
+        expired_ids = tick_round(db, campaign_uuid) if encounter.round_number != old_round_number else []
 
         db.commit()
 

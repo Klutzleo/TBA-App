@@ -3241,6 +3241,7 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
     from sqlalchemy.orm.attributes import flag_modified
     from backend.models import Ability, ActiveEffect
     from routes.campaign_websocket import BUFF_DEBUFF_TABLE, BUFF_DURATION, manager
+    from backend.buffs import add_effect
 
     if msg.message_type != "ability_cast" or str(extra.get("caster_char_id")) != str(char.id):
         raise HTTPException(status_code=400, detail="That roll does not belong to this character")
@@ -3316,9 +3317,9 @@ async def _boost_ability_cast(db, char, msg, extra, boosts, total_bonus, message
             r.update(caster_roll=new_caster, margin=margin, debuff_strength=max(0, margin), success=landed,
                      boost_bonus=total_bonus, attack_breakdown=with_boost(r.get("attack_breakdown"), new_caster))
             if landed and not was_landed and target is not None:
-                db.add(ActiveEffect(campaign_id=char.campaign_id, character_id=target.id, name=ability_name,
-                                    modifier=-modifier, modifier_type=(debuff_stat or "custom").lower(),
-                                    duration_rounds=BUFF_DURATION, applied_by=char.name))
+                add_effect(db, campaign_id=char.campaign_id, character_id=target.id, name=ability_name,
+                           modifier=-modifier, modifier_type=(debuff_stat or "custom").lower(),
+                           duration_rounds=BUFF_DURATION, applied_by=char.name)
                 r.update(debuff_modifier=-modifier, debuff_duration=BUFF_DURATION, debuff_stat=debuff_stat)
             elif was_landed and not landed and target is not None:
                 effect = db.query(ActiveEffect).filter(
