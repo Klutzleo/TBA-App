@@ -160,3 +160,19 @@ def test_a_dry_run_does_not_even_create_the_backup_tables(world):
     mig.plan(world["db"])
     insp = inspect(world["db"].get_bind())
     assert not insp.has_table(mig.CHAR_BACKUP) and not insp.has_table(mig.ABILITY_BACKUP)
+
+
+def test_an_illegal_weapon_die_is_replaced_and_undo_restores_it(world):
+    odd = world["make"]("Odd", 5, 20, 20)                       # the real prod character: 4d10 at level 5
+    odd.attack_style = "4d10"
+    odd.weapon = {"name": "Big Gun", "die": "4d10"}
+    legal = world["make"]("Legal", 5, 16, 16)
+    legal.attack_style = "2d6"
+    world["db"].commit()
+    mig.apply(world["db"])
+    odd, legal = _reload(world, odd), _reload(world, legal)
+    assert odd.attack_style == "1d8" and odd.weapon["die"] == "1d8" and odd.weapon["name"] == "Big Gun"
+    assert legal.attack_style == "2d6"                          # a legal die is never touched
+    mig.undo(world["db"])
+    odd = _reload(world, odd)
+    assert odd.attack_style == "4d10" and odd.weapon["die"] == "4d10"

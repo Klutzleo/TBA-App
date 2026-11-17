@@ -13,6 +13,8 @@ What it changes (everyone: PCs, NPCs, Allies; not summons or objects):
     Calling, is left exactly as they are.
   - uses per encounter become level + 2; every ability's max and remaining uses are set to that (a one-time
     refill; the shared pool arrives in a later phase).
+  - a weapon die that is not legal at the character's level (for example the removed 3d4/4d4/5d4/4d6, or an
+    illegal 4d10) is replaced by the first legal option for that level (a single die); legal dice are untouched.
 
 Safety:
   - Refuses to apply while any encounter is active (initiative rows carry copies of DP), unless --force.
@@ -29,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text  # noqa: E402
 
-from backend.leveling import MAX_LEVEL, level_stats, uses_for_level  # noqa: E402
+from backend.leveling import MAX_LEVEL, level_stats, uses_for_level, weapon_options  # noqa: E402
 
 CHAR_BACKUP = "rules_v31_migration_backup"
 ABILITY_BACKUP = "rules_v31_migration_ability_backup"
@@ -40,7 +42,7 @@ def ensure_backup_tables(db):
         character_id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(255), level INTEGER,
         old_max_dp INTEGER, old_dp INTEGER, old_max_uses INTEGER, old_current_uses INTEGER,
-        new_max_dp INTEGER, new_dp INTEGER,
+        new_max_dp INTEGER, new_dp INTEGER, old_attack_style VARCHAR(20), new_attack_style VARCHAR(20),
         migrated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""))
     db.execute(text(f"""CREATE TABLE IF NOT EXISTS {ABILITY_BACKUP} (
         ability_id VARCHAR(36) PRIMARY KEY, character_id VARCHAR(36),
@@ -87,6 +89,8 @@ def plan(db):
             "new_dp": new_current_dp(c.dp, c.max_dp, new_max, bool(c.in_calling)),
             "old_max_uses": c.max_uses_per_encounter, "old_current_uses": c.current_uses,
             "new_uses": uses_for_level(level),
+            "old_attack_style": c.attack_style,
+            "new_attack_style": c.attack_style if c.attack_style in weapon_options(level) else weapon_options(level)[0],
         })
     return rows, skipped
 
@@ -96,6 +100,16 @@ def active_encounters(db):
     return db.query(Encounter).filter(Encounter.is_active == True).count()  # noqa: E712
 
 
+def _swap_weapon_die(c, old, new):
+    """Set the attack style, and keep the weapon's own die in step when it carried the same value."""
+    if old == new:
+        return
+    c.attack_style = new
+    w = c.weapon
+    if isinstance(w, dict) and w.get("die") == old:
+        c.weapon = {**w, "die": new}
+
+
 def apply(db):
     from backend.models import Ability
     ensure_backup_tables(db)
@@ -103,10 +117,12 @@ def apply(db):
     for r in rows:
         c = r["char"]
         db.execute(text(f"""INSERT INTO {CHAR_BACKUP}
-            (character_id, name, level, old_max_dp, old_dp, old_max_uses, old_current_uses, new_max_dp, new_dp)
-            VALUES (:id, :name, :level, :omd, :od, :omu, :ocu, :nmd, :nd)"""),
+            (character_id, name, level, old_max_dp, old_dp, old_max_uses, old_current_uses, new_max_dp, new_dp,
+             old_attack_style, new_attack_style)
+            VALUES (:id, :name, :level, :omd, :od, :omu, :ocu, :nmd, :nd, :oas, :nas)"""),
             dict(id=str(c.id), name=c.name, level=r["level"], omd=r["old_max_dp"], od=r["old_dp"],
-                 omu=r["old_max_uses"], ocu=r["old_current_uses"], nmd=r["new_max_dp"], nd=r["new_dp"]))
+                 omu=r["old_max_uses"], ocu=r["old_current_uses"], nmd=r["new_max_dp"], nd=r["new_dp"],
+                 oas=r["old_attack_style"], nas=r["new_attack_style"]))
         for ab in db.query(Ability).filter(Ability.character_id == c.id).all():
             db.execute(text(f"""INSERT INTO {ABILITY_BACKUP}
                 (ability_id, character_id, old_max_uses, old_uses_remaining) VALUES (:a, :c, :m, :r)"""),
@@ -117,6 +133,7 @@ def apply(db):
         c.dp = r["new_dp"]
         c.max_uses_per_encounter = r["new_uses"]
         c.current_uses = r["new_uses"]
+        _swap_weapon_die(c, r["old_attack_style"], r["new_attack_style"])
     db.commit()
     return len(rows)
 
@@ -125,11 +142,13 @@ def undo(db):
     from backend.models import Ability, Character
     ensure_backup_tables(db)
     n = 0
-    for (cid, omd, od, omu, ocu) in db.execute(text(
-            f"SELECT character_id, old_max_dp, old_dp, old_max_uses, old_current_uses FROM {CHAR_BACKUP}")).fetchall():
+    for (cid, omd, od, omu, ocu, oas, nas) in db.execute(text(
+            f"SELECT character_id, old_max_dp, old_dp, old_max_uses, old_current_uses, old_attack_style, "
+            f"new_attack_style FROM {CHAR_BACKUP}")).fetchall():
         c = db.query(Character).filter(Character.id == uuid.UUID(str(cid))).first()
         if c:
             c.max_dp, c.dp, c.max_uses_per_encounter, c.current_uses = omd, od, omu, ocu
+            _swap_weapon_die(c, nas, oas)
             n += 1
     for (aid, om, orr) in db.execute(text(
             f"SELECT ability_id, old_max_uses, old_uses_remaining FROM {ABILITY_BACKUP}")).fetchall():
@@ -143,12 +162,13 @@ def undo(db):
 
 
 def _print_plan(rows, skipped):
-    print(f"{'name':24} {'lvl':>3} {'kind':>4}  {'DP now':>9} -> {'DP new':>9}   {'uses':>9}")
+    print(f"{'name':24} {'lvl':>3} {'kind':>4}  {'DP now':>9} -> {'DP new':>9}   {'uses':>9}  weapon")
     for r in rows:
         kind = "NPC" if r["npc"] else "PC"
         print(f"{(r['name'] or '')[:24]:24} {r['level']:>3} {kind:>4}  "
               f"{str(r['old_dp'])+'/'+str(r['old_max_dp']):>9} -> {str(r['new_dp'])+'/'+str(r['new_max_dp']):>9}   "
-              f"{str(r['old_max_uses'])+'->'+str(r['new_uses']):>9}")
+              f"{str(r['old_max_uses'])+'->'+str(r['new_uses']):>9}  "
+              + (f"{r['old_attack_style']} -> {r['new_attack_style']}" if r['old_attack_style'] != r['new_attack_style'] else "ok"))
     print(f"\n{len(rows)} character(s) to migrate, {len(skipped)} skipped.")
     for name, why in skipped:
         print(f"  skipped {name}: {why}")
