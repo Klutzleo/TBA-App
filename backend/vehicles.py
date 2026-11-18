@@ -85,6 +85,38 @@ def defense_crew(db, vehicle):
     return None
 
 
+SUPPORT_STATIONS = {"captain": "sp", "pilot": "ip"}   # the stat each adds with (Core: Captain SP, Pilot IP)
+
+
+def set_add(db, vehicle_id, station: str, target: str, amount: int, note: str = None) -> None:
+    """Store a support roll for the vehicle's next attack or defense roll. One per station: a new one replaces the old."""
+    import uuid as _uuid
+    from backend.models import VehicleCrewAdd
+    row = db.query(VehicleCrewAdd).filter(VehicleCrewAdd.vehicle_id == vehicle_id, VehicleCrewAdd.station == station).first()
+    if row is None:
+        db.add(VehicleCrewAdd(id=_uuid.uuid4(), vehicle_id=vehicle_id, station=station, target=target, amount=amount, note=note))
+    else:
+        row.target, row.amount, row.note = target, amount, note
+    db.flush()
+
+
+def take_adds(db, vehicle_id, target: str) -> int:
+    """Use up every waiting support add for `target` ("attack" or "defense") and return their total. The deletes ride on the
+    caller's next commit, so a roll that fails before then leaves the adds waiting."""
+    from backend.models import VehicleCrewAdd
+    rows = db.query(VehicleCrewAdd).filter(VehicleCrewAdd.vehicle_id == vehicle_id, VehicleCrewAdd.target == target).all()
+    total = sum(r.amount for r in rows)
+    for r in rows:
+        db.delete(r)
+    return total
+
+
+def pending_adds(db, vehicle_id) -> list:
+    from backend.models import VehicleCrewAdd
+    return [{"station": r.station, "target": r.target, "amount": r.amount}
+            for r in db.query(VehicleCrewAdd).filter(VehicleCrewAdd.vehicle_id == vehicle_id).order_by(VehicleCrewAdd.created_at).all()]
+
+
 def vehicle_state(vehicle) -> str:
     return "critical" if vehicle.dp <= -10 else ("disabled" if vehicle.dp <= 0 else "active")
 
@@ -106,5 +138,5 @@ def vehicle_dict(db, vehicle, is_sw: bool = False) -> dict:
         "weapon_die": vehicle.attack_style, "weapon_options": list(table["weapon_options"]), "defense_die": vehicle.defense_die,
         "uses": vehicle.current_uses, "max_uses": vehicle.max_uses_per_encounter, "systems": system_slots(level),
         "state": state, "visible_to_players": bool(vehicle.visible_to_players), "portrait_url": vehicle.portrait_url,
-        "notes": vehicle.notes if is_sw else None, "crew": crew, "max_level": VEHICLE_MAX_LEVEL,
+        "notes": vehicle.notes if is_sw else None, "crew": crew, "pending_adds": pending_adds(db, vehicle.id), "max_level": VEHICLE_MAX_LEVEL,
     }

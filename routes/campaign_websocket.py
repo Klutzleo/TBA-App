@@ -28,7 +28,7 @@ from backend.roll_logic import roll_dice
 from backend.uses import spend as spend_use, pool_remaining, pool_max, refill as refill_uses
 from backend.buffs import effect_modifier, add_effect, tick_round, add_damage_effect
 from backend.ascension import secondary_unlocked
-from backend.vehicles import crew_post, defense_crew
+from backend.vehicles import crew_post, defense_crew, take_adds, set_add, SUPPORT_STATIONS
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -1087,14 +1087,19 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             _dv, _dst = crew_post(db, defender)
             if _dv is not None and _dst in ("operator", "defense_officer") and (_dv.dp or 0) > 0:
                 edge, def_die = _dv.edge or 0, _dv.defense_die or def_die     # the vehicle's Defense Die and Edge
+                _manual_def_add = take_adds(db, _dv.id, "defense")
+            else:
+                _manual_def_add = 0
             def_rolls = roll_dice(def_die)
             def_roll_total = sum(def_rolls)
             _def_tether_mod, _def_active_tethers = _active_tethers(defender)
-            defense_total = def_roll_total + stat_value + edge + _def_tether_mod
+            defense_total = def_roll_total + stat_value + edge + _def_tether_mod + _manual_def_add
             rolls_str = " + ".join(str(r) for r in def_rolls)
             breakdown = f"{def_die} = [{rolls_str}] + {stat_label}({stat_value}) + Edge({edge})"
             if _def_tether_mod:
                 breakdown += f" + Tether({_def_tether_mod:+d})"
+            if _manual_def_add:
+                breakdown += f" + Crew({_manual_def_add})"
             breakdown += f" = {defense_total}"
 
             # Persist to message history
@@ -1133,6 +1138,11 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 "bap": defender.bap or 1,
                 "tethers": _def_tethers,
             })
+            return
+
+        # /support attack|defense (Captain, Pilot) and /repair (Engineer): vehicle station actions
+        if command_text.lower().startswith(("/support", "/repair")):
+            await _handle_station_action(campaign_id, command_text, data, user_id, db)
             return
 
         # /env was removed in the 2026-09 Env Check work — hazards now go
@@ -1352,6 +1362,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         # Active Tethers ride every roll while the SW has them switched on.
         attacker_tether_modifier, attacker_tether_rows = _active_tethers(attacker)
 
+        # Vehicle crew support (rules v3.1.1): a waiting Captain/Pilot add goes onto this roll, once.
+        _atk_add = take_adds(db, _atk_veh.id, "attack") if _atk_veh is not None else 0
+        _def_add = take_adds(db, defender.id, "defense") if defender.is_vehicle else 0
+
         # Resolve multi-die attack
         result = resolve_multi_die_attack(
             attacker={"name": _atk_label},
@@ -1369,7 +1383,13 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             armor_bonus=armor_bonus,
             defender_edge=defender_edge_for_roll,
             tether_bonus=attacker_tether_modifier,
+            roll_add=_atk_add,
+            defender_roll_add=_def_add,
         )
+        if _atk_add:
+            result["narrative"] += f" (Crew support added +{_atk_add} to the attack.)"
+        if _def_add:
+            result["narrative"] += f" (Crew support added +{_def_add} to {defender.name}'s defense.)"
         
         # =====================================================================
         # Apply damage and persist to database (no floor — can go negative for The Calling)
@@ -1549,6 +1569,87 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             "message": "❌ Something went wrong with that combat action. Please try again."
         })
 
+
+
+async def _handle_station_action(campaign_id, command_text: str, data: dict, user_id, db):
+    """Vehicle station actions (rules v3.1.1).
+    /support attack | /support defense: Captain 1d6 + SP + vehicle Edge, Pilot 1d6 + IP + vehicle Edge. The result waits and is added once
+    to the Gunner's next attack or the Defense Officer's next defense roll (your choice). Not a buff.
+    /repair: Engineer 1d6 + IP + vehicle Edge, restores that much DP to the vehicle."""
+    from backend.buffs import effect_modifier as _effect_modifier
+    from uuid import UUID as _UUID
+    parts = command_text.strip().split()
+    verb = parts[0].lower()
+
+    async def say(text):
+        await manager.broadcast(campaign_id, {"type": "system", "text": text})
+
+    # who is acting: the Story Weaver may act for an NPC crew member, everyone else for their own character on a station
+    actor = None
+    override = data.get("attacker_id")
+    if override:
+        if not await is_story_weaver(campaign_id, user_id, db):
+            await say("❌ Only the Story Weaver can act for another character")
+            return
+        try:
+            actor = db.query(Character).filter(Character.id == _UUID(str(override)), Character.campaign_id == campaign_id).first()
+        except Exception:
+            actor = None
+    else:
+        for c in db.query(Character).filter(Character.user_id == user_id, Character.campaign_id == campaign_id).all():
+            if crew_post(db, c)[0] is not None:
+                actor = c
+                break
+    if actor is None:
+        await say("❌ You aren't on a vehicle station. Take a station in the Vehicles window first.")
+        return
+    vehicle, station = crew_post(db, actor)
+    if vehicle is None:
+        await say(f"❌ {actor.name} isn't on a vehicle station.")
+        return
+    if (actor.dp or 0) <= 0:
+        await say(f"❌ {actor.name} is down (DP: {actor.dp}) and can't work a station.")
+        return
+
+    edge = vehicle.edge or 0
+    roll = sum(roll_dice("1d6"))
+    tether_mod, _ = _active_tethers(actor)
+
+    if verb == "/repair":
+        if station != "engineer":
+            await say(f"❌ Only the Engineer can repair. {actor.name} is the {station.replace('_', ' ')}.")
+            return
+        fx = _effect_modifier(db, actor.id, "ip")
+        total = max(0, roll + (actor.ip or 0) + edge + fx + tether_mod)
+        old_dp = vehicle.dp
+        vehicle.dp = min(vehicle.max_dp or 0, (vehicle.dp or 0) + total)
+        db.commit()
+        await say(f"🔧 {actor.name} repairs {vehicle.name}: 1d6({roll}) + IP({actor.ip or 0}) + Edge({edge}){_fx_label(fx)}"
+                  f"{f' + Tether({tether_mod:+d})' if tether_mod else ''} = {total}. DP {old_dp} → {vehicle.dp}/{vehicle.max_dp}")
+        await manager.broadcast(campaign_id, {"type": "vehicles_changed", "campaign_id": str(campaign_id)})
+        return
+
+    # /support
+    if station not in SUPPORT_STATIONS:
+        await say(f"❌ Only the Captain or Pilot can give support. {actor.name} is the {station.replace('_', ' ')}.")
+        return
+    target = parts[1].lower() if len(parts) > 1 else ""
+    if target not in ("attack", "defense"):
+        await say("❌ Usage: /support attack  or  /support defense")
+        return
+    if (vehicle.dp or 0) <= 0:
+        await say(f"❌ {vehicle.name} is disabled (DP: {vehicle.dp}); support can't help it until it is repaired.")
+        return
+    stat = SUPPORT_STATIONS[station]
+    stat_value = getattr(actor, stat) or 0
+    fx = _effect_modifier(db, actor.id, stat)
+    total = max(0, roll + stat_value + edge + fx + tether_mod)
+    set_add(db, vehicle.id, station, target, total, f"{actor.name}")
+    db.commit()
+    who = station.capitalize()
+    await say(f"🎖️ {who} {actor.name}: 1d6({roll}) + {stat.upper()}({stat_value}) + Edge({edge}){_fx_label(fx)}"
+              f"{f' + Tether({tether_mod:+d})' if tether_mod else ''} = {total}, added once to {vehicle.name}'s next {target} roll")
+    await manager.broadcast(campaign_id, {"type": "vehicles_changed", "campaign_id": str(campaign_id)})
 
 
 def _dice_str(die_type: str, rolls: list) -> str:
@@ -4965,6 +5066,8 @@ async def end_encounter(
             refill_uses(_c)   # the shared pool is what casting actually spends
         from backend.models import EncounterHeal as _EncounterHeal
         db.query(_EncounterHeal).filter(_EncounterHeal.encounter_id == encounter.id).delete(synchronize_session=False)
+        from backend.models import VehicleCrewAdd as _VehicleCrewAdd
+        db.query(_VehicleCrewAdd).filter(_VehicleCrewAdd.vehicle_id.in_(character_ids)).delete(synchronize_session=False)
 
         # Reset has_faced_calling_this_encounter for all active PCs
         for char in characters:

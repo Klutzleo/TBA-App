@@ -79,7 +79,8 @@ async def _announce(campaign_id: UUID, text: Optional[str] = None) -> None:
         from routes.campaign_websocket import manager
         await manager.broadcast(campaign_id, {"type": "vehicles_changed", "campaign_id": str(campaign_id)})
         if text:
-            await manager.broadcast(campaign_id, {"type": "system", "text": text})
+            # no_mirror: setup chatter shows in the app's chat but never goes to the public Discord channel
+            await manager.broadcast(campaign_id, {"type": "system", "text": text, "no_mirror": True})
     except Exception as e:  # pragma: no cover - logging only
         logger.warning(f"vehicles_changed broadcast failed: {e}")
 

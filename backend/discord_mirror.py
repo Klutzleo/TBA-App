@@ -97,6 +97,8 @@ DENYLIST_TYPES = {
     "character_approved", "character_rejected", "pc_converted_to_npc",
     "pc_transferred", "character_created", "player_joined_campaign",
     "player_left_campaign",
+    # Vehicle bookkeeping (adding a vehicle, seating crew) is table setup, not story. The card refresh carries no text anyway.
+    "vehicles_changed",
     # Privacy: SW's private /s roll routes through broadcast() but is rendered
     # SW-only client-side — must never leak to a public Discord channel.
     "secret_roll_result",
@@ -257,6 +259,10 @@ def enqueue_outbound(campaign_id, message: dict):
 
     msg_type = message.get("type")
     if not msg_type or msg_type in DENYLIST_TYPES:
+        return
+    # Any event can opt out by setting "no_mirror": for table setup that has to show in the app's chat but is not story
+    # (a vehicle being added, someone taking a station). A flag on the event beats listing every new text line here.
+    if message.get("no_mirror"):
         return
     if str(message.get("chat_mode") or "").lower() in NON_STORY_CHAT_MODES:
         return

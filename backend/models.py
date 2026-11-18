@@ -579,6 +579,24 @@ class VehicleCrew(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class VehicleCrewAdd(Base):
+    """A Captain's or Pilot's support roll waiting for the next Gunner (attack) or Defense Officer (defense) roll on the vehicle
+    (rules v3.1.1). It is a one-time add to that roll, not a buff. One pending add per support station; a new one replaces it."""
+    __tablename__ = "vehicle_crew_adds"
+    __table_args__ = (
+        UniqueConstraint("vehicle_id", "station", name="uq_vehicle_crew_add_station"),
+        {'extend_existing': True},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vehicle_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    station = Column(String(20), nullable=False)   # captain | pilot
+    target = Column(String(10), nullable=False)    # attack | defense
+    amount = Column(Integer, nullable=False)
+    note = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class EncounterHeal(Base):
     """A spell or technique healed this character during this encounter (rules v3.1: once per person per encounter).
     Potions, rest and the Story Weaver's manual heal do not create a row. Rows are cleared when the encounter ends."""

@@ -5425,6 +5425,14 @@
       await loadVehicles();
       refreshVehiclesModal();
     }
+    // Captain/Pilot support and the Engineer's repair go through the same combat command the chat uses.
+    // The Story Weaver acts for an NPC crew member by naming them; a player's own character is found on the server.
+    function vehicleStationAction(command, actorId) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected to the campaign yet.'); return; }
+      const payload = { type: 'combat_command', raw_command: command };
+      if (isSW()) payload.attacker_id = actorId;
+      ws.send(JSON.stringify(payload));
+    }
     function assignStationFromSelect(vehicleId, station) {
       const sel = document.getElementById(`vehSel_${vehicleId}_${station}`);
       if (sel && sel.value) crewStation(vehicleId, station, sel.value);
@@ -5465,20 +5473,28 @@
           } else if (characterId) {
             action = `<button class="btn" style="padding:2px 8px;font-size:0.7rem;background:var(--bg-secondary);" onclick="crewStation('${v.id}','${st.key}','${characterId}')">Take station</button>`;
           }
+          let acts = '';
+          if (holder && (mine || isSW())) {
+            const b = (label, cmd) => `<button class="btn" style="padding:2px 8px;font-size:0.7rem;background:rgba(14,165,233,0.15);color:#38bdf8;" onclick="vehicleStationAction('${cmd}','${holder.character_id}')">${label}</button>`;
+            if (st.key === 'captain' || st.key === 'pilot') acts = b('Boost attack', '/support attack') + b('Boost defense', '/support defense');
+            else if (st.key === 'engineer') acts = b('Repair', '/repair');
+          }
           return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-top:1px solid var(--border-color);" title="${escHtml(st.help)}">
             <div style="width:118px;font-size:0.76rem;font-weight:600;">${escHtml(st.label)} <span style="opacity:0.5;font-weight:400;">${st.stat}</span></div>
             <div style="flex:1;font-size:0.78rem;${holder ? '' : 'color:var(--text-muted);'}">${holder ? escHtml(holder.name) + (holder.is_npc ? ' (NPC)' : '') : 'empty'}</div>
-            <div style="display:flex;gap:4px;align-items:center;">${action}</div></div>`;
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">${acts}${action}</div></div>`;
         }).join('');
         const sw = isSW() ? `<div style="display:flex;gap:6px;margin-top:6px;">
             <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:var(--bg-secondary);" onclick="editVehicle('${v.id}')">Edit</button>
             <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:rgba(239,68,68,0.15);color:#f87171;" onclick="deleteVehicle('${v.id}')">Delete</button></div>` : '';
         const systems = (v.systems || []).map(s => s.die).join(', ');
+        const pend = (v.pending_adds || []).length ? `<div style="font-size:0.76rem;color:#38bdf8;">Waiting: ` +
+          v.pending_adds.map(a => `${escHtml(a.station)} +${a.amount} to ${a.target}`).join(' · ') + `</div>` : '';
         return `<div id="vehCard_${v.id}" style="border:1px solid var(--border-color);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;transition:box-shadow 0.3s;">
           <div style="font-size:0.95rem;font-weight:700;">${escHtml(v.name)}${hidden} <span style="font-size:0.74rem;color:var(--text-muted);font-weight:400;">Lv ${v.level} · ${v.kind === 'open' ? 'open' : 'enclosed'}</span>${stateBadge}</div>
           <div style="height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${v.state === 'active' ? '#4ade80' : '#f87171'};"></div></div>
           <div style="font-size:0.76rem;color:var(--text-muted);">DP ${v.dp}/${v.max_dp} · Edge +${v.edge} · Weapon ${escHtml(v.weapon_die)} · Defense ${escHtml(v.defense_die)} · Uses ${v.uses}/${v.max_uses} (shared) · Systems ${escHtml(systems)}</div>
-          <div>${rows}</div>${sw}</div>`;
+          ${pend}<div>${rows}</div>${sw}</div>`;
       }).join('');
     }
 
@@ -6735,6 +6751,9 @@
       { cmd: '/defense pp',  desc: 'Manual defense roll (Physical)',           roles: ['player','SW'] },
       { cmd: '/defense ip',  desc: 'Manual defense roll (Intellect)',          roles: ['player','SW'] },
       { cmd: '/defense sp',  desc: 'Manual defense roll (Social)',             roles: ['player','SW'] },
+      { cmd: '/support attack',  desc: 'Captain or Pilot: add 1d6 + stat + Edge to your Gunner\'s next attack', roles: ['player','SW'] },
+      { cmd: '/support defense', desc: 'Captain or Pilot: add 1d6 + stat + Edge to the next defense roll',      roles: ['player','SW'] },
+      { cmd: '/repair',      desc: 'Engineer: restore vehicle DP (1d6 + IP + Edge)',  roles: ['player','SW'] },
       { cmd: '/cast',        desc: 'Cast a spell — e.g. /cast Fireball @Target', roles: ['player','SW'] },
       { cmd: '/technique',   desc: 'Use a technique',                          roles: ['player','SW'] },
       { cmd: '/initiative',  desc: 'Roll your initiative (1d6 + Edge)',        roles: ['player','SW'] },
@@ -15337,7 +15356,7 @@
         msgInput.value = '';
         return;
 
-      } else if (textLower.startsWith('/attack') || textLower.startsWith('/defense')) {
+      } else if (textLower.startsWith('/attack') || textLower.startsWith('/defense') || textLower.startsWith('/support') || textLower.startsWith('/repair')) {
         // Combat command - send to combat handler
         const payload = {
           type: 'combat_command',
@@ -15531,7 +15550,7 @@
     // Matches /pp /ip /sp /roll /attack /defense /cast /technique /s and bare XdY.
     // Returns { narrativeText, command } or null.
     function detectInlineRoll(text) {
-      const match = text.match(/\s(\/(?:attack|defense|defend|cast|technique|roll|pp|ip|sp|s)(?:\s+\S.*?)?)\s*$/i);
+      const match = text.match(/\s(\/(?:attack|defense|defend|support|repair|cast|technique|roll|pp|ip|sp|s)(?:\s+\S.*?)?)\s*$/i);
       if (!match) return null;
       return {
         narrativeText: text.slice(0, match.index).trim(),

@@ -740,10 +740,15 @@ def resolve_multi_die_attack(
     armor_bonus=0,
     defender_edge=0,
     defender_dp=None,
-    tether_bonus=0
+    tether_bonus=0,
+    roll_add=0,
+    defender_roll_add=0
 ):
     """
     TBA v1.5 Multi-Die Attack Resolution.
+
+    roll_add / defender_roll_add: a vehicle crew support roll (Captain or Pilot) added to ONE roll, the first die, not to every die
+    (rules v3.1.1: it is a one-time add to that roll, not a buff).
 
     Attacker rolls each die individually against defender's single defense die.
     Each roll generates its own margin and damage.
@@ -802,7 +807,7 @@ def resolve_multi_die_attack(
     total_damage = 0
     hit_count = 0
 
-    for atk_die_roll in attacker_rolls:
+    for _die_index, atk_die_roll in enumerate(attacker_rolls):
         # Roll a fresh defense die for each attack
         if unconscious:
             raw_defense_roll = 0
@@ -810,9 +815,12 @@ def resolve_multi_die_attack(
             raw_defense_roll = roll_die(defense_die_str)
 
         defense_total = raw_defense_roll + defender_stat_value + defender_edge + armor_bonus + defender_effect_bonus
+        _def_add = defender_roll_add if _die_index == 0 else 0
+        _atk_add = roll_add if _die_index == 0 else 0
+        defense_total += _def_add
 
         # Attack total = die + stat + edge + weapon bonus + BAP + active effects + active tethers
-        effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus + bap_bonus + attacker_effect_bonus + tether_bonus
+        effective_roll = atk_die_roll + attacker_stat_value + edge + weapon_bonus + bap_bonus + attacker_effect_bonus + tether_bonus + _atk_add
 
         # Margin = attack total - defense total
         margin = effective_roll - defense_total
@@ -840,6 +848,8 @@ def resolve_multi_die_attack(
             "def_edge_bonus": defender_edge,
             "armor_bonus": armor_bonus,
             "defender_effect_bonus": defender_effect_bonus,
+            "crew_add": _atk_add,
+            "def_crew_add": _def_add,
             "margin": margin,
             "damage": damage
         })
