@@ -2445,6 +2445,20 @@
       box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
     }
 
+    .character-bubble.vehicle {
+      border-color: #0ea5e9;
+    }
+
+    .character-bubble.vehicle:hover {
+      background: rgba(14, 165, 233, 0.16);
+      border-color: #38bdf8;
+    }
+
+    .character-bubble.vehicle.bubble-down {
+      border-style: dashed;
+      opacity: 0.8;
+    }
+
     .character-bubble.dragging {
       opacity: 0.4;
       cursor: grabbing;
@@ -5315,13 +5329,19 @@
       if (typeof isSW === 'function' && isSW() && typeof renderBubbleBar === 'function') renderBubbleBar();
     }
 
-    async function openVehiclesModal() {
+    async function openVehiclesModal(focusId) {
       document.getElementById('vehFormWrap').style.display = isSW() ? 'flex' : 'none';
       await loadVehicles();
       if (isSW()) resetVehicleForm();
       refreshVehiclesModal();
       document.getElementById('vehiclesModal').classList.add('active');
       if (window.lucide) lucide.createIcons();
+      const card = typeof focusId === 'string' ? document.getElementById('vehCard_' + focusId) : null;
+      if (card) {
+        card.scrollIntoView({ block: 'center' });
+        card.style.boxShadow = '0 0 0 2px #0ea5e9';
+        setTimeout(() => { card.style.boxShadow = ''; }, 1600);
+      }
     }
     function closeVehiclesModal() { document.getElementById('vehiclesModal').classList.remove('active'); }
 
@@ -5454,7 +5474,7 @@
             <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:var(--bg-secondary);" onclick="editVehicle('${v.id}')">Edit</button>
             <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:rgba(239,68,68,0.15);color:#f87171;" onclick="deleteVehicle('${v.id}')">Delete</button></div>` : '';
         const systems = (v.systems || []).map(s => s.die).join(', ');
-        return `<div style="border:1px solid var(--border-color);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;">
+        return `<div id="vehCard_${v.id}" style="border:1px solid var(--border-color);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;transition:box-shadow 0.3s;">
           <div style="font-size:0.95rem;font-weight:700;">${escHtml(v.name)}${hidden} <span style="font-size:0.74rem;color:var(--text-muted);font-weight:400;">Lv ${v.level} · ${v.kind === 'open' ? 'open' : 'enclosed'}</span>${stateBadge}</div>
           <div style="height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${v.state === 'active' ? '#4ade80' : '#f87171'};"></div></div>
           <div style="font-size:0.76rem;color:var(--text-muted);">DP ${v.dp}/${v.max_dp} · Edge +${v.edge} · Weapon ${escHtml(v.weapon_die)} · Defense ${escHtml(v.defense_die)} · Uses ${v.uses}/${v.max_uses} (shared) · Systems ${escHtml(systems)}</div>
@@ -6312,13 +6332,27 @@
         addButton.onclick = () => openNpcModal();
         bubbleBar.appendChild(addButton);
 
-        // Vehicles sits beside Add NPC (same dashed style): the Story Weaver's other "add something to the scene" tool
+        // Vehicles: sky-blue bubbles (not purple like NPCs) so they read as "not an NPC" at a glance. A vehicle never
+        // speaks, so clicking its bubble opens its card (crew, edit) instead of making it the speaker.
+        campaignVehicles.forEach(v => {
+          const vb = document.createElement('div');
+          vb.className = 'character-bubble vehicle' + (v.state !== 'active' ? ' bubble-down' : '');
+          vb.title = `${v.name}: DP ${v.dp}/${v.max_dp}` + (v.state !== 'active' ? ` (${v.state})` : '');
+          const hid = v.visible_to_players === false ? '<span style="display:block;line-height:1;opacity:0.5;"><i data-lucide="eye-off" style="width:10px;height:10px;"></i></span>' : '';
+          vb.innerHTML = `
+            <div class="bubble-avatar" style="color:#38bdf8;"><i data-lucide="rocket" style="width:1rem;height:1rem;"></i></div>
+            <div class="bubble-name">${escHtml(v.name)}${hid}</div>
+          `;
+          vb.onclick = () => openVehiclesModal(v.id);
+          bubbleBar.appendChild(vb);
+        });
+
         const vehButton = document.createElement('div');
         vehButton.className = 'character-bubble bubble-add';
-        vehButton.title = 'Ships, mechs, bikes: add one, set its crew';
+        vehButton.title = 'Add a ship, mech, bike or other vehicle';
         vehButton.innerHTML = `
-          <div class="bubble-avatar"><i data-lucide="rocket" style="width:16px;height:16px;"></i></div>
-          <div class="bubble-name">Vehicles${campaignVehicles.length ? ' (' + campaignVehicles.length + ')' : ''}</div>
+          <div class="bubble-avatar">+</div>
+          <div class="bubble-name">Vehicle</div>
         `;
         vehButton.onclick = () => openVehiclesModal();
         bubbleBar.appendChild(vehButton);

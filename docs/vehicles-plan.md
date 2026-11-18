@@ -59,7 +59,7 @@ Nothing. No code, table or UI mentions vehicles. The pieces we can reuse:
 - Disable action (SW or attacker via a called-shot attack): on a hit the SW picks a system or movement, stored as a 2-round effect that ticks down with rounds.
 
 **UI**
-- A **Vehicles** bubble beside Add NPC in the Story Weaver's bar; players get a Vehicles button on the Campaign tab (the bar is hidden for them). Not the header.
+- In the Story Weaver's bar: a sky-blue bubble per vehicle (NPCs are purple) that opens its card and never becomes the speaker, plus a + Vehicle button beside Add NPC; players get a Vehicles button on the Campaign tab (the bar is hidden for them). Not the header.
 - SW: Create Vehicle (level from the table, kind open/enclosed, systems), Assign crew, Level up with the party.
 - Players: Take station / Leave station, a vehicle card (DP bar, crew, systems, uses), station action buttons.
 - Initiative stays per person. The vehicle itself is not in the order.
