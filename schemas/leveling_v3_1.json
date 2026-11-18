@@ -343,5 +343,159 @@
         "modifier": 4
       }
     }
+  },
+  "vehicles": {
+    "1": {
+      "max_dp": 8,
+      "edge": 1,
+      "defense_die": "1d4",
+      "weapon_options": [
+        "1d4"
+      ],
+      "uses_per_encounter": 3,
+      "slot_1_die": "1d6",
+      "slot_2_die": null,
+      "slot_3_die": null,
+      "slot_4_die": null,
+      "slot_5_die": null
+    },
+    "2": {
+      "max_dp": 10,
+      "edge": 2,
+      "defense_die": "1d4",
+      "weapon_options": [
+        "1d4"
+      ],
+      "uses_per_encounter": 4,
+      "slot_1_die": "1d6",
+      "slot_2_die": null,
+      "slot_3_die": null,
+      "slot_4_die": null,
+      "slot_5_die": null
+    },
+    "3": {
+      "max_dp": 12,
+      "edge": 3,
+      "defense_die": "1d6",
+      "weapon_options": [
+        "1d6",
+        "2d4"
+      ],
+      "uses_per_encounter": 5,
+      "slot_1_die": "1d8",
+      "slot_2_die": "1d6",
+      "slot_3_die": null,
+      "slot_4_die": null,
+      "slot_5_die": null
+    },
+    "4": {
+      "max_dp": 14,
+      "edge": 4,
+      "defense_die": "1d6",
+      "weapon_options": [
+        "1d6",
+        "2d4"
+      ],
+      "uses_per_encounter": 6,
+      "slot_1_die": "1d8",
+      "slot_2_die": "1d6",
+      "slot_3_die": null,
+      "slot_4_die": null,
+      "slot_5_die": null
+    },
+    "5": {
+      "max_dp": 16,
+      "edge": 5,
+      "defense_die": "1d8",
+      "weapon_options": [
+        "1d8",
+        "2d6"
+      ],
+      "uses_per_encounter": 7,
+      "slot_1_die": "1d10",
+      "slot_2_die": "1d8",
+      "slot_3_die": "1d6",
+      "slot_4_die": null,
+      "slot_5_die": null
+    },
+    "6": {
+      "max_dp": 18,
+      "edge": 6,
+      "defense_die": "1d8",
+      "weapon_options": [
+        "1d8",
+        "2d6"
+      ],
+      "uses_per_encounter": 8,
+      "slot_1_die": "1d10",
+      "slot_2_die": "1d8",
+      "slot_3_die": "1d6",
+      "slot_4_die": null,
+      "slot_5_die": null
+    },
+    "7": {
+      "max_dp": 20,
+      "edge": 7,
+      "defense_die": "1d10",
+      "weapon_options": [
+        "1d10",
+        "2d8",
+        "3d6"
+      ],
+      "uses_per_encounter": 9,
+      "slot_1_die": "1d12",
+      "slot_2_die": "1d10",
+      "slot_3_die": "1d8",
+      "slot_4_die": "1d8",
+      "slot_5_die": null
+    },
+    "8": {
+      "max_dp": 22,
+      "edge": 8,
+      "defense_die": "1d10",
+      "weapon_options": [
+        "1d10",
+        "2d8",
+        "3d6"
+      ],
+      "uses_per_encounter": 10,
+      "slot_1_die": "1d12",
+      "slot_2_die": "1d10",
+      "slot_3_die": "1d8",
+      "slot_4_die": "1d8",
+      "slot_5_die": null
+    },
+    "9": {
+      "max_dp": 24,
+      "edge": 9,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 11,
+      "slot_1_die": "2d8",
+      "slot_2_die": "1d12",
+      "slot_3_die": "1d10",
+      "slot_4_die": "1d10",
+      "slot_5_die": "1d10"
+    },
+    "10": {
+      "max_dp": 26,
+      "edge": 10,
+      "defense_die": "1d12",
+      "weapon_options": [
+        "1d12",
+        "2d10",
+        "3d8"
+      ],
+      "uses_per_encounter": 12,
+      "slot_1_die": "2d8",
+      "slot_2_die": "1d12",
+      "slot_3_die": "2d6",
+      "slot_4_die": "1d10",
+      "slot_5_die": "1d12"
+    }
   }
 }

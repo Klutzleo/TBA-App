@@ -160,7 +160,7 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
   and The Calling, a new one replaces the old one, a summon cannot be hit by one. Boost works on it. Side fixes found on the way:
   a cast where no target was rolled for no longer spends a use; the NPC ability editor saved "healing", which casting never
   recognised, so it now saves "heal" (old rows are treated as heals).
-- **BAP effect: not built, waiting on Jason.** It is in the SW Guide, not the Core: a BAP moment can also give +1 or -1 until the
+- **BAP effect: removed from the rules in v3.1.1 (not a rule, nothing to build).** Old note: It is in the SW Guide, not the Core: a BAP moment can also give +1 or -1 until the
   start of the target's next turn, the SW picks the stat, same one-per-stat rule. The SW can already do this by hand with the
   Add Effect button.
 - **All-or-nothing Combo save (Option A): BUILT on branch rules-v3.1-atomic-combo, not yet on main, no migration.** `_all_or_nothing` in
@@ -197,4 +197,4 @@ Not changed, waiting on Jason:
 - An Ally dying should always leave a Memory Echo: the SW is prompted in the Calling window, but the app does not force it.
 - Ally secondary effects (level 11 effect on an Ally in slot 1) and Ascension Combo evolution stay table events.
 - Vehicles are not in the app at all.
-- BAP effect (+1/-1 for a round on a BAP moment): not built, SW can use Add Effect.
+- BAP effect: NOT a rule. Removed in v3.1.1 (Nov 18), so nothing to build. BAP is only a flat bonus on one roll.

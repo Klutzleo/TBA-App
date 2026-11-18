@@ -25,6 +25,11 @@ CHARACTER_LEVELS = {int(k): v for k, v in _DATA["characters"].items()}
 # "slot_1_die", "slot_2_die"}}
 ALLY_LEVELS = {int(k): v for k, v in _DATA["allies"].items()}
 
+# Vehicles (rules v3.1.1): DP matches the character row, Edge 1-10, five system slots, uses are one pool shared by every system.
+# Levels 1-10. {level: {"max_dp", "edge", "defense_die", "weapon_options", "uses_per_encounter", "slot_1_die" ... "slot_5_die"}}
+VEHICLE_MAX_LEVEL = 10
+VEHICLE_LEVELS = {int(k): v for k, v in _DATA["vehicles"].items()}
+
 # Potion tiers 1-6: {tier: {"die", "heal", "modifier"}}
 POTION_TIERS = {int(k): v for k, v in _DATA["potions"]["tiers"].items()}
 
@@ -66,6 +71,17 @@ def ally_stats(level: int) -> dict:
     if level not in ALLY_LEVELS:
         raise ValueError(f"An Ally's level must be 1-{ALLY_MAX_LEVEL}, got {level}")
     return ALLY_LEVELS[level]
+
+
+def vehicle_stats(level: int) -> dict:
+    """The vehicle row for a level. Raises ValueError outside 1-10."""
+    if level not in VEHICLE_LEVELS:
+        raise ValueError(f"A vehicle's level must be 1-{VEHICLE_MAX_LEVEL}, got {level}")
+    return VEHICLE_LEVELS[level]
+
+
+def vehicle_weapon_options(level: int) -> list:
+    return list(vehicle_stats(level)["weapon_options"])
 
 
 def ally_weapon_options(level: int) -> list:

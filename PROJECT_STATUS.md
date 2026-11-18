@@ -4,7 +4,7 @@ priority: high
 category: app
 progress: 83
 focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
-next_milestone: "Deploy swarms (migration 037), then Jason decides the BAP effect and vehicles"
+next_milestone: "Vehicles V2 (single-pilot combat) and V3 (stations), then the FastAPI/Starlette + Pillow 13 security phase"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -107,6 +107,10 @@ First file to open: `docs/rules-v3.1-app-plan.md` (Phase 3), then `routes/campai
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
+2026-11-18 (vehicles V1): plan in docs/vehicles-plan.md (Jason's decisions: SW creates and the campaign owns, enemy vehicles crewed by NPCs, open vehicles pick vehicle or rider by target, build V1-V3 first). V1 is built and tested on branch `rules-v3.1-vehicles` (393 tests), NOT committed, NOT deployed, needs migration 038 (characters.is_vehicle, vehicle_kind, vehicle_crew table): vehicle numbers in schemas/leveling_v3_1.json (checked against the Rulebook table by a test), SW creates/edits/levels/deletes a vehicle, players take stations with their own character and the SW can crew anyone incl. NPCs, vehicles never appear as NPCs, SW notes hidden from players, a Vehicles modal in game.html. The page was only syntax-checked (no browser run). Vehicles do nothing in combat yet. Next: V2 single-pilot combat (operator attacks/defends with vehicle dice + Edge, DP states, open-vehicle targets, maneuver check), then V3 stations.
+
+2026-11-18 (v3.1.1): security batch pushed and LIVE (deploy SUCCESS, /health 200, startup clean). Jason added the v3.1.1 handoff (docs/TBA-App-v3.1.1-Handoff, untracked). Only two rule changes vs 3.1, both wording: area debuffs roll 1d6 + same stat + Edge (the app already does this per target), and the BAP effect was REMOVED from the rules (nothing to build). Rulebook.md synced to v3.1.1, LevelingTable.md label bumped (numbers unchanged, checked against the v3.1.1 tables). Not done: Kids terminology mode, vehicles, FastAPI/Starlette + Pillow 13 upgrade. Rulebook/plan/status edits are uncommitted.
+
 2026-11-18 (security audit): pip-audit of requirements.txt found known vulnerabilities in starlette 0.38.6, pillow 12.3.0, python-multipart, jinja2, requests, python-dotenv, pytest, python-jose (no fix) and ecdsa (no fix). Found and tested locally: a crafted Host header skipped the API-key gate (middleware read request.url.path). Built, NOT committed or deployed (373 tests pass): middleware now reads scope["path"], python-multipart 0.0.31, jinja2 3.1.6, requests 2.33.0, python-dotenv 1.2.2, pytest 9.0.3, cover images opened with formats=JPEG/PNG/WEBP only, and a Railway deploy refuses to start without a real SECRET_KEY (verified set in prod, length 86). NOT done: FastAPI + Starlette upgrade (Starlette 1.3.1+, FastAPI 0.115.0 caps it below 0.39) and Pillow 13 (requirements caps it below 13); both need their own tested phase. Optional: replace python-jose with PyJWT. Tests: tests/test_security_hardening.py.
 
 2026-11-18 (later): Enemy Combos, attacks on the downed and the corrected Combo cancel rule are LIVE. Swarms are built and tested on branch `rules-v3.1-swarms` (368 tests), NOT deployed, needs migration 037 (`characters.is_swarm`): an NPC flag that blocks every kind of healing and reads its DP as bodies. Still open with Jason: BAP effect, vehicles.

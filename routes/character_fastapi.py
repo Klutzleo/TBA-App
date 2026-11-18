@@ -883,7 +883,8 @@ async def list_npcs(
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True,
         Character.is_summon == False,
-        Character.is_object == False
+        Character.is_object == False,
+        Character.is_vehicle == False
     )
     if membership.role != 'story_weaver':
         query = query.filter(Character.visible_to_players == True)
@@ -917,7 +918,8 @@ async def reorder_npcs(
             Character.id == UUID(npc_id),
             Character.campaign_id == campaign_uuid,
             Character.is_npc == True,
-            Character.is_object == False
+            Character.is_object == False,
+        Character.is_vehicle == False
         ).update({"sort_order": index})
     db.commit()
     return {"ok": True}
@@ -1038,7 +1040,8 @@ async def update_npc(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True,
-        Character.is_object == False
+        Character.is_object == False,
+        Character.is_vehicle == False
     ).first()
 
     if not npc:
@@ -1115,7 +1118,8 @@ async def set_npc_visibility(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True,
-        Character.is_object == False
+        Character.is_object == False,
+        Character.is_vehicle == False
     ).first()
     if not npc:
         raise HTTPException(status_code=404, detail="NPC not found")
@@ -1169,7 +1173,8 @@ async def delete_npc(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True,
-        Character.is_object == False
+        Character.is_object == False,
+        Character.is_vehicle == False
     ).first()
 
     if not npc:
@@ -1212,7 +1217,8 @@ async def transfer_npc_to_player(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True,
-        Character.is_object == False
+        Character.is_object == False,
+        Character.is_vehicle == False
     ).first()
 
     if not npc:
@@ -1432,7 +1438,8 @@ async def duplicate_npc(
         Character.id == UUID(npc_id),
         Character.campaign_id == campaign_uuid,
         Character.is_npc == True,
-        Character.is_object == False
+        Character.is_object == False,
+        Character.is_vehicle == False
     ).first()
 
     if not original:

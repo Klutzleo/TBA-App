@@ -246,6 +246,8 @@ class Character(Base):
 
     # Summon system
     is_summon = Column(Boolean, nullable=False, default=False)  # True for summoned creatures (temporary NPCs)
+    is_vehicle = Column(Boolean, nullable=False, default=False, server_default="false", index=True)  # a vehicle (is_npc too): see backend/vehicles.py
+    vehicle_kind = Column(String(10), nullable=False, default="enclosed", server_default="enclosed")  # "open" (bike, horse) or "enclosed" (ship, tank, mech)
     is_swarm = Column(Boolean, nullable=False, default=False, server_default="false")  # a swarm of weak bodies: its DP are bodies and it can't be healed
     summoner_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)  # Caster who summoned this
 
@@ -559,6 +561,22 @@ class CombatTurn(Base):
 
     def __repr__(self):
         return f"<CombatTurn(id={str(self.id)[:8]}..., turn={self.turn_number}, combatant={self.combatant_name}, action={self.action_type})>"
+
+
+class VehicleCrew(Base):
+    """Who holds which station on a vehicle (rules v3.1.1). One character holds one station on one vehicle at a time."""
+    __tablename__ = "vehicle_crew"
+    __table_args__ = (
+        UniqueConstraint("vehicle_id", "station", name="uq_vehicle_crew_station"),
+        UniqueConstraint("character_id", name="uq_vehicle_crew_character"),
+        {'extend_existing': True},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vehicle_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    station = Column(String(20), nullable=False)  # operator | gunner | defense_officer | captain | pilot | engineer
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class EncounterHeal(Base):

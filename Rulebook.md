@@ -2,7 +2,7 @@
 
 ## Core Rules
 
-**Version 3.1**
+**Version 3.1.1**
 
 *A Cinematic Tabletop RPG System*
 
@@ -234,7 +234,7 @@ Your five magic/technique slots determine what effects you can create:
 
 Heals and buffs don't need a defense roll.
 
-Debuffs use the normal contested roll, each target rolling their defense.
+Debuffs use the normal contested roll. You roll your spell die + stat + Edge, and each target rolls 1d6 + the same stat + Edge.
 
 ## Healing
 
@@ -812,5 +812,4 @@ You don't have to destroy a vehicle to stop it. Sabotage, hacking, or a called s
 
 **NOW GO BE BAD-ASS**
 
-*TBA v3.1 - GameOctane.com*
-
+*TBA v3.1.1 - GameOctane.com*

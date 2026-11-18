@@ -362,6 +362,13 @@ except Exception as e:
     logger.warning(f"⚠️ Failed to register moderation_router: {e}")
 
 try:
+    from routes.vehicles import vehicles_router
+    application.include_router(vehicles_router, tags=["Vehicles"])
+    logger.info("\u2705 Registered vehicles_router")
+except Exception as e:
+    logger.warning(f"\u26a0\ufe0f Failed to register vehicles_router: {e}")
+
+try:
     from routes.public_lba import public_lba_router
     application.include_router(public_lba_router, tags=["LBA"])
     logger.info("✅ Registered public_lba_router")

@@ -1,6 +1,6 @@
 # Tools for the Bad Ass: Leveling Table
 
-**Version 3.1** (GameOctane.com)
+**Version 3.1.1** (GameOctane.com)
 
 See [Rulebook.md](Rulebook.md) for how each of these numbers is used. These tables are copied from the Core Rules, which are the source of truth. If they ever differ, the Rulebook wins.
 
