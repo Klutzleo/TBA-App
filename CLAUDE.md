@@ -104,6 +104,9 @@ python app.py            # http://localhost:8000  — Swagger at /docs
 Tests: `pytest tests/ -v`. Prod runs Python 3.11 (Docker base image); `runtime.txt`
 says 3.10 but is ignored. Local 3.11 matches prod.
 
+Before shipping a dependency upgrade (FastAPI, Starlette, uvicorn, Pillow...), also run `scripts/smoke_server.py` against a migrated
+local Postgres (see its docstring): pytest mostly calls handlers directly, so it does not exercise the web stack. Never point it at prod.
+
 > `jsonschema` is a real runtime dep (`schemas/loader.py`, `routes/schemas/validation.py`) —
 > it's in `requirements.txt`. If you hit `ModuleNotFoundError` for something a router
 > needs, add it there; the Docker build installs *only* what `requirements.txt` lists.
