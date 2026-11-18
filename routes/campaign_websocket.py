@@ -1353,6 +1353,8 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         # Rules v3.1: a buff or debuff only changes rolls that use ITS stat (weapon attacks are Physical), and
         # only the strongest buff and strongest debuff count. Hand-added 'attack'/'defense' effects also apply here.
         attacker_effect_bonus = effect_modifier(db, attacker.id, stat_type, extra_types=("attack",))
+        if _atk_veh is not None:       # a buff on the vehicle itself (a targeting computer) helps its weapon too
+            attacker_effect_bonus += effect_modifier(db, _atk_veh.id, stat_type, extra_types=("attack",))
         defender_effect_bonus = effect_modifier(db, defender.id, defender_def_stat, extra_types=("defense",))
 
         # BAP is never banked. The Story Weaver adds it to one specific roll afterwards (Boost), so a roll
@@ -1922,12 +1924,31 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             Ability.macro_command == macro_command
         ).first()
 
+        # Vehicle systems (rules v3.1.1): crew fire the vehicle's spells and techniques with their own stat, the vehicle's spell die and Edge,
+        # and the vehicle's shared uses. A crew member's own ability with the same command wins, so nothing they already had changes.
+        vehicle = None
+        if not ability:
+            _cv, _cs = crew_post(db, caster)
+            if _cv is not None:
+                ability = db.query(Ability).filter(Ability.character_id == _cv.id, Ability.macro_command == macro_command).first()
+                if ability:
+                    vehicle = _cv
+        _pool = vehicle if vehicle is not None else caster   # whose uses this cast spends
+
         if not ability:
             await manager.broadcast(campaign_id, {
                 "type": "system",
                 "text": f"❌ Ability '{macro_command}' not found for {caster.name}"
             })
             return
+
+        if vehicle is not None:
+            if (vehicle.dp or 0) <= 0:
+                await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ {vehicle.name} is disabled (DP: {vehicle.dp}): its systems are offline."})
+                return
+            if ability.is_summon:
+                await manager.broadcast(campaign_id, {"type": "system", "text": "❌ A vehicle system can't be a summon."})
+                return
 
         if ability.effect_type == "healing":     # the NPC ability editor used to save "healing"; the rules call it "heal"
             ability.effect_type = "heal"
@@ -1968,7 +1989,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             # Each round it acts costs 1 of the summoner's uses (its upkeep). Out of uses, it fades.
             _free_heal = ability.effect_type == "heal" and not db.query(Encounter).filter(
                 Encounter.campaign_id == campaign_id, Encounter.is_active == True).first()  # noqa: E712
-            if pool_remaining(caster) <= 0 and not _free_heal:
+            if pool_remaining(_pool) <= 0 and not _free_heal:
                 await _remove_summon(campaign_id, acting_summon, db, reason="out_of_uses",
                                      text=f"💨 {acting_summon.name} fades: {caster.name} is out of uses.")
                 return
@@ -1982,10 +2003,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         heal_is_free = ability.effect_type == "heal" and heal_encounter is None
 
         # Check uses remaining (a summon acting was already checked above: it fades if its summoner has none)
-        if not acting_summon and not heal_is_free and pool_remaining(caster) <= 0:
+        if not acting_summon and not heal_is_free and pool_remaining(_pool) <= 0:
             await manager.broadcast(campaign_id, {
                 "type": "system",
-                "text": f"❌ {caster.name} has no uses remaining! ({pool_remaining(caster)}/{pool_max(caster)})"
+                "text": f"❌ {caster.name} has no uses remaining! ({pool_remaining(_pool)}/{pool_max(_pool)})"
             })
             return
 
@@ -2022,6 +2043,9 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         # If targets were pre-approved (SW confirmed), override parsed targets
         if data.get("_aoe_approved") and data.get("_approved_targets") is not None:
             target_names = data["_approved_targets"]
+
+        # Whoever works a vehicle system rolls with the vehicle's Edge, not their own (rules v3.1.1)
+        _cast_edge = (vehicle.edge or 0) if vehicle is not None else (caster.edge or 0)
 
         # Get caster's power stat (PP, IP, or SP)
         power_stat = 0
@@ -2081,7 +2105,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     sm_label, sm_stat, sm_owner = summon_stat_for(db, target)
                     sm_atk_dice = roll_dice(ability.die)
                     sm_atk_fx = effect_modifier(db, fx_actor.id, ability.power_source)
-                    sm_attack = sum(sm_atk_dice) + power_stat + (caster.edge or 0) + sm_atk_fx
+                    sm_attack = sum(sm_atk_dice) + power_stat + _cast_edge + sm_atk_fx
                     sm_def_dice = roll_dice(target.defense_die)
                     sm_def_fx = effect_modifier(db, target.id, sm_label)
                     sm_edge = ((sm_owner.edge if sm_owner else target.edge) or 0)
@@ -2089,7 +2113,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     sm_extra = {
                         "attack_roll": sm_attack, "defense_roll": sm_defense, "margin": sm_attack - sm_defense,
                         "attack_breakdown": (f"{ability.die} = [{' + '.join(str(x) for x in sm_atk_dice)}] + "
-                                             f"{ability.power_source}({power_stat}) + Edge({caster.edge or 0}){_fx_label(sm_atk_fx)} = {sm_attack}"),
+                                             f"{ability.power_source}({power_stat}) + Edge({_cast_edge}){_fx_label(sm_atk_fx)} = {sm_attack}"),
                         "defense_breakdown": (f"{target.defense_die} = [{' + '.join(str(x) for x in sm_def_dice)}] + "
                                               f"{sm_label}({sm_stat}) + Edge({sm_edge}){_fx_label(sm_def_fx)} = {sm_defense}"),
                     }
@@ -2122,7 +2146,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 attack_dice = ability.die  # e.g., "2d6"
                 attack_roll_result = roll_dice(attack_dice)  # Returns list like [3, 5]
                 caster_fx = effect_modifier(db, fx_actor.id, ability.power_source)   # buff/debuff on the stat this spell uses
-                attack_total = sum(attack_roll_result) + power_stat + caster.edge + caster_fx
+                attack_total = sum(attack_roll_result) + power_stat + _cast_edge + caster_fx
 
                 # Roll defense: target's defense die + matching stat + Edge
                 # IP attack → IP defense, SP attack → SP defense, PP → PP
@@ -2169,7 +2193,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     sec_targets.append(target)
                 atk_rolls_str = " + ".join(str(r) for r in attack_roll_result)
                 def_rolls_str = " + ".join(str(r) for r in defense_roll_result)
-                atk_breakdown = f"{ability.die} = [{atk_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}){_fx_label(caster_fx)} = {attack_total}"
+                atk_breakdown = f"{ability.die} = [{atk_rolls_str}] + {ability.power_source}({power_stat}) + Edge({_cast_edge}){_fx_label(caster_fx)} = {attack_total}"
                 def_breakdown = f"{target.defense_die} = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}){_fx_label(target_fx)} = {defense_total}"
                 results.append({
                     "target": target_name,
@@ -2210,10 +2234,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
             heal_roll_result = roll_dice(ability.die)  # Returns list
             heal_fx = effect_modifier(db, fx_actor.id, ability.power_source)
-            healing = sum(heal_roll_result) + power_stat + (caster.edge or 0) + heal_fx
+            healing = sum(heal_roll_result) + power_stat + _cast_edge + heal_fx
             heal_rolls_str = " + ".join(str(r) for r in heal_roll_result)
             heal_breakdown = (f"{ability.die} = [{heal_rolls_str}] + {ability.power_source}({power_stat}) + "
-                              f"Edge({caster.edge or 0}){_fx_label(heal_fx)} = {healing}")
+                              f"Edge({_cast_edge}){_fx_label(heal_fx)} = {healing}")
 
             for target_name in target_names:
                 target = db.query(Character).filter(
@@ -2272,7 +2296,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         elif ability.effect_type == "buff":
             # Buff ability (self or target) — no roll, modifier determined by die type
             if not target_names:
-                target_names = [caster.name]
+                target_names = [(vehicle if vehicle is not None else caster).name]
 
             modifier = BUFF_DEBUFF_TABLE.get(ability.die, 1)
             duration = BUFF_DURATION
@@ -2337,7 +2361,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 # Contested roll: caster's ability vs target's defense (matches spell_cast formula)
                 caster_roll = roll_dice(ability.die)  # Returns list
                 caster_fx = effect_modifier(db, fx_actor.id, ability.power_source)
-                caster_total = sum(caster_roll) + power_stat + caster.edge + caster_fx
+                caster_total = sum(caster_roll) + power_stat + _cast_edge + caster_fx
 
                 # Rules v3.1: a debuff is resisted with 1d6 + the same stat + Edge, not the Defense Die
                 defense_roll = roll_dice("1d6")  # Returns list
@@ -2359,7 +2383,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
 
                 cast_rolls_str = " + ".join(str(r) for r in caster_roll)
                 def_rolls_str = " + ".join(str(r) for r in defense_roll)
-                atk_breakdown = f"{ability.die} = [{cast_rolls_str}] + {ability.power_source}({power_stat}) + Edge({caster.edge}){_fx_label(caster_fx)} = {caster_total}"
+                atk_breakdown = f"{ability.die} = [{cast_rolls_str}] + {ability.power_source}({power_stat}) + Edge({_cast_edge}){_fx_label(caster_fx)} = {caster_total}"
                 def_breakdown = f"1d6 = [{def_rolls_str}] + {target_def_stat_label}({target_def_stat}) + Edge({target_edge}){_fx_label(target_fx)} = {defense_total}"
                 results.append({
                     "target": target_name,
@@ -2418,7 +2442,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     continue
                 dot_roll = roll_dice(ability.die)
                 dot_fx = effect_modifier(db, fx_actor.id, ability.power_source)
-                dot_total = sum(dot_roll) + power_stat + (caster.edge or 0) + dot_fx
+                dot_total = sum(dot_roll) + power_stat + _cast_edge + dot_fx
                 t_label = (ability.power_source or "PP").upper()
                 t_stat = {"PP": target.pp, "IP": target.ip, "SP": target.sp}.get(t_label, 0) or 0
                 t_fx = effect_modifier(db, target.id, t_label)
@@ -2429,7 +2453,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     "target": target_name, "success": landed, "caster_roll": dot_total, "defense_roll": resist_total,
                     "margin": dot_total - resist_total, "dot": True, "dot_die": ability.die,
                     "attack_breakdown": (f"{ability.die} = [{' + '.join(str(x) for x in dot_roll)}] + {ability.power_source}({power_stat}) + "
-                                         f"Edge({caster.edge or 0}){_fx_label(dot_fx)} = {dot_total}"),
+                                         f"Edge({_cast_edge}){_fx_label(dot_fx)} = {dot_total}"),
                     "defense_breakdown": (f"1d6 = [{' + '.join(str(x) for x in resist_roll)}] + {t_label}({t_stat}) + "
                                           f"Edge({target.edge or 0}){_fx_label(t_fx)} = {resist_total}"),
                 })
@@ -2484,7 +2508,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         all_targets_missing = results and all(r.get("message") for r in results)   # nothing was rolled for any target
         spends_a_use = not heal_is_free and (ability.effect_type != "heal" or heal_applied)
         if not all_targets_missing and spends_a_use:    # a summon acting costs its summoner 1 use too
-            spend_use(caster, 1)
+            spend_use(_pool, 1)
         db.commit()
         if effects_changed:
             await _broadcast_effects(campaign_id, db)
@@ -2516,8 +2540,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 "targets": target_names,
                 "results": results,
                 "narrative": narrative,
-                "uses_remaining": pool_remaining(caster),
-                "max_uses": pool_max(caster),
+                "uses_remaining": pool_remaining(_pool),
+                "max_uses": pool_max(_pool),
                 # what the Story Weaver's Boost dialog needs to add BAP / a tether to THIS cast afterwards
                 "bap": caster.bap or 1,
                 "tethers": [t for t in (caster.tethers or []) if t.get("modifier", 0) != 0],
@@ -2537,8 +2561,8 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
             targets=target_names,
             results=results,
             narrative=narrative,
-            uses_remaining=pool_remaining(caster),
-            max_uses=pool_max(caster),
+            uses_remaining=pool_remaining(_pool),
+            max_uses=pool_max(_pool),
             caster_char_id=str(caster.id)
         )
         _broadcast_payload = broadcast.model_dump(mode='json')
@@ -2582,7 +2606,7 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 "message_id": str(calling_msg.id)
             })
 
-        logger.info(f"[{request_id}] {caster.name} cast {ability.display_name} ({pool_remaining(caster)}/{pool_max(caster)} uses left)")
+        logger.info(f"[{request_id}] {caster.name} cast {ability.display_name} ({pool_remaining(_pool)}/{pool_max(_pool)} uses left)")
 
     except Exception as e:
         logger.error(f"Ability cast error: {str(e)}", exc_info=True)

@@ -5,8 +5,9 @@ All routes are JWT + campaign membership (they live under /api/campaigns). Creat
 A player may put only their own character on a station and take it off again; the Story Weaver can crew anyone.
 """
 import logging
+import re
 import uuid
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,9 +15,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.db import get_db
-from backend.models import CampaignMembership, Character, User, VehicleCrew
+from backend.models import Ability, CampaignMembership, Character, User, VehicleCrew
 from backend.leveling import VEHICLE_MAX_LEVEL, vehicle_stats
-from backend.vehicles import MULTI_CREW_STATIONS, STATIONS, VEHICLE_KINDS, apply_level, vehicle_dict
+from backend.vehicles import (AOE_SLOTS, MULTI_CREW_STATIONS, RESERVED_MACROS, STATIONS, SYSTEM_EFFECTS, VEHICLE_KINDS, apply_level,
+                              sync_systems, system_slots, vehicle_dict)
 from routes.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,15 @@ class VehicleUpdate(BaseModel):
     weapon_die: Optional[str] = None
     visible_to_players: Optional[bool] = None
     notes: Optional[str] = Field(None, max_length=2000)
+
+
+class SystemSet(BaseModel):
+    display_name: str = Field(..., min_length=1, max_length=60)
+    macro_command: str = Field(..., min_length=2, max_length=25)
+    power_source: Literal["PP", "IP", "SP"] = "IP"
+    effect_type: Literal["damage", "heal", "buff", "debuff", "dot"] = "damage"
+    ability_type: Literal["spell", "technique"] = "spell"
+    effect_stat: Optional[Literal["PP", "IP", "SP"]] = None   # a buff or debuff changes rolls that use this stat (default: the stat the system uses)
 
 
 class CrewAssign(BaseModel):
@@ -150,6 +161,7 @@ async def update_vehicle(campaign_id: str, vehicle_id: str, req: VehicleUpdate, 
         v.notes = req.notes
     if req.level is not None or req.weapon_die is not None:
         apply_level(v, level, req.weapon_die)
+        sync_systems(db, v)
     db.commit()
     db.refresh(v)
     await _announce(cid)
@@ -163,9 +175,60 @@ async def delete_vehicle(campaign_id: str, vehicle_id: str, db: Session = Depend
         raise HTTPException(status_code=403, detail="Only the Story Weaver can remove a vehicle")
     v = _vehicle(db, cid, vehicle_id)
     db.query(VehicleCrew).filter(VehicleCrew.vehicle_id == v.id).delete()
+    db.query(Ability).filter(Ability.character_id == v.id).delete()
     db.delete(v)
     db.commit()
     await _announce(cid)
+
+
+@vehicles_router.put("/{campaign_id}/vehicles/{vehicle_id}/systems/{slot}")
+async def set_system(campaign_id: str, vehicle_id: str, slot: int, req: SystemSet, db: Session = Depends(get_db),
+                     current_user: User = Depends(get_current_user)):
+    """Put a system (a spell or technique the crew can fire) in one of the vehicle's slots. The die comes from the Vehicle Leveling
+    Table for that slot, and the 2nd and 4th slots are area attacks, whatever the Story Weaver sends."""
+    cid = _uuid(campaign_id, "Campaign")
+    if _member(db, cid, current_user).role != "story_weaver":
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can install a system")
+    v = _vehicle(db, cid, vehicle_id)
+    slots = {s["slot"]: s for s in system_slots(v.level or 1)}
+    if slot not in slots:
+        raise HTTPException(status_code=400, detail=f"A level {v.level} vehicle has no system slot {slot} (it has {len(slots)})")
+    macro = req.macro_command.strip().lower()
+    if not re.fullmatch(r"/[a-z][a-z0-9_]{1,23}", macro):
+        raise HTTPException(status_code=400, detail="The command must start with / and use letters, numbers or _ (for example /missiles)")
+    if macro in RESERVED_MACROS:
+        raise HTTPException(status_code=400, detail=f"{macro} is already a built-in command. Pick another")
+    clash = db.query(Ability).filter(Ability.character_id == v.id, Ability.macro_command == macro, Ability.slot_number != slot).first()
+    if clash:
+        raise HTTPException(status_code=409, detail=f"{macro} is already used by another system on this vehicle")
+    row = db.query(Ability).filter(Ability.character_id == v.id, Ability.slot_number == slot).first()
+    if row is None:
+        row = Ability(id=uuid.uuid4(), character_id=v.id, slot_number=slot, ability_type=req.ability_type, display_name=req.display_name.strip(),
+                      macro_command=macro, power_source=req.power_source, effect_type=req.effect_type, die=slots[slot]["die"])
+        db.add(row)
+    row.ability_type, row.display_name, row.macro_command = req.ability_type, req.display_name.strip(), macro
+    row.power_source, row.effect_type, row.debuff_stat = req.power_source, req.effect_type, req.effect_stat
+    row.die, row.is_aoe, row.is_summon = slots[slot]["die"], slot in AOE_SLOTS, False
+    row.max_uses = row.uses_remaining = v.max_uses_per_encounter or 3
+    db.commit()
+    await _announce(cid)
+    return vehicle_dict(db, v, True)
+
+
+@vehicles_router.delete("/{campaign_id}/vehicles/{vehicle_id}/systems/{slot}")
+async def clear_system(campaign_id: str, vehicle_id: str, slot: int, db: Session = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    cid = _uuid(campaign_id, "Campaign")
+    if _member(db, cid, current_user).role != "story_weaver":
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can remove a system")
+    v = _vehicle(db, cid, vehicle_id)
+    row = db.query(Ability).filter(Ability.character_id == v.id, Ability.slot_number == slot).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Nothing is installed in that slot")
+    db.delete(row)
+    db.commit()
+    await _announce(cid)
+    return vehicle_dict(db, v, True)
 
 
 @vehicles_router.put("/{campaign_id}/vehicles/{vehicle_id}/crew/{station}")

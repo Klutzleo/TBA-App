@@ -5433,6 +5433,26 @@
       if (isSW()) payload.attacker_id = actorId;
       ws.send(JSON.stringify(payload));
     }
+    async function saveVehicleSystem(vehicleId, slot) {
+      const g = f => document.getElementById(`vsys_${vehicleId}_${slot}_${f}`);
+      const body = {
+        display_name: g('name').value.trim(), macro_command: g('macro').value.trim().toLowerCase(),
+        power_source: g('stat').value, effect_type: g('effect').value, ability_type: g('kind').value,
+        effect_stat: g('affects').value || null
+      };
+      if (!body.display_name || !body.macro_command) { alert('Give the system a name and a command like /missiles'); return; }
+      if (!body.macro_command.startsWith('/')) body.macro_command = '/' + body.macro_command;
+      const r = await fetch(`/api/campaigns/${campaignId}/vehicles/${vehicleId}/systems/${slot}`, { method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); alert(typeof e.detail === 'string' ? e.detail : 'Could not save the system'); return; }
+      await loadVehicles();
+      refreshVehiclesModal();
+    }
+    async function clearVehicleSystem(vehicleId, slot) {
+      await fetch(`/api/campaigns/${campaignId}/vehicles/${vehicleId}/systems/${slot}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+      await loadVehicles();
+      refreshVehiclesModal();
+    }
     function assignStationFromSelect(vehicleId, station) {
       const sel = document.getElementById(`vehSel_${vehicleId}_${station}`);
       if (sel && sel.value) crewStation(vehicleId, station, sel.value);
@@ -5488,13 +5508,35 @@
             <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:var(--bg-secondary);" onclick="editVehicle('${v.id}')">Edit</button>
             <button class="btn" style="padding:3px 8px;font-size:0.72rem;background:rgba(239,68,68,0.15);color:#f87171;" onclick="deleteVehicle('${v.id}')">Delete</button></div>` : '';
         const systems = (v.systems || []).map(s => s.die).join(', ');
+        const opt = (val, cur, label) => `<option value="${val}"${val === cur ? ' selected' : ''}>${label || val}</option>`;
+        const sysBlock = (v.systems || []).length ? `<div style="border-top:1px solid var(--border-color);padding-top:6px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:0.76rem;font-weight:700;color:var(--text-muted);">Systems <span style="font-weight:400;">(shared uses; crew fire them with their own stat and the vehicle's Edge)</span></div>` +
+          v.systems.map(sl => {
+            const a = sl.ability;
+            const head = `Slot ${sl.slot} · ${escHtml(sl.die)}${sl.aoe ? ' · area' : ''}`;
+            if (!isSW()) return a ? `<div style="font-size:0.78rem;"><b>${escHtml(a.display_name)}</b> <code>${escHtml(a.macro_command)}</code> <span style="color:var(--text-muted);">${head} · ${escHtml(a.power_source)} · ${escHtml(a.effect_type)}</span></div>` : '';
+            const id = f => `vsys_${v.id}_${sl.slot}_${f}`;
+            const inp = 'background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:5px;color:var(--text-primary);padding:3px 6px;font-size:0.76rem;';
+            return `<details ${a ? '' : ''} style="border:1px solid var(--border-color);border-radius:6px;padding:4px 8px;">
+              <summary style="cursor:pointer;font-size:0.78rem;">${a ? '<b>' + escHtml(a.display_name) + '</b> <code>' + escHtml(a.macro_command) + '</code> · ' : '<span style="color:var(--text-muted);">empty · </span>'}${head}</summary>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;">
+                <input id="${id('name')}" placeholder="Name (Missile Barrage)" value="${a ? escHtml(a.display_name) : ''}" maxlength="60" style="${inp}flex:2;min-width:140px;">
+                <input id="${id('macro')}" placeholder="/missiles" value="${a ? escHtml(a.macro_command) : ''}" maxlength="25" style="${inp}flex:1;min-width:90px;">
+                <select id="${id('kind')}" style="${inp}">${opt('spell', a && a.ability_type, 'Spell')}${opt('technique', a && a.ability_type, 'Technique')}</select>
+                <select id="${id('stat')}" title="The crew member's stat the roll uses" style="${inp}">${['PP','IP','SP'].map(x => opt(x, a ? a.power_source : 'IP')).join('')}</select>
+                <select id="${id('effect')}" style="${inp}">${['damage','heal','buff','debuff','dot'].map(x => opt(x, a ? a.effect_type : 'damage')).join('')}</select>
+                <select id="${id('affects')}" title="A buff or debuff changes rolls that use this stat" style="${inp}"><option value="">Buff/debuff stat: same</option>${['PP','IP','SP'].map(x => opt(x, a && a.effect_stat)).join('')}</select>
+                <button class="btn btn-primary" style="padding:3px 10px;font-size:0.74rem;" onclick="saveVehicleSystem('${v.id}',${sl.slot})">Save</button>
+                ${a ? `<button class="btn" style="padding:3px 10px;font-size:0.74rem;background:rgba(239,68,68,0.15);color:#f87171;" onclick="clearVehicleSystem('${v.id}',${sl.slot})">Remove</button>` : ''}
+              </div></details>`;
+          }).join('') + `</div>` : '';
         const pend = (v.pending_adds || []).length ? `<div style="font-size:0.76rem;color:#38bdf8;">Waiting: ` +
           v.pending_adds.map(a => `${escHtml(a.station)} +${a.amount} to ${a.target}`).join(' · ') + `</div>` : '';
         return `<div id="vehCard_${v.id}" style="border:1px solid var(--border-color);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;transition:box-shadow 0.3s;">
           <div style="font-size:0.95rem;font-weight:700;">${escHtml(v.name)}${hidden} <span style="font-size:0.74rem;color:var(--text-muted);font-weight:400;">Lv ${v.level} · ${v.kind === 'open' ? 'open' : 'enclosed'}</span>${stateBadge}</div>
           <div style="height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${v.state === 'active' ? '#4ade80' : '#f87171'};"></div></div>
           <div style="font-size:0.76rem;color:var(--text-muted);">DP ${v.dp}/${v.max_dp} · Edge +${v.edge} · Weapon ${escHtml(v.weapon_die)} · Defense ${escHtml(v.defense_die)} · Uses ${v.uses}/${v.max_uses} (shared) · Systems ${escHtml(systems)}</div>
-          ${pend}<div>${rows}</div>${sw}</div>`;
+          ${pend}<div>${rows}</div>${sysBlock}${sw}</div>`;
       }).join('');
     }
 
@@ -6824,7 +6866,24 @@
       // Own characters first, then NPCs
       const charData = [...(playerCharacters || []), ...(campaignNPCs || [])]
         .find(c => c.id === activeSpeaker.id);
-      return charData && charData.abilities ? charData.abilities.filter(a => a.macro_command) : [];
+      const own = charData && charData.abilities ? charData.abilities.filter(a => a.macro_command) : [];
+      return own.concat(vehicleMacrosFor(activeSpeaker.id, own));
+    }
+
+    // Whoever holds a station can fire the vehicle's systems (their own commands win if one matches)
+    function vehicleMacrosFor(characterIdToCheck, own) {
+      const taken = new Set((own || []).map(a => a.macro_command));
+      const out = [];
+      (campaignVehicles || []).forEach(v => {
+        const crewed = Object.values(v.crew || {}).some(c => String(c.character_id) === String(characterIdToCheck));
+        if (!crewed) return;
+        (v.systems || []).forEach(sl => {
+          if (sl.ability && sl.ability.macro_command && !taken.has(sl.ability.macro_command)) {
+            out.push({ macro_command: sl.ability.macro_command, display_name: sl.ability.display_name + ' (' + v.name + ')' });
+          }
+        });
+      });
+      return out;
     }
 
     async function loadPuppetAbilities(characterId) {
@@ -15192,7 +15251,10 @@
                 }
               }
             } else if (data.type === 'vehicles_changed') {
-              loadVehicles().then(() => { if (document.getElementById('vehiclesModal').classList.contains('active')) refreshVehiclesModal(); });
+              loadVehicles().then(() => {
+                if (document.getElementById('vehiclesModal').classList.contains('active')) refreshVehiclesModal();
+                if (typeof renderChatToolbar === 'function') renderChatToolbar();   // crew macros may have changed
+              });
             } else if (data.type === 'object_created') {
               const i = campaignObjects.findIndex(o => o.id === data.object.id);
               if (i === -1) campaignObjects.push(data.object); else campaignObjects[i] = data.object;

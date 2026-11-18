@@ -50,6 +50,44 @@ def system_slots(level: int) -> list:
     return [{"slot": n, "die": row[f"slot_{n}_die"]} for n in range(1, 6) if row.get(f"slot_{n}_die")]
 
 
+AOE_SLOTS = (2, 4)            # the Vehicle Leveling Table makes the 2nd and 4th system area attacks
+SYSTEM_EFFECTS = ("damage", "heal", "buff", "debuff", "dot")
+RESERVED_MACROS = {"/attack", "/defense", "/defend", "/pp", "/ip", "/sp", "/roll", "/cast", "/technique", "/support", "/repair", "/s",
+                   "/say", "/ooc", "/whisper", "/help", "/initiative", "/scene", "/rest", "/env"}
+
+
+def systems_view(db, vehicle) -> list:
+    """The vehicle's system slots at its level, each with the ability set in it (or None)."""
+    from backend.models import Ability
+    abilities = {a.slot_number: a for a in db.query(Ability).filter(Ability.character_id == vehicle.id).all()}
+    out = []
+    for slot in system_slots(vehicle.level or 1):
+        a = abilities.get(slot["slot"])
+        out.append({
+            "slot": slot["slot"], "die": slot["die"], "aoe": slot["slot"] in AOE_SLOTS,
+            "ability": None if a is None else {
+                "display_name": a.display_name, "macro_command": a.macro_command, "power_source": a.power_source,
+                "effect_type": a.effect_type, "ability_type": a.ability_type, "effect_stat": a.debuff_stat,
+            },
+        })
+    return out
+
+
+def sync_systems(db, vehicle) -> None:
+    """After a level change: each system takes the die its slot has at the new level, and a system whose slot no longer exists is removed."""
+    from backend.models import Ability
+    slots = {s["slot"]: s for s in system_slots(vehicle.level or 1)}
+    for a in db.query(Ability).filter(Ability.character_id == vehicle.id).all():
+        slot = slots.get(a.slot_number)
+        if slot is None:
+            db.delete(a)
+        else:
+            a.die = slot["die"]
+            a.is_aoe = a.slot_number in AOE_SLOTS
+            a.max_uses = vehicle.max_uses_per_encounter or a.max_uses
+            a.uses_remaining = a.max_uses
+
+
 def crew_rows(db, vehicle_id):
     from backend.models import VehicleCrew
     return db.query(VehicleCrew).filter(VehicleCrew.vehicle_id == vehicle_id).all()
@@ -136,7 +174,7 @@ def vehicle_dict(db, vehicle, is_sw: bool = False) -> dict:
         "id": str(vehicle.id), "campaign_id": str(vehicle.campaign_id), "name": vehicle.name, "level": level,
         "kind": vehicle.vehicle_kind or "enclosed", "dp": vehicle.dp, "max_dp": vehicle.max_dp, "edge": vehicle.edge,
         "weapon_die": vehicle.attack_style, "weapon_options": list(table["weapon_options"]), "defense_die": vehicle.defense_die,
-        "uses": vehicle.current_uses, "max_uses": vehicle.max_uses_per_encounter, "systems": system_slots(level),
+        "uses": vehicle.current_uses, "max_uses": vehicle.max_uses_per_encounter, "systems": systems_view(db, vehicle),
         "state": state, "visible_to_players": bool(vehicle.visible_to_players), "portrait_url": vehicle.portrait_url,
         "notes": vehicle.notes if is_sw else None, "crew": crew, "pending_adds": pending_adds(db, vehicle.id), "max_level": VEHICLE_MAX_LEVEL,
     }
