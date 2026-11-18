@@ -4004,6 +4004,8 @@ async def use_inventory_item(
 
     if item.effect_type == 'heal' and target.in_calling:
         raise HTTPException(status_code=400, detail=f"{target.name} is in The Calling. No one can heal them first")
+    if item.effect_type == 'heal' and target.is_vehicle:
+        raise HTTPException(status_code=400, detail=f"{target.name} is a vehicle: a potion can't repair it (an Engineer can)")
     if item.effect_type == 'heal' and target.is_swarm:
         raise HTTPException(status_code=400, detail=f"{target.name} is a swarm: its DP are bodies, and a swarm can't be healed")
 

@@ -62,6 +62,33 @@ def crew_character(db, vehicle_id, station: str):
     return db.query(Character).filter(Character.id == row.character_id).first() if row else None
 
 
+def crew_post(db, character):
+    """(vehicle, station) for the vehicle this character is crewing, or (None, None) when they are on no station."""
+    from backend.models import Character, VehicleCrew
+    row = db.query(VehicleCrew).filter(VehicleCrew.character_id == character.id).first()
+    if not row:
+        return None, None
+    vehicle = db.query(Character).filter(Character.id == row.vehicle_id).first()
+    return (vehicle, row.station) if vehicle else (None, None)
+
+
+def defense_crew(db, vehicle):
+    """Whose Physical Power a vehicle defends with: the Defense Officer, else the single Operator. Nobody (None) when
+    the station is empty, the holder is down, or the vehicle itself is disabled (0 DP or less). An unmanned vehicle
+    still defends with its defense die + its own Edge, just with no character stat added."""
+    if (vehicle.dp or 0) <= 0:
+        return None
+    for station in ("defense_officer", "operator"):
+        c = crew_character(db, vehicle.id, station)
+        if c is not None and (c.dp or 0) > 0:
+            return c
+    return None
+
+
+def vehicle_state(vehicle) -> str:
+    return "critical" if vehicle.dp <= -10 else ("disabled" if vehicle.dp <= 0 else "active")
+
+
 def vehicle_dict(db, vehicle, is_sw: bool = False) -> dict:
     """What the clients see for a vehicle: numbers, state and crew. The Story Weaver's notes go only to the Story Weaver."""
     from backend.models import Character
@@ -72,7 +99,7 @@ def vehicle_dict(db, vehicle, is_sw: bool = False) -> dict:
             crew[row.station] = {"character_id": str(c.id), "name": c.name, "is_npc": bool(c.is_npc), "owner_user_id": str(c.user_id) if c.user_id else None}
     level = vehicle.level or 1
     table = vehicle_stats(level)
-    state = "critical" if vehicle.dp <= -10 else ("disabled" if vehicle.dp <= 0 else "active")
+    state = vehicle_state(vehicle)
     return {
         "id": str(vehicle.id), "campaign_id": str(vehicle.campaign_id), "name": vehicle.name, "level": level,
         "kind": vehicle.vehicle_kind or "enclosed", "dp": vehicle.dp, "max_dp": vehicle.max_dp, "edge": vehicle.edge,

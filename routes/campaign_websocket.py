@@ -28,6 +28,7 @@ from backend.roll_logic import roll_dice
 from backend.uses import spend as spend_use, pool_remaining, pool_max, refill as refill_uses
 from backend.buffs import effect_modifier, add_effect, tick_round, add_damage_effect
 from backend.ascension import secondary_unlocked
+from backend.vehicles import crew_post, defense_crew
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -1083,6 +1084,9 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             stat_label, stat_value = stat_map[stat_key]
             edge = defender.edge or 0
             def_die = defender.defense_die or "1d4"
+            _dv, _dst = crew_post(db, defender)
+            if _dv is not None and _dst in ("operator", "defense_officer") and (_dv.dp or 0) > 0:
+                edge, def_die = _dv.edge or 0, _dv.defense_die or def_die     # the vehicle's Defense Die and Edge
             def_rolls = roll_dice(def_die)
             def_roll_total = sum(def_rolls)
             _def_tether_mod, _def_active_tethers = _active_tethers(defender)
@@ -1199,6 +1203,19 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 })
                 return
 
+        # Vehicles (rules v3.1.1): a vehicle attacks through whoever is on its attack station, with its own weapon die and Edge.
+        if attacker.is_vehicle:
+            await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ {attacker.name} attacks through its crew. Attack as the Operator or Gunner."})
+            return
+        _atk_veh, _atk_station = crew_post(db, attacker)
+        if _atk_veh is not None:
+            if _atk_station not in ("operator", "gunner"):
+                await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ {attacker.name} is the {_atk_station.replace('_', ' ')} on {_atk_veh.name}, a station that doesn't attack. Leave the station to attack on foot."})
+                return
+            if (_atk_veh.dp or 0) <= 0:
+                await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ {_atk_veh.name} is disabled (DP: {_atk_veh.dp}) and can't attack."})
+                return
+
         # Check if attacker is alive
         if attacker.dp <= 0:
             await manager.broadcast(campaign_id, {
@@ -1245,11 +1262,22 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
                 "text": f"❌ {defender.name} is in The Calling and waiting on their roll."
             })
             return
-        if defender.dp <= 0 and defender.is_npc:
+        if defender.is_vehicle and defender.dp <= -10:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": f"❌ {defender.name} is critically damaged (DP: {defender.dp}). The Story Weaver decides what happens next."
+            })
+            return
+        if defender.dp <= 0 and defender.is_npc and not defender.is_vehicle:
             await manager.broadcast(campaign_id, {
                 "type": "system",
                 "text": f"❌ {defender.name} is already unconscious (DP: {defender.dp})"
             })
+            return
+
+        # A crew member can't shoot the vehicle they are crewing
+        if _atk_veh is not None and _atk_veh.id == defender.id:
+            await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ {attacker.name} can't attack {defender.name}: it's their own vehicle."})
             return
 
         # Can't attack yourself
@@ -1272,6 +1300,11 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         # A summon defends with its summoner's Defense Die + the stat used for the summoning spell + Edge (rules v3.1)
         defender_def_stat = stat_type
         defender_edge_for_roll = defender.edge
+        if defender.is_vehicle:
+            # defense die + the crew member's PP + the vehicle's Edge; nobody on defense means no character stat at all
+            _def_crew = defense_crew(db, defender)
+            defender_stat_value = (_def_crew.pp or 0) if _def_crew else 0
+            defender_edge_for_roll = defender.edge or 0
         if defender.is_summon:
             defender_def_stat, defender_stat_value, _sm_owner = summon_stat_for(db, defender)
             defender_edge_for_roll = (_sm_owner.edge if _sm_owner else defender.edge) or 0
@@ -1288,6 +1321,12 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             _InvItem.bonus_type == 'attack',
         ).all()
         weapon_bonus += sum(i.bonus or 0 for i in atk_inv)
+
+        _atk_die, _atk_edge, _atk_label = attacker.attack_style, attacker.edge, attacker.name
+        if _atk_veh is not None:
+            weapon_bonus = 0                       # the vehicle's weapon replaces theirs
+            _atk_die, _atk_edge = _atk_veh.attack_style, _atk_veh.edge or 0
+            _atk_label = f"{attacker.name} ({_atk_veh.name})"
 
         # Get armor bonus from defender's equipped inventory items
         armor_bonus = 0
@@ -1315,13 +1354,13 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
 
         # Resolve multi-die attack
         result = resolve_multi_die_attack(
-            attacker={"name": attacker.name},
-            attacker_die_str=attacker.attack_style,
+            attacker={"name": _atk_label},
+            attacker_die_str=_atk_die,
             attacker_stat_value=attacker_stat_value,
             defender={"name": defender.name},
             defense_die_str=defender.defense_die,
             defender_stat_value=defender_stat_value,
-            edge=attacker.edge,
+            edge=_atk_edge,
             bap_triggered=bap_bonus > 0,
             bap_bonus=bap_bonus,
             attacker_effect_bonus=attacker_effect_bonus,
@@ -1354,6 +1393,8 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
 
         if result["total_damage"] > 0:
             await cancel_holding_combos_on_damage(campaign_id, defender.id, db)
+        if defender.is_vehicle:
+            await manager.broadcast(campaign_id, {"type": "vehicles_changed", "campaign_id": str(campaign_id)})
         
         # =====================================================================
         # Persist combat result to database (save first to get message_id)
@@ -1430,6 +1471,12 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             if defender.is_object:
                 if not defender.object_revealed:
                     await _defeat_object(campaign_id, defender, db, actor_user_id=user_id, source="attack")
+            elif defender.is_vehicle:
+                # 0 DP disables a vehicle, -10 or worse is critical. Neither is a person: no Calling, no knocked out.
+                if defender.dp <= -10 and old_dp > -10:
+                    await manager.broadcast(campaign_id, {"type": "system", "text": f"🔥 {defender.name} is critically damaged! (DP: {defender.dp}) Catastrophic failure is imminent. The Story Weaver decides what happens."})
+                elif defender.dp > -10 and old_dp > 0:
+                    await manager.broadcast(campaign_id, {"type": "system", "text": f"💥 {defender.name} is disabled! (DP: {defender.dp}) It can't attack, and defends with its die and Edge only."})
             elif defender.dp <= -10 and not defender.is_npc and not defender.in_calling:
                 # The Calling begins the moment DP reaches -10. The roll decides what happens next;
                 # only a Mark counts toward the five (see resolve_the_calling).
@@ -2084,6 +2131,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     results.append({"target": target_name, "success": False,
                                     "message": "a swarm can't be healed (its DP are bodies)"})
                     continue
+                if target.is_vehicle:
+                    results.append({"target": target_name, "success": False,
+                                    "message": "a spell can't repair a vehicle (an Engineer does that)"})
+                    continue
                 if target.in_calling:
                     results.append({"target": target_name, "success": False,
                                     "message": "is in The Calling. No one can heal them first"})
@@ -2709,6 +2760,9 @@ async def handle_stat_check(campaign_id: UUID, data: dict, user_id: UUID, websoc
 
     # Calculate total: 1d6 + stat + edge + active tethers
     edge = character.edge
+    _sv, _sst = crew_post(db, character)
+    if _sv is not None and _sst == "operator" and (_sv.dp or 0) > 0:
+        edge = _sv.edge or 0      # rules v3.1.1: whoever operates a vehicle uses the vehicle's Edge (maneuvers: 1d6 + PP + Edge)
     _stat_tether_mod, _stat_active_tethers = _active_tethers(character)
     total = die_roll + stat_value + edge + _stat_tether_mod
 
@@ -3672,7 +3726,7 @@ async def _apply_env_effect_now(campaign_uuid, sw_user_id, char, category, tier,
     effect_name = None
 
     if category == "healing":
-        if char.is_swarm:                      # a swarm can't be healed: its DP are bodies
+        if char.is_swarm or char.is_vehicle:   # a swarm's DP are bodies; a vehicle is repaired by an Engineer
             roll_total = 0
         else:
             roll_total = sum(roll_dice(tier_die))
@@ -6114,6 +6168,8 @@ async def _combo_activation(campaign_uuid, db, char, slot, target_name, *, bonus
             out["summary"] = f"{target.name} is a summon: heals do nothing for it"
         elif target.is_swarm:
             out["summary"] = f"{target.name} is a swarm: its DP are bodies and can't be healed"
+        elif target.is_vehicle:
+            out["summary"] = f"{target.name} is a vehicle: a Combo heal can't repair it"
         elif target.in_calling:
             out["summary"] = f"{target.name} is in The Calling. No one can heal them first"
         elif enc is not None and db.query(EncounterHeal).filter(
