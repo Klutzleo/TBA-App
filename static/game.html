@@ -10594,9 +10594,13 @@
     // Character Approval System (SW only)
     // =========================================================================
 
+    let _pendingBadgeSeq = 0;
     async function refreshPendingApprovalBadge() {
       if (userRole !== 'SW') return;
 
+      // The bar is redrawn often (and two redraws can overlap), so only the NEWEST call may add the button. Without
+      // this, two overlapping calls both found nothing to remove, both fetched, and both appended: two "1 Pending".
+      const mySeq = ++_pendingBadgeSeq;
       const existing = document.getElementById('pendingApprovalBtn');
       if (existing) existing.remove();
 
@@ -10606,11 +10610,14 @@
         });
         if (!response.ok) return;
         const data = await response.json();
+        if (mySeq !== _pendingBadgeSeq) return;   // a newer call is handling it
         const count = (data.pending_characters || []).length;
         if (count === 0) return;
 
         const bubbleBar = document.getElementById('bubbleBar');
         if (!bubbleBar) return;
+        const dup = document.getElementById('pendingApprovalBtn');
+        if (dup) dup.remove();                      // belt and braces: never two
 
         const btn = document.createElement('div');
         btn.id = 'pendingApprovalBtn';
