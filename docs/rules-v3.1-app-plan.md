@@ -169,3 +169,25 @@ Ascension level per slot, Calling difficulty bonus, Triple Combo, level cap 15 (
   the fired flag and the result card) happens at the end, after which the held messages go out in order. Any failure rolls it all
   back and re-prompts the players with "Nothing was spent or changed". Known leftover: a web push notification sent from inside the
   Calling trigger is external and cannot be taken back.
+
+
+## Final read-through (Nov 17): what it found
+
+Fixed on branch rules-v3.1-readthrough (no migration):
+- Potions: Tier 5 heals 14 (was 12); buff potions use the +1 to +4 table for 2 rounds (was +1 to +6 for as many rounds); potions and the
+  SW's manual heal wake someone at negative DP (0 first, then add); a potion cannot heal someone in The Calling. The potion table now lives in
+  `schemas/leveling_v3_1.json` with a drift test against the page.
+- Environmental Healing also wakes from negative DP.
+- A character at 0 DP or below cannot cast (the rules say they can't act until healed; weapon attacks already enforced it).
+- Ascension "cleanse one debuff" secondary effect (the Guide's own example).
+
+Not changed, waiting on Jason:
+- Weapon attacks on a character already at 0 DP are refused by the app ("already unconscious"). The rules do not forbid it, and the
+  dice engine even supports it (an unconscious defender rolls no defense), so without it only a single big hit, a spell or a Damage Effect
+  can take a downed character to -10. Allow attacks on the downed?
+- Enemy Combos (NPC pairs): the app has no way to hold an NPC's turn for a Combo; the SW does it by hand today.
+- Swarms ("cannot be healed, DP are bodies"): no swarm flag; the SW just does not heal them.
+- An Ally dying should always leave a Memory Echo: the SW is prompted in the Calling window, but the app does not force it.
+- Ally secondary effects (level 11 effect on an Ally in slot 1) and Ascension Combo evolution stay table events.
+- Vehicles are not in the app at all.
+- BAP effect (+1/-1 for a round on a BAP moment): not built, SW can use Add Effect.

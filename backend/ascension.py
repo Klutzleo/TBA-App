@@ -7,9 +7,10 @@ activation: it costs nothing extra and needs no second roll. A debuff secondary 
 one on the same stat replaces the old. Secondary effects never deal damage on their own.
 
 Stored on the ability as JSON: {"kind": "debuff" | "buff" | "note", "stat": "pp" | "ip" | "sp", "strength": 1-4, "note": text}.
-A "note" has no automation: the Story Weaver applies it by hand (for example a heal that also grants a bonus).
+A "cleanse" removes one debuff from whoever the ability helped (a healing ability that also cleanses a debuff); its stat is optional (blank
+removes the strongest debuff). A "note" has no automation: the Story Weaver applies it by hand.
 """
-SECONDARY_KINDS = ("debuff", "buff", "note")
+SECONDARY_KINDS = ("debuff", "buff", "cleanse", "note")
 
 
 def secondary_unlock_level(slot) -> int:
@@ -36,6 +37,10 @@ def normalize_secondary(raw):
             raise ValueError("A note-only effect needs a note")
         return {"kind": "note", "stat": None, "strength": 0, "note": note}
     stat = (raw.get("stat") or "").lower()
+    if kind == "cleanse":
+        if stat and stat not in ("pp", "ip", "sp"):
+            raise ValueError("stat must be pp, ip or sp")
+        return {"kind": "cleanse", "stat": stat or None, "strength": 0, "note": note}
     if stat not in ("pp", "ip", "sp"):
         raise ValueError("stat must be pp, ip or sp")
     try:

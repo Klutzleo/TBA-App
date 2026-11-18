@@ -1761,6 +1761,14 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
         if ability.effect_type == "healing":     # the NPC ability editor used to save "healing"; the rules call it "heal"
             ability.effect_type = "heal"
 
+        # 0 DP or below: you're unconscious and can't act until healed (rules v3.1). Weapon attacks already enforced this.
+        if (caster.dp or 0) <= 0:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": f"❌ {caster.name} is unconscious (DP: {caster.dp}) and can't act until healed."
+            })
+            return
+
         # --- Summon gate ---
         # Casting a summon ability with no summon out just summons it (no target). With one already out,
         # the cast is the summon ACTING: it falls through to the normal damage/heal/debuff pipeline below
@@ -2278,6 +2286,18 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     narrative_parts.append(f"✨ {_t.name} also gains {sec['stat'].upper()} +{sec['strength']} for {BUFF_DURATION} rounds"
                                            + (f" ({sec['note']})" if sec.get("note") else ""))
                 effects_changed = True
+            elif sec.get("kind") == "cleanse" and ability.effect_type in ("heal", "buff"):
+                # remove ONE debuff (the strongest, or the one on the chosen stat) from each target that was helped
+                from backend.models import ActiveEffect as _AE
+                for _t in sec_targets:
+                    debuffs = [e for e in db.query(_AE).filter(_AE.character_id == _t.id).all()
+                               if (e.modifier or 0) < 0 and e.modifier_type in ("pp", "ip", "sp", "custom")
+                               and (not sec.get("stat") or e.modifier_type == sec["stat"])]
+                    if debuffs:
+                        worst = min(debuffs, key=lambda e: e.modifier)
+                        narrative_parts.append(f"✨ {_t.name} is also cleansed of {worst.name} ({worst.modifier_type.upper()} {worst.modifier})")
+                        db.delete(worst)
+                        effects_changed = True
             elif sec.get("kind") == "note" and sec.get("note"):
                 narrative_parts.append(f"✨ {sec['note']}")
 
@@ -3626,7 +3646,7 @@ async def _apply_env_effect_now(campaign_uuid, sw_user_id, char, category, tier,
 
     if category == "healing":
         roll_total = sum(roll_dice(tier_die))
-        new_dp = min(char.max_dp, (char.dp or 0) + roll_total)
+        new_dp = min(char.max_dp, max(0, char.dp or 0) + roll_total)   # a heal always wakes: negative DP goes to 0 first
         char.dp = new_dp
         db.commit()
         db.refresh(char)

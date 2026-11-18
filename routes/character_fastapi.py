@@ -1969,6 +1969,8 @@ async def patch_ability(
                 f"Slot {ability.slot_number} gains its secondary effect at level {secondary_unlock_level(ability.slot_number)}"))
         if effect and effect["kind"] == "debuff" and ability.effect_type not in ("damage", "debuff"):
             raise HTTPException(status_code=400, detail="A debuff secondary effect rides an attack or a debuff")
+        if effect and effect["kind"] == "cleanse" and ability.effect_type not in ("heal", "buff"):
+            raise HTTPException(status_code=400, detail="A cleanse secondary effect rides a heal or a buff")
         ability.secondary_effect = effect
 
     db.commit()
@@ -2522,7 +2524,7 @@ async def heal_character(
         amount = int(req.get("amount", 0))
         if amount <= 0:
             raise HTTPException(status_code=400, detail="Heal amount must be positive")
-        char.dp = min(char.dp + amount, char.max_dp)
+        char.dp = min(max(0, char.dp) + amount, char.max_dp)   # a heal always wakes: negative DP goes to 0 first
     db.commit()
     db.refresh(char)
     healed = char.dp - old_dp
@@ -3800,9 +3802,11 @@ async def update_character_notes(
 # ============================================================
 
 # Tier → heal amount and buff/debuff modifier lookup
-TIER_HEAL = {1: 6, 2: 8, 3: 10, 4: 12, 5: 12, 6: 16}
-TIER_MOD  = {1: 1, 2: 2, 3: 3,  4: 4,  5: 5,  6: 6}
-TIER_DIE  = {1: "1d6", 2: "1d8", 3: "1d10", 4: "1d12", 5: "2d6", 6: "2d8"}
+# Potion tiers come from schemas/leveling_v3_1.json (rules v3.1: Tier 5 heals 14; buffs use the +1 to +4 table and last 2 rounds)
+from backend.leveling import POTION_TIERS as _POTION_TIERS
+TIER_HEAL = {t: r["heal"] for t, r in _POTION_TIERS.items()}
+TIER_MOD  = {t: r["modifier"] for t, r in _POTION_TIERS.items()}
+TIER_DIE  = {t: r["die"] for t, r in _POTION_TIERS.items()}
 
 
 def _item_dict(item: InventoryItem) -> dict:
@@ -3986,16 +3990,20 @@ async def use_inventory_item(
             raise HTTPException(status_code=400, detail="Damage items go through combat rolls, not inventory use")
         target = t
 
+    if item.effect_type == 'heal' and target.in_calling:
+        raise HTTPException(status_code=400, detail=f"{target.name} is in The Calling. No one can heal them first")
+
     result = {"effect": "none", "value": 0, "new_dp": target.dp}
 
     if item.effect_type == 'heal' and item.tier:
         heal = TIER_HEAL.get(item.tier, 0)
-        target.dp = min(target.max_dp, target.dp + heal)
+        # a potion always wakes someone at negative DP: up to 0 first, then it adds its amount (rules v3.1)
+        target.dp = min(target.max_dp, max(0, target.dp) + heal)
         result = {"effect": "heal", "value": heal, "new_dp": target.dp}
 
     elif item.effect_type == 'buff' and item.tier:
         mod = TIER_MOD.get(item.tier, 0)
-        result = {"effect": "buff", "value": mod, "rounds": mod, "new_dp": target.dp}
+        result = {"effect": "buff", "value": mod, "rounds": 2, "new_dp": target.dp}   # every buff lasts 2 rounds
 
     # Decrement quantity; delete if exhausted
     item.quantity -= 1

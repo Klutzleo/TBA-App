@@ -25,6 +25,9 @@ CHARACTER_LEVELS = {int(k): v for k, v in _DATA["characters"].items()}
 # "slot_1_die", "slot_2_die"}}
 ALLY_LEVELS = {int(k): v for k, v in _DATA["allies"].items()}
 
+# Potion tiers 1-6: {tier: {"die", "heal", "modifier"}}
+POTION_TIERS = {int(k): v for k, v in _DATA["potions"]["tiers"].items()}
+
 BUFF_DEBUFF_MODIFIER_BY_DIE = dict(_DATA["buff_debuff"]["modifier_by_die"])
 BUFF_DEBUFF_DURATION_ROUNDS = int(_DATA["buff_debuff"]["duration_rounds"])
 

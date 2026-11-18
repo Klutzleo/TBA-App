@@ -7243,8 +7243,8 @@
     // === Inventory ======================================================
     // ===================================================================
 
-    const TIER_HEAL = {1:6, 2:8, 3:10, 4:12, 5:12, 6:16};
-    const TIER_MOD  = {1:1, 2:2, 3:3,  4:4,  5:5,  6:6};
+    const TIER_HEAL = {1:6, 2:8, 3:10, 4:12, 5:14, 6:16};   // rules v3.1 (kept in step with schemas/leveling_v3_1.json by a test)
+    const TIER_MOD  = {1:1, 2:2, 3:2,  4:3,  5:3,  6:4};
     const TIER_DIE  = {1:'1d6', 2:'1d8', 3:'1d10', 4:'1d12', 5:'2d6', 6:'2d8'};
     const TYPE_ICON = {consumable:'flask-conical', key_item:'key', equipment:'sword', misc:'backpack'};
     const TYPE_LABEL = {consumable:'Consumable', key_item:'Key Item', equipment:'Equipment', misc:'Misc'};
@@ -7317,7 +7317,7 @@
         let metaParts = [`<span class="${typeClass}">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
         if (item.item_type === 'consumable' && item.tier) {
           if (item.effect_type === 'heal')   metaParts.push(`Tier ${item.tier} — heals ${TIER_HEAL[item.tier]} DP`);
-          else if (item.effect_type === 'buff') metaParts.push(`Tier ${item.tier} — +${TIER_MOD[item.tier]} for ${TIER_MOD[item.tier]} round(s)`);
+          else if (item.effect_type === 'buff') metaParts.push(`Tier ${item.tier} — +${TIER_MOD[item.tier]} for 2 rounds`);
           else if (item.effect_type === 'damage') metaParts.push(`Tier ${item.tier} — combat roll`);
           else metaParts.push(`Tier ${item.tier} (${TIER_DIE[item.tier] || '?'})`);
         }
@@ -7566,7 +7566,7 @@
       if (!preview) return;
       const die = TIER_DIE[tier] || '?';
       if (effect === 'heal') preview.textContent = `Tier ${tier} (${die}) — heals ${TIER_HEAL[tier] || '?'} DP (max roll)`;
-      else if (effect === 'buff') preview.textContent = `Tier ${tier} (${die}) — +${TIER_MOD[tier] || '?'} for ${TIER_MOD[tier] || '?'} round(s)`;
+      else if (effect === 'buff') preview.textContent = `Tier ${tier} (${die}) — +${TIER_MOD[tier] || '?'} for 2 rounds`;
       else preview.textContent = `Tier ${tier} (${die})`;
     }
 
@@ -8045,7 +8045,7 @@
         let meta = [`<span class="${typeClass}">${TYPE_LABEL[item.item_type] || item.item_type}</span>`];
         if (item.item_type === 'consumable' && item.tier) {
           if (item.effect_type === 'heal')  meta.push(`Tier ${item.tier} — heals ${TIER_HEAL[item.tier]} DP`);
-          else if (item.effect_type === 'buff') meta.push(`Tier ${item.tier} — +${TIER_MOD[item.tier]} for ${TIER_MOD[item.tier]} rd`);
+          else if (item.effect_type === 'buff') meta.push(`Tier ${item.tier} — +${TIER_MOD[item.tier]} for 2 rounds`);
           else if (item.effect_type === 'damage') meta.push(`Tier ${item.tier} — combat roll`);
         }
         if (item.item_type === 'equipment' && item.bonus) meta.push(`+${item.bonus} ${item.bonus_type || 'rolls'}`);
@@ -17395,6 +17395,7 @@
                       <option value=""${sel('', se.kind || '')}>None</option>
                       <option value="debuff"${sel('debuff', se.kind)}>Debuff the target</option>
                       <option value="buff"${sel('buff', se.kind)}>Buff (caster, or the one helped)</option>
+                      <option value="cleanse"${sel('cleanse', se.kind)}>Cleanse one debuff (heals and buffs)</option>
                       <option value="note"${sel('note', se.kind)}>Note only (I apply it)</option>
                     </select>
                     <select id="swAb_sec_stat_${i}" style="${fieldStyle}">${['pp','ip','sp'].map(x => `<option value="${x}"${sel(x, se.stat)}>${x.toUpperCase()}</option>`).join('')}</select>
@@ -17935,6 +17936,7 @@
               ${a.macro_command ? `<div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;margin-top:2px;">${escHtml(a.macro_command)}</div>` : ''}
               ${a.secondary_effect ? `<div style="font-size:0.75rem;color:#a78bfa;margin-top:4px;">✨ Also: ${
                 a.secondary_effect.kind === 'note' ? escHtml(a.secondary_effect.note || '')
+                : a.secondary_effect.kind === 'cleanse' ? `cleanses one debuff${a.secondary_effect.stat ? ' on ' + String(a.secondary_effect.stat).toUpperCase() : ''}${a.secondary_effect.note ? ' — ' + escHtml(a.secondary_effect.note) : ''}`
                 : `${a.secondary_effect.kind === 'debuff' ? 'debuffs' : 'buffs'} ${String(a.secondary_effect.stat || '').toUpperCase()} ${a.secondary_effect.kind === 'debuff' ? '-' : '+'}${a.secondary_effect.strength}${a.secondary_effect.note ? ' — ' + escHtml(a.secondary_effect.note) : ''}`
               }</div>` : ''}
             </div>`).join('')

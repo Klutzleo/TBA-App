@@ -4,7 +4,7 @@ priority: high
 category: app
 progress: 83
 focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
-next_milestone: "Deploy the all-or-nothing Combo save, then decide the BAP effect and do a last read of the v3.1 rules text"
+next_milestone: "Deploy the read-through fixes, then Jason decides the open rules questions (downed attacks, enemy Combos, swarms, BAP effect)"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -107,6 +107,8 @@ First file to open: `docs/rules-v3.1-app-plan.md` (Phase 3), then `routes/campai
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
+2026-11-17 (afternoon): the all-or-nothing Combo save is LIVE. The final read-through of the v3.1 rules found and fixed (branch `rules-v3.1-readthrough`, 351 tests, NOT deployed, no migration): potion tiers (Tier 5 = 14, buff potions on the +1 to +4 table for 2 rounds, table now in the leveling file), potions and the SW manual heal waking from negative DP, no potion into The Calling, a character at 0 DP cannot cast, and an Ascension cleanse secondary effect. Open questions for Jason are listed at the end of docs/rules-v3.1-app-plan.md (attacks on a downed character, enemy Combos, swarms, BAP effect, vehicles).
+
 2026-11-17 (midday): Damage Effects are LIVE incl. migration 036. The all-or-nothing Combo save is built and tested on branch `rules-v3.1-atomic-combo` (341 tests), NOT deployed, no migration: every Combo resolution is one transaction with held broadcasts, rolled back and re-prompted on any failure. Still open: the BAP effect (Jason unsure; the SW can already do it with Add Effect) and a last read of the rules text.
 
 2026-11-17 (morning): Phase 9 (Ascension) is LIVE incl. migration 035. Damage Effects are built and tested on branch `rules-v3.1-extras` (338 tests), NOT deployed, needs migration 036: effect type `dot`, cast like a debuff, hurts once at the start of the target's next turn (resist for half), can reach -10 and The Calling, a new one replaces the old. Not built: the BAP effect (Jason unsure) and the all-or-nothing Combo save.
