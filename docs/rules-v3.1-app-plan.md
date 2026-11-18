@@ -193,7 +193,7 @@ Not changed, waiting on Jason:
   survives a reconnect. Also fixed on the way: the cancel rule. The app cancelled a held Combo on ANY damage to the proposer and
   ignored the acceptor; v3.1 says either partner dropping to 0 DP cancels, a hit alone does not (Triple Combos: any of the three).
   Original note: the app has no way to hold an NPC's turn for a Combo; the SW does it by hand today.
-- Swarms ("cannot be healed, DP are bodies"): no swarm flag; the SW just does not heal them.
+- **Swarms: BUILT (Jason, Nov 18) on branch rules-v3.1-swarms, needs migration 037** (`characters.is_swarm`). A "Swarm" checkbox on NPC create and edit; a SWARM tag and "bodies" label on its initiative row; a swarm cannot be healed by a spell, a Combo, a potion, the SW heal button or an environmental Healing effect. Stats still come from the normal Leveling Table. Original note: no swarm flag; the SW just does not heal them.
 - An Ally dying should always leave a Memory Echo: the SW is prompted in the Calling window, but the app does not force it.
 - Ally secondary effects (level 11 effect on an Ally in slot 1) and Ascension Combo evolution stay table events.
 - Vehicles are not in the app at all.

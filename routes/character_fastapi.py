@@ -968,6 +968,7 @@ async def create_npc(
             campaign_id=campaign_uuid,
             is_npc=True,
             is_ally=False,
+            is_swarm=bool(req.is_swarm),
             level=req.level,
             pp=req.pp,
             ip=req.ip,
@@ -1047,6 +1048,8 @@ async def update_npc(
         # Update fields
         if req.name is not None:
             npc.name = req.name
+        if req.is_swarm is not None:
+            npc.is_swarm = bool(req.is_swarm)
         if req.level is not None:
             level_stats = calculate_level_stats(req.level)
             max_uses = _uses_for_level(req.level)  # rules v3.1: level + 2
@@ -2517,6 +2520,8 @@ async def heal_character(
     ).first()
     if not membership or membership.role != "story_weaver":
         raise HTTPException(status_code=403, detail="Only Story Weaver can heal characters")
+    if char.is_swarm:
+        raise HTTPException(status_code=400, detail=f"{char.name} is a swarm: its DP are bodies, and a swarm can't be healed")
     old_dp = char.dp
     if req.get("to_full"):
         char.dp = char.max_dp
@@ -3992,6 +3997,8 @@ async def use_inventory_item(
 
     if item.effect_type == 'heal' and target.in_calling:
         raise HTTPException(status_code=400, detail=f"{target.name} is in The Calling. No one can heal them first")
+    if item.effect_type == 'heal' and target.is_swarm:
+        raise HTTPException(status_code=400, detail=f"{target.name} is a swarm: its DP are bodies, and a swarm can't be healed")
 
     result = {"effect": "none", "value": 0, "new_dp": target.dp}
 

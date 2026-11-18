@@ -246,6 +246,7 @@ class Character(Base):
 
     # Summon system
     is_summon = Column(Boolean, nullable=False, default=False)  # True for summoned creatures (temporary NPCs)
+    is_swarm = Column(Boolean, nullable=False, default=False, server_default="false")  # a swarm of weak bodies: its DP are bodies and it can't be healed
     summoner_id = Column(UUID(as_uuid=True), ForeignKey("characters.id", ondelete="SET NULL"), nullable=True)  # Caster who summoned this
 
     # Objects (locks / doors / chests / traps) — is_npc=True AND is_object=True. See migration 024.

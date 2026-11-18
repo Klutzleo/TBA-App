@@ -48,6 +48,7 @@ class CharacterCreate(BaseModel):
     attack_style: str = Field(..., description="Chosen attack die (e.g., '3d4', '2d6')")
     weapon: Optional[WeaponSchema] = None
     armor: Optional[ArmorSchema] = None
+    is_swarm: bool = False   # NPCs only: a swarm's DP are bodies and it can't be healed
     
     @field_validator('pp', 'ip', 'sp', mode='before')
     @classmethod
@@ -82,6 +83,7 @@ class CharacterUpdate(BaseModel):
     """Request to update an existing character."""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     level: Optional[int] = Field(None, ge=1, le=15, description="Level (auto-recalculates stats)")
+    is_swarm: Optional[bool] = None
     dp: Optional[int] = Field(None, ge=0, description="Current DP (manual adjustment)")
     pp: Optional[int] = Field(None, ge=1, le=3, description="Physical Proficiency (1-3)")
     ip: Optional[int] = Field(None, ge=1, le=3, description="Intellect Proficiency (1-3)")
@@ -101,6 +103,7 @@ class CharacterResponse(BaseModel):
     is_npc: bool = False
     is_ally: bool = False
     is_object: bool = False
+    is_swarm: bool = False
     check_difficulty: Optional[str] = None
     check_stats: Optional[str] = None
     object_revealed: bool = False

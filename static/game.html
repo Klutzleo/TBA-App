@@ -4897,6 +4897,12 @@
               <option value="1d4">1d4</option>
             </select>
           </div>
+          <div class="form-group">
+            <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;cursor:pointer;">
+              <input type="checkbox" id="npcIsSwarm" style="margin-top:3px;">
+              <span><strong>Swarm</strong> <span style="font-size:0.8rem;color:var(--text-muted);">Lots of weak bodies sharing one stat block. Its DP are the bodies, so it can't be healed.</span></span>
+            </label>
+          </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeNpcModal()">Cancel</button>
             <button type="submit" id="npcCreateBtn" class="btn btn-primary">Create NPC</button>
@@ -4932,6 +4938,12 @@
           <select id="editNpcAttackStyle" class="form-input" required>
             <option value="1d4">1d4</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;cursor:pointer;">
+            <input type="checkbox" id="editNpcIsSwarm" style="margin-top:3px;">
+            <span><strong>Swarm</strong> <span style="font-size:0.8rem;color:var(--text-muted);">Its DP are bodies. A swarm can't be healed.</span></span>
+          </label>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
           <div class="form-group" style="margin-bottom:0;">
@@ -9665,13 +9677,13 @@
         const maxDp = live ? live.max_dp : roll.max_dp;
         if (dp != null && maxDp) {
           const st = getDPBarStyle(dp, maxDp);
-          dpBar = `<span class="is-dp"><span class="is-dp-track"><span class="is-dp-fill" style="display:block;width:${st.width};background:${st.background};"></span></span><span class="is-dp-num">${dp}/${maxDp}</span></span>`;
+          dpBar = `<span class="is-dp"><span class="is-dp-track"><span class="is-dp-fill" style="display:block;width:${st.width};background:${st.background};"></span></span><span class="is-dp-num">${dp}/${maxDp}${npc && npc.is_swarm ? ' bodies' : ''}</span></span>`;
         }
       }
       row.innerHTML = `
         ${chip}
         <span class="is-name">${escHtml(roll.name)}
-          <span class="is-tag">${roll.is_summon ? 'SUMMON' : 'NPC'}</span>
+          <span class="is-tag">${roll.is_summon ? 'SUMMON' : (npc && npc.is_swarm ? 'SWARM' : 'NPC')}</span>
           ${roll.is_silent ? '<i data-lucide="eye" title="Roll hidden from players" style="width:11px;height:11px;color:var(--text-muted);"></i>' : ''}
           ${isActive ? '<span class="pill pill-now">Now</span>' : ''}
           ${roll.waiting ? '<span class="is-sub">waiting…</span>' : ''}
@@ -9879,7 +9891,8 @@
         campaign_id: campaignId,
         level: parseInt(document.getElementById('npcLevel').value),
         pp, ip, sp,
-        attack_style: document.getElementById('npcAttackStyle').value
+        attack_style: document.getElementById('npcAttackStyle').value,
+        is_swarm: !!(document.getElementById('npcIsSwarm') || {}).checked
       };
 
       try {
@@ -9937,6 +9950,7 @@
       document.getElementById('editNpcName').value = npc.name;
       document.getElementById('editNpcLevel').value = npc.level;
       document.getElementById('editNpcDP').value = npc.dp;
+      if (document.getElementById('editNpcIsSwarm')) document.getElementById('editNpcIsSwarm').checked = !!npc.is_swarm;
       document.getElementById('editNpcPP').value = npc.pp || 0;
       document.getElementById('editNpcIP').value = npc.ip || 0;
       document.getElementById('editNpcSP').value = npc.sp || 0;
@@ -10149,6 +10163,7 @@
         level: level,
         dp: parseInt(document.getElementById('editNpcDP').value),
         attack_style: document.getElementById('editNpcAttackStyle').value,
+        is_swarm: !!(document.getElementById('editNpcIsSwarm') || {}).checked,
         pp: parseInt(document.getElementById('editNpcPP').value) || 0,
         ip: parseInt(document.getElementById('editNpcIP').value) || 0,
         sp: parseInt(document.getElementById('editNpcSP').value) || 0

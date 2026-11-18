@@ -2080,6 +2080,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                     results.append({"target": target_name, "success": False,
                                     "message": "heals do nothing for a summon (it has hits, not DP)"})
                     continue
+                if target.is_swarm:
+                    results.append({"target": target_name, "success": False,
+                                    "message": "a swarm can't be healed (its DP are bodies)"})
+                    continue
                 if target.in_calling:
                     results.append({"target": target_name, "success": False,
                                     "message": "is in The Calling. No one can heal them first"})
@@ -3668,11 +3672,14 @@ async def _apply_env_effect_now(campaign_uuid, sw_user_id, char, category, tier,
     effect_name = None
 
     if category == "healing":
-        roll_total = sum(roll_dice(tier_die))
-        new_dp = min(char.max_dp, max(0, char.dp or 0) + roll_total)   # a heal always wakes: negative DP goes to 0 first
-        char.dp = new_dp
-        db.commit()
-        db.refresh(char)
+        if char.is_swarm:                      # a swarm can't be healed: its DP are bodies
+            roll_total = 0
+        else:
+            roll_total = sum(roll_dice(tier_die))
+            new_dp = min(char.max_dp, max(0, char.dp or 0) + roll_total)   # a heal always wakes: negative DP goes to 0 first
+            char.dp = new_dp
+            db.commit()
+            db.refresh(char)
     else:  # buff
         magnitude = BUFF_DEBUFF_TABLE.get(tier_die, 1)
         duration = BUFF_DURATION
@@ -6105,6 +6112,8 @@ async def _combo_activation(campaign_uuid, db, char, slot, target_name, *, bonus
         enc = db.query(Encounter).filter(Encounter.campaign_id == campaign_uuid, Encounter.is_active == True).first()  # noqa: E712
         if target.is_summon:
             out["summary"] = f"{target.name} is a summon: heals do nothing for it"
+        elif target.is_swarm:
+            out["summary"] = f"{target.name} is a swarm: its DP are bodies and can't be healed"
         elif target.in_calling:
             out["summary"] = f"{target.name} is in The Calling. No one can heal them first"
         elif enc is not None and db.query(EncounterHeal).filter(
