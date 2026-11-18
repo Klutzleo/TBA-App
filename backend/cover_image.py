@@ -26,7 +26,7 @@ class CoverImageError(ValueError):
 def process_cover_image(data: bytes):
     """Validate and re-encode an image. Returns (jpeg_bytes, width, height) or raises CoverImageError."""
     try:
-        img = Image.open(io.BytesIO(data))
+        img = Image.open(io.BytesIO(data), formats=sorted(ALLOWED_FORMATS))  # only these decoders ever see the bytes
         fmt = img.format
         if fmt not in ALLOWED_FORMATS:
             raise CoverImageError("The image must be a JPEG, PNG, or WebP file.")

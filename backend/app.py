@@ -191,14 +191,17 @@ async def attach_request_id_and_auth(request: Request, call_next):
 
     # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
     # Check if path starts with any JWT protected route
-    is_jwt_protected = any(request.url.path.startswith(route) or request.url.path == route
+    # request.url is rebuilt from the Host header, which a client controls (Starlette < 1.3 does not validate it), so a
+    # crafted Host could make the path look like /api/public and skip this gate. scope["path"] is what routing uses.
+    path = request.scope.get("path", "")
+    is_jwt_protected = any(path.startswith(route) or path == route
                            for route in jwt_protected_routes)
-    is_public = request.url.path.startswith(public_prefixes)
+    is_public = path.startswith(public_prefixes)
 
-    if request.url.path.startswith("/api/") and request.url.path not in exempt_paths and not is_jwt_protected and not is_public:
+    if path.startswith("/api/") and path not in exempt_paths and not is_jwt_protected and not is_public:
         provided_key = request.headers.get("X-API-Key")
         if not provided_key or provided_key != API_KEY:
-            logger.warning(f"[{request_id}] Unauthorized: {request.method} {request.url.path}")
+            logger.warning(f"[{request_id}] Unauthorized: {request.method} {path}")
             return JSONResponse(status_code=403, content={"error": "Invalid X-API-Key"})
 
     response = await call_next(request)

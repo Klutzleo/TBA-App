@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 import requests
 from jose import jwt
 
+from backend.auth.jwt import SECRET_KEY as _AUTH_SECRET_KEY  # one source for the secret (fails closed in prod)
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +43,7 @@ def _safe_print(s: str) -> None:
 # path at all, independent of any purpose-checking logic (defense at the right layer, not
 # just a convention every future call site has to remember to honor).
 _UNSUBSCRIBE_SECRET_KEY = hashlib.sha256(
-    (os.getenv("SECRET_KEY", "your-secret-key-change-in-production") + "|unsubscribe-token|v1").encode()
+    (_AUTH_SECRET_KEY + "|unsubscribe-token|v1").encode()
 ).hexdigest()
 _ALGORITHM = "HS256"
 _UNSUBSCRIBE_TOKEN_DAYS = 90  # bounds exposure if a token ever leaks (mail-relay logs, forwarded email, etc.)

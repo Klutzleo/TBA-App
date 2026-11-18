@@ -17,7 +17,12 @@ from backend.db import get_db
 from backend.models import User, Campaign
 
 # JWT Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+_DEV_SECRET_KEY = "your-secret-key-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY") or _DEV_SECRET_KEY
+# The dev fallback is public (it is in the repo), so anyone could forge a login token with it. Local
+# dev and the tests keep it; a Railway deploy with SECRET_KEY missing or left at the placeholder refuses to start.
+if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_ENVIRONMENT_NAME")) and SECRET_KEY == _DEV_SECRET_KEY:
+    raise RuntimeError("SECRET_KEY is not set (or is the dev placeholder). Set a long random SECRET_KEY in Railway before deploying.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 
