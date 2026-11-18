@@ -3157,7 +3157,7 @@
               <i data-lucide="settings" style="width:15px;height:15px;"></i>Campaign settings</button>
             <div class="camp-code"><span>Join code <b id="campaignJoinCode">…</b></span><button onclick="copyJoinCode()">Copy</button></div>
           </div>
-          <div style="padding:12px 14px 0;">
+          <div id="vehiclesBtnWrap" style="padding:12px 14px 0;">
             <button id="vehiclesBtn" class="camp-set-btn" style="display:flex;" title="Ships, mechs, bikes: see them and take a station" onclick="openVehiclesModal()">
               <i data-lucide="rocket" style="width:15px;height:15px;"></i>Vehicles <span id="vehiclesBtnCount" style="opacity:0.6;"></span></button>
           </div>
@@ -5312,6 +5312,7 @@
       } catch (_) { /* silent */ }
       const cnt = document.getElementById('vehiclesBtnCount');
       if (cnt) cnt.textContent = campaignVehicles.length ? `(${campaignVehicles.length})` : '';
+      if (typeof isSW === 'function' && isSW() && typeof renderBubbleBar === 'function') renderBubbleBar();
     }
 
     async function openVehiclesModal() {
@@ -6269,6 +6270,8 @@
       if (!bubbleBar) return;
 
       bubbleBar.innerHTML = '';
+      const _vw = document.getElementById('vehiclesBtnWrap');
+      if (_vw) _vw.style.display = userRole === 'SW' ? 'none' : '';   // the Story Weaver's Vehicles button lives in this bar
 
       if (userRole === 'SW') {
         // Story Weaver: Story Weaver voice + NPCs + Add button
@@ -6308,6 +6311,18 @@
         `;
         addButton.onclick = () => openNpcModal();
         bubbleBar.appendChild(addButton);
+
+        // Vehicles sits beside Add NPC (same dashed style): the Story Weaver's other "add something to the scene" tool
+        const vehButton = document.createElement('div');
+        vehButton.className = 'character-bubble bubble-add';
+        vehButton.title = 'Ships, mechs, bikes: add one, set its crew';
+        vehButton.innerHTML = `
+          <div class="bubble-avatar"><i data-lucide="rocket" style="width:16px;height:16px;"></i></div>
+          <div class="bubble-name">Vehicles${campaignVehicles.length ? ' (' + campaignVehicles.length + ')' : ''}</div>
+        `;
+        vehButton.onclick = () => openVehiclesModal();
+        bubbleBar.appendChild(vehButton);
+        if (window.lucide) lucide.createIcons();
 
         // Pending Approvals button (only shown when there are pending characters)
         refreshPendingApprovalBadge();
