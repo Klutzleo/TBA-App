@@ -1,6 +1,6 @@
 # Vehicles plan (rules v3.1.1)
 
-Status: decisions made 2026-11-18, building V1 to V3 first (V4, V5 after play). Drafted 2026-11-18 from `Rulebook.md` (Vehicles chapter), the Story Weaver Guide
+Status: V1 to V4 live; V5 built 2026-11-18 (see PROJECT_STATUS.md for what shipped and what is open). Drafted 2026-11-18 from `Rulebook.md` (Vehicles chapter), the Story Weaver Guide
 "Vehicle Combat", and `docs/TBA-App-v3.1.1-Handoff/notes/decisions.md` (Nov 5 and Nov 9 vehicle entries).
 
 ## The rules in one screen

@@ -28,7 +28,7 @@ from backend.roll_logic import roll_dice
 from backend.uses import spend as spend_use, pool_remaining, pool_max, refill as refill_uses
 from backend.buffs import effect_modifier, add_effect, tick_round, add_damage_effect
 from backend.ascension import secondary_unlocked
-from backend.vehicles import crew_post, defense_crew, take_adds, set_add, SUPPORT_STATIONS
+from backend.vehicles import crew_post, defense_crew, take_adds, set_add, SUPPORT_STATIONS, system_knockout, knockouts_view
 from routes.schemas.campaign import (
     ChatMessage,
     WhisperMessage,
@@ -1149,7 +1149,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         # through the Env Check modal (env_check_request WS message).
 
         # Parse /attack @TargetName
-        if not command_text.startswith("/attack"):
+        if not command_text.startswith(("/attack", "/disable")):
             await manager.broadcast(campaign_id, {
                 "type": "system",
                 "text": "❌ Unknown combat command. Use: /attack @TargetName"
@@ -1157,7 +1157,8 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             return
 
         # Extract target name (supports both "@Name" and "Name")
-        match = re.match(r'/attack\s+@?(.+)', command_text, re.IGNORECASE)
+        is_disable = command_text.lower().startswith("/disable")     # a called shot at a vehicle: an attack roll, no damage
+        match = re.match(r'/(?:attack|disable)\s+@?(.+)', command_text, re.IGNORECASE)
         if not match:
             await manager.broadcast(campaign_id, {
                 "type": "system",
@@ -1290,6 +1291,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ {attacker.name} can't attack {defender.name}: it's their own vehicle."})
             return
 
+        if is_disable and not defender.is_vehicle:
+            await manager.broadcast(campaign_id, {"type": "system", "text": "❌ /disable is a called shot at a vehicle. Use /attack for anything else."})
+            return
+
         # Can't attack yourself
         if attacker.id == defender.id:
             await manager.broadcast(campaign_id, {
@@ -1388,6 +1393,12 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             roll_add=_atk_add,
             defender_roll_add=_def_add,
         )
+        _disable_landed = False
+        if is_disable:
+            _disable_landed = result["outcome"] != "miss"
+            result["total_damage"] = 0           # a called shot costs the vehicle no DP
+            result["narrative"] = (f"{_atk_label} takes a called shot at {defender.name}: "
+                                   + ("it lands! The Story Weaver chooses what goes offline." if _disable_landed else "it misses."))
         if _atk_add:
             result["narrative"] += f" (Crew support added +{_atk_add} to the attack.)"
         if _def_add:
@@ -1426,14 +1437,15 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             party_id=None,  # Combat visible to all tabs
             sender_id=str(user_id),
             sender_name=attacker.name,
-            content=f"{attacker.name} attacks {defender.name} - {result['total_damage']} damage",
+            content=(f"{attacker.name} takes a called shot at {defender.name}" if is_disable
+                     else f"{attacker.name} attacks {defender.name} - {result['total_damage']} damage"),
             message_type="combat_result",
             extra_data={
                 "attacker": attacker.name,
                 "attacker_id": str(attacker.id),
                 "defender": defender.name,
                 "defender_id": str(defender.id),
-                "technique": "Attack",
+                "technique": "Called shot" if is_disable else "Attack",
                 "damage": result["total_damage"],
                 "defender_new_dp": defender.dp,
                 "narrative": result["narrative"],
@@ -1453,7 +1465,7 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
         combat_broadcast = CombatResultBroadcast(
             attacker=attacker.name,
             defender=defender.name,
-            technique="Attack",  # Default technique name
+            technique="Called shot" if is_disable else "Attack",  # Default technique name
             damage=result["total_damage"],
             defender_new_dp=defender.dp,
             narrative=result["narrative"],
@@ -1468,6 +1480,10 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             active_tethers=attacker_tether_rows or None,
         )
         await manager.broadcast(campaign_id, combat_broadcast.model_dump(mode='json'))
+
+        if is_disable and _disable_landed:
+            await _tell_sw(campaign_id, db, {"type": "vehicle_disable_prompt", "vehicle_id": str(defender.id), "vehicle_name": defender.name,
+                                             "attacker": attacker.name})
 
         # Track combat stats
         try:
@@ -1626,8 +1642,10 @@ async def _handle_station_action(campaign_id, command_text: str, data: dict, use
         old_dp = vehicle.dp
         vehicle.dp = min(vehicle.max_dp or 0, (vehicle.dp or 0) + total)
         db.commit()
+        _offline = knockouts_view(db, vehicle)
+        _hint = (" Offline: " + ", ".join(k["name"] for k in _offline) + ". The Story Weaver can let this roll bring one back early.") if _offline else ""
         await say(f"🔧 {actor.name} repairs {vehicle.name}: 1d6({roll}) + IP({actor.ip or 0}) + Edge({edge}){_fx_label(fx)}"
-                  f"{f' + Tether({tether_mod:+d})' if tether_mod else ''} = {total}. DP {old_dp} → {vehicle.dp}/{vehicle.max_dp}")
+                  f"{f' + Tether({tether_mod:+d})' if tether_mod else ''} = {total}. DP {old_dp} → {vehicle.dp}/{vehicle.max_dp}.{_hint}")
         await manager.broadcast(campaign_id, {"type": "vehicles_changed", "campaign_id": str(campaign_id)})
         return
 
@@ -1948,6 +1966,10 @@ async def handle_ability_cast(campaign_id: UUID, data: dict, websocket: WebSocke
                 return
             if ability.is_summon:
                 await manager.broadcast(campaign_id, {"type": "system", "text": "❌ A vehicle system can't be a summon."})
+                return
+            _ko = system_knockout(db, vehicle.id, ability.slot_number)
+            if _ko is not None:
+                await manager.broadcast(campaign_id, {"type": "system", "text": f"❌ {ability.display_name} is knocked out on {vehicle.name} for {_ko.duration_rounds} more round{'s' if _ko.duration_rounds != 1 else ''}."})
                 return
 
         if ability.effect_type == "healing":     # the NPC ability editor used to save "healing"; the rules call it "heal"
@@ -5090,8 +5112,9 @@ async def end_encounter(
             refill_uses(_c)   # the shared pool is what casting actually spends
         from backend.models import EncounterHeal as _EncounterHeal
         db.query(_EncounterHeal).filter(_EncounterHeal.encounter_id == encounter.id).delete(synchronize_session=False)
-        from backend.models import VehicleCrewAdd as _VehicleCrewAdd
+        from backend.models import VehicleCrewAdd as _VehicleCrewAdd, ActiveEffect as _AE
         db.query(_VehicleCrewAdd).filter(_VehicleCrewAdd.vehicle_id.in_(character_ids)).delete(synchronize_session=False)
+        db.query(_AE).filter(_AE.character_id.in_(character_ids), _AE.modifier_type == "knockout").delete(synchronize_session=False)
 
         # Reset has_faced_calling_this_encounter for all active PCs
         for char in characters:

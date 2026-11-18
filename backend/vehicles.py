@@ -88,6 +88,50 @@ def sync_systems(db, vehicle) -> None:
             a.uses_remaining = a.max_uses
 
 
+KNOCKOUT_TYPE = "knockout"      # ActiveEffect.modifier_type for a system or the movement knocked out (no stat modifier, just a timer)
+KNOCKOUT_ROUNDS = 2
+
+
+def knockouts(db, vehicle_id) -> list:
+    from backend.models import ActiveEffect
+    return db.query(ActiveEffect).filter(ActiveEffect.character_id == vehicle_id, ActiveEffect.modifier_type == KNOCKOUT_TYPE).all()
+
+
+def add_knockout(db, campaign_id, vehicle, kind: str, slot=None, rounds: int = KNOCKOUT_ROUNDS, applied_by: str = "Story Weaver"):
+    """Knock out one system (by slot) or the vehicle's movement for `rounds`, at no DP cost (rules v3.1.1). Knocking out the same
+    thing again just restarts its timer. The caller commits."""
+    from backend.models import ActiveEffect
+    for old in knockouts(db, vehicle.id):
+        d = old.data or {}
+        if d.get("kind") == kind and d.get("slot") == slot:
+            db.delete(old)
+    label = "Movement" if kind == "movement" else f"System {slot}"
+    effect = ActiveEffect(campaign_id=campaign_id, character_id=vehicle.id, name=f"{label} knocked out", modifier=0, modifier_type=KNOCKOUT_TYPE,
+                          duration_rounds=rounds, applied_by=applied_by, data={"kind": kind, "slot": slot})
+    db.add(effect)
+    return effect
+
+
+def system_knockout(db, vehicle_id, slot):
+    """The knock-out holding system `slot` offline, or None."""
+    for e in knockouts(db, vehicle_id):
+        d = e.data or {}
+        if d.get("kind") == "system" and d.get("slot") == slot:
+            return e
+    return None
+
+
+def knockouts_view(db, vehicle) -> list:
+    from backend.models import Ability
+    names = {a.slot_number: a.display_name for a in db.query(Ability).filter(Ability.character_id == vehicle.id).all()}
+    out = []
+    for e in knockouts(db, vehicle.id):
+        d = e.data or {}
+        out.append({"id": str(e.id), "kind": d.get("kind"), "slot": d.get("slot"), "rounds_left": e.duration_rounds,
+                    "name": "Movement" if d.get("kind") == "movement" else names.get(d.get("slot"), f"System {d.get('slot')}")})
+    return out
+
+
 def crew_rows(db, vehicle_id):
     from backend.models import VehicleCrew
     return db.query(VehicleCrew).filter(VehicleCrew.vehicle_id == vehicle_id).all()
@@ -176,5 +220,5 @@ def vehicle_dict(db, vehicle, is_sw: bool = False) -> dict:
         "weapon_die": vehicle.attack_style, "weapon_options": list(table["weapon_options"]), "defense_die": vehicle.defense_die,
         "uses": vehicle.current_uses, "max_uses": vehicle.max_uses_per_encounter, "systems": systems_view(db, vehicle),
         "state": state, "visible_to_players": bool(vehicle.visible_to_players), "portrait_url": vehicle.portrait_url,
-        "notes": vehicle.notes if is_sw else None, "crew": crew, "pending_adds": pending_adds(db, vehicle.id), "max_level": VEHICLE_MAX_LEVEL,
+        "notes": vehicle.notes if is_sw else None, "crew": crew, "pending_adds": pending_adds(db, vehicle.id), "knockouts": knockouts_view(db, vehicle), "max_level": VEHICLE_MAX_LEVEL,
     }

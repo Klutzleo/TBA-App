@@ -15,10 +15,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.db import get_db
-from backend.models import Ability, CampaignMembership, Character, User, VehicleCrew
+from backend.models import Ability, ActiveEffect, CampaignMembership, Character, User, VehicleCrew
 from backend.leveling import VEHICLE_MAX_LEVEL, vehicle_stats
 from backend.vehicles import (AOE_SLOTS, MULTI_CREW_STATIONS, RESERVED_MACROS, STATIONS, SYSTEM_EFFECTS, VEHICLE_KINDS, apply_level,
-                              sync_systems, system_slots, vehicle_dict)
+                              KNOCKOUT_ROUNDS, KNOCKOUT_TYPE, add_knockout, sync_systems, system_slots, vehicle_dict)
 from routes.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,12 @@ class SystemSet(BaseModel):
     effect_type: Literal["damage", "heal", "buff", "debuff", "dot"] = "damage"
     ability_type: Literal["spell", "technique"] = "spell"
     effect_stat: Optional[Literal["PP", "IP", "SP"]] = None   # a buff or debuff changes rolls that use this stat (default: the stat the system uses)
+
+
+class KnockoutSet(BaseModel):
+    kind: Literal["system", "movement"]
+    slot: Optional[int] = Field(None, ge=1, le=5)
+    rounds: int = Field(KNOCKOUT_ROUNDS, ge=1, le=10)
 
 
 class CrewAssign(BaseModel):
@@ -225,6 +231,44 @@ async def clear_system(campaign_id: str, vehicle_id: str, slot: int, db: Session
     row = db.query(Ability).filter(Ability.character_id == v.id, Ability.slot_number == slot).first()
     if not row:
         raise HTTPException(status_code=404, detail="Nothing is installed in that slot")
+    db.delete(row)
+    db.commit()
+    await _announce(cid)
+    return vehicle_dict(db, v, True)
+
+
+@vehicles_router.post("/{campaign_id}/vehicles/{vehicle_id}/knockouts")
+async def knock_out(campaign_id: str, vehicle_id: str, req: KnockoutSet, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    """Story Weaver: knock out one system or the vehicle's movement for 2 rounds (a landed called shot, sabotage, hacking). It costs
+    the vehicle no DP. A knocked-out system can't be fired until it comes back."""
+    cid = _uuid(campaign_id, "Campaign")
+    if _member(db, cid, current_user).role != "story_weaver":
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can knock out a system")
+    v = _vehicle(db, cid, vehicle_id)
+    slot = None
+    if req.kind == "system":
+        slot = req.slot
+        if slot is None or not db.query(Ability).filter(Ability.character_id == v.id, Ability.slot_number == slot).first():
+            raise HTTPException(status_code=400, detail="Pick a slot that has a system installed")
+    add_knockout(db, cid, v, req.kind, slot, req.rounds, applied_by=current_user.username)
+    db.commit()
+    await _announce(cid)
+    return vehicle_dict(db, v, True)
+
+
+@vehicles_router.delete("/{campaign_id}/vehicles/{vehicle_id}/knockouts/{effect_id}")
+async def restore_knockout(campaign_id: str, vehicle_id: str, effect_id: str, db: Session = Depends(get_db),
+                           current_user: User = Depends(get_current_user)):
+    """Story Weaver: bring a system or the movement back online early (for example when an Engineer's repair roll earns it)."""
+    cid = _uuid(campaign_id, "Campaign")
+    if _member(db, cid, current_user).role != "story_weaver":
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can restore a system")
+    v = _vehicle(db, cid, vehicle_id)
+    row = db.query(ActiveEffect).filter(ActiveEffect.id == _uuid(effect_id, "Knock-out"), ActiveEffect.character_id == v.id,
+                                        ActiveEffect.modifier_type == KNOCKOUT_TYPE).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="That knock-out is already over")
     db.delete(row)
     db.commit()
     await _announce(cid)

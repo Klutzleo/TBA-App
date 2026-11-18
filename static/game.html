@@ -5453,6 +5453,21 @@
       await loadVehicles();
       refreshVehiclesModal();
     }
+    async function knockOutVehicle(vehicleId) {
+      const sel = document.getElementById('vko_' + vehicleId);
+      if (!sel || !sel.value) return;
+      const body = sel.value === 'movement' ? { kind: 'movement' } : { kind: 'system', slot: parseInt(sel.value, 10) };
+      const r = await fetch(`/api/campaigns/${campaignId}/vehicles/${vehicleId}/knockouts`, { method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); alert(typeof e.detail === 'string' ? e.detail : 'Could not knock that out'); return; }
+      await loadVehicles();
+      refreshVehiclesModal();
+    }
+    async function restoreVehicleKnockout(vehicleId, effectId) {
+      await fetch(`/api/campaigns/${campaignId}/vehicles/${vehicleId}/knockouts/${effectId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+      await loadVehicles();
+      refreshVehiclesModal();
+    }
     function assignStationFromSelect(vehicleId, station) {
       const sel = document.getElementById(`vehSel_${vehicleId}_${station}`);
       if (sel && sel.value) crewStation(vehicleId, station, sel.value);
@@ -5530,13 +5545,22 @@
                 ${a ? `<button class="btn" style="padding:3px 10px;font-size:0.74rem;background:rgba(239,68,68,0.15);color:#f87171;" onclick="clearVehicleSystem('${v.id}',${sl.slot})">Remove</button>` : ''}
               </div></details>`;
           }).join('') + `</div>` : '';
+        const ko = (v.knockouts || []);
+        const koLine = ko.length ? `<div style="font-size:0.76rem;color:#fbbf24;">Offline: ` + ko.map(k =>
+          `${escHtml(k.name)} (${k.rounds_left} round${k.rounds_left === 1 ? '' : 's'})` +
+          (isSW() ? ` <button class="btn" style="padding:1px 7px;font-size:0.68rem;background:var(--bg-secondary);" onclick="restoreVehicleKnockout('${v.id}','${k.id}')">Restore</button>` : '')
+        ).join(' · ') + `</div>` : '';
+        const koPick = isSW() ? `<div style="display:flex;gap:6px;align-items:center;font-size:0.74rem;">
+          <select id="vko_${v.id}" class="form-input" style="padding:2px 4px;font-size:0.72rem;"><option value="">Knock out…</option><option value="movement">Movement</option>` +
+          (v.systems || []).filter(sl => sl.ability).map(sl => `<option value="${sl.slot}">${escHtml(sl.ability.display_name)}</option>`).join('') +
+          `</select><button class="btn" style="padding:2px 8px;font-size:0.7rem;background:rgba(251,191,36,0.15);color:#fbbf24;" onclick="knockOutVehicle('${v.id}')">2 rounds</button></div>` : '';
         const pend = (v.pending_adds || []).length ? `<div style="font-size:0.76rem;color:#38bdf8;">Waiting: ` +
           v.pending_adds.map(a => `${escHtml(a.station)} +${a.amount} to ${a.target}`).join(' · ') + `</div>` : '';
         return `<div id="vehCard_${v.id}" style="border:1px solid var(--border-color);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;transition:box-shadow 0.3s;">
           <div style="font-size:0.95rem;font-weight:700;">${escHtml(v.name)}${hidden} <span style="font-size:0.74rem;color:var(--text-muted);font-weight:400;">Lv ${v.level} · ${v.kind === 'open' ? 'open' : 'enclosed'}</span>${stateBadge}</div>
           <div style="height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${v.state === 'active' ? '#4ade80' : '#f87171'};"></div></div>
           <div style="font-size:0.76rem;color:var(--text-muted);">DP ${v.dp}/${v.max_dp} · Edge +${v.edge} · Weapon ${escHtml(v.weapon_die)} · Defense ${escHtml(v.defense_die)} · Uses ${v.uses}/${v.max_uses} (shared) · Systems ${escHtml(systems)}</div>
-          ${pend}<div>${rows}</div>${sysBlock}${sw}</div>`;
+          ${pend}${koLine}<div>${rows}</div>${sysBlock}${koPick}${sw}</div>`;
       }).join('');
     }
 
@@ -6796,6 +6820,7 @@
       { cmd: '/support attack',  desc: 'Captain or Pilot: add 1d6 + stat + Edge to your Gunner\'s next attack', roles: ['player','SW'] },
       { cmd: '/support defense', desc: 'Captain or Pilot: add 1d6 + stat + Edge to the next defense roll',      roles: ['player','SW'] },
       { cmd: '/repair',      desc: 'Engineer: restore vehicle DP (1d6 + IP + Edge)',  roles: ['player','SW'] },
+      { cmd: '/disable',     desc: 'Called shot at a vehicle: no damage, may knock out a system or its movement for 2 rounds', roles: ['player','SW'] },
       { cmd: '/cast',        desc: 'Cast a spell — e.g. /cast Fireball @Target', roles: ['player','SW'] },
       { cmd: '/technique',   desc: 'Use a technique',                          roles: ['player','SW'] },
       { cmd: '/initiative',  desc: 'Roll your initiative (1d6 + Edge)',        roles: ['player','SW'] },
@@ -15250,6 +15275,12 @@
                   if (idx !== -1) campaignNPCs.splice(idx, 1);
                 }
               }
+            } else if (data.type === 'vehicle_disable_prompt') {
+              // Story Weaver only: a called shot landed, so open the vehicle to pick what goes offline
+              if (isSW()) {
+                showPanelToast(`🔧 ${data.attacker}'s called shot landed on ${data.vehicle_name}. Choose what goes offline.`, 'info');
+                openVehiclesModal(data.vehicle_id);
+              }
             } else if (data.type === 'vehicles_changed') {
               loadVehicles().then(() => {
                 if (document.getElementById('vehiclesModal').classList.contains('active')) refreshVehiclesModal();
@@ -15418,7 +15449,7 @@
         msgInput.value = '';
         return;
 
-      } else if (textLower.startsWith('/attack') || textLower.startsWith('/defense') || textLower.startsWith('/support') || textLower.startsWith('/repair')) {
+      } else if (textLower.startsWith('/attack') || textLower.startsWith('/defense') || textLower.startsWith('/support') || textLower.startsWith('/repair') || textLower.startsWith('/disable')) {
         // Combat command - send to combat handler
         const payload = {
           type: 'combat_command',
@@ -15612,7 +15643,7 @@
     // Matches /pp /ip /sp /roll /attack /defense /cast /technique /s and bare XdY.
     // Returns { narrativeText, command } or null.
     function detectInlineRoll(text) {
-      const match = text.match(/\s(\/(?:attack|defense|defend|support|repair|cast|technique|roll|pp|ip|sp|s)(?:\s+\S.*?)?)\s*$/i);
+      const match = text.match(/\s(\/(?:attack|defense|defend|support|repair|disable|cast|technique|roll|pp|ip|sp|s)(?:\s+\S.*?)?)\s*$/i);
       if (!match) return null;
       return {
         narrativeText: text.slice(0, match.index).trim(),
