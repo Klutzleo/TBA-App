@@ -3015,9 +3015,6 @@
         <button title="Campaign Stats" onclick="openCampaignStats()" class="hdr-collapse"
           style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;opacity:0.6;color:inherit;display:flex;align-items:center;">
           <i data-lucide="bar-chart-2" style="width:18px;height:18px;"></i></button>
-        <button title="Vehicles" onclick="openVehiclesModal()" class="hdr-collapse"
-          style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;opacity:0.6;color:inherit;display:flex;align-items:center;">
-          <i data-lucide="rocket" style="width:18px;height:18px;"></i></button>
         <button title="Quick Reference" onclick="document.getElementById('quickRefModal').classList.add('active')" class="hdr-collapse"
           style="background:none;border:none;cursor:pointer;padding:6px;margin-left:2px;opacity:0.6;color:inherit;display:flex;align-items:center;">
           <i data-lucide="book-open" style="width:18px;height:18px;"></i></button>
@@ -3061,8 +3058,6 @@
         <i data-lucide="user" style="width:18px;height:18px;"></i><span>My Profile</span></a>
       <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();document.getElementById('quickRefModal').classList.add('active')">
         <i data-lucide="book-open" style="width:18px;height:18px;"></i><span>Quick Reference</span></button>
-      <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();openVehiclesModal()">
-        <i data-lucide="rocket" style="width:18px;height:18px;"></i><span>Vehicles</span></button>
       <button class="hdr-menu-item" role="menuitem" onclick="closeHdrMenu();openCampaignStats()">
         <i data-lucide="bar-chart-2" style="width:18px;height:18px;"></i><span>Campaign Stats</span></button>
       <a class="hdr-menu-item" role="menuitem" href="/lba.html" target="_blank" rel="noopener" onclick="closeHdrMenu()">
@@ -3161,6 +3156,10 @@
             <button id="campaignSettingsBtn" class="camp-set-btn" style="display:none;" title="Rename, join code, currency, character creation…" onclick="openCampaignSettings()">
               <i data-lucide="settings" style="width:15px;height:15px;"></i>Campaign settings</button>
             <div class="camp-code"><span>Join code <b id="campaignJoinCode">…</b></span><button onclick="copyJoinCode()">Copy</button></div>
+          </div>
+          <div style="padding:12px 14px 0;">
+            <button id="vehiclesBtn" class="camp-set-btn" style="display:flex;" title="Ships, mechs, bikes: see them and take a station" onclick="openVehiclesModal()">
+              <i data-lucide="rocket" style="width:15px;height:15px;"></i>Vehicles <span id="vehiclesBtnCount" style="opacity:0.6;"></span></button>
           </div>
           <div id="onlineUsersList" style="flex:1; overflow-y:auto; padding:8px 14px 16px;">
             <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Waiting...</div>
@@ -5311,6 +5310,8 @@
         const r = await fetch(`/api/campaigns/${campaignId}/vehicles`, { headers: hdr });
         if (r.ok) campaignVehicles = await r.json();
       } catch (_) { /* silent */ }
+      const cnt = document.getElementById('vehiclesBtnCount');
+      if (cnt) cnt.textContent = campaignVehicles.length ? `(${campaignVehicles.length})` : '';
     }
 
     async function openVehiclesModal() {
@@ -6237,6 +6238,7 @@
         }
 
         await loadCampaignObjects();
+        loadVehicles();   // fills the Vehicles count on the Campaign tab
 
         renderBubbleBar();
         // activeSpeaker is now set — recolor history so self-messages get the right color

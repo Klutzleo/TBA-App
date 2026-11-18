@@ -59,6 +59,7 @@ Nothing. No code, table or UI mentions vehicles. The pieces we can reuse:
 - Disable action (SW or attacker via a called-shot attack): on a hit the SW picks a system or movement, stored as a 2-round effect that ticks down with rounds.
 
 **UI**
+- A **Vehicles** button on the sidebar's Campaign tab (everyone), not the header.
 - SW: Create Vehicle (level from the table, kind open/enclosed, systems), Assign crew, Level up with the party.
 - Players: Take station / Leave station, a vehicle card (DP bar, crew, systems, uses), station action buttons.
 - Initiative stays per person. The vehicle itself is not in the order.
