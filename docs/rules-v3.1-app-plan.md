@@ -182,7 +182,7 @@ Fixed on branch rules-v3.1-readthrough (no migration):
 - Ascension "cleanse one debuff" secondary effect (the Guide's own example).
 
 Not changed, waiting on Jason:
-- Weapon attacks on a character already at 0 DP are refused by the app ("already unconscious"). The rules do not forbid it, and the
+- **DECIDED (Jason, Nov 17): allow it.** Built on branch rules-v3.1-downed-attacks: a weapon attack can hit a player character at 0 to -9 DP (-10 starts The Calling); still refused against someone already IN The Calling and against an NPC at 0 DP. A downed defender still defends normally (the dice engine's old "unconscious rolls no defense die" option stays unused). Original question: Weapon attacks on a character already at 0 DP are refused by the app ("already unconscious"). The rules do not forbid it, and the
   dice engine even supports it (an unconscious defender rolls no defense), so without it only a single big hit, a spell or a Damage Effect
   can take a downed character to -10. Allow attacks on the downed?
 - **Enemy Combos: BUILT (Jason asked for "a way to queue or kick this off", Nov 18) on branch rules-v3.1-enemy-combos, no migration.** SW-only:
