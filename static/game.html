@@ -3123,6 +3123,7 @@
             <div id="encMenu" class="sw-menu" style="display:none;">
               <button id="bondsMgmtBtn" onclick="closeEncMenu();openBondManageModal()" style="display:none;">Bonds</button>
               <div id="initiativeCombatBtns" style="display:none; flex-direction:column;">
+                <button onclick="closeEncMenu();openEnemyComboModal()" title="Hold one NPC so another NPC's turn fires a Combo. Nothing is announced to the players.">Enemy Combo</button>
                 <button onclick="closeEncMenu();initiativeCmd('end')" class="sw-menu-danger">End encounter</button>
                 <button onclick="closeEncMenu();initiativeCmd('clear')" class="sw-menu-danger">Clear</button>
               </div>
@@ -9507,6 +9508,103 @@
       return el;
     }
 
+
+    // ===================================================================
+    // Enemy Combos (Story Weaver only, rules v3.1): hold one NPC, and when a second NPC's turn comes the Combo fires. Nothing is
+    // announced to the players: the held NPC's slot just skips and they work out why.
+    // ===================================================================
+    function _enemyComboNpcs() {
+      const seen = new Set(), out = [];
+      (currentInitiativeOrder || []).forEach(r => {
+        const npc = r.character_id ? (campaignNPCs || []).find(n => String(n.id) === String(r.character_id)) : null;
+        if (npc && !npc.is_summon && !seen.has(String(npc.id))) { seen.add(String(npc.id)); out.push({ id: String(npc.id), name: npc.name }); }
+      });
+      return out;
+    }
+
+    function _closeEnemyComboModal() { const m = document.getElementById('enemyComboModal'); if (m) m.remove(); }
+
+    function openEnemyComboModal() {
+      if (!isSW()) return;
+      _closeEnemyComboModal();
+      const npcs = _enemyComboNpcs();
+      const opts = npcs.map(n => `<option value="${n.id}">${escHtml(n.name)}</option>`).join('');
+      const wrap = document.createElement('div');
+      wrap.id = 'enemyComboModal';
+      wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+      const field = 'width:100%;padding:8px;border-radius:6px;background:#0f1117;color:inherit;border:1px solid rgba(255,255,255,0.15);margin-bottom:8px;';
+      wrap.innerHTML = `
+        <div style="background:var(--bg-card,#1a1d2b);border:1px solid rgba(124,58,237,0.5);border-radius:10px;padding:16px;width:100%;max-width:380px;max-height:90vh;overflow:auto;">
+          <div style="font-weight:700;color:#a78bfa;margin-bottom:4px;">⚡ Enemy Combo</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">Hold one NPC. When the second NPC's turn comes, you pick both abilities and the Combo fires. Players are told nothing: the held NPC's turn just skips.</div>
+          ${npcs.length < 2 ? '<div style="color:#f87171;font-size:0.85rem;margin-bottom:8px;">You need two NPCs in the turn order.</div>' : `
+          <label style="font-size:0.75rem;color:var(--text-muted);">Holds (skips their turns)</label>
+          <select id="ecProposer" style="${field}">${opts}</select>
+          <label style="font-size:0.75rem;color:var(--text-muted);">Fires on their turn</label>
+          <select id="ecPartner" style="${field}">${opts}</select>
+          <label style="font-size:0.75rem;color:var(--text-muted);">Name (optional, for your notes)</label>
+          <input id="ecName" placeholder="The Chain Snap" maxlength="100" style="${field}">
+          <button class="btn btn-primary" style="width:100%;margin-bottom:12px;" onclick="queueEnemyCombo()">Queue it</button>`}
+          <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin:4px 0;">Queued</div>
+          <div id="enemyComboQueue" style="font-size:0.85rem;color:var(--text-muted);">Loading…</div>
+          <button class="btn" style="width:100%;margin-top:12px;" onclick="_closeEnemyComboModal()">Close</button>
+        </div>`;
+      document.body.appendChild(wrap);
+      if (npcs.length >= 2) document.getElementById('ecPartner').selectedIndex = 1;
+      wrap.addEventListener('click', (e) => { if (e.target === wrap) _closeEnemyComboModal(); });
+      sendWs({ type: 'enemy_combo_list' });
+    }
+
+    function queueEnemyCombo() {
+      const proposer_id = document.getElementById('ecProposer').value, partner_id = document.getElementById('ecPartner').value;
+      if (proposer_id === partner_id) { showPanelToast('Pick two different NPCs', 'error'); return; }
+      sendWs({ type: 'enemy_combo_queue', proposer_id, partner_id, name: document.getElementById('ecName').value.trim() });
+    }
+
+    function renderEnemyComboQueue(list) {
+      const el = document.getElementById('enemyComboQueue');
+      if (!el) return;
+      el.innerHTML = (list && list.length)
+        ? list.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+            <span><strong style="color:var(--text-primary);">${escHtml(c.name)}</strong><br><span style="font-size:0.75rem;">${escHtml(c.proposer_name)} holds for ${escHtml(c.acceptor_name)}${c.status === 'ready' ? ' · <b style="color:#fbbf24;">ready to fire</b>' : ''}</span></span>
+            <span style="display:flex;gap:4px;">${c.status === 'ready' ? `<button class="btn btn-primary" style="padding:3px 9px;font-size:0.75rem;" onclick="sendWs({type:'enemy_combo_resend', combo_id:'${c.combo_id}'})">Fire</button>` : ''}
+            <button class="btn" style="padding:3px 9px;font-size:0.75rem;" onclick="sendWs({type:'enemy_combo_cancel', combo_id:'${c.combo_id}'})">Cancel</button></span></div>`).join('')
+        : 'None queued.';
+    }
+
+    function openEnemyComboFire(data) {
+      if (!isSW()) return;
+      _closeEnemyComboModal();
+      const field = 'width:100%;padding:7px;border-radius:6px;background:#0f1117;color:inherit;border:1px solid rgba(255,255,255,0.15);margin-bottom:6px;';
+      const targets = (data.targets || []).map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+      const block = (who, key) => `
+        <div style="margin-bottom:10px;">
+          <div style="font-weight:700;color:#fbbf24;margin-bottom:4px;">${escHtml(who.name)}</div>
+          <select id="efAb_${key}" style="${field}">${(who.abilities || []).map(a =>
+            `<option value="${a.slot}">${escHtml(a.name)} · ${a.die} ${a.power_source} · ${a.effect_type}</option>`).join('')}</select>
+          <select id="efTg_${key}" style="${field}"><option value="">Target (blank = itself, for a heal or buff)</option>${targets}</select>
+        </div>`;
+      const wrap = document.createElement('div');
+      wrap.id = 'enemyComboModal';
+      wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+      wrap.innerHTML = `
+        <div style="background:var(--bg-card,#1a1d2b);border:1px solid rgba(124,58,237,0.6);border-radius:10px;padding:16px;width:100%;max-width:400px;max-height:90vh;overflow:auto;">
+          <div style="font-weight:700;color:#a78bfa;margin-bottom:2px;">⚡ ${escHtml(data.bond_name || 'Enemy Combo')} is ready</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">Pick what each of them does. Both add their BAP automatically and spend 1 use.</div>
+          ${block(data.proposer, 'p')}${block(data.acceptor, 'a')}
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn" onclick="sendWs({type:'enemy_combo_cancel', combo_id:'${data.combo_id}'});_closeEnemyComboModal()">Call it off</button>
+            <button class="btn btn-primary" onclick="fireEnemyCombo('${data.combo_id}')">Fire</button>
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+    }
+
+    function fireEnemyCombo(comboId) {
+      const pick = key => ({ slot: parseInt(document.getElementById('efAb_' + key).value, 10), target: document.getElementById('efTg_' + key).value });
+      sendWs({ type: 'enemy_combo_fire', combo_id: comboId, proposer: pick('p'), acceptor: pick('a') });
+    }
+
     // Story Weaver: have a summon act. The server rolls it exactly like the summoner casting the ability at that target.
     function openSummonActPicker(roll) {
       const old = document.getElementById('summonActPicker');
@@ -14469,6 +14567,20 @@
               if (data.notice) showPanelToast(data.notice, 'info');
               document.getElementById('comboAbilityModal').style.display = 'none';
               showComboAbilityPicker(data);
+
+            } else if (data.type === 'enemy_combo_queued') {
+              showPanelToast(`⚡ ${escHtml(data.proposer_name)} will hold for ${escHtml(data.acceptor_name)}. Nobody else sees this.`, 'info');
+              if (document.getElementById('enemyComboModal')) sendWs({ type: 'enemy_combo_list' });
+            } else if (data.type === 'enemy_combo_list') {
+              renderEnemyComboQueue(data.combos);
+            } else if (data.type === 'enemy_combo_cancelled') {
+              showPanelToast('Enemy Combo called off', 'info');
+              if (document.getElementById('enemyComboQueue')) sendWs({ type: 'enemy_combo_list' });
+            } else if (data.type === 'enemy_combo_fire_ready') {
+              showPanelToast(`⚡ ${escHtml(data.bond_name || 'Enemy Combo')} is ready to fire`, 'info');
+              openEnemyComboFire(data);
+            } else if (data.type === 'enemy_combo_pick_rejected') {
+              showPanelToast(`❌ ${escHtml(data.message || 'That pick cannot fire')}`, 'error');
 
             } else if (data.type === 'combo_pick_rejected') {
               showPanelToast(`❌ ${escHtml(data.message || 'That pick cannot fire')}`, 'error');

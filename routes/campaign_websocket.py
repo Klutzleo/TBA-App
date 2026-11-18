@@ -678,6 +678,21 @@ async def campaign_websocket(
             elif message_type == "combo_propose":
                 await _handle_combo_propose(campaign_uuid, user_uuid, data, websocket, db)
 
+            elif message_type == "enemy_combo_queue":
+                await _handle_enemy_combo_queue(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "enemy_combo_list":
+                await _handle_enemy_combo_list(campaign_uuid, user_uuid, websocket, db)
+
+            elif message_type == "enemy_combo_cancel":
+                await _handle_enemy_combo_cancel(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "enemy_combo_resend":
+                await _handle_enemy_combo_resend(campaign_uuid, user_uuid, data, websocket, db)
+
+            elif message_type == "enemy_combo_fire":
+                await _handle_enemy_combo_fire(campaign_uuid, user_uuid, data, websocket, db)
+
             elif message_type == "combo_accept":
                 await _handle_combo_accept(campaign_uuid, user_uuid, data, websocket, db)
 
@@ -5220,7 +5235,9 @@ async def advance_turn(
                     if triple and str(current_roll.character_id) != str(triple.last_acceptor_character_id or ""):
                         skip_hit = triple
             if skip_hit:
-                skipped_holders.append({"character_id": str(current_roll.character_id), "name": current_roll.name})
+                # an enemy Combo is never announced: the slot just skips and the table works out why
+                if not (hasattr(skip_hit, "acceptor_character_id") and _is_enemy_combo(db, skip_hit)):
+                    skipped_holders.append({"character_id": str(current_roll.character_id), "name": current_roll.name})
                 new_index = (new_index + 1) % len(rolls)
                 safety += 1
                 continue
@@ -5306,6 +5323,8 @@ async def advance_turn(
                     "bond_description": bond.combo_description if bond else "",
                 }
 
+                if proposer_char and acceptor_char and proposer_char.is_npc and acceptor_char.is_npc:
+                    await _send_enemy_combo_ready(campaign_uuid, db, waiting_combo)     # SW only
                 if proposer_char and proposer_char.user_id:
                     await manager.send_to_user(campaign_uuid, UUID(str(proposer_char.user_id)), {
                         **base_payload,
@@ -5390,11 +5409,29 @@ async def advance_turn(
         await websocket.send_json({"type": "error", "message": "❌ Failed to advance turn. Please try again."})
 
 
+def _is_enemy_combo(db, combo) -> bool:
+    """A Combo between two NPCs (the Story Weaver's). It is held and fired quietly: players are never told it is queued."""
+    a = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    b = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
+    return bool(a and b and a.is_npc and b.is_npc)
+
+
+async def _tell_sw(campaign_uuid, db, message: dict):
+    """Send something to the Story Weaver only (an enemy Combo is never announced to the table)."""
+    from backend.models import Campaign
+    camp = db.query(Campaign).filter(Campaign.id == campaign_uuid).first()
+    if camp and camp.story_weaver_id:
+        await manager.send_to_user(campaign_uuid, UUID(str(camp.story_weaver_id)), message)
+
+
 async def cancel_holding_combo_on_damage(campaign_id: UUID, character_id, db: Session):
-    """If a character holding for a Combo takes damage before it fires, cancel it —
-    the proposer resumes their normal turn rotation and the acceptor takes their
-    turn normally instead of being pulled into the ability-select flow."""
+    """Rules v3.1: if EITHER partner drops to 0 DP before the Combo fires, it is cancelled and the held action is lost. Getting
+    hit alone does not cancel it. A cancelled Combo costs nothing and does not count as fired, so it can be tried again."""
     from backend.models import PendingCombo
+
+    hit = db.query(Character).filter(Character.id == character_id).first()
+    if hit is None or (hit.dp or 0) > 0:
+        return                                                    # hurt, but still standing: the Combo holds
 
     encounter = db.query(Encounter).filter(
         Encounter.campaign_id == campaign_id,
@@ -5405,7 +5442,7 @@ async def cancel_holding_combo_on_damage(campaign_id: UUID, character_id, db: Se
 
     combo = db.query(PendingCombo).filter(
         PendingCombo.encounter_id == encounter.id,
-        PendingCombo.proposer_character_id == character_id,
+        ((PendingCombo.proposer_character_id == character_id) | (PendingCombo.acceptor_character_id == character_id)),
         PendingCombo.status.in_(["pending", "holding"]),
     ).first()
     if not combo:
@@ -5419,27 +5456,31 @@ async def cancel_holding_combo_on_damage(campaign_id: UUID, character_id, db: Se
     proposer_name = proposer_char.name if proposer_char else "Unknown"
     acceptor_name = acceptor_char.name if acceptor_char else "Unknown"
 
-    await manager.broadcast(campaign_id, {
+    payload = {
         "type": "combo_cancelled",
         "combo_id": str(combo.id),
-        "reason": "proposer_damaged",
+        "reason": "partner_down",
         "proposer_character_id": str(combo.proposer_character_id),
         "proposer_name": proposer_name,
         "acceptor_name": acceptor_name,
-        "message": f"💔 {proposer_name} took damage — the Combo with {acceptor_name} is cancelled!",
-    })
+        "message": f"💔 {hit.name} dropped to 0 DP — the Combo between {proposer_name} and {acceptor_name} is cancelled!",
+    }
+    if proposer_char and acceptor_char and proposer_char.is_npc and acceptor_char.is_npc:
+        await _tell_sw(campaign_id, db, {**payload, "enemy": True})      # an enemy Combo is never announced to the table
+    else:
+        await manager.broadcast(campaign_id, payload)
 
-    logger.info(f"Combo cancelled (proposer damaged): {combo.id}")
+    logger.info(f"Combo cancelled (partner {hit.name} down): {combo.id}")
 
 
 async def cancel_holding_triple_combo_on_damage(campaign_id: UUID, character_id, db: Session):
-    """If a character committed to a Triple Combo takes damage before it fires,
-    cancel it. Unlike the 2-person combo, TWO of the 3 parties are turn-skipping
-    at once here (proposer + whichever partner didn't accept last) — either one
-    taking a hit fizzles it, not just the proposer. The last acceptor, once
-    `holding`, is NOT in that skip-locked state (their own upcoming turn is the
-    trigger), so damage to them specifically does not cancel it."""
+    """Rules v3.1: if ANY of the three drops to 0 DP before a Triple Combo fires, the whole thing is cancelled and every held
+    action is lost. Getting hit alone does not cancel it."""
     from backend.models import PendingTripleCombo
+
+    hit_char = db.query(Character).filter(Character.id == character_id).first()
+    if hit_char is None or (hit_char.dp or 0) > 0:
+        return
 
     encounter = db.query(Encounter).filter(
         Encounter.campaign_id == campaign_id,
@@ -5458,8 +5499,6 @@ async def cancel_holding_triple_combo_on_damage(campaign_id: UUID, character_id,
     ).first()
     if not combo:
         return
-    if combo.status == "holding" and str(character_id) == str(combo.last_acceptor_character_id or ""):
-        return
 
     combo.status = "cancelled"
     db.commit()
@@ -5467,23 +5506,22 @@ async def cancel_holding_triple_combo_on_damage(campaign_id: UUID, character_id,
     proposer_char = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
     partner_a_char = db.query(Character).filter(Character.id == combo.partner_a_character_id).first()
     partner_b_char = db.query(Character).filter(Character.id == combo.partner_b_character_id).first()
-    hit_char = db.query(Character).filter(Character.id == character_id).first()
-    hit_name = hit_char.name if hit_char else "Unknown"
+    hit_name = hit_char.name
     names = [c.name for c in (proposer_char, partner_a_char, partner_b_char) if c]
 
     await manager.broadcast(campaign_id, {
         "type": "triple_combo_cancelled",
         "combo_id": str(combo.id),
-        "reason": "proposer_damaged" if hit_char and str(hit_char.id) == str(combo.proposer_character_id) else "partner_damaged",
+        "reason": "partner_down",
         "proposer_character_id": str(combo.proposer_character_id),
         "partner_a_character_id": str(combo.partner_a_character_id),
         "partner_b_character_id": str(combo.partner_b_character_id),
         "hit_character_id": str(character_id),
         "hit_name": hit_name,
-        "message": f"💔 {hit_name} took damage — the Triple Combo ({', '.join(names)}) is cancelled!",
+        "message": f"💔 {hit_name} dropped to 0 DP — the Triple Combo ({', '.join(names)}) is cancelled!",
     })
 
-    logger.info(f"Triple Combo cancelled (damage to {hit_name}): {combo.id}")
+    logger.info(f"Triple Combo cancelled (partner {hit_name} down): {combo.id}")
 
 
 async def cancel_holding_combos_on_damage(campaign_id: UUID, character_id, db: Session):
@@ -5492,6 +5530,156 @@ async def cancel_holding_combos_on_damage(campaign_id: UUID, character_id, db: S
     here, not at every damage-dealing call site."""
     await cancel_holding_combo_on_damage(campaign_id, character_id, db)
     await cancel_holding_triple_combo_on_damage(campaign_id, character_id, db)
+
+
+async def _enemy_combo_ability_list(db, char) -> list:
+    return _combo_ability_list(db, char)
+
+
+async def _send_enemy_combo_ready(campaign_uuid, db, combo):
+    """The partner's turn has come: ask the Story Weaver (and only them) to fire the Combo."""
+    a = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    b = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
+    bond = combo.bond
+    await _tell_sw(campaign_uuid, db, {
+        "type": "enemy_combo_fire_ready",
+        "combo_id": str(combo.id),
+        "bond_name": (bond.combo_name if bond else None) or "Enemy Combo",
+        "proposer": {"character_id": str(a.id), "name": a.name, "abilities": _combo_ability_list(db, a)},
+        "acceptor": {"character_id": str(b.id), "name": b.name, "abilities": _combo_ability_list(db, b)},
+        "targets": [c.name for c in db.query(Character).filter(
+            Character.campaign_id == str(campaign_uuid), Character.status == "active", Character.is_object == False  # noqa: E712
+        ).order_by(Character.name).all()],
+    })
+
+
+async def _handle_enemy_combo_queue(campaign_uuid, user_uuid, data, websocket, db):
+    """SW only. Hold one NPC so a second NPC's next turn fires a Combo between them. Nothing is announced to the table: the
+    held NPC's slot just skips, and the party works out why (rules v3.1, Enemy Combos)."""
+    from backend.models import Bond, PendingCombo, PendingTripleCombo, InitiativeRoll
+
+    if not await is_story_weaver(campaign_uuid, user_uuid, db):
+        await websocket.send_json({"type": "system", "text": "❌ Only the Story Weaver can queue an enemy Combo."})
+        return
+    encounter = db.query(Encounter).filter(Encounter.campaign_id == campaign_uuid, Encounter.is_active == True).first()  # noqa: E712
+    if not encounter:
+        await websocket.send_json({"type": "system", "text": "❌ No active encounter. An enemy Combo needs combat."})
+        return
+
+    def _npc(cid):
+        try:
+            c = db.query(Character).filter(Character.id == UUID(str(cid)), Character.campaign_id == str(campaign_uuid)).first()
+        except (ValueError, TypeError):
+            c = None
+        return c if (c and c.is_npc and not c.is_summon and not c.is_object) else None
+
+    a, b = _npc(data.get("proposer_id")), _npc(data.get("partner_id"))
+    if not a or not b or a.id == b.id:
+        await websocket.send_json({"type": "system", "text": "❌ Pick two different NPCs for the enemy Combo."})
+        return
+    for c in (a, b):
+        in_order = db.query(InitiativeRoll).filter(InitiativeRoll.encounter_id == encounter.id,
+                                                   InitiativeRoll.character_id == c.id).first()
+        if not in_order:
+            await websocket.send_json({"type": "system", "text": f"❌ {c.name} is not in this encounter's turn order."})
+            return
+        if (c.dp or 0) <= 0:
+            await websocket.send_json({"type": "system", "text": f"❌ {c.name} is down and cannot be part of a Combo."})
+            return
+        if _combo_conflict(db, encounter.id, c.id):
+            await websocket.send_json({"type": "system", "text": f"❌ {c.name} is already committed to a Combo."})
+            return
+
+    bond = db.query(Bond).filter(
+        Bond.campaign_id == campaign_uuid, Bond.broken_at == None,  # noqa: E711
+        ((Bond.character_id_a == a.id) & (Bond.character_id_b == b.id)) | ((Bond.character_id_a == b.id) & (Bond.character_id_b == a.id)),
+    ).first()
+    if not bond:
+        bond = Bond(campaign_id=campaign_uuid, character_id_a=a.id, character_id_b=b.id,
+                    combo_name=(str(data.get("name") or "").strip()[:100] or "Enemy Combo"))
+        db.add(bond)
+        db.commit()
+    if db.query(PendingCombo).filter(PendingCombo.encounter_id == encounter.id, PendingCombo.bond_id == bond.id,
+                                     PendingCombo.status == "fired").first():
+        await websocket.send_json({"type": "system", "text": f"❌ {bond.combo_name or 'That Combo'} has already fired this encounter."})
+        return
+
+    combo = PendingCombo(encounter_id=encounter.id, campaign_id=campaign_uuid, bond_id=bond.id,
+                         proposer_character_id=a.id, acceptor_character_id=b.id, status="holding")
+    db.add(combo)
+    db.commit()
+    await websocket.send_json({"type": "enemy_combo_queued", "combo_id": str(combo.id), "name": bond.combo_name,
+                               "proposer_name": a.name, "acceptor_name": b.name, "status": "holding"})
+    logger.info(f"Enemy Combo queued: {a.name} holds for {b.name}")
+
+
+async def _handle_enemy_combo_list(campaign_uuid, user_uuid, websocket, db):
+    from backend.models import PendingCombo
+    if not await is_story_weaver(campaign_uuid, user_uuid, db):
+        return
+    encounter = db.query(Encounter).filter(Encounter.campaign_id == campaign_uuid, Encounter.is_active == True).first()  # noqa: E712
+    rows = []
+    if encounter:
+        for c in db.query(PendingCombo).filter(PendingCombo.encounter_id == encounter.id,
+                                               PendingCombo.status.in_(["holding", "ready"])).all():
+            if _is_enemy_combo(db, c):
+                a = db.query(Character).filter(Character.id == c.proposer_character_id).first()
+                b = db.query(Character).filter(Character.id == c.acceptor_character_id).first()
+                rows.append({"combo_id": str(c.id), "name": (c.bond.combo_name if c.bond else None) or "Enemy Combo",
+                             "proposer_name": a.name, "acceptor_name": b.name, "status": c.status})
+    await websocket.send_json({"type": "enemy_combo_list", "combos": rows})
+
+
+async def _handle_enemy_combo_cancel(campaign_uuid, user_uuid, data, websocket, db):
+    from backend.models import PendingCombo
+    if not await is_story_weaver(campaign_uuid, user_uuid, db):
+        return
+    combo = db.query(PendingCombo).filter(PendingCombo.id == data.get("combo_id"), PendingCombo.campaign_id == campaign_uuid,
+                                          PendingCombo.status.in_(["holding", "ready"])).first()
+    if combo and _is_enemy_combo(db, combo):
+        combo.status = "cancelled"          # costs nothing and does not count as fired
+        db.commit()
+        await websocket.send_json({"type": "enemy_combo_cancelled", "combo_id": str(combo.id)})
+
+
+async def _handle_enemy_combo_resend(campaign_uuid, user_uuid, data, websocket, db):
+    """SW only: show the fire prompt again (they were disconnected when the partner's turn came, or closed it)."""
+    from backend.models import PendingCombo
+    if not await is_story_weaver(campaign_uuid, user_uuid, db):
+        return
+    combo = db.query(PendingCombo).filter(PendingCombo.id == data.get("combo_id"), PendingCombo.campaign_id == campaign_uuid,
+                                          PendingCombo.status == "ready").first()
+    if combo and _is_enemy_combo(db, combo):
+        await _send_enemy_combo_ready(campaign_uuid, db, combo)
+
+
+async def _handle_enemy_combo_fire(campaign_uuid, user_uuid, data, websocket, db):
+    """SW only. Both NPCs pick an ability and a target, then the Combo resolves exactly like a players' Combo (automatic BAP,
+    1 use each, damage/heals/buffs/debuffs applied, all or nothing)."""
+    from backend.models import PendingCombo
+    if not await is_story_weaver(campaign_uuid, user_uuid, db):
+        return
+    combo = db.query(PendingCombo).filter(PendingCombo.id == data.get("combo_id"), PendingCombo.campaign_id == campaign_uuid,
+                                          PendingCombo.status == "ready").first()
+    if not combo or not _is_enemy_combo(db, combo):
+        await websocket.send_json({"type": "system", "text": "❌ That enemy Combo is not ready to fire."})
+        return
+    a = db.query(Character).filter(Character.id == combo.proposer_character_id).first()
+    b = db.query(Character).filter(Character.id == combo.acceptor_character_id).first()
+    pa, pb = data.get("proposer") or {}, data.get("acceptor") or {}
+    picks = {}
+    for ch, pick in ((a, pa), (b, pb)):
+        slot = pick.get("slot")
+        target = (pick.get("target") or "").strip() or None
+        problem = _combo_pick_error(db, ch, campaign_uuid, slot, target) if slot is not None else "Pick an ability"
+        if problem:
+            await websocket.send_json({"type": "enemy_combo_pick_rejected", "combo_id": str(combo.id), "message": f"{ch.name}: {problem}"})
+            return
+        picks[str(ch.id)] = target
+    combo.proposer_ability_slot, combo.acceptor_ability_slot = int(pa["slot"]), int(pb["slot"])
+    db.commit()
+    _combo_targets[str(combo.id)] = picks
+    await _resolve_combo(campaign_uuid, combo, db)
 
 
 async def _handle_combo_propose(campaign_uuid: UUID, user_uuid: UUID, data: dict, websocket, db: Session):
@@ -5807,6 +5995,10 @@ async def _reprompt_lost_picks(campaign_uuid, db, combo, chars, triple=False, no
         "bond_description": (bond.combo_description if bond else "") or "",
         "notice": notice or "The server restarted before your Combo fired. Nothing was spent. Please choose again.",
     }
+    if not triple and chars and all(c and c.is_npc for c in chars):
+        if hasattr(combo, "bond"):
+            await _send_enemy_combo_ready(campaign_uuid, db, combo)
+        return
     for ch in chars:
         if ch and ch.user_id:
             others = [o for o in chars if o and o.id != ch.id]

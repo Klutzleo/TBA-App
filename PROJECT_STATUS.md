@@ -4,7 +4,7 @@ priority: high
 category: app
 progress: 83
 focus: "Rules v3.1 is final (Nov 16). Bringing the app up to v3.1 in phases on branch rules-v3.1, then Ascension 11-15, then LBA Stage 0.5"
-next_milestone: "Deploy the read-through fixes, then Jason decides the open rules questions (downed attacks, enemy Combos, swarms, BAP effect)"
+next_milestone: "Deploy downed-attack and enemy Combo changes, then Jason decides swarms, BAP effect and vehicles"
 milestone_distance: weeks
 community_pressure: low
 excitement: high
@@ -107,6 +107,8 @@ First file to open: `docs/rules-v3.1-app-plan.md` (Phase 3), then `routes/campai
 **Sync gap:** the plan doc named above lives at `C:\Users\jgermino\.claude\plans\...` on Jason's PC, and the memory notes named in "What's shipped" (`email-digest-notifications.md`, `bug-audit-cadence.md`, ...) are local too. A cloud or scheduled session cannot read them. Copy anything a future session needs into the repo (for example `docs/plans/`) before relying on it.
 
 ## Last session
+2026-11-18: after a shutdown, resumed. LIVE in prod: everything through the read-through fixes (potions, wake rule, no casting at 0 DP, cleanse). NOT deployed: (1) weapon attacks can hit a downed player character (Jason chose to allow it), branch `rules-v3.1-downed-attacks`; (2) Enemy Combos for the SW (queue, silent hold, SW-only fire prompt, re-send, cancel) plus the corrected Combo cancel rule (either partner at 0 DP, not any hit), branch `rules-v3.1-enemy-combos`, 358 tests, no migration. Still open with Jason: swarms flag, BAP effect, vehicles.
+
 2026-11-17 (afternoon): the all-or-nothing Combo save is LIVE. The final read-through of the v3.1 rules found and fixed (branch `rules-v3.1-readthrough`, 351 tests, NOT deployed, no migration): potion tiers (Tier 5 = 14, buff potions on the +1 to +4 table for 2 rounds, table now in the leveling file), potions and the SW manual heal waking from negative DP, no potion into The Calling, a character at 0 DP cannot cast, and an Ascension cleanse secondary effect. Open questions for Jason are listed at the end of docs/rules-v3.1-app-plan.md (attacks on a downed character, enemy Combos, swarms, BAP effect, vehicles).
 
 2026-11-17 (midday): Damage Effects are LIVE incl. migration 036. The all-or-nothing Combo save is built and tested on branch `rules-v3.1-atomic-combo` (341 tests), NOT deployed, no migration: every Combo resolution is one transaction with held broadcasts, rolled back and re-prompted on any failure. Still open: the BAP effect (Jason unsure; the SW can already do it with Add Effect) and a last read of the rules text.

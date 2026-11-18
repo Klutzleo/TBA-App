@@ -185,7 +185,14 @@ Not changed, waiting on Jason:
 - Weapon attacks on a character already at 0 DP are refused by the app ("already unconscious"). The rules do not forbid it, and the
   dice engine even supports it (an unconscious defender rolls no defense), so without it only a single big hit, a spell or a Damage Effect
   can take a downed character to -10. Allow attacks on the downed?
-- Enemy Combos (NPC pairs): the app has no way to hold an NPC's turn for a Combo; the SW does it by hand today.
+- **Enemy Combos: BUILT (Jason asked for "a way to queue or kick this off", Nov 18) on branch rules-v3.1-enemy-combos, no migration.** SW-only:
+  encounter menu > Enemy Combo queues one NPC to hold for a second NPC; nothing is announced to the table (the held slot just skips and
+  the hold is left out of the public turn_advance); on the partner's turn the SW (and only the SW) gets a fire prompt to pick both
+  abilities and targets; it then resolves exactly like a players' Combo (automatic BAP, 1 use each, effects applied, all-or-nothing,
+  once per encounter by Bond, which is created on the fly if the pair has none). A queued list with Cancel and a re-send Fire button
+  survives a reconnect. Also fixed on the way: the cancel rule. The app cancelled a held Combo on ANY damage to the proposer and
+  ignored the acceptor; v3.1 says either partner dropping to 0 DP cancels, a hit alone does not (Triple Combos: any of the three).
+  Original note: the app has no way to hold an NPC's turn for a Combo; the SW does it by hand today.
 - Swarms ("cannot be healed, DP are bodies"): no swarm flag; the SW just does not heal them.
 - An Ally dying should always leave a Memory Echo: the SW is prompted in the Calling window, but the app does not force it.
 - Ally secondary effects (level 11 effect on an Ally in slot 1) and Ascension Combo evolution stay table events.
