@@ -1221,8 +1221,16 @@ async def handle_combat_command(campaign_id: UUID, data: dict, websocket: WebSoc
             })
             return
 
-        # Check if defender is alive
-        if defender.dp <= 0:
+        # Rules v3.1: 0 to -9 DP is unconscious, not safe. A player character at 0 or below can still be hit, and -10 starts
+        # The Calling. Someone already IN The Calling is waiting on their roll, and an NPC at 0 DP is simply out of the fight
+        # (negative DP means nothing for them), so those two are refused.
+        if defender.in_calling:
+            await manager.broadcast(campaign_id, {
+                "type": "system",
+                "text": f"❌ {defender.name} is in The Calling and waiting on their roll."
+            })
+            return
+        if defender.dp <= 0 and defender.is_npc:
             await manager.broadcast(campaign_id, {
                 "type": "system",
                 "text": f"❌ {defender.name} is already unconscious (DP: {defender.dp})"
