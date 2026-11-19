@@ -342,7 +342,8 @@ async def forgot_password(
         # Send password reset email
         send_password_reset_email(
             to_email=user.email,
-            reset_token=reset_token.token
+            reset_token=reset_token.token,
+            username=user.username
         )
 
     # Always return the same message (don't reveal if email exists)

@@ -209,7 +209,7 @@
                     throw new Error(data.detail || 'Request failed');
                 }
                 
-                showSuccess('Password reset link sent! Check your email.');
+                showSuccess('If that email belongs to an account, a reset link is on its way. It can take a minute, and it may land in your Junk or Spam folder, so check there too.');
                 document.getElementById('email').value = '';
                 
                 submitBtn.disabled = false;

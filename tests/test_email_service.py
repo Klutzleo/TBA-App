@@ -140,3 +140,30 @@ def test_email_copy_has_no_em_dashes(sent):
     send_digest_email("a@example.com", ["x"], "https://tba-rpg.com/u")
     for body in sent.calls:
         assert "\u2014" not in body["subject"] + body["html"] + body["text"]
+
+
+def test_the_reset_email_greets_the_player_by_name_and_escapes_it(sent):
+    from backend.email_service import send_password_reset_email
+    send_password_reset_email("a@example.com", "tok", username="Beef_the-Great")
+    body = sent.calls[0]
+    assert "Hi Beef_the-Great," in body["html"] and "Hi Beef_the-Great," in body["text"]
+    send_password_reset_email("a@example.com", "tok", username="<b>x</b>")
+    assert "<b>x</b>" not in sent.calls[1]["html"] and "&lt;b&gt;x&lt;/b&gt;" in sent.calls[1]["html"]
+
+
+def test_the_reset_email_without_a_name_has_no_stray_greeting(sent):
+    from backend.email_service import send_password_reset_email
+    send_password_reset_email("a@example.com", "tok")
+    assert "Hi " not in sent.calls[0]["text"] and "None" not in sent.calls[0]["html"] + sent.calls[0]["text"]
+
+
+def test_the_forgot_password_route_passes_the_username_to_the_email():
+    import inspect
+    import routes.auth as auth
+    assert "username=user.username" in inspect.getsource(auth.forgot_password)
+
+
+def test_the_reset_page_tells_people_to_check_junk():
+    import os
+    html = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "reset-request.html"), encoding="utf-8").read()
+    assert "Junk or Spam" in html and "\u2014" not in html[html.index("showSuccess('If that email"):][:260]

@@ -106,12 +106,16 @@ def verify_unsubscribe_token(token: str) -> str | None:
     return payload.get("sub")
 
 
-def send_password_reset_email(to_email: str, reset_token: str) -> None:
+def send_password_reset_email(to_email: str, reset_token: str, username: str = None) -> None:
     api_key      = os.getenv("RESEND_API_KEY", "")
     from_email   = os.getenv("FROM_EMAIL", "no-reply@gameoctane.com")
     frontend_url = get_frontend_url()
 
     reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
+    # Greeting by name: a message addressed to a real person looks far less like a phishing template to spam filters
+    import html as _html_mod
+    hello_html = f"<p>Hi {_html_mod.escape(username)},</p>" if username else ""
+    hello_text = f"Hi {username},\n\n" if username else ""
 
     html_content = f"""<!DOCTYPE html>
 <html>
@@ -123,6 +127,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> None:
   </div>
   <div style="background:#fff;padding:30px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 10px 10px;">
     <h2 style="color:#d4a017;margin-top:0;">Password Reset Request</h2>
+    {hello_html}
     <p>We received a request to reset your password. Click the button below to set a new one:</p>
     <div style="text-align:center;margin:30px 0;">
       <a href="{reset_url}"
@@ -151,6 +156,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> None:
 </html>"""
     text_content = (
         "Reset your TBA password\n\n"
+        f"{hello_text}"
         "We received a request to reset your password. Open this link to set a new one:\n"
         f"{reset_url}\n\n"
         "This link expires in 1 hour.\n\n"
