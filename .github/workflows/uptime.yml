@@ -1,0 +1,37 @@
+name: Uptime check
+
+# Pings the live site every 10 minutes. If it still fails after retrying for about three minutes (a normal deploy restarts the server
+# for a minute or two, so one failed ping is not an outage), the run fails and GitHub emails the repo owner.
+# It checks three things: the landing page, /health (the process is up) and a public page that reads the database (the database is up).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: The site and its database answer
+        run: |
+          urls="https://tba-rpg.com/ https://tba-rpg.com/health https://tba-rpg.com/api/public/lba/entries"
+          for attempt in 1 2 3 4; do
+            bad=""
+            for url in $urls; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url" || true)
+              [ "$code" = "200" ] || bad="$bad $url($code)"
+            done
+            if [ -z "$bad" ]; then
+              echo "all three answered 200 on attempt $attempt"
+              exit 0
+            fi
+            echo "attempt $attempt failed:$bad"
+            [ "$attempt" -lt 4 ] && sleep 60
+          done
+          echo "::error::TBA looks DOWN after 4 tries:$bad"
+          exit 1
