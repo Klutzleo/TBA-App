@@ -89,6 +89,11 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
 - Public/exempt: `/health`, `/docs`, `/openapi.json`, `/`, `/redoc`, `/api/public/*`,
   the auth endpoints.
 - CORS is currently wide open (`allow_origins=["*"]` with credentials).
+- **Signup protection** (`backend/signup_guard.py`): a hidden honeypot field, a throwaway-email-domain block, and Cloudflare Turnstile that
+  is OFF until `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set in Railway (the page asks `/api/public/signup-config`). There is no
+  email verification yet (only 10 signups per hour per IP).
+- **Email links** use `FRONTEND_URL` (set to `https://tba-rpg.com` in Railway; the code default is the same). Never let them fall back to a
+  `*.railway.app` address: it is a spam signal. Every email also carries a plain-text part; `REPLY_TO_EMAIL` optionally sets Reply-To.
 
 ## Running locally (PowerShell)
 

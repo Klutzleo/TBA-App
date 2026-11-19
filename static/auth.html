@@ -349,6 +349,15 @@
                     <div id="password-strength-text" class="password-strength-text"></div>
                 </div>
 
+                <!-- Honeypot: hidden from people, so only a bot fills it in -->
+                <div aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+                    <label for="register-website">Leave this empty</label>
+                    <input type="text" id="register-website" name="website" tabindex="-1" autocomplete="off">
+                </div>
+
+                <!-- Cloudflare Turnstile: shown only when the human check is switched on (server setting) -->
+                <div id="turnstile-box" style="display:none;margin:4px 0 14px;"></div>
+
                 <div class="checkbox-group">
                     <input type="checkbox" id="remember-me-register" checked>
                     <label for="remember-me-register">Remember me</label>
@@ -485,7 +494,14 @@
             const username = document.getElementById('register-username').value;
             const password = document.getElementById('register-password').value;
             const rememberMe = document.getElementById('remember-me-register').checked;
-            
+            const website = document.getElementById('register-website').value;
+            const turnstileToken = _turnstileWidgetId !== null && window.turnstile ? (window.turnstile.getResponse(_turnstileWidgetId) || '') : '';
+
+            if (_turnstileWidgetId !== null && !turnstileToken) {
+                showError('Please complete the check below first.');
+                return;
+            }
+
             const submitBtn = e.target.querySelector('.submit-btn');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Creating account...';
@@ -494,7 +510,7 @@
                 const response = await fetch(`${API_URL}/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, username, password })
+                    body: JSON.stringify({ email, username, password, website, turnstile_token: turnstileToken || null })
                 });
                 
                 const data = await response.json();
@@ -519,8 +535,29 @@
                 showError(error.message);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Create Account';
+                if (_turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(_turnstileWidgetId);   // a token works once
             }
         });
+
+        // Human check (Cloudflare Turnstile). The server says whether it is on; when it is off nothing is loaded.
+        let _turnstileWidgetId = null;
+        (async function initTurnstile() {
+            try {
+                const cfg = await (await fetch(`${API_URL}/public/signup-config`)).json();
+                if (!cfg.turnstile_site_key) return;
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+                    s.async = true;
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+                const box = document.getElementById('turnstile-box');
+                box.style.display = 'block';
+                _turnstileWidgetId = window.turnstile.render(box, { sitekey: cfg.turnstile_site_key, theme: 'dark' });
+            } catch (_) { /* if the check cannot load, the server decides: it refuses a missing token only when the check is on */ }
+        })();
 
         // Message helpers
         function showError(message) {

@@ -5,7 +5,9 @@ Sends transactional emails via Resend API (https://resend.com).
 Required environment variables:
     RESEND_API_KEY — API key from Resend dashboard
     FROM_EMAIL     — verified sender, e.g. no-reply@gameoctane.com
-    FRONTEND_URL   — defaults to https://tba-app-production.up.railway.app
+    FRONTEND_URL   — the site's public address, used for every link in an email. Defaults to https://tba-rpg.com. It must be the
+                     real domain: links to a shared host like *.railway.app are a spam signal and don't match the sender.
+    REPLY_TO_EMAIL — optional; a monitored inbox people can reply to. Unset means no Reply-To header.
     MODERATION_EMAIL — optional; where content-report emails go (comma separated). If unset, they go to the
                        email on each account listed in ADMIN_USER_IDS.
 """
@@ -22,6 +24,42 @@ from jose import jwt
 from backend.auth.jwt import SECRET_KEY as _AUTH_SECRET_KEY  # one source for the secret (fails closed in prod)
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_FRONTEND_URL = "https://tba-rpg.com"
+
+
+def get_frontend_url() -> str:
+    """Base address for links inside emails (no trailing slash). Always the real site, never a shared railway.app address."""
+    return (os.getenv("FRONTEND_URL") or DEFAULT_FRONTEND_URL).rstrip("/")
+
+
+def _html_to_text(s: str) -> str:
+    """A readable plain-text version of a small HTML snippet (a digest line)."""
+    import html as _h
+    import re as _re
+    s = _re.sub(r"(?i)<br\s*/?>|</p>|</div>|</h\d>", "\n", s or "")
+    s = _re.sub(r"<[^>]+>", "", s)
+    s = _h.unescape(s)
+    s = _re.sub(r"[ \t]+", " ", s)
+    return _re.sub(r"\n\s*\n+", "\n\n", s).strip()
+
+
+def _email_payload(to, subject: str, html_body: str, text_body: str, headers: dict = None) -> dict:
+    """The Resend request body. Every email carries a plain-text part as well as the HTML (an HTML-only message scores worse with
+    spam filters), and an optional Reply-To so a real person can answer."""
+    payload = {
+        "from": f"TBA App <{os.getenv('FROM_EMAIL', 'no-reply@gameoctane.com')}>",
+        "to": to,
+        "subject": subject,
+        "html": html_body,
+        "text": text_body,
+    }
+    reply_to = os.getenv("REPLY_TO_EMAIL", "").strip()
+    if reply_to:
+        payload["reply_to"] = reply_to
+    if headers:
+        payload["headers"] = headers
+    return payload
 
 
 def _safe_print(s: str) -> None:
@@ -71,7 +109,7 @@ def verify_unsubscribe_token(token: str) -> str | None:
 def send_password_reset_email(to_email: str, reset_token: str) -> None:
     api_key      = os.getenv("RESEND_API_KEY", "")
     from_email   = os.getenv("FROM_EMAIL", "no-reply@gameoctane.com")
-    frontend_url = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
+    frontend_url = get_frontend_url()
 
     reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
 
@@ -99,7 +137,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> None:
     </p>
     <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin:25px 0;border-radius:4px;">
       <p style="margin:0;color:#856404;font-size:14px;">
-        <strong>⚠️ This link expires in 1 hour.</strong>
+        <strong>This link expires in 1 hour.</strong>
       </p>
     </div>
     <p style="color:#999;font-size:13px;">
@@ -107,10 +145,18 @@ def send_password_reset_email(to_email: str, reset_token: str) -> None:
     </p>
   </div>
   <div style="text-align:center;padding:16px;color:#999;font-size:12px;">
-    TBA App — This is an automated email, please do not reply.
+    TBA App. This is an automated email.
   </div>
 </body>
 </html>"""
+    text_content = (
+        "Reset your TBA password\n\n"
+        "We received a request to reset your password. Open this link to set a new one:\n"
+        f"{reset_url}\n\n"
+        "This link expires in 1 hour.\n\n"
+        "If you didn't request a password reset, you can safely ignore this email.\n\n"
+        "TBA App. This is an automated email."
+    )
 
     if not api_key:
         logger.warning("RESEND_API_KEY not set — printing reset link to console")
@@ -127,12 +173,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> None:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "from": f"TBA App <{from_email}>",
-                "to": [to_email],
-                "subject": "Reset Your TBA Password",
-                "html": html_content,
-            },
+            json=_email_payload([to_email], "Reset Your TBA Password", html_content, text_content),
             timeout=10,
         )
         if not resp.ok:
@@ -153,7 +194,7 @@ def send_digest_email(to_email: str, lines: list, unsubscribe_url: str) -> None:
     """
     api_key      = os.getenv("RESEND_API_KEY", "")
     from_email   = os.getenv("FROM_EMAIL", "no-reply@gameoctane.com")
-    frontend_url = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
+    frontend_url = get_frontend_url()
 
     items_html = "".join(
         f'<div style="padding:12px 0;border-bottom:1px solid #eee;">{line}</div>' for line in lines
@@ -179,11 +220,17 @@ def send_digest_email(to_email: str, lines: list, unsubscribe_url: str) -> None:
     </div>
   </div>
   <div style="text-align:center;padding:16px;color:#999;font-size:12px;">
-    TBA App — automated, at most twice a day.
+    TBA App. Automated, at most twice a day.
     <a href="{unsubscribe_url}" style="color:#999;">Unsubscribe from these emails</a>
   </div>
 </body>
 </html>"""
+    text_content = (
+        "While you were away\n\n"
+        + "\n".join("- " + _html_to_text(line) for line in lines)
+        + f"\n\nOpen TBA: {frontend_url}/game.html\n\n"
+        f"TBA App. Automated, at most twice a day.\nUnsubscribe from these emails: {unsubscribe_url}"
+    )
 
     if not api_key:
         logger.warning("RESEND_API_KEY not set — printing digest to console instead")
@@ -202,12 +249,8 @@ def send_digest_email(to_email: str, lines: list, unsubscribe_url: str) -> None:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "from": f"TBA App <{from_email}>",
-                "to": [to_email],
-                "subject": "While you were away — TBA",
-                "html": html_content,
-            },
+            json=_email_payload([to_email], "While you were away on TBA", html_content, text_content,
+                                headers={"List-Unsubscribe": f"<{unsubscribe_url}>"}),
             timeout=10,
         )
         if not resp.ok:
@@ -234,7 +277,7 @@ def send_report_email(to_emails: list, report: dict) -> None:
 
     api_key      = os.getenv("RESEND_API_KEY", "")
     from_email   = os.getenv("FROM_EMAIL", "no-reply@gameoctane.com")
-    frontend_url = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
+    frontend_url = get_frontend_url()
     esc = lambda v: _html.escape(str(v or ""))
     review_url = f"{frontend_url}/admin-reports.html"
 
@@ -252,6 +295,13 @@ def send_report_email(to_emails: list, report: dict) -> None:
 </body>
 </html>"""
 
+    text_content = (
+        f"New report: {report.get('content_label') or ''}\n\n"
+        f"Campaign: {report.get('campaign_name') or ''}\nReason: {report.get('reason') or ''}\n"
+        f"Note: {report.get('note') or '(none)'}\nReported by: {report.get('reporter') or ''}\n\n"
+        f"Review it: {review_url}\n\nSign in as an admin to see the image and act on it. Nothing in this email changes anything."
+    )
+
     if not api_key:
         logger.warning("RESEND_API_KEY not set - printing report email to console instead")
         _safe_print(f"REPORT EMAIL to {to_emails}: {report}")
@@ -261,12 +311,7 @@ def send_report_email(to_emails: list, report: dict) -> None:
         resp = requests.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "from": f"TBA App <{from_email}>",
-                "to": list(to_emails),
-                "subject": "TBA report: " + str(report.get("content_label") or "content"),
-                "html": html_content,
-            },
+            json=_email_payload(list(to_emails), "TBA report: " + str(report.get("content_label") or "content"), html_content, text_content),
             timeout=10,
         )
         if not resp.ok:

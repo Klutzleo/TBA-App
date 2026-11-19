@@ -218,7 +218,8 @@ def _process(db):
     # same encounter (plausible right after a busy round) doesn't re-query it each time.
     turn_cache: dict = {}
 
-    frontend_url = os.getenv("FRONTEND_URL", "https://tba-app-production.up.railway.app")
+    from backend.email_service import get_frontend_url
+    frontend_url = get_frontend_url()
 
     for user_id, notifs in by_user.items():
         if user_id in connected:

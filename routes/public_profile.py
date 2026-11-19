@@ -42,6 +42,13 @@ def _public_char(char) -> dict:
     }
 
 
+@public_router.get("/signup-config")
+async def signup_config():
+    """What the signup page needs to show the human check. The site key is public by design; it is null while the check is off."""
+    from backend.signup_guard import turnstile_site_key
+    return {"turnstile_site_key": turnstile_site_key()}
+
+
 @public_router.get("/profile/{username}")
 async def public_profile(username: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()

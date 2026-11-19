@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import re
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -18,6 +18,7 @@ from backend.db import get_db
 from backend.models import User, PasswordResetToken, pwd_hasher
 from backend.auth.jwt import create_access_token, get_current_user
 from backend.email_service import send_password_reset_email
+from backend.signup_guard import is_disposable_email, verify_turnstile
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -39,6 +40,8 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     username: str
     password: str
+    website: Optional[str] = None                              # honeypot: the form hides it, so only a bot fills it in
+    turnstile_token: Optional[str] = Field(None, max_length=2048)   # Cloudflare Turnstile result, when that check is switched on
 
     @field_validator('username')
     @classmethod
@@ -143,6 +146,23 @@ async def register(
     """
     # Normalize email to lowercase for case-insensitive comparison
     email_lower = data.email.lower()
+
+    # Signup protection (backend/signup_guard.py). The honeypot answer is deliberately the same vague message as a duplicate email.
+    if data.website:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to create account. Please check your information and try again."
+        )
+    if is_disposable_email(email_lower):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please use a permanent email address. Temporary email services aren't supported."
+        )
+    if not await verify_turnstile(data.turnstile_token, request.client.host if request.client else None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The human check didn't pass. Please reload the page and try again."
+        )
 
     # Check if email already exists
     existing_email = db.query(User).filter(User.email == email_lower).first()
