@@ -1,0 +1,85 @@
+name: Nightly database backup
+
+# Dumps the production database every night, encrypts it, and stores it in a private Cloudflare R2 bucket (not at Railway, so it survives a
+# Railway-side problem). Keeps 14 daily and 8 weekly copies. If anything fails, the run fails and GitHub emails the repo owner.
+# Railway's own backups need the Pro plan, so this is the backup. See docs/backup-and-restore.md for how to restore.
+#
+# Secrets (Settings > Secrets and variables > Actions): BACKUP_DATABASE_URL, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, BACKUP_PASSPHRASE
+
+on:
+  schedule:
+    - cron: "17 10 * * *"   # 10:17 UTC, about 2 a.m. Pacific
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: nightly-backup
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BUCKET: tba-backups
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the secrets are all set
+        run: |
+          for v in R2_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY BACKUP_DATABASE_URL BACKUP_PASSPHRASE; do
+            if [ -z "${!v}" ]; then echo "::error::the secret for $v is not set"; exit 1; fi
+          done
+
+      - name: Install the PostgreSQL 17 client (the server is 17, and pg_dump must not be older)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump the database
+        run: pg_dump --dbname="$BACKUP_DATABASE_URL" --format=custom --no-owner --no-privileges --file=backup.dump
+
+      - name: Check the dump is real, not empty
+        run: |
+          size=$(stat -c%s backup.dump)
+          tables=$(pg_restore --list backup.dump | grep -c "TABLE DATA" || true)
+          echo "dump is $size bytes with $tables tables of data"
+          [ "$size" -gt 100000 ] || { echo "::error::the dump is suspiciously small"; exit 1; }
+          [ "$tables" -ge 30 ] || { echo "::error::the dump has too few tables ($tables)"; exit 1; }
+
+      - name: Encrypt it
+        run: openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in backup.dump -out backup.dump.enc -pass env:BACKUP_PASSPHRASE
+
+      - name: Upload (a weekly copy too on Sundays)
+        run: |
+          day=$(date -u +%Y-%m-%d)
+          aws s3 cp backup.dump.enc "s3://$BUCKET/daily/tba-$day.dump.enc" --endpoint-url "$R2_ENDPOINT"
+          if [ "$(date -u +%u)" = "7" ]; then
+            aws s3 cp backup.dump.enc "s3://$BUCKET/weekly/tba-$day.dump.enc" --endpoint-url "$R2_ENDPOINT"
+          fi
+
+      - name: Delete copies older than 14 daily and 8 weekly
+        run: |
+          prune() {
+            prefix=$1; keep=$2
+            aws s3 ls "s3://$BUCKET/$prefix/" --endpoint-url "$R2_ENDPOINT" | awk '{print $4}' | grep '\.dump\.enc$' | sort | head -n -"$keep" |
+              while read -r f; do
+                [ -n "$f" ] && aws s3 rm "s3://$BUCKET/$prefix/$f" --endpoint-url "$R2_ENDPOINT"
+              done
+          }
+          prune daily 14
+          prune weekly 8
+
+      - name: Show what is stored now
+        run: aws s3 ls "s3://$BUCKET/daily/" --endpoint-url "$R2_ENDPOINT" | tail -5
