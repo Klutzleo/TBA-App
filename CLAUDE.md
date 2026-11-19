@@ -4,9 +4,10 @@ Guidance for working in this repo. TBA-App is the **live** web platform for the 
 TTRPG system (Tools for the Bad Ass / Tools for Being Awesome). It runs in
 production on Railway at **tba-rpg.com** and is actively being played and
 playtested — treat `main` as production. The rules documents (`Rulebook.md`,
-`LevelingTable.md`) are **v3.1**, but the app's code is still at **v3.0** numbers and
-behavior until the phases in `docs/rules-v3.1-app-plan.md` ship. When code and the
-Rulebook disagree, the Rulebook is right and the code is the gap.
+`LevelingTable.md`) are **v3.1.1** and the app implements them (the v3.1 phases shipped in Nov 2026:
+see `docs/rules-v3.1-app-plan.md` and `PROJECT_STATUS.md`). When code and the Rulebook disagree, the
+Rulebook is right and the code is the gap. All rules numbers live in `schemas/leveling_v3_1.json`,
+read through `backend/leveling.py`; never hand-type a copy in the backend.
 
 ## Architecture
 
@@ -55,7 +56,9 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
   (tracks applied files in `schema_migrations`, advisory-locked, idempotent-ish).
   `backend/migrations/OLD_MIGRATIONS/` and root `migrations/` are historical — don't run them.
 - `schemas/` (repo root) — JSON rule definitions for the ruleset loader (`schemas/loader.py` → `CORE_RULESET`).
-- `tests/` — thin: `test_api.py`, `test_characters.py` only.
+- `tests/` — 500+ pytest tests (rules, Combos, vehicles, security hardening, signup guard, email, copy). Run them all before any push.
+- Vehicles: `backend/vehicles.py` (stations, systems, crew adds, knock-outs) and `routes/vehicles.py`; a vehicle is a `Character`
+  row with `is_npc` + `is_vehicle`, kept out of NPC lists. Plan and decisions: `docs/vehicles-plan.md`.
 
 ## Domain model quick reference
 
@@ -66,9 +69,9 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
   user↔campaign link; `PartyMembership` is character↔channel.
 - **Campaign** has one `story_weaver_id` (the GM). SW-gated actions use
   `require_story_weaver()` / `require_campaign_access()` from `backend/auth/jwt.py`.
-- Core rules: stats PP/IP/SP each 1–3, sum = 6. Levels 1–10 (app cap is 10; v3.1
-  adds Ascension 11–15, not built yet). v3.1 DP is 8 +2/level and uses are
-  level + 2 as one shared pool; the code still has the v3.0 numbers (10 +5/level, level x 3).
+- Core rules: stats PP/IP/SP each 1–3, sum = 6. Levels 1–15 (Ascension 11–15 is live; Allies and
+  vehicles stop at 10). DP is 8 +2/level and uses are level + 2 as one shared pool for every
+  spell, technique and vehicle system.
   Multi-die attack = each attacker die rolls independently vs the defender's single
   defense die; per-die `damage = max(0, attacker_roll − defense_roll)`, summed.
   See `LevelingTable.md` / `Rulebook.md` for DP/Edge/BAP/die progressions.
@@ -89,10 +92,11 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
 - Public/exempt: `/health`, `/docs`, `/openapi.json`, `/`, `/redoc`, `/api/public/*`,
   the auth endpoints.
 - CORS is currently wide open (`allow_origins=["*"]` with credentials).
-- **Signup protection** (`backend/signup_guard.py`): a hidden honeypot field, a throwaway-email-domain block, and Cloudflare Turnstile that
-  is OFF until `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set in Railway (the page asks `/api/public/signup-config`). There is no
-  email verification yet (only 10 signups per hour per IP).
-- **Email links** use `FRONTEND_URL` (set to `https://tba-rpg.com` in Railway; the code default is the same). Never let them fall back to a
+- **Signup protection** (`backend/signup_guard.py`): a hidden honeypot field, a throwaway-email-domain block, and Cloudflare Turnstile,
+  which is ON in production (it enforces only when BOTH `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set in Railway; the page asks
+  `/api/public/signup-config`). Plus 10 signups per hour per IP. There is no email verification yet.
+- **Email** is sent from `no-reply@tba-rpg.com` (`FROM_EMAIL`; the From domain must match the link domain, which is what fixed the spam-folder problem).
+  Links use `FRONTEND_URL` (set to `https://tba-rpg.com` in Railway; the code default is the same). The Resend API key is scoped by domain: a new sending domain needs a new key first. Never let them fall back to a
   `*.railway.app` address: it is a spam signal. Every email also carries a plain-text part; `REPLY_TO_EMAIL` optionally sets Reply-To.
 
 ## Running locally (PowerShell)
