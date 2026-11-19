@@ -52,6 +52,7 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Download the newest nightly backup
         run: |
@@ -66,6 +67,7 @@ jobs:
 
       - name: Restore it into a scratch database
         run: |
+          pg_restore --version | grep -q "(PostgreSQL) 17" || { echo "::error::pg_restore is not version 17"; exit 1; }
           createdb -h localhost -U postgres restored
           pg_restore --no-owner --no-privileges --exit-on-error -h localhost -U postgres -d restored backup.dump
           echo "restored without errors"
