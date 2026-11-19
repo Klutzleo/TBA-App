@@ -111,6 +111,7 @@ class _FakeClient:
 @pytest.fixture
 def turnstile_on(monkeypatch):
     monkeypatch.setenv("TURNSTILE_SECRET_KEY", "secret-for-tests")
+    monkeypatch.setenv("TURNSTILE_SITE_KEY", "0xSITEKEY-for-tests")
     monkeypatch.setattr(signup_guard.httpx, "AsyncClient", _FakeClient)
     _FakeClient.calls, _FakeClient.answer, _FakeClient.status, _FakeClient.error = [], {"success": True}, 200, None
 
@@ -177,3 +178,12 @@ def test_the_signup_page_has_the_honeypot_and_the_human_check_wiring():
     for needle in ('id="register-website"', 'tabindex="-1"', 'id="turnstile-box"', "signup-config", "challenges.cloudflare.com/turnstile",
                    "turnstile_token", "website,"):
         assert needle in html, needle
+
+
+def test_a_secret_without_a_site_key_does_not_lock_anyone_out(client, monkeypatch):
+    """Half-configured: the page would show no widget, so the server must not demand a token either."""
+    monkeypatch.setenv("TURNSTILE_SECRET_KEY", "secret-only")
+    monkeypatch.delenv("TURNSTILE_SITE_KEY", raising=False)
+    assert client.get("/api/public/signup-config").json() == {"turnstile_site_key": None}
+    r, _ = _signup(client)
+    assert r.status_code == 201

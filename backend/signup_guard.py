@@ -4,8 +4,9 @@ Signup protection (added 2026-11-18). Signup had no email check and nothing but 
 Three cheap layers, none of which needs a person to confirm an email:
   1. A honeypot field the form hides from people. Bots fill every field; a filled one means a bot.
   2. A block on well-known throwaway-email domains. Best effort: the list can never be complete, but it stops the lazy cases.
-  3. Cloudflare Turnstile, a free human check that is mostly invisible. It switches on only when TURNSTILE_SECRET_KEY is set (and
-     TURNSTILE_SITE_KEY for the page), so shipping this code changes nothing until those two settings exist.
+  3. Cloudflare Turnstile, a free human check that is mostly invisible. It switches on only when BOTH TURNSTILE_SECRET_KEY and
+     TURNSTILE_SITE_KEY are set, so shipping this code changes nothing until those two settings exist, and a half-configured setup
+     (a secret with no site key, so no widget on the page) can never lock real players out.
 
 Turnstile verifies the token with Cloudflare. If Cloudflare itself cannot be reached we let the signup through (and log it) rather
 than lock every real player out during their outage; an explicitly invalid or missing token is always refused.
@@ -42,18 +43,21 @@ def is_disposable_email(email: str) -> bool:
     return any(".".join(parts[i:]) in DISPOSABLE_DOMAINS for i in range(len(parts) - 1))
 
 
+def turnstile_enabled() -> bool:
+    """The human check is on only when both keys exist."""
+    return bool(os.getenv("TURNSTILE_SECRET_KEY", "").strip() and os.getenv("TURNSTILE_SITE_KEY", "").strip())
+
+
 def turnstile_site_key() -> str | None:
     """The public site key the page needs, or None when the human check is off."""
-    if not os.getenv("TURNSTILE_SECRET_KEY", "").strip():
-        return None
-    return os.getenv("TURNSTILE_SITE_KEY", "").strip() or None
+    return os.getenv("TURNSTILE_SITE_KEY", "").strip() if turnstile_enabled() else None
 
 
 async def verify_turnstile(token: str | None, remote_ip: str | None = None) -> bool:
     """True when the human check passes or is switched off. Only the token and the visitor's IP go to Cloudflare."""
-    secret = os.getenv("TURNSTILE_SECRET_KEY", "").strip()
-    if not secret:
+    if not turnstile_enabled():
         return True
+    secret = os.getenv("TURNSTILE_SECRET_KEY", "").strip()
     if not token:
         return False
     try:
