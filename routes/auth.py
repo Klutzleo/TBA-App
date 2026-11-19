@@ -4,6 +4,7 @@ Authentication Routes
 Handles user registration, login, password reset, and profile management.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 import re
@@ -19,6 +20,8 @@ from backend.models import User, PasswordResetToken, pwd_hasher
 from backend.auth.jwt import create_access_token, get_current_user
 from backend.email_service import send_password_reset_email
 from backend.signup_guard import is_disposable_email, verify_turnstile
+
+logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -339,12 +342,16 @@ async def forgot_password(
         db.add(reset_token)
         db.commit()
 
-        # Send password reset email
-        send_password_reset_email(
-            to_email=user.email,
-            reset_token=reset_token.token,
-            username=user.username
-        )
+        # Send password reset email. If the email provider fails we log it and still give the same generic answer: a server
+        # error only for real accounts would tell a stranger which email addresses are registered.
+        try:
+            send_password_reset_email(
+                to_email=user.email,
+                reset_token=reset_token.token,
+                username=user.username
+            )
+        except Exception as e:
+            logger.error(f"Password reset email failed to send ({type(e).__name__})")
 
     # Always return the same message (don't reveal if email exists)
     return MessageResponse(
