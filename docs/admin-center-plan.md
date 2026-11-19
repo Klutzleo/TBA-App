@@ -1,6 +1,6 @@
 # Admin center and safety tools plan
 
-Status: decisions made 2026-11-19. Phase A in progress. Jason is the only admin (`ADMIN_USER_IDS`), so no roles are needed yet.
+Status: decisions made 2026-11-19. Phase A is LIVE (commit 689d138). Jason is the only admin (`ADMIN_USER_IDS`), so no roles are needed yet.
 
 ## Why
 
@@ -19,7 +19,7 @@ calls already reject `users.is_active = false`, but nothing sets it, and the liv
 4. **Tell the Story Weaver when someone leaves** ("so and so left your campaign") with what they need to plan: which character, whether it is in
    the current encounter, and a way to deal with it. A leave already sends a toast and a push; this adds a lasting in-app notification with details.
 5. **When a player is removed, their character** becomes an NPC the Story Weaver controls by default (uses the existing convert-to-NPC), with a
-   choice to leave it as it is. (Jason said "I like that" to the NPC suggestion; confirm when it ships.)
+   choice to leave it as it is. (Confirmed by Jason, 2026-11-19.)
 
 ## Phases (each shipped separately, with tests)
 
