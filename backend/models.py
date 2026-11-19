@@ -397,6 +397,9 @@ class CampaignMembership(Base):
     chat_color = Column(String(7), nullable=False, default='#d4af37')  # User's own chat color for this campaign
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     left_at = Column(DateTime, nullable=True)  # NULL = still active member
+    # plain column (the migration adds the foreign key): a second ORM link to users would make User.campaign_memberships ambiguous
+    removed_by_user_id = Column(UUID(as_uuid=True), nullable=True)  # set when a Story Weaver removed them
+    removal_reason = Column(String(300), nullable=True)
 
     # Relationships
     campaign = relationship("Campaign", back_populates="memberships")
@@ -594,6 +597,22 @@ class VehicleCrewAdd(Base):
     target = Column(String(10), nullable=False)    # attack | defense
     amount = Column(Integer, nullable=False)
     note = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CampaignBan(Base):
+    """A player a Story Weaver banned from one campaign: the join code refuses them (admin center, phase A)."""
+    __tablename__ = "campaign_bans"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "user_id", name="uq_campaign_ban"),
+        {'extend_existing': True},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    banned_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reason = Column(String(300), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -1395,3 +1414,19 @@ class PendingTripleCombo(Base):
 
     def __repr__(self):
         return f"<PendingTripleCombo(status={self.status}, proposer={str(self.proposer_character_id)[:8]})>"
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# Leaving a campaign must mean leaving it. 53 of the app's 81 membership lookups never checked left_at, so someone who had left (or been
+# removed) could still call a campaign's data APIs. Rather than patch each one, every SELECT on CampaignMembership now ignores people who
+# have left, by default. The only code that needs to see them (the live-chat "was this a recorded departure?" check) opts out with
+# `.execution_options(include_left_members=True)`.
+from sqlalchemy import event as _sa_event
+from sqlalchemy.orm import Session as _SaSession, with_loader_criteria as _with_loader_criteria
+
+
+@_sa_event.listens_for(_SaSession, "do_orm_execute")
+def _only_active_members_by_default(execute_state):
+    if execute_state.is_select and not execute_state.execution_options.get("include_left_members", False):
+        execute_state.statement = execute_state.statement.options(
+            _with_loader_criteria(CampaignMembership, lambda cls: cls.left_at.is_(None), include_aliases=True))

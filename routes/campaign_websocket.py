@@ -283,7 +283,7 @@ async def campaign_websocket(
             stale = db.query(CampaignMembership).filter(
                 CampaignMembership.campaign_id == campaign_id,
                 CampaignMembership.user_id == user.id
-            ).first()
+            ).execution_options(include_left_members=True).first()
 
             active_char = db.query(Character).filter(
                 Character.user_id == user.id,

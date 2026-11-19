@@ -2149,6 +2149,11 @@
       border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-darker);
       color: var(--text-primary); font-size: 0.86rem; font-weight: 600; font-family: inherit; cursor: pointer;
     }
+    .camp-rm {
+      margin-left: auto; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--text-muted);
+      cursor: pointer; padding: 3px 6px; display: inline-flex; align-items: center; opacity: 0.55;
+    }
+    .camp-rm:hover { opacity: 1; color: #f87171; border-color: rgba(248,113,113,0.4); }
     .camp-code {
       display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
       border: 1px dashed var(--border-color); border-radius: 8px; font-size: 0.78rem; color: var(--text-secondary);
@@ -3831,6 +3836,32 @@
   </div>
 
   <!-- Objects Modal (SW): locks / doors / chests / traps -->
+  <div id="removePlayerModal" class="modal" onclick="if(event.target===this)closeRemovePlayerModal()">
+    <div class="modal-content" style="max-width:440px;width:95vw;">
+      <div class="modal-header">
+        <h2><i data-lucide="user-x" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;color:#f87171;"></i><span id="rmpTitle">Remove player</span></h2>
+        <button class="modal-close" onclick="closeRemovePlayerModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+        <p style="font-size:0.84rem;color:var(--text-muted);margin:0;">They are taken out of the campaign right away and their connection is closed. They are told they were removed, but never why.</p>
+        <label style="font-size:0.8rem;color:var(--text-muted);">What happens to their character?
+          <select id="rmpCharacters" class="form-input" style="width:100%;margin-top:4px;">
+            <option value="npc">Turn it into an NPC I control (recommended)</option>
+            <option value="keep">Leave it as it is</option>
+          </select></label>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:0.86rem;cursor:pointer;">
+          <input type="checkbox" id="rmpBan" style="margin-top:3px;">
+          <span><strong>Also ban them.</strong> They can't rejoin this campaign with the join code. Without this, they can come back.</span></label>
+        <textarea id="rmpReason" rows="2" maxlength="300" placeholder="Private note for your records (optional, they never see it)"
+          style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.84rem;resize:vertical;"></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" style="background:var(--bg-secondary);" onclick="closeRemovePlayerModal()">Cancel</button>
+          <button class="btn" id="rmpConfirm" style="background:rgba(239,68,68,0.2);color:#f87171;" onclick="confirmRemovePlayer()">Remove player</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="vehiclesModal" class="modal" onclick="if(event.target===this)closeVehiclesModal()">
     <div class="modal-content" style="max-width:560px;width:95vw;">
       <div class="modal-header">
@@ -5307,6 +5338,46 @@
         });
         if (r.ok) campaignObjects = await r.json();
       } catch (_) { /* silent */ }
+    }
+
+    // ── Remove a player (Story Weaver) ────────────────────────────────────────
+    let _removeTarget = null;
+    function openRemovePlayerModal(userId, username) {
+      _removeTarget = { userId, username };
+      document.getElementById('rmpTitle').textContent = `Remove ${username}?`;
+      document.getElementById('rmpCharacters').value = 'npc';
+      document.getElementById('rmpBan').checked = false;
+      document.getElementById('rmpReason').value = '';
+      document.getElementById('rmpConfirm').disabled = false;
+      document.getElementById('removePlayerModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+    function closeRemovePlayerModal() {
+      document.getElementById('removePlayerModal').classList.remove('active');
+      _removeTarget = null;
+    }
+    async function confirmRemovePlayer() {
+      if (!_removeTarget) return;
+      const btn = document.getElementById('rmpConfirm');
+      btn.disabled = true;
+      const body = {
+        ban: document.getElementById('rmpBan').checked,
+        characters: document.getElementById('rmpCharacters').value,
+        reason: document.getElementById('rmpReason').value.trim() || null
+      };
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/members/${_removeTarget.userId}/remove`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { alert(typeof data.detail === 'string' ? data.detail : 'Could not remove that player'); btn.disabled = false; return; }
+        const extra = data.characters_converted && data.characters_converted.length ? ` ${data.characters_converted.join(', ')} is now an NPC.` : '';
+        showPanelToast(`${data.removed} was removed${data.banned ? ' and banned' : ''}.${extra}`, 'success');
+        closeRemovePlayerModal();
+        if (typeof loadCharacters === 'function') loadCharacters();
+      } catch (e) {
+        alert('Could not reach the server. Try again.');
+        btn.disabled = false;
+      }
     }
 
     // ── Vehicles (rules v3.1.1): the SW adds them, players take stations ──────
@@ -9612,6 +9683,7 @@
             <span class="pdot ${u.connected ? 'on' : ''}" title="${u.connected ? 'Online' : 'Offline'}"></span>
             <span>${escHtml(u.username)}</span>
             ${s.label === 'Players' && charName(u) ? `<span class="cp-char">${escHtml(charName(u))}</span>` : ''}
+            ${isSW() && s.label !== 'Story Weaver' && u.user_id ? `<button class="camp-rm" title="Remove ${escHtml(u.username)} from this campaign" onclick="openRemovePlayerModal('${u.user_id}','${escHtml(u.username)}')"><i data-lucide="user-x" style="width:13px;height:13px;"></i></button>` : ''}
           </div>
         `).join('')}
       `).join('');
@@ -13995,7 +14067,7 @@
 
             } else if (data.type === 'player_left_campaign') {
               if (userRole === 'SW') {
-                showPanelToast(`🚪 ${data.username} left the campaign`, 'info');
+                showPanelToast(`🚪 ${data.message || (data.username + ' left the campaign')}`, 'info');
                 loadCharacters();
               }
 

@@ -4,7 +4,7 @@ Campaign Routes - Create and manage campaigns
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Literal
 from uuid import UUID, uuid4
 from datetime import datetime
 import logging
@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 from backend.db import get_db
 from backend.models import Campaign, Party, Character, PartyMembership, Message, User, CampaignMembership, LoreEntry, InventoryItem, ActiveEffect, CampaignLastVisited, Ability, LBA_CONTENT_RATINGS, LBA_GENRES, LbaPackage
 from backend.auth.jwt import get_current_user
+from backend.models import CampaignBan
+from backend.membership import departing_characters, notify_removed_player, notify_story_weaver_of_leave
 from backend.leveling import uses_for_level as _uses_for_level
 from backend.uses import pool_remaining as _pool_remaining, pool_max as _pool_max
 from sqlalchemy import or_, func, cast, String
@@ -90,6 +92,13 @@ class CampaignResponse(BaseModel):
 class JoinCampaignRequest(BaseModel):
     """Request to join a campaign by join code."""
     join_code: str
+
+
+class RemoveMemberRequest(BaseModel):
+    """A Story Weaver removing a player from their campaign."""
+    ban: bool = False                                   # also refuse them if they try to rejoin with the join code
+    reason: Optional[str] = Field(None, max_length=300)  # kept on the membership row; never shown to the removed player
+    characters: Literal["npc", "keep"] = "npc"          # turn their character(s) into NPCs the Story Weaver controls, or leave them as they are
 
 
 class CampaignUpdate(BaseModel):
@@ -519,6 +528,10 @@ async def join_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found with that join code")
 
+    # A player the Story Weaver banned cannot come back with the code (the answer is deliberately plain)
+    if db.query(CampaignBan).filter(CampaignBan.campaign_id == campaign.id, CampaignBan.user_id == current_user.id).first():
+        raise HTTPException(status_code=403, detail="You can't join this campaign.")
+
     # Check if already a member
     existing = db.query(CampaignMembership).filter(
         CampaignMembership.campaign_id == campaign.id,
@@ -632,21 +645,82 @@ async def leave_campaign(
     except Exception:
         pass
 
-    # Push notify SW (if offline)
-    if campaign and campaign.story_weaver_id:
+    # Tell the Story Weaver, with what they need to plan: a lasting notification (and a push) that names the character and says whether it is
+    # in the current encounter. A failure here must never undo the leave.
+    if campaign:
         try:
-            from backend.notifications import send_push
-            send_push(
-                db, str(campaign.story_weaver_id),
-                "🚪 Player Left",
-                f"{current_user.username} left {campaign.name}.",
-                url=f"/game.html?campaign_id={campaign_id}",
-                campaign_id=str(campaign_id),
-            )
-        except Exception as _pe:
-            logger.warning(f"Push notification failed (player left): {_pe}")
+            notify_story_weaver_of_leave(db, campaign, current_user)
+            db.commit()
+        except Exception as _ne:
+            db.rollback()
+            logger.warning(f"Could not notify the Story Weaver of a departure: {type(_ne).__name__}")
 
     return {"success": True, "message": "You have left the campaign"}
+
+
+@router.post("/{campaign_id}/members/{user_id}/remove")
+async def remove_member(
+    campaign_id: UUID,
+    user_id: UUID,
+    req: RemoveMemberRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Story Weaver only: remove a player from this campaign, optionally banning them from rejoining. Their live connection is closed at once.
+    By default their character becomes an NPC the Story Weaver controls, so the story and any running fight carry on."""
+    sw = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id, CampaignMembership.user_id == current_user.id,
+        CampaignMembership.role == "story_weaver").first()
+    if not sw:
+        raise HTTPException(status_code=403, detail="Only the Story Weaver can remove a player")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You can't remove yourself")
+    target = db.query(CampaignMembership).filter(
+        CampaignMembership.campaign_id == campaign_id, CampaignMembership.user_id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="That person is not in this campaign")
+    if target.role == "story_weaver":
+        raise HTTPException(status_code=400, detail="The Story Weaver can't be removed")
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not campaign or not target_user:
+        raise HTTPException(status_code=404, detail="Campaign or player not found")
+
+    chars = departing_characters(db, campaign_id, user_id)
+    target.left_at = datetime.utcnow()
+    target.removed_by_user_id = current_user.id
+    target.removal_reason = (req.reason or "").strip() or None
+    if req.ban and not db.query(CampaignBan).filter(CampaignBan.campaign_id == campaign_id, CampaignBan.user_id == user_id).first():
+        db.add(CampaignBan(campaign_id=campaign_id, user_id=user_id, banned_by_user_id=current_user.id, reason=target.removal_reason))
+    converted = []
+    if req.characters == "npc":
+        for c in chars:
+            # same conversion as the Story Weaver's convert-to-NPC button; kept visible so the story is not disturbed
+            c.is_npc, c.is_ally, c.user_id, c.owner_id = True, False, None, str(current_user.id)
+            c.visible_to_players = True
+            converted.append((str(c.id), c.name))
+    notify_removed_player(db, campaign, target_user, bool(req.ban))
+    db.commit()
+    logger.info(f"Story Weaver {current_user.username} removed {target_user.username} from campaign {campaign_id} (ban={req.ban}, characters={req.characters})")
+
+    # live: cut their connection now, then tell the table
+    try:
+        from routes.campaign_websocket import manager, broadcast_pc_converted_to_npc
+        for conn in list(manager.active_connections.get(campaign_id, [])):
+            if str(conn[1]) == str(user_id):
+                try:
+                    await conn[0].close(code=1008, reason="You were removed from this campaign by the Story Weaver.")
+                except Exception:
+                    pass
+                manager.disconnect(campaign_id, conn[0])
+        await manager.broadcast(campaign_id, {"type": "player_left_campaign", "username": target_user.username,
+                                              "message": f"{target_user.username} was removed from the campaign."})
+        for cid, name in converted:
+            await broadcast_pc_converted_to_npc(campaign_id, cid, name)
+    except Exception as e:
+        logger.warning(f"Could not broadcast a removal: {type(e).__name__}")
+
+    return {"success": True, "removed": target_user.username, "banned": bool(req.ban), "characters_converted": [n for _, n in converted]}
 
 @router.get("/{campaign_id}/check-character")
 def check_campaign_character(
