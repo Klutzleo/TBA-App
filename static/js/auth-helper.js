@@ -116,4 +116,21 @@ function displayUserInfo(containerId = 'user-info') {
         </button>
     `;
     if (window.lucide) lucide.createIcons({ el: container });
+    addAdminLink(container);
+}
+
+/**
+ * Show an Admin link, only to admins. The server decides (ADMIN_USER_IDS); anyone else sees nothing.
+ */
+async function addAdminLink(container) {
+    try {
+        const r = await fetchWithAuth('/api/moderation/am-i-admin');
+        if (!r || !r.ok || !(await r.json()).admin) return;
+        const a = document.createElement('a');
+        a.href = '/admin-reports.html';
+        a.textContent = 'Admin';
+        a.style.cssText = 'margin-left: 10px; padding: 8px 16px; color: #f87171; border: 1px solid #3a3f54; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.9rem;';
+        const first = container.querySelector('button');
+        container.insertBefore(a, first || null);
+    } catch (e) { /* the link is a convenience; never break the page */ }
 }

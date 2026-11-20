@@ -104,6 +104,12 @@ class ResolveRequest(BaseModel):
     message: Optional[str] = Field(None, max_length=300)  # shown to the campaign's SW
 
 
+@moderation_router.get("/am-i-admin")
+def am_i_admin(current_user: User = Depends(get_current_user)):
+    """Lets the page decide whether to show the admin link. Not a security check: every admin endpoint still enforces require_admin."""
+    return {"admin": str(current_user.id) in _admin_ids()}
+
+
 @moderation_router.get("/reasons")
 def list_reasons(current_user: User = Depends(get_current_user)):
     """The report dropdown options, so the UI never keeps its own copy of the list."""
