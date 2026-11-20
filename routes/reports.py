@@ -216,6 +216,9 @@ def get_report(report_id: UUID, admin: User = Depends(require_admin), db: Sessio
     d = _report_dict(r, _usernames(db, [r.reporter_user_id, r.reported_user_id]), full=True)
     if r.reported_user_id:  # context for deciding: how many other reports name the same person
         d["other_reports_about_them"] = db.query(Report).filter(Report.reported_user_id == r.reported_user_id, Report.id != r.id).count()
+        reported = db.query(User).filter(User.id == r.reported_user_id).first()
+        d["reported_suspended"] = bool(reported and not reported.is_active)
+        d["reported_is_admin"] = str(r.reported_user_id) in _admin_ids()
     return d
 
 
@@ -263,6 +266,48 @@ def open_conversation(report_id: UUID, admin: User = Depends(require_admin), db:
     return {"report_id": str(r.id), "reporter": names.get(a), "reported": names.get(b), "limit": CONVERSATION_LIMIT,
             "messages": [{**_line(m), "private": (m.mode or "").upper() == "WHISPER",
                           "from": "reporter" if m.sender_id == a else "reported" if m.sender_id == b else "other"} for m in rows]}
+
+
+class SuspendRequest(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=300)
+
+
+@admin_router.post("/users/{user_id}/suspend")
+async def suspend_user(user_id: UUID, req: SuspendRequest, report_id: Optional[UUID] = None, admin: User = Depends(require_admin),
+                       db: Session = Depends(get_db)):
+    """Suspend an account: login and API calls are refused and any open chat connection is closed right away. Nothing is deleted, so it is
+    reversible. The reason is for the admin's records and is never shown to the player."""
+    if user_id == admin.id or str(user_id) in _admin_ids():
+        raise HTTPException(status_code=400, detail="You can't suspend an admin account")
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    already = not target.is_active
+    target.is_active = False
+    target.suspended_at = target.suspended_at or datetime.utcnow()
+    target.suspension_reason = req.reason.strip()
+    _audit(db, admin, "user_suspended", report_id, user_id=str(target.id), username=target.username, reason=req.reason.strip(), already=already)
+    db.commit()
+    closed = 0
+    try:
+        from routes.campaign_websocket import manager
+        closed = await manager.close_user_everywhere(target.id, "This account is suspended.")
+    except Exception as e:
+        logger.warning(f"Could not close live connections for a suspended user: {type(e).__name__}")
+    return {"user_id": str(target.id), "username": target.username, "suspended": True, "connections_closed": closed}
+
+
+@admin_router.post("/users/{user_id}/unsuspend")
+def unsuspend_user(user_id: UUID, report_id: Optional[UUID] = None, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    target.is_active = True
+    target.suspended_at = None
+    target.suspension_reason = None
+    _audit(db, admin, "user_unsuspended", report_id, user_id=str(target.id), username=target.username)
+    db.commit()
+    return {"user_id": str(target.id), "username": target.username, "suspended": False}
 
 
 @admin_router.get("/audit")

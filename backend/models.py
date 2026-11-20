@@ -53,6 +53,8 @@ class User(Base):
     username = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    suspended_at = Column(DateTime, nullable=True)  # set with is_active=False by an admin suspension
+    suspension_reason = Column(String(300), nullable=True)  # admin-only, never shown to the player
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     # Column has existed since 000_CLEAN_START.sql, but was never mapped here — routes/auth.py's

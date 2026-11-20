@@ -148,6 +148,32 @@
       card.appendChild(el('div', { class: 'actions' }, openBtn));
       card.appendChild(el('div', { class: 'note-warn', text: 'Shows their whispers to each other. Only use it for a real harassment question.' }));
       card.appendChild(convo);
+      if (!r.reported_is_admin) {
+        const acct = el('div', { class: 'actions' });
+        if (r.reported_suspended) {
+          acct.appendChild(el('span', { class: 'pill open', text: 'Account suspended' }));
+          const un = el('button', { class: 'act good', text: 'Restore account' });
+          un.onclick = async () => {
+            if (!confirm('Let ' + r.reported + ' log in again?')) return;
+            const out = await api('/api/admin/users/' + encodeURIComponent(r.reported_user_id) + '/unsuspend?report_id=' + encodeURIComponent(r.id), { method: 'POST' });
+            if (out) load();
+          };
+          acct.appendChild(un);
+        } else {
+          const sus = el('button', { class: 'act warn', text: 'Suspend account' });
+          sus.onclick = async () => {
+            const reason = prompt('Why are you suspending ' + r.reported + '? (private, they never see it)');
+            if (!reason || reason.trim().length < 3) return;
+            if (!confirm('Suspend ' + r.reported + '? They are logged out of every campaign right now and cannot log in until you restore them. Nothing is deleted.')) return;
+            const out = await api('/api/admin/users/' + encodeURIComponent(r.reported_user_id) + '/suspend?report_id=' + encodeURIComponent(r.id),
+              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reason.trim() }) });
+            if (out) load();
+          };
+          acct.appendChild(sus);
+          acct.appendChild(el('div', { class: 'note-warn', text: 'If they are in a running encounter, the turn order will wait on them until the Story Weaver removes them.' }));
+        }
+        card.appendChild(acct);
+      }
     }
     const note = el('textarea', { rows: 2, maxLength: 2000, placeholder: 'Private note for your records' });
     note.value = r.admin_note || '';

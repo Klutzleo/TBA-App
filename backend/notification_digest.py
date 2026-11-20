@@ -203,7 +203,7 @@ def _process(db):
 
     # Batch-load once instead of per-user in the loop below — by_user already has the
     # full set of user ids this sweep cares about up front.
-    users = {str(u.id): u for u in db.query(User).filter(User.id.in_(by_user.keys())).all()}
+    users = {str(u.id): u for u in db.query(User).filter(User.id.in_(by_user.keys()), User.is_active == True).all()}  # noqa: E712
     profiles = {
         str(p.user_id): p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(by_user.keys())).all()
     }

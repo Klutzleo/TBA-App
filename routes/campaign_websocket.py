@@ -175,6 +175,20 @@ class CampaignConnectionManager:
 
         return False
     
+    async def close_user_everywhere(self, user_id, reason: str, code: int = 1008) -> int:
+        """Close every live connection a user has, in every campaign (account suspension). Returns how many were closed."""
+        closed = 0
+        for cid in list(self.active_connections.keys()):
+            for conn in list(self.active_connections.get(cid, [])):
+                if str(conn[1]) == str(user_id):
+                    try:
+                        await conn[0].close(code=code, reason=reason)
+                    except Exception:
+                        pass
+                    self.disconnect(cid, conn[0])
+                    closed += 1
+        return closed
+
     async def send_to_users(self, campaign_id: UUID, user_ids, message: dict):
         """Send to every connection of the given users only (private messages). Never touches the Discord mirror."""
         wanted = {str(u) for u in user_ids}
@@ -274,6 +288,9 @@ async def campaign_websocket(
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             await websocket.close(code=1008, reason="User not found")
+            return
+        if not user.is_active:
+            await websocket.close(code=1008, reason="This account is suspended.")
             return
 
         # Verify user is a member of this campaign
