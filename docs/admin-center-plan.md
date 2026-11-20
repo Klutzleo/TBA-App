@@ -1,6 +1,6 @@
 # Admin center and safety tools plan
 
-Status: decisions made 2026-11-19. Phase A is LIVE (commit 689d138). Jason is the only admin (`ADMIN_USER_IDS`), so no roles are needed yet.
+Status: decisions made 2026-11-19. Phase A is LIVE (commit 689d138). Whisper privacy is LIVE (3239bea). Phase B is built (see PROJECT_STATUS.md). Jason is the only admin (`ADMIN_USER_IDS`), so no roles are needed yet.
 
 ## Why
 

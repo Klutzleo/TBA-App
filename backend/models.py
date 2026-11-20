@@ -1440,3 +1440,36 @@ class MessageRecipient(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+
+class Report(Base):
+    """A player report (a person or a chat message) or a bug report, sent to the admin. The reporter is visible to the admin only, never to the
+    person reported. `snapshot` freezes what was reported (names, message, surrounding lines) because chat can be edited or deleted later."""
+    __tablename__ = "reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kind = Column(String(10), nullable=False)  # player | bug
+    reporter_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reported_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    campaign_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    message_id = Column(UUID(as_uuid=True), nullable=True)
+    reason = Column(String(30), nullable=False)
+    note = Column(String(2000), nullable=True)
+    snapshot = Column(JSONB, nullable=False, default=dict)
+    status = Column(String(12), nullable=False, default="open")  # open | reviewing | resolved | dismissed
+    admin_note = Column(String(2000), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
+class AdminAuditLog(Base):
+    """Every admin action and every time private evidence was opened. Append-only."""
+    __tablename__ = "admin_audit_log"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    admin_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    action = Column(String(40), nullable=False)
+    report_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    detail = Column(JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)

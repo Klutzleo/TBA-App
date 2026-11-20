@@ -2154,6 +2154,8 @@
       cursor: pointer; padding: 3px 6px; display: inline-flex; align-items: center; opacity: 0.55;
     }
     .camp-rm:hover { opacity: 1; color: #f87171; border-color: rgba(248,113,113,0.4); }
+    .camp-rep { margin-left: auto; }
+    .camp-rep + .camp-rm { margin-left: 0; }
     .camp-code {
       display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
       border: 1px dashed var(--border-color); border-radius: 8px; font-size: 0.78rem; color: var(--text-secondary);
@@ -3197,6 +3199,7 @@
 
         <!-- Leave lives at the bottom, away from the main navigation -->
         <div class="sidebar-foot">
+          <button title="Tell us about something that is broken" onclick="openReportModal('bug')" class="leave-btn" style="margin-bottom:6px;">Report a bug <i data-lucide="bug" style="width:12px;height:12px;"></i></button>
           <button title="Leave this campaign" onclick="leaveCampaignFromGame()" class="leave-btn">Leave campaign <i data-lucide="log-out" style="width:12px;height:12px;"></i></button>
         </div>
       </aside>
@@ -3836,6 +3839,26 @@
   </div>
 
   <!-- Objects Modal (SW): locks / doors / chests / traps -->
+  <div id="reportModal" class="modal" onclick="if(event.target===this)closeReportModal()">
+    <div class="modal-content" style="max-width:460px;width:95vw;">
+      <div class="modal-header">
+        <h2><i data-lucide="flag" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;color:#f87171;"></i><span id="rpTitle">Report</span></h2>
+        <button class="modal-close" onclick="closeReportModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+        <p id="rpIntro" style="font-size:0.84rem;color:var(--text-muted);margin:0;"></p>
+        <label id="rpReasonWrap" style="font-size:0.8rem;color:var(--text-muted);">What happened?
+          <select id="rpReason" class="form-input" style="width:100%;margin-top:4px;"></select></label>
+        <textarea id="rpNote" rows="4" maxlength="2000"
+          style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);padding:7px 9px;font-size:0.84rem;resize:vertical;"></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" style="background:var(--bg-secondary);" onclick="closeReportModal()">Cancel</button>
+          <button class="btn" id="rpSend" style="background:rgba(239,68,68,0.2);color:#f87171;" onclick="submitReport()">Send report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="removePlayerModal" class="modal" onclick="if(event.target===this)closeRemovePlayerModal()">
     <div class="modal-content" style="max-width:440px;width:95vw;">
       <div class="modal-header">
@@ -5338,6 +5361,55 @@
         });
         if (r.ok) campaignObjects = await r.json();
       } catch (_) { /* silent */ }
+    }
+
+    // ── Reports (a player, a message, or a bug) ───────────────────────────────
+    let _report = null;
+    const REPORT_REASONS = [
+      ['harassment', 'Harassment or bullying'], ['hate', 'Hate or discrimination'], ['threats', 'Threats or doxxing'],
+      ['sexual', 'Sexual content that is not okay at the table'], ['cheating', 'Cheating or exploiting'], ['spam', 'Spam or scams'], ['other', 'Something else']
+    ];
+    function openReportModal(kind, userId, username, messageId) {
+      _report = { kind, userId: userId || null, messageId: messageId || null };
+      const isBug = kind === 'bug';
+      document.getElementById('rpTitle').textContent = isBug ? 'Report a bug' : (messageId ? `Report a message from ${username}` : `Report ${username}`);
+      document.getElementById('rpIntro').textContent = isBug
+        ? 'Tell us what went wrong and what you were doing. We read every one.'
+        : 'Only the site admin sees this, and the player is never told who reported them. The admin may review the conversation involved, including private messages between you and them.';
+      document.getElementById('rpReasonWrap').style.display = isBug ? 'none' : '';
+      document.getElementById('rpReason').innerHTML = REPORT_REASONS.map(r => `<option value="${r[0]}">${r[1]}</option>`).join('');
+      const note = document.getElementById('rpNote');
+      note.value = '';
+      note.placeholder = isBug ? 'What happened? (at least a sentence)' : 'Anything the admin should know (optional)';
+      document.getElementById('rpSend').disabled = false;
+      document.getElementById('reportModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+    function closeReportModal() {
+      document.getElementById('reportModal').classList.remove('active');
+      _report = null;
+    }
+    async function submitReport() {
+      if (!_report) return;
+      const note = document.getElementById('rpNote').value.trim();
+      const isBug = _report.kind === 'bug';
+      if (isBug && note.length < 10) { alert('Please tell us a little more (at least a sentence).'); return; }
+      const btn = document.getElementById('rpSend');
+      btn.disabled = true;
+      const body = isBug
+        ? { description: note, page: location.pathname + location.search, user_agent: navigator.userAgent.slice(0, 300), campaign_id: campaignId }
+        : { campaign_id: campaignId, reported_user_id: _report.userId, message_id: _report.messageId, reason: document.getElementById('rpReason').value, note: note || null };
+      try {
+        const r = await fetch(isBug ? '/api/reports/bug' : '/api/reports/player', {
+          method: 'POST', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { alert(typeof data.detail === 'string' ? data.detail : 'Could not send the report'); btn.disabled = false; return; }
+        showPanelToast(data.status === 'already_reported' ? 'You already reported this. We have it.' : 'Report sent. Thank you.', 'success');
+        closeReportModal();
+      } catch (e) {
+        alert('Could not reach the server. Try again.');
+        btn.disabled = false;
+      }
     }
 
     // ── Remove a player (Story Weaver) ────────────────────────────────────────
@@ -9683,6 +9755,7 @@
             <span class="pdot ${u.connected ? 'on' : ''}" title="${u.connected ? 'Online' : 'Offline'}"></span>
             <span>${escHtml(u.username)}</span>
             ${s.label === 'Players' && charName(u) ? `<span class="cp-char">${escHtml(charName(u))}</span>` : ''}
+            ${u.user_id && currentUser && String(u.user_id) !== String(currentUser.id) ? `<button class="camp-rm camp-rep" title="Report ${escHtml(u.username)}" onclick="openReportModal('player','${u.user_id}','${escHtml(u.username)}')"><i data-lucide="flag" style="width:13px;height:13px;"></i></button>` : ''}
             ${isSW() && s.label !== 'Story Weaver' && u.user_id ? `<button class="camp-rm" title="Remove ${escHtml(u.username)} from this campaign" onclick="openRemovePlayerModal('${u.user_id}','${escHtml(u.username)}')"><i data-lucide="user-x" style="width:13px;height:13px;"></i></button>` : ''}
           </div>
         `).join('')}
@@ -11603,10 +11676,21 @@
       const canEdit = isChatMsg && !!data.message_id && isOwnOrSW;
       const canDelete = !!data.message_id && isOwnOrSW && (isChatMsg || isImageMsg);
 
-      if ((isSW() && hasPinTarget) || canEdit || canDelete) {
+      const canReport = isChatMsg && !!data.message_id && !!data.sender_id && !!currentUser && String(data.sender_id) !== String(currentUser.id);
+
+      if ((isSW() && hasPinTarget) || canEdit || canDelete || canReport) {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'msg-actions';
         element.style.position = 'relative';
+
+        if (canReport) {
+          const repBtn = document.createElement('button');
+          repBtn.className = 'msg-action-btn delete-btn';
+          repBtn.title = 'Report this message';
+          repBtn.innerHTML = '<i data-lucide="flag" style="width:12px;height:12px;"></i>';
+          repBtn.onclick = (e) => { e.stopPropagation(); openReportModal('player', String(data.sender_id), data.actor || 'this player', String(data.message_id)); };
+          actionsDiv.appendChild(repBtn);
+        }
 
         if (isSW() && hasPinTarget) {
           const pinBtn = document.createElement('button');

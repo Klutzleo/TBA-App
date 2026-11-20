@@ -127,7 +127,7 @@ async function addAdminLink(container) {
         const r = await fetchWithAuth('/api/moderation/am-i-admin');
         if (!r || !r.ok || !(await r.json()).admin) return;
         const a = document.createElement('a');
-        a.href = '/admin-reports.html';
+        a.href = '/admin.html';
         a.textContent = 'Admin';
         a.style.cssText = 'margin-left: 10px; padding: 8px 16px; color: #f87171; border: 1px solid #3a3f54; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.9rem;';
         const first = container.querySelector('button');

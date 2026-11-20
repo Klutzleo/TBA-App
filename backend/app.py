@@ -186,7 +186,7 @@ async def attach_request_id_and_auth(request: Request, call_next):
     jwt_protected_routes = auth_paths | {
         "/api/campaigns", "/api/campaigns/create", "/api/campaigns/browse", "/api/campaigns/join",
         "/api/characters", "/api/notifications", "/api/upload", "/api/profile", "/api/achievements",
-        "/api/lba", "/api/moderation"
+        "/api/lba", "/api/moderation", "/api/reports", "/api/admin"
     }
 
     # Only enforce API key on /api/ routes (and not on exempt paths or JWT protected routes)
@@ -360,6 +360,14 @@ try:
     logger.info("✅ Registered moderation_router")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register moderation_router: {e}")
+
+try:
+    from routes.reports import reports_router, admin_router
+    application.include_router(reports_router, tags=["Reports"])
+    application.include_router(admin_router, tags=["Admin"])
+    logger.info("✅ Registered reports and admin routers")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to register reports routers: {e}")
 
 try:
     from routes.vehicles import vehicles_router

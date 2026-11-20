@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin - TBA</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <script src="/js/auth-helper.js"></script>
+  <style>
+    :root {
+      --bg: #101219; --panel: #1c2130; --panel-2: #232838; --border: #333a52;
+      --gold: #d4af37; --red: #f87171; --green: #34d399; --orange: #f97316;
+      --text: #e7e9f0; --text-mut: #a2a7b8; --text-dim: #6a7086;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+           background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+    h1 { font-size: 1.4rem; color: var(--gold); margin-bottom: 4px; }
+    .sub { color: var(--text-mut); font-size: 0.9rem; margin-bottom: 18px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+    .tab { background: var(--panel); border: 1px solid var(--border); color: var(--text-mut);
+           padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; text-decoration: none; }
+    .tab.active { color: var(--gold); border-color: var(--gold); }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .card h2 { font-size: 1.02rem; margin-bottom: 6px; word-break: break-word; }
+    .meta { color: var(--text-mut); font-size: 0.85rem; margin-bottom: 3px; word-break: break-word; }
+    .meta b { color: var(--text); }
+    .quote { margin: 10px 0; padding: 8px 10px; background: var(--panel-2); border-left: 3px solid var(--border); border-radius: 4px;
+             font-size: 0.86rem; white-space: pre-wrap; word-break: break-word; }
+    .line { font-size: 0.82rem; padding: 2px 0; color: var(--text-mut); word-break: break-word; }
+    .line b { color: var(--text); }
+    .line.hit { background: rgba(248,113,113,.12); color: var(--text); border-radius: 3px; padding: 2px 4px; }
+    .line.private { border-left: 3px solid var(--orange); padding-left: 6px; }
+    textarea { width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+               border-radius: 6px; padding: 8px; font: inherit; font-size: 0.85rem; resize: vertical; margin-top: 8px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    button.act { border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+                 border: 1px solid var(--border); background: var(--panel-2); color: var(--text); }
+    button.act.warn { border-color: rgba(249,115,22,.7); color: var(--orange); }
+    button.act.good { border-color: rgba(52,211,153,.6); color: var(--green); }
+    button.act:disabled { opacity: .5; cursor: default; }
+    .pill { display: inline-block; font-size: 0.72rem; border-radius: 4px; padding: 1px 7px; margin-left: 6px; border: 1px solid var(--border); color: var(--text-mut); }
+    .pill.open { color: var(--orange); border-color: var(--orange); }
+    .pill.reviewing { color: var(--gold); border-color: var(--gold); }
+    .empty, .msg { color: var(--text-mut); padding: 30px 0; text-align: center; }
+    .msg.err { color: var(--red); }
+    .evidence { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
+    .note-warn { color: var(--orange); font-size: 0.8rem; margin-top: 6px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Admin</h1>
+  <p class="sub">Admin only. Reporter names are shown here and nowhere else. Opening a private conversation is logged.</p>
+  <div class="tabs">
+    <button class="tab active" data-view="active" data-kind="player">Player reports</button>
+    <button class="tab" data-view="active" data-kind="bug">Bug reports</button>
+    <button class="tab" data-view="done" data-kind="all">Closed</button>
+    <button class="tab" data-view="audit">Audit log</button>
+    <a class="tab" href="/admin-reports.html">Banner reports</a>
+  </div>
+  <div id="list"></div>
+</div>
+
+<script>
+  // Everything user-controlled (names, notes, chat lines) is written with textContent, never innerHTML,
+  // so hostile text in a report cannot run script in the admin's session.
+  const list = document.getElementById('list');
+  let view = 'active', kind = 'player';
+
+  function el(tag, props = {}, ...children) {
+    const e = document.createElement(tag);
+    Object.entries(props).forEach(([k, v]) => { if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else e[k] = v; });
+    children.forEach(c => c && e.appendChild(c));
+    return e;
+  }
+  function meta(label, value) {
+    const d = el('div', { class: 'meta' });
+    d.appendChild(el('b', { text: label + ': ' }));
+    d.appendChild(document.createTextNode(value == null ? '' : String(value)));
+    return d;
+  }
+  function show(text, isErr) { list.replaceChildren(el('div', { class: 'msg' + (isErr ? ' err' : ''), text })); }
+  function when(iso) { return iso ? new Date(iso + (iso.endsWith('Z') ? '' : 'Z')).toLocaleString() : ''; }
+  async function api(path, opts) {
+    const r = await fetchWithAuth(path, opts);
+    if (!r) return null;
+    if (r.status === 403) { show('Not authorized. This page is for admins only.', true); return null; }
+    if (!r.ok) { show('Something went wrong (' + r.status + ').', true); return null; }
+    return r.json();
+  }
+
+  function chatLine(m, hitId) {
+    const d = el('div', { class: 'line' + (m.id === hitId ? ' hit' : '') + (m.private ? ' private' : '') });
+    d.appendChild(el('b', { text: (m.sender || m.from || '') + (m.private ? ' (whisper)' : '') + ': ' }));
+    d.appendChild(document.createTextNode(m.text || ''));
+    return d;
+  }
+
+  async function openConversation(r, box, btn) {
+    btn.disabled = true;
+    const data = await api('/api/admin/reports/' + encodeURIComponent(r.id) + '/conversation');
+    if (!data) return;
+    box.replaceChildren(
+      el('div', { class: 'meta', text: 'Everything ' + data.reporter + ' and ' + data.reported + ' said in this campaign, plus whispers between the two of them. This view was logged.' }),
+      ...data.messages.map(m => { const l = chatLine({ ...m, sender: (m.from === 'reporter' ? data.reporter : data.reported) }, null); return l; })
+    );
+    if (!data.messages.length) box.appendChild(el('div', { class: 'meta', text: 'No messages.' }));
+  }
+
+  async function setStatus(r, status, noteBox, card) {
+    const body = { status, admin_note: noteBox.value };
+    const out = await api('/api/admin/reports/' + encodeURIComponent(r.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (out) load();
+  }
+
+  async function renderReport(summary) {
+    const r = await api('/api/admin/reports/' + encodeURIComponent(summary.id));
+    if (!r) return null;
+    const card = el('div', { class: 'card' });
+    const head = el('h2', { text: r.kind === 'bug' ? 'Bug report' : r.reason_label });
+    head.appendChild(el('span', { class: 'pill ' + r.status, text: r.status }));
+    card.appendChild(head);
+    card.appendChild(meta('Reported by', r.reporter));
+    if (r.kind === 'player') {
+      card.appendChild(meta('About', r.reported + (r.snapshot.reported_characters && r.snapshot.reported_characters.length ? ' (' + r.snapshot.reported_characters.join(', ') + ')' : '')));
+      card.appendChild(meta('Campaign', r.campaign_name));
+      if (r.other_reports_about_them) card.appendChild(meta('Other reports about them', r.other_reports_about_them));
+    } else {
+      card.appendChild(meta('Page', r.snapshot.page));
+      card.appendChild(meta('Browser', r.snapshot.user_agent));
+    }
+    card.appendChild(meta('Sent', when(r.created_at)));
+    if (r.note) card.appendChild(el('div', { class: 'quote', text: r.note }));
+    if (r.snapshot.context && r.snapshot.context.length) {
+      const ev = el('div', { class: 'evidence' });
+      ev.appendChild(el('div', { class: 'meta', text: 'The reported message and the lines around it, as the reporter saw them:' }));
+      r.snapshot.context.forEach(m => ev.appendChild(chatLine(m, r.snapshot.message && r.snapshot.message.id)));
+      card.appendChild(ev);
+    }
+    const convo = el('div', { class: 'evidence' });
+    convo.style.display = 'none';
+    if (r.kind === 'player') {
+      const openBtn = el('button', { class: 'act warn', text: 'Open full conversation (logged)' });
+      openBtn.onclick = () => { convo.style.display = ''; openConversation(r, convo, openBtn); };
+      card.appendChild(el('div', { class: 'actions' }, openBtn));
+      card.appendChild(el('div', { class: 'note-warn', text: 'Shows their whispers to each other. Only use it for a real harassment question.' }));
+      card.appendChild(convo);
+    }
+    const note = el('textarea', { rows: 2, maxLength: 2000, placeholder: 'Private note for your records' });
+    note.value = r.admin_note || '';
+    card.appendChild(note);
+    const acts = el('div', { class: 'actions' });
+    const closed = r.status === 'resolved' || r.status === 'dismissed';
+    if (!closed) {
+      if (r.status === 'open') { const b = el('button', { class: 'act', text: 'Mark reviewing' }); b.onclick = () => setStatus(r, 'reviewing', note, card); acts.appendChild(b); }
+      const res = el('button', { class: 'act good', text: 'Resolved' }); res.onclick = () => setStatus(r, 'resolved', note, card); acts.appendChild(res);
+      const dis = el('button', { class: 'act', text: 'Dismiss' }); dis.onclick = () => setStatus(r, 'dismissed', note, card); acts.appendChild(dis);
+    } else {
+      const re = el('button', { class: 'act', text: 'Reopen' }); re.onclick = () => setStatus(r, 'open', note, card); acts.appendChild(re);
+    }
+    const save = el('button', { class: 'act', text: 'Save note' }); save.onclick = () => setStatus(r, r.status, note, card); acts.appendChild(save);
+    card.appendChild(acts);
+    return card;
+  }
+
+  async function load() {
+    show('Loading...');
+    if (view === 'audit') {
+      const data = await api('/api/admin/audit?limit=200');
+      if (!data) return;
+      if (!data.entries.length) return show('Nothing logged yet.');
+      list.replaceChildren(...data.entries.map(e => {
+        const c = el('div', { class: 'card' });
+        c.appendChild(el('h2', { text: e.action.replace(/_/g, ' ') }));
+        c.appendChild(meta('By', e.admin));
+        c.appendChild(meta('At', when(e.at)));
+        if (e.detail && Object.keys(e.detail).length) c.appendChild(meta('Detail', JSON.stringify(e.detail)));
+        return c;
+      }));
+      return;
+    }
+    const qs = view === 'done' ? 'status=all&kind=all' : 'status=active&kind=' + kind;
+    const data = await api('/api/admin/reports?' + qs);
+    if (!data) return;
+    const items = view === 'done' ? data.reports.filter(r => r.status === 'resolved' || r.status === 'dismissed') : data.reports;
+    if (!items.length) return show(view === 'done' ? 'Nothing closed yet.' : 'Nothing waiting. All clear.');
+    const cards = [];
+    for (const s of items) { const c = await renderReport(s); if (c) cards.push(c); }
+    list.replaceChildren(...cards);
+  }
+
+  document.querySelectorAll('.tab[data-view]').forEach(t => t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    view = t.dataset.view; kind = t.dataset.kind || 'all';
+    load();
+  });
+
+  if (requireAuth()) load();
+</script>
+</body>
+</html>

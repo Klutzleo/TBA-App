@@ -327,3 +327,31 @@ def send_report_email(to_emails: list, report: dict) -> None:
     except Exception as e:
         logger.error(f"Failed to send report email: {e}")
         raise
+
+
+def send_admin_alert_email(to_emails: list, subject: str, lines: list, link_path: str = "/admin.html") -> None:
+    """A short heads-up to the admin about a new report. `lines` are plain strings (HTML-escaped here). The email carries a link, never the
+    evidence itself: private chat stays behind the admin sign-in. Raises on a provider error so the caller can log it."""
+    import html as _html
+    if not to_emails:
+        logger.warning("Admin alert skipped: no admin recipients configured")
+        return
+    api_key = os.getenv("RESEND_API_KEY", "")
+    url = f"{get_frontend_url()}{link_path}"
+    esc = lambda v: _html.escape(str(v or ""))
+    body = "".join(f"<p>{esc(l)}</p>" for l in lines)
+    html_content = (f'<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;'
+                    f'max-width:600px;margin:0 auto;padding:20px;"><h2 style="color:#b91c1c;margin-top:0;">{esc(subject)}</h2>{body}'
+                    f'<p><a href="{esc(url)}" style="background:#d4a017;color:#1a1d29;padding:12px 24px;text-decoration:none;border-radius:6px;'
+                    f'font-weight:bold;display:inline-block;">Open the inbox</a></p><p style="color:#999;font-size:12px;">Sign in as an admin to read it. '
+                    f'Nothing in this email changes anything.</p></body></html>')
+    text_content = "\n\n".join([subject] + list(lines) + [f"Open the inbox: {url}"])
+    if not api_key:
+        logger.warning("RESEND_API_KEY not set - printing admin alert to console instead")
+        _safe_print(f"ADMIN ALERT to {to_emails}: {subject} {lines}")
+        return
+    resp = requests.post("https://api.resend.com/emails", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                         json=_email_payload(list(to_emails), subject, html_content, text_content), timeout=10)
+    if not resp.ok:
+        logger.error(f"Resend API error {resp.status_code}: {resp.text}")
+        resp.raise_for_status()
