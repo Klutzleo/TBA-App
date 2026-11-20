@@ -92,7 +92,12 @@
     return d;
   }
   function show(text, isErr) { list.replaceChildren(el('div', { class: 'msg' + (isErr ? ' err' : ''), text })); }
-  function when(iso) { return iso ? new Date(iso + (iso.endsWith('Z') ? '' : 'Z')).toLocaleString() : ''; }
+  // Server times are UTC. Some arrive with an offset already (GitHub, Postgres timestamptz), some without (plain UTC), so only add a Z when none is there.
+  function when(iso) {
+    if (!iso) return '';
+    const d = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(iso) ? iso : iso + 'Z');
+    return isNaN(d) ? String(iso) : d.toLocaleString();
+  }
   async function api(path, opts) {
     const r = await fetchWithAuth(path, opts);
     if (!r) return null;
