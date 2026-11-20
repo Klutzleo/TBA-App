@@ -1,82 +1,161 @@
-# TBA — Tools for the Bad Ass / Tools for Being Awesome
+<div align="center">
 
-TBA is a modular, cinematic RPG engine designed for expressive storytelling, tactical clarity, and emotional connection. Whether you're a seasoned GM running gritty cyberpunk heists or a parent guiding your kids through whimsical adventures, TBA adapts to your table—and your players.
+# TBA
 
-Built from the ground up with modular endpoints, narratable mechanics, and dual-mode accessibility, TBA empowers families, friends, and communities to tell unforgettable stories together—even when they’re apart.
+### Tools for the Bad Ass &nbsp;/&nbsp; Tools for Being Awesome
 
----
+**A cinematic tabletop RPG you can play in your browser, together or apart.**
 
-## 🎭 Dual-System Design
+[![Live](https://img.shields.io/badge/live-tba--rpg.com-d4af37?style=for-the-badge)](https://tba-rpg.com)
+[![Rules](https://img.shields.io/badge/rules-v3.1.1-8b5cf6?style=for-the-badge)](https://klutzleo.itch.io/tba-rpg)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-3b82f6?style=for-the-badge)](#-license)
 
-TBA is two systems in one:
+![Python](https://img.shields.io/badge/python-3.11-3776ab?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169e1?logo=postgresql&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-600%2B-34d399)
 
-- **Tools for the Bad Ass**: Mature, tactical, and gritty. Designed for adult players who want expressive combat, branching timelines, and cinematic narration.
-- **Tools for Being Awesome**: Kid-friendly, emotionally safe, and easy to learn. The same mechanics, reworded and softened for younger players and families.
+[Play](https://tba-rpg.com) &nbsp;·&nbsp; [Get the rulebook on itch.io](https://klutzleo.itch.io/tba-rpg) &nbsp;·&nbsp; [Discord](https://discord.gg/pnuamjT) &nbsp;·&nbsp; [Docs](docs/) &nbsp;·&nbsp; [Run it locally](#-run-it-locally)
 
-An age gate toggles between these modes, adjusting language, narration tone, and content filters—so everyone can play, learn, and grow together.
-
----
-
-## 🔧 Core Features
-
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Real-Time Multiplayer Chat** | ✅ Live | WebSocket party chat — system macros, inline rolls, combat broadcast, persistent log. |
-| **Achievement System** | ✅ Live | 153 achievements across 11 categories. Rarity tiers, points, badge showcase, retroactive unlock, live toast + Zelda chime. |
-| **Public Player Profiles** | ✅ Live | Shareable `/u/username` pages showing stats, characters, achievements, and Story Weaver campaigns. No login required to view. |
-| **Notification Center** | ✅ Live | Push notifications for stat checks, achievement unlocks, and campaign activity. Live unread count in the top bar. |
-| **Bonds + Combo System** | ✅ Live | Characters form Bonds with allies and chain into Combo attacks. |
-| **Stat Check System** | ✅ Live | Story Weaver sends hidden-difficulty checks to players. Three modes: Character, Character VS NPC, NPC. |
-| **Narration Engine** | ✅ Live | Every roll, attack, and ability generates expressive narrative output. |
-| **Initiative & Encounter** | ✅ Live | `/initiative`, turn order, SW controls, auto-restore on encounter end. |
-| **Custom Ability Macros** | ✅ Live | Character-specific abilities with 6 effect types, usage tracking, and power sources (PP/IP/SP). |
-| **Tether Boosts** | ✅ Live | Combine BAP + Tethers into a single boost card after any roll. |
-| **Lore & Asset Library** | 🔄 Planned | Taggable, reusable homebrew content — spells, NPCs, vehicles, and more. |
-| **Social & Friends** | 🔄 Planned | Follow players, get notified when friends start a campaign. |
-| **Discord Integration** | 🔄 Planned | Link Discord account, earn the TBA Player role in the community server. |
-| **Age-Gated Experience** | 🔄 Planned | Switch between adult and kid-friendly modes with filtered narration and UI. |
+</div>
 
 ---
 
-## 🧠 Design Philosophy
+TBA is a modular, cinematic RPG engine built for expressive storytelling, tactical clarity, and emotional connection. Whether you are a seasoned Story Weaver running gritty cyberpunk heists or a parent guiding your kids through whimsical adventures, TBA adapts to your table and your players.
 
-TBA is built on three pillars:
+Everything happens in one place: real-time chat, dice, initiative, combat, characters, and the story itself. Every roll and attack comes back as expressive narration, so a fight reads like a scene, not a spreadsheet.
 
-- **Cinematic Play**: Every roll, reaction, and scene should feel like part of a story worth telling.
-- **Modular Simplicity**: Tools should be powerful, but never overwhelming.
-- **Emotional Resonance**: Digital spaces should feel like home—personal, persistent, and expressive.
+## 🎭 Two systems in one
 
----
+- **Tools for the Bad Ass**: mature, tactical, and gritty. Expressive combat, branching timelines, and cinematic narration for adult players.
+- **Tools for Being Awesome**: kid-friendly, emotionally safe, and easy to learn. The same mechanics, reworded and softened for younger players and families.
 
-## 🛠️ Development Status
+An age gate is planned to switch between the two, adjusting language, narration tone, and content filters, so everyone can play, learn, and grow together.
 
-TBA is in active development and live at [tba-rpg.com](https://tba-rpg.com). Core gameplay systems are fully operational — real-time combat, achievements, public player profiles, notification center, Bonds, Combo attacks, and stat checks are all shipped. Upcoming work focuses on social features, Discord integration, and emotional expression tools.
+## ✨ What you can do
 
----
+### At the table
 
-## 🧭 Roadmap Highlights
+| | Feature | What it does |
+|---|---|---|
+| 💬 | **Real-time party chat** | WebSocket chat with in-character, out-of-character, and private whispers. Inline dice, system macros, and a persistent log. |
+| ⚔️ | **Initiative and encounters** | Turn order, Story Weaver controls, round counter, and automatic restore when a fight ends. |
+| 🎲 | **Multi-die combat** | Each attacker die rolls against the defender's single defense die. Damage is the margin, summed. |
+| 📖 | **Narration engine** | Every roll, attack, and ability produces expressive narrative output. |
+| 🔗 | **Bonds and Combos** | Characters form Bonds with allies and chain them into Combo attacks, including Triple Combos, fully resolved by the app. |
+| ⚓ | **Tethers and Boosts** | Tethers ride on every roll, and a Boost card combines BAP and Tethers after a roll. |
+| 🚗 | **Vehicles** | Crewed vehicles with stations, weapons, systems, and called-shot disabling. |
+| 🕯️ | **The Calling** | A death spiral with battle scars, Marks, and Memory Echoes when a character falls. |
 
-- ✅ **Phase 1 MVP:** Multi-die combat resolution, FastAPI endpoints, Railway deployment
-- ✅ **Phase 2a:** Real-time WebSocket party chat
-- ✅ **Phase 2b:** System macros (`/roll`, `/attack`, `/pp`/`/ip`/`/sp`), combat broadcasting, persistent chat
-- ✅ **Phase 2d:** Custom ability macros, initiative & encounter system, usage tracking
-- ✅ **Stat Checks:** Hidden-difficulty checks, Character VS NPC mode, push notifications
-- ✅ **Achievement System:** 153 achievements, rarity, badge showcase, live toasts, retroactive unlock
-- ✅ **Public Profiles:** Shareable `/u/username` pages — stats, characters, achievements
-- ✅ **Notification Center:** Push alerts, live unread count, scroll icon drawer
-- ✅ **Bonds + Combo System:** Inter-character bonds that power Combo attacks
-- 🔄 **Social & Friends:** Follow players, friend activity feed
-- 🔄 **Discord Integration:** Account linking, community server role
-- 🔄 **Emotional Expression:** Tone indicators, message reactions, markdown support
-- 🚀 **Beta:** Full encounter manager UI, spectator mode, cross-platform access
+### For the Story Weaver
 
----
+| | Feature | What it does |
+|---|---|---|
+| 🎯 | **Hidden stat checks** | Send checks with a hidden difficulty. Character, Character vs NPC, or NPC, to one player or many. |
+| 🌋 | **Environmental checks** | Damage tiers that players roll to resist, and that can trigger The Calling. |
+| 🧙 | **NPCs, Allies, summons** | Run NPCs and swarms, give players Allies, and manage summons. |
+| ✅ | **Character governance** | An approval queue, spectator role, NPC conversion, and character transfer. |
+| 🚪 | **Table control** | Remove or ban a disruptive player. If someone leaves, you are told which character it was and whether they were in the current fight. |
 
-## 👨‍👧 Origin Story
+### Characters and progression
 
-TBA was born while watching his kids soccer practice. Getting older and devoting time to family makes things hard to continue to play TTRPGs. I wanted something more simple, less math, more eventful, and more benefits for thinking outside of the box. Though playtesting hasn't been performed as systems like this should be, I playtested with the my son at age 7. That moment—of shared imagination, laughter, and connection—sparked the vision for a system that could bridge generations. Whether you're a parent, a GM, or a player looking for something more expressive, TBA is for you.
+| | Feature | What it does |
+|---|---|---|
+| 📈 | **Levels 1 to 15** | Ascension (11 to 15) is live. Allies and vehicles stop at 10. |
+| 🛠️ | **Custom ability macros** | Spells and techniques with six effect types, drawn from one shared pool of uses. |
+| 🏆 | **Achievements** | 153 achievements across 11 categories, with rarity tiers, a badge showcase, and live toasts. |
+| 👤 | **Public profiles** | Shareable `/u/username` pages with stats, characters, and achievements. No login needed to view. |
 
----
+### Community and platform
+
+| | Feature | What it does |
+|---|---|---|
+| 🔔 | **Notification center** | In-app bell, web push, and an optional twice-a-day email for your turn and mentions. |
+| 📚 | **Lore for the Bad-Ass (LBA)** | Publish structured story packages, browse them without logging in, and start a campaign from one. |
+| 🖼️ | **Campaign covers and tags** | Optional banner, genres, and content ratings on the campaign cards. |
+| 📱 | **Installable app** | A PWA that works on phone and desktop. |
+
+## 📜 The rules
+
+The app implements the **v3.1.1** rules, and when the code and the rulebook disagree, the rulebook wins. The rulebook is on itch.io, pay what you want.
+
+- Three stats (PP, IP, SP), each 1 to 3, adding up to 6.
+- Levels 1 to 15. DP is 8, plus 2 per level.
+- Uses are level plus 2, as one shared pool for every spell, technique, and vehicle system.
+- All the numbers live in one file, [`schemas/leveling_v3_1.json`](schemas/leveling_v3_1.json), read through `backend/leveling.py`.
+
+**[Get the rulebook on itch.io](https://klutzleo.itch.io/tba-rpg)** (pay what you want) to read the full rules before your first session.
+
+## 🛡️ Safe to play in public
+
+TBA is a live site with real players, so safety is part of the product.
+
+- **Private means private.** Whispers reach only the people they are sent to.
+- **Reports and bug reports** go to a private admin inbox. The person reported never learns who reported them.
+- **Story Weavers can remove or ban** a player from their own campaign, and the site admin can suspend an account.
+- **Signup protection:** a honeypot, a throwaway-email block, and Cloudflare Turnstile, plus per-IP rate limits.
+- **Backups:** nightly encrypted database backups, a monthly restore drill, and an uptime alert.
+- **Security log** of blocked signups, failed logins, and server errors that stores no raw IP addresses.
+
+## 🧰 Under the hood
+
+| Layer | Choice |
+|---|---|
+| Backend | FastAPI and Uvicorn, one process |
+| Database | PostgreSQL in production, SQLite for local development, SQLAlchemy 2.0 |
+| Real time | WebSockets |
+| Auth | Argon2 password hashing and JWT |
+| Frontend | Plain HTML, CSS, and JavaScript with no build step, installable as a PWA |
+| Hosting | Railway, built from the `Dockerfile` |
+
+```
+backend/      game logic: dice, magic, effects, achievements, notifications, models
+routes/       FastAPI routers: chat and combat hub, characters, campaigns, admin tools
+static/       the play surface (game.html), landing page, admin screens
+schemas/      the rules numbers as JSON
+tests/        600+ pytest tests covering rules, combat, security, and privacy
+docs/         plans, API reference, backup and restore guide
+```
+
+## 🧪 Run it locally
+
+```bash
+cp .env.example .env          # defaults to SQLite and a dev API key
+pip install -r requirements.txt
+python app.py                 # http://localhost:8000, API docs at /docs
+```
+
+Run the tests before you push anything:
+
+```bash
+pytest tests/ -v
+```
+
+The health check is public at `http://localhost:8000/health`. `.env` is git-ignored, so never commit secrets.
+
+## 🗺️ Roadmap
+
+**Shipped**
+
+- ✅ Real-time chat, macros, combat broadcast, initiative, and encounters
+- ✅ Stat checks, achievements, public profiles, and the notification center
+- ✅ Bonds, Combos, and The Calling
+- ✅ Rules v3.1.1, Ascension, Allies, summons, swarms, and vehicles
+- ✅ Lore for the Bad-Ass (LBA), the first stage
+- ✅ Safety tools: private whispers, reports, removal and bans, suspension, and an admin center
+
+**Next**
+
+- 🔄 Email verification at signup
+- 🔄 Discord integration: a live campaign mirror and linked accounts
+- 🔄 Tools for Being Awesome (kids) mode
+- 🔄 Vehicle systems inside Combos
+- 🔄 Social features: follow players and a friend activity feed
+- 🚀 Lore Builder and cross-game identity ("GO ID") are designed and waiting their turn
+
+## 👨‍👧 Origin story
+
+TBA was born while watching his kids soccer practice. Getting older and devoting time to family makes things hard to continue to play TTRPGs. I wanted something more simple, less math, more eventful, and more benefits for thinking outside of the box. Though playtesting hasn't been performed as systems like this should be, I playtested with my son at age 7. That moment of shared imagination, laughter, and connection sparked the vision for a system that could bridge generations. Whether you're a parent, a GM, or a player looking for something more expressive, TBA is for you.
 
 ## 👤 Author
 
@@ -84,25 +163,10 @@ Created and maintained by **Jason Germino**, a designer, service desk manager, a
 
 Also founder and editor-in-chief of [GameOctane.com](https://gameoctane.com).
 
----
-
 ## 📜 License
 
 This project is licensed under the **AGPL-3.0**. All hosted versions and derivatives must remain open-source to preserve community-driven development.
 
----
+## 💌 Want to follow or contribute?
 
-## 🧪 Local Development
-
-1) Copy `.env.example` to `.env` and adjust if needed (defaults to sqlite and `devkey`).
-2) Install deps: `pip install -r requirements.txt`
-3) Run locally: `uvicorn backend.app:application --host 0.0.0.0 --port 8000 --reload`
-4) Hit `http://localhost:8000/health` (public) or `http://localhost:8000/api/health` with `X-API-Key: devkey`.
-
-Note: `.env` is git-ignored; do not commit secrets.
-
----
-
-## 💌 Want to Follow or Contribute?
-
-TBA is currently in private development. Contributions are paused while foundational systems are refined. Feel free to follow progress, fork for personal use, or reach out with questions or encouragement.
+Contributions are paused while the foundations are refined. Feel free to follow progress, fork for personal use, or reach out with questions or encouragement. The best way to see TBA is to [play it](https://tba-rpg.com), and you can chat with other players on [Discord](https://discord.gg/pnuamjT).

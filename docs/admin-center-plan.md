@@ -1,6 +1,6 @@
 # Admin center and safety tools plan
 
-Status: decisions made 2026-11-19. Phase A is LIVE (commit 689d138). Whisper privacy is LIVE (3239bea). Phase B is built (see PROJECT_STATUS.md). Jason is the only admin (`ADMIN_USER_IDS`), so no roles are needed yet.
+Status: **all six phases are LIVE** (2026-11-19). Decisions made 2026-11-19; Jason is the only admin (`ADMIN_USER_IDS`, which must hold the user UUID), so no roles are needed yet.
 
 ## Why
 
@@ -23,15 +23,15 @@ calls already reject `users.is_active = false`, but nothing sets it, and the liv
 
 ## Phases (each shipped separately, with tests)
 
-- **A. Table-level safety.** Richer "player left" notification (bell entry with the character and encounter details); Story Weaver
+- **A. Table-level safety. LIVE (689d138, migration 040).** Richer "player left" notification (bell entry with the character and encounter details); Story Weaver
   "Remove player" and "Ban from this campaign" (`campaign_bans`, migration 040); the removed player's live connection is closed; the join
   code refuses a banned player.
-- **B. Reports and the inbox.** "Report a player or message" and "Report a bug" buttons; an admin inbox page with statuses, notes, the
+- **B. Reports and the inbox. LIVE (fab51d1, migration 042).** Whispers were made private first (3239bea, migration 041). "Report a player or message" and "Report a bug" buttons; an admin inbox page with statuses, notes, the
   evidence view (report-linked access only) and an audit log; email to `MODERATION_EMAIL`. Builds on `routes/moderation.py` and `admin-reports.html`.
-- **C. Account suspension.** Admin can suspend an account; the live chat connection checks `is_active` too, so an open session is cut off.
-- **D. Messaging.** Admin can send a push and email to a player or a whole campaign, with saved templates.
-- **E. Security events and server errors.** Counters for blocked signups, failed logins, rate-limit hits; a feed of unhandled server errors.
-- **F. System status.** Last backup, latest uptime result, deployed version, campaign health.
+- **C. Account suspension. LIVE (831337d, migration 043).** Admin can suspend an account; the live chat connection checks `is_active` too, so an open session is cut off.
+- **D. Messaging. LIVE (c3f7ae1, migration 044).** Admin can send a push and email to a player or a whole campaign, with saved templates.
+- **E. Security events and server errors. LIVE (73589df, migration 045).** Counters for blocked signups, failed logins, rate-limit hits; a feed of unhandled server errors.
+- **F. System status. LIVE (6d256cd, 0a2e99e).** Last backup, latest uptime result, deployed version, campaign health.
 
 ## Rules to keep
 

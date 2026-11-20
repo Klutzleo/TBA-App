@@ -56,9 +56,10 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
   (tracks applied files in `schema_migrations`, advisory-locked, idempotent-ish).
   `backend/migrations/OLD_MIGRATIONS/` and root `migrations/` are historical — don't run them.
 - `schemas/` (repo root) — JSON rule definitions for the ruleset loader (`schemas/loader.py` → `CORE_RULESET`).
-- `tests/` — 500+ pytest tests (rules, Combos, vehicles, security hardening, signup guard, email, copy). Run them all before any push.
+- `tests/` — 600 pytest tests (rules, Combos, vehicles, security hardening, signup guard, email, copy, membership, whispers, reports, suspension, admin messaging, security events, status). Run them all before any push.
 - Vehicles: `backend/vehicles.py` (stations, systems, crew adds, knock-outs) and `routes/vehicles.py`; a vehicle is a `Character`
   row with `is_npc` + `is_vehicle`, kept out of NPC lists. Plan and decisions: `docs/vehicles-plan.md`.
+- **Admin center** (all live; plan and decisions in `docs/admin-center-plan.md`). Screen: `static/admin.html` (tabs: player reports, bug reports, closed, message, security, status, audit log), reached by an Admin link in the page header that only the admin sees. Backend: `routes/reports.py` (player and bug reports, inbox, audit log, suspend and unsuspend), `routes/admin_messages.py` (bell, push, email to a player or campaign; templates), `routes/admin_security.py` and `backend/security_events.py` (blocked signups, failed logins, rate limits, unhandled server errors), `routes/admin_status.py` (version, database, backup and uptime checks read from GitHub Actions, campaign health), `routes/moderation.py` (`require_admin`, banner reports), `backend/membership.py` (leave and removal notifications), `backend/whispers.py` (private whispers). Rules to keep: the reporter is never shown to the reported player; private conversations are opened only from inside a report and every opening is audit-logged first; no raw IPs, emails or database error text in the security log; nothing secret in any admin response.
 
 ## Domain model quick reference
 
@@ -91,6 +92,8 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
   in-handler (`campaign_websocket.py` decodes the JWT + checks `CampaignMembership`).
 - Public/exempt: `/health`, `/docs`, `/openapi.json`, `/`, `/redoc`, `/api/public/*`,
   the auth endpoints.
+- **Admin** is `ADMIN_USER_IDS` in Railway: a comma-separated list of user **UUIDs**, never usernames (a username once sat there and no admin page worked; a username is also unsafe to trust because a deleted account's name can be re-registered). Every admin endpoint uses `require_admin`. Production's database has only an internal Railway address, so prod reads go through a deployed endpoint (the Status tab) or the Railway CLI, not a direct connection from the dev PC.
+- **Global membership filter:** every SELECT on `CampaignMembership` ignores people who left (`left_at` set), through one listener at the bottom of `backend/models.py`. Opt out with `.execution_options(include_left_members=True)`, used only where the websocket checks for a stale membership.
 - CORS is currently wide open (`allow_origins=["*"]` with credentials).
 - **Signup protection** (`backend/signup_guard.py`): a hidden honeypot field, a throwaway-email-domain block, and Cloudflare Turnstile,
   which is ON in production (it enforces only when BOTH `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set in Railway; the page asks
@@ -127,7 +130,8 @@ local Postgres (see its docstring): pytest mostly calls handlers directly, so it
   warning instead of killing startup).
 - Request/response validation via Pydantic in `routes/schemas.py`.
 - DB migrations that must hit production: add a numbered `NNN_*.sql` to
-  `backend/migrations/` (plain SQL, safe to re-run). It applies on next deploy.
+  `backend/migrations/` (plain SQL, safe to re-run). It applies on next deploy; the latest is 045. `start.sh` runs them before the server starts and stops the deploy if one fails, so a bad migration leaves the old version serving.
+- Testing a new route: the app mounts static files at `/` last, so a route added to the app after import never matches in a test. Insert it at `application.router.routes[0]`. Tests share one SQLite file per module, so clear the tables you assert on at the start of each test.
 - Preserve `request.state.request_id` in log lines.
 - Since prod is live and played daily: prefer additive, backward-compatible DB
   changes; call out anything that needs a migration + code deploy in lockstep.
