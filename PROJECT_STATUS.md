@@ -97,7 +97,7 @@ a drop.
 
 **Open questions for Jason (raised 2026-11-19, nothing changed yet):**
 - [ ] **Open source or not?** The repo is public under AGPL-3.0, with 0 forks. Claude's recommendation: keep the code public (free unlimited GitHub Actions for the backups and uptime check, trust with the audience), but put the rules text and art under a separate content license (AGPL lets anyone host a paid copy with the rulebook text), move `docs/LICENSE` to the repo root so GitHub detects it, and scan the git history for leaked secrets. Waiting on his call before changing any license.
-- [ ] The site still says "free rulebook" (`static/auth.html`, `static/campaigns.html`, `static/index.html`) but the itch.io page is pay what you want. README now says pay what you want and links itch.io instead of the `.md` files (Jason: better for itch traffic). Decide whether the site wording should match.
+- [x] The site said "free rulebook" while the itch.io page is pay what you want. Jason had the four places changed to "Get the rulebook on itch.io (pay what you want)" on 2026-11-19 (`auth.html`, `campaigns.html`, `index.html`, `game.html`).
 
 **Build candidates (Jason picks):**
 - [ ] Email verification at signup (there is none today; signup protection stops bots, not typos or fake addresses).
