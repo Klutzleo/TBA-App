@@ -61,6 +61,16 @@ class User(Base):
     # `user.last_login = ...` on every login was silently a no-op (unmapped attribute, dropped on
     # commit). Mapping it now so it actually persists.
     last_login = Column(DateTime, nullable=True)
+    # Email verification (migration 046). Verified means they clicked the link sent to this address. Accounts that existed before verification was
+    # introduced are exempt, which is NOT the same as verified: they are simply never asked and never blocked.
+    email_verified_at = Column(DateTime, nullable=True)
+    email_verification_exempt = Column(Boolean, nullable=False, default=False)
+    email_verification_sent_at = Column(DateTime, nullable=True)
+
+    @property
+    def email_is_verified(self) -> bool:
+        """True when they confirmed this address, or the account predates verification."""
+        return self.email_verified_at is not None or bool(self.email_verification_exempt)
 
     # Relationships
     characters = relationship("Character", back_populates="user", foreign_keys="[Character.user_id]")

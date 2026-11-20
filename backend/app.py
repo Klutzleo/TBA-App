@@ -214,7 +214,8 @@ async def attach_request_id_and_auth(request: Request, call_next):
     # Auth routes (JWT-based authentication)
     auth_paths = {"/api/auth/register", "/api/auth/login", "/api/auth/logout",
                   "/api/auth/me", "/api/auth/forgot-password", "/api/auth/reset-password",
-                  "/api/auth/change-password"}
+                  "/api/auth/change-password",
+                  "/api/auth/verify-email", "/api/auth/resend-verification"}
 
     # All routes that require JWT authentication (not API key)
     jwt_protected_routes = auth_paths | {

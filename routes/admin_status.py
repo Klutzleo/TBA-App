@@ -16,6 +16,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.db import get_db
+from backend import email_verification
 from backend.models import Campaign, CampaignMembership, Character, Encounter, Message, Report, SecurityEvent, User
 from routes.moderation import require_admin
 
@@ -120,7 +121,9 @@ def system_status(admin: User = Depends(require_admin), db: Session = Depends(ge
                     "deployment": (os.getenv("RAILWAY_DEPLOYMENT_ID") or "")[:8] or None, "environment": os.getenv("RAILWAY_ENVIRONMENT_NAME"),
                     "started_at": _iso(_STARTED)},
         "database": {"ok": True, "ping_ms": ping_ms, "latest_migration": latest, "accounts": db.query(func.count(User.id)).scalar(),
-                     "suspended_accounts": db.query(func.count(User.id)).filter(User.is_active == False).scalar()},  # noqa: E712
+                     "suspended_accounts": db.query(func.count(User.id)).filter(User.is_active == False).scalar(),  # noqa: E712
+                     "unconfirmed_emails": db.query(func.count(User.id)).filter(User.email_verified_at.is_(None), User.email_verification_exempt == False).scalar(),  # noqa: E712
+                     "email_verification_required": email_verification.enforced()},
         "checks": _github_checks(),
         "watchdog": _watchdog(),
         "config": {"email_configured": bool(os.getenv("RESEND_API_KEY")), "from_email": (os.getenv("FROM_EMAIL") or "").split("@")[-1] or None,

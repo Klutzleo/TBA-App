@@ -204,6 +204,8 @@ def create_campaign(
 
     Returns the campaign with a unique join code.
     """
+    from backend.email_verification import require_verified
+    require_verified(current_user)
     # Generate unique join code
     join_code = generate_join_code(db)
 
@@ -519,6 +521,8 @@ async def join_campaign(
     db: Session = Depends(get_db)
 ):
     """Join a campaign using a join code."""
+    from backend.email_verification import require_verified
+    require_verified(current_user)
 
     # Find campaign by join code
     campaign = db.query(Campaign).filter(

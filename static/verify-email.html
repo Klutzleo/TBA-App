@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>TBA - Confirm your email</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+           background: #1a1d29; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+    .box { background: #252937; border-radius: 12px; border: 1px solid #3a3f54; box-shadow: 0 10px 15px rgba(0,0,0,.5);
+           padding: 40px; width: 100%; max-width: 450px; text-align: center; }
+    .logo h1 { color: #d4af37; font-size: 2.5rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,.5); }
+    .logo p { color: #b0b3ba; margin: 5px 0 26px; }
+    h2 { color: #e7e9f0; font-size: 1.25rem; margin-bottom: 10px; }
+    p.t { color: #b0b3ba; font-size: .95rem; line-height: 1.5; margin-bottom: 22px; }
+    .btn { display: inline-block; background: #d4af37; color: #13151f; border: none; border-radius: 8px; padding: 13px 30px;
+           font-weight: 700; font-size: 1rem; cursor: pointer; text-decoration: none; }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .ok { color: #34d399; } .bad { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo"><h1>TBA</h1><p>Tools for the Bad Ass</p></div>
+    <h2 id="title">Confirm your email</h2>
+    <p class="t" id="text">Press the button to confirm this is your email address.</p>
+    <button class="btn" id="go">Confirm my email</button>
+  </div>
+  <script>
+    // The link in the email only opens this page. The confirmation happens when the button is pressed, because mail scanners open links
+    // before a person does and must not be able to confirm an address by doing that.
+    const token = new URLSearchParams(location.search).get('token');
+    const title = document.getElementById('title'), text = document.getElementById('text'), go = document.getElementById('go');
+    function finish(ok, heading, message, linkText, linkHref) {
+      title.textContent = heading;
+      title.className = ok ? 'ok' : 'bad';
+      text.textContent = message;
+      const a = document.createElement('a');
+      a.className = 'btn'; a.textContent = linkText; a.href = linkHref;
+      go.replaceWith(a);
+    }
+    if (!token) {
+      finish(false, 'This link is not valid', 'Open the link from your email again, or log in and use the banner to send a new one.', 'Go to TBA', '/auth.html');
+    } else {
+      go.onclick = async () => {
+        go.disabled = true;
+        try {
+          const r = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok) finish(true, 'Email confirmed', 'Thank you. You are all set.', 'Continue to TBA', '/campaigns.html');
+          else finish(false, 'We could not confirm it', typeof d.detail === 'string' ? d.detail : 'Please try again.', 'Go to TBA', '/auth.html');
+        } catch (e) {
+          go.disabled = false;
+          text.textContent = 'Could not reach the server. Check your connection and press the button again.';
+        }
+      };
+    }
+  </script>
+</body>
+</html>

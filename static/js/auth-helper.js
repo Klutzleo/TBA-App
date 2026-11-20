@@ -117,6 +117,45 @@ function displayUserInfo(containerId = 'user-info') {
     `;
     if (window.lucide) lucide.createIcons({ el: container });
     addAdminLink(container);
+    addVerifyBanner();
+}
+
+/**
+ * A slim bar for accounts that have not confirmed their email yet, with a button to send the link again. Accounts that existed before
+ * verification was introduced never see it. The page works fully either way; this is a nudge, not a wall.
+ */
+async function addVerifyBanner() {
+    try {
+        if (document.getElementById('verify-banner')) return;
+        const r = await fetchWithAuth('/api/auth/me');
+        if (!r || !r.ok) return;
+        const me = await r.json();
+        if (me.email_verified !== false) return;
+
+        const bar = document.createElement('div');
+        bar.id = 'verify-banner';
+        bar.style.cssText = 'background:#3b2f0b;color:#f5d98a;border-bottom:1px solid #6b5416;padding:8px 14px;font-size:0.85rem;text-align:center;';
+        const msg = document.createElement('span');
+        msg.textContent = 'Please confirm your email address. We sent a link to ' + me.email + '. Check your junk folder if you do not see it. ';
+        const btn = document.createElement('button');
+        btn.textContent = 'Send it again';
+        btn.style.cssText = 'margin-left:6px;background:#d4af37;color:#13151f;border:none;border-radius:6px;padding:4px 12px;font-weight:700;cursor:pointer;';
+        btn.onclick = async () => {
+            btn.disabled = true;
+            try {
+                const rr = await fetchWithAuth('/api/auth/resend-verification', { method: 'POST' });
+                const d = rr && rr.ok ? await rr.json() : {};
+                msg.textContent = d.status === 'too_soon' ? 'We just sent one. Give it a couple of minutes. '
+                    : d.status === 'already_verified' ? 'Your email is already confirmed. '
+                    : d.status === 'sent' ? 'Sent. Check your inbox and your junk folder. '
+                    : 'Could not send it right now. Try again later. ';
+                if (d.status === 'already_verified') bar.remove();
+            } catch (e) { msg.textContent = 'Could not send it right now. Try again later. '; }
+            btn.disabled = false;
+        };
+        bar.append(msg, btn);
+        document.body.insertBefore(bar, document.body.firstChild);
+    } catch (e) { /* a nudge only; never break the page */ }
 }
 
 /**

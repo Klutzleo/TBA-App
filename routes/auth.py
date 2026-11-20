@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 import re
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.orm import Session
 from slowapi import Limiter
@@ -21,6 +21,8 @@ from backend.auth.jwt import create_access_token, get_current_user
 from backend.email_service import send_password_reset_email
 from backend.signup_guard import is_disposable_email, verify_turnstile
 from backend.security_events import record_event
+from backend import email_verification
+from backend.email_service import verify_email_token
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,11 @@ class UserProfileResponse(BaseModel):
     username: str
     email: str
     created_at: datetime
+    email_verified: bool = True
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(..., min_length=10, max_length=2000)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -134,6 +141,7 @@ class MessageResponse(BaseModel):
 async def register(
     request: Request,
     data: RegisterRequest,
+    background: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
@@ -198,8 +206,12 @@ async def register(
     )
 
     db.add(new_user)
+    new_user.email_verification_sent_at = datetime.utcnow()
     db.commit()
     db.refresh(new_user)
+
+    # Confirmation link: sent after the response, and a mail failure never fails the signup
+    background.add_task(email_verification.send_link, new_user)
 
     # Generate JWT token (convert UUID to string for JSON serialization)
     access_token = create_access_token(
@@ -304,8 +316,44 @@ async def get_profile(
         user_id=str(current_user.id),
         username=current_user.username,
         email=current_user.email,
-        created_at=current_user.created_at
+        created_at=current_user.created_at,
+        email_verified=current_user.email_is_verified,
     )
+
+
+@auth_router.post("/verify-email")
+@limiter.limit("20/hour")
+async def verify_email(request: Request, data: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """Confirm an email address from the link in the email. Needs no login (people open the link on their phone). Safe to repeat."""
+    bad = HTTPException(status_code=400, detail="That link has expired or is not valid. Log in and use the banner to send yourself a new one.")
+    parsed = verify_email_token(data.token)
+    if not parsed:
+        raise bad
+    user_id, email = parsed
+    try:
+        user = db.query(User).filter(User.id == UUID(user_id)).first()
+    except ValueError:
+        raise bad
+    if not user or not user.is_active or (user.email or "").lower() != email.lower():  # a link for an old address stops working
+        raise bad
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.utcnow()
+        db.commit()
+    return {"verified": True, "username": user.username}
+
+
+@auth_router.post("/resend-verification")
+@limiter.limit("5/hour")
+async def resend_verification(request: Request, background: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Send the confirmation link again to the signed-in account's own address."""
+    if current_user.email_is_verified:
+        return {"status": "already_verified"}
+    if not email_verification.can_send_again(current_user):
+        return {"status": "too_soon"}
+    current_user.email_verification_sent_at = datetime.utcnow()
+    db.commit()
+    background.add_task(email_verification.send_link, current_user)
+    return {"status": "sent"}
 
 
 @auth_router.post("/forgot-password", response_model=MessageResponse)

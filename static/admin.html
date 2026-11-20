@@ -357,6 +357,7 @@
     sys.appendChild(el('h2', { text: 'System' }));
     sys.appendChild(dotLine(d.database.ok ? 'good' : 'bad', 'Database', 'answering in ' + d.database.ping_ms + ' ms, ' + d.database.accounts + ' accounts (' + d.database.suspended_accounts + ' suspended)'));
     sys.appendChild(dotLine('good', 'Version', (d.version.commit || 'unknown') + (d.version.message ? ' - ' + d.version.message : '') + ' (up since ' + when(d.version.started_at) + ')'));
+    sys.appendChild(dotLine('good', 'Email confirmation', d.database.unconfirmed_emails + ' new account(s) have not confirmed their email yet. Confirming is ' + (d.database.email_verification_required ? 'REQUIRED to create or join a campaign.' : 'asked for but not required (switch REQUIRE_VERIFIED_EMAIL is off).')));
     if (d.database.latest_migration) sys.appendChild(dotLine('good', 'Latest migration', d.database.latest_migration.file + ' on ' + when(d.database.latest_migration.at)));
     d.checks.forEach(c => sys.appendChild(dotLine(c.state, c.name, c.detail + (c.at ? ' (' + when(c.at) + ')' : ''))));
     const wd = d.watchdog || {};

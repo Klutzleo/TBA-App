@@ -97,7 +97,8 @@ Dead weight in the Docker path: `scripts/docker-entrypoint.sh` (the Dockerfile `
 - CORS is currently wide open (`allow_origins=["*"]` with credentials).
 - **Signup protection** (`backend/signup_guard.py`): a hidden honeypot field, a throwaway-email-domain block, and Cloudflare Turnstile,
   which is ON in production (it enforces only when BOTH `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set in Railway; the page asks
-  `/api/public/signup-config`). Plus 10 signups per hour per IP. There is no email verification yet.
+  `/api/public/signup-config`). Plus 10 signups per hour per IP.
+- **Email verification** (`backend/email_verification.py`, token and email in `backend/email_service.py`, page `static/verify-email.html`, banner in `static/js/auth-helper.js`): new accounts are emailed a link that opens a page with a Confirm button (a button, because mail scanners open links). Nothing is blocked by default. `REQUIRE_VERIFIED_EMAIL=1` in Railway makes creating or joining a campaign require a confirmed address; accounts that existed before migration 046 are `email_verification_exempt` (never asked, never blocked, and NOT recorded as verified). The token uses its own derived key, a purpose claim, a 3-day expiry and the address it was issued for.
 - **Email** is sent from `no-reply@tba-rpg.com` (`FROM_EMAIL`; the From domain must match the link domain, which is what fixed the spam-folder problem).
   Links use `FRONTEND_URL` (set to `https://tba-rpg.com` in Railway; the code default is the same). The Resend API key is scoped by domain: a new sending domain needs a new key first. Never let them fall back to a
   `*.railway.app` address: it is a spam signal. Every email also carries a plain-text part; `REPLY_TO_EMAIL` optionally sets Reply-To.

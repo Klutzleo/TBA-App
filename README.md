@@ -142,11 +142,10 @@ The health check is public at `http://localhost:8000/health`. `.env` is git-igno
 - ✅ Bonds, Combos, and The Calling
 - ✅ Rules v3.1.1, Ascension, Allies, summons, swarms, and vehicles
 - ✅ Lore for the Bad-Ass (LBA), the first stage
-- ✅ Safety tools: private whispers, reports, removal and bans, suspension, and an admin center
+- ✅ Safety tools: private whispers, reports, removal and bans, suspension, an admin center, and email confirmation at signup
 
 **Next**
 
-- 🔄 Email verification at signup
 - 🔄 Discord integration: a live campaign mirror and linked accounts
 - 🔄 Tools for Being Awesome (kids) mode
 - 🔄 Vehicle systems inside Combos

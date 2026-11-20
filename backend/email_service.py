@@ -380,3 +380,83 @@ def send_admin_message_email(to_email: str, subject: str, body: str) -> None:
     if not resp.ok:
         logger.error(f"Resend API error {resp.status_code}: {resp.text}")
         resp.raise_for_status()
+
+
+# ---- Email verification ----------------------------------------------------------------------------------------------------------------------
+# Same safety design as the unsubscribe token: a key derived from SECRET_KEY but different from it, so this token can never validate as a login
+# token (and a login token can never validate here), plus a purpose claim, an expiry, and the address it was issued for, so a link for an old
+# address stops working if the address ever changes.
+_VERIFY_SECRET_KEY = hashlib.sha256((_AUTH_SECRET_KEY + "|verify-email-token|v1").encode()).hexdigest()
+_VERIFY_TOKEN_DAYS = 3
+
+
+def create_verify_email_token(user_id: str, email: str) -> str:
+    payload = {
+        "sub": str(user_id),
+        "purpose": "verify_email",
+        "email": (email or "").lower(),
+        "exp": datetime.utcnow() + timedelta(days=_VERIFY_TOKEN_DAYS),
+    }
+    return jwt.encode(payload, _VERIFY_SECRET_KEY, algorithm=_ALGORITHM)
+
+
+def verify_email_token(token: str) -> tuple[str, str] | None:
+    """Returns (user_id, email) if the token is valid (right key, right purpose, not expired), else None."""
+    from backend.auth.jwt import decode_with_key
+
+    payload = decode_with_key(token, _VERIFY_SECRET_KEY, _ALGORITHM)
+    if not payload or payload.get("purpose") != "verify_email" or not payload.get("sub") or not payload.get("email"):
+        return None
+    return payload["sub"], payload["email"]
+
+
+def send_verification_email(to_email: str, token: str, username: str = None) -> None:
+    """The confirmation link. It opens a page with a button rather than confirming on load, because mail scanners open links before a person does.
+    Raises on a provider error so the caller can decide what to do (signup never fails because of it)."""
+    import html as _html
+
+    api_key = os.getenv("RESEND_API_KEY", "")
+    url = f"{get_frontend_url()}/verify-email.html?token={token}"
+    esc = lambda v: _html.escape(str(v or ""))
+    hello_html = f"<p>Hi {esc(username)},</p>" if username else ""
+    hello_text = f"Hi {username},\n\n" if username else ""
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="background:#1a1d29;padding:30px;text-align:center;border-radius:10px 10px 0 0;">
+    <h1 style="color:#d4a017;margin:0;font-size:28px;">TBA</h1>
+    <p style="color:#aaa;margin:8px 0 0;font-size:15px;">Tools for the Bad Ass</p>
+  </div>
+  <div style="background:#fff;padding:30px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 10px 10px;">
+    <h2 style="color:#d4a017;margin-top:0;">Confirm your email</h2>
+    {hello_html}
+    <p>Welcome to TBA. Please confirm that this is your email address so we can reach you about your campaigns and help you if you ever lose your password.</p>
+    <p style="text-align:center;margin:28px 0;"><a href="{esc(url)}" style="background:#d4a017;color:#1a1d29;padding:14px 32px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Confirm my email</a></p>
+    <p style="color:#666;font-size:13px;">This link works for {_VERIFY_TOKEN_DAYS} days. If you did not create a TBA account, you can ignore this email and nothing will happen.</p>
+    <p style="color:#999;font-size:12px;">Button not working? Copy this link into your browser:<br>{esc(url)}</p>
+  </div>
+</body>
+</html>"""
+
+    text_content = (
+        f"{hello_text}Welcome to TBA. Please confirm that this is your email address so we can reach you about your campaigns "
+        f"and help you if you ever lose your password.\n\nConfirm my email: {url}\n\n"
+        f"This link works for {_VERIFY_TOKEN_DAYS} days. If you did not create a TBA account, you can ignore this email and nothing will happen."
+    )
+
+    if not api_key:
+        logger.warning("RESEND_API_KEY not set - printing verification email to console instead")
+        _safe_print(f"VERIFICATION EMAIL to {to_email}: {url}")
+        return
+
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=_email_payload([to_email], "Confirm your email for TBA", html_content, text_content),
+        timeout=10,
+    )
+    if not resp.ok:
+        logger.error(f"Resend API error {resp.status_code}: {resp.text}")
+        resp.raise_for_status()
