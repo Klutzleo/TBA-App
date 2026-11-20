@@ -1475,3 +1475,15 @@ class AdminAuditLog(Base):
     report_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     detail = Column(JSONB, nullable=False, default=dict)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
+class AdminTemplate(Base):
+    """A saved message the admin can reuse (admin center, phase D)."""
+    __tablename__ = "admin_templates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(60), nullable=False)
+    subject = Column(String(100), nullable=False)
+    body = Column(String(1000), nullable=False)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

@@ -355,3 +355,28 @@ def send_admin_alert_email(to_emails: list, subject: str, lines: list, link_path
     if not resp.ok:
         logger.error(f"Resend API error {resp.status_code}: {resp.text}")
         resp.raise_for_status()
+
+
+def send_admin_message_email(to_email: str, subject: str, body: str) -> None:
+    """A message from the site admin to one player. The text is the admin's own, so it is HTML-escaped and sent as paragraphs; the email says
+    plainly who it is from and that replies reach the admin when REPLY_TO_EMAIL is set. Raises on a provider error so the caller can log it."""
+    import html as _html
+    api_key = os.getenv("RESEND_API_KEY", "")
+    url = get_frontend_url()
+    esc = lambda v: _html.escape(str(v or ""))
+    paras = "".join(f"<p>{esc(p)}</p>" for p in str(body).split("\n\n") if p.strip())
+    html_content = (f'<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;'
+                    f'max-width:600px;margin:0 auto;padding:20px;"><h2 style="color:#1a1d29;margin-top:0;">{esc(subject)}</h2>{paras}'
+                    f'<p><a href="{esc(url)}" style="background:#d4a017;color:#1a1d29;padding:12px 24px;text-decoration:none;border-radius:6px;'
+                    f'font-weight:bold;display:inline-block;">Open TBA</a></p>'
+                    f'<p style="color:#999;font-size:12px;">This message is from the TBA site admin.</p></body></html>')
+    text_content = f"{subject}\n\n{body}\n\nOpen TBA: {url}\n\nThis message is from the TBA site admin."
+    if not api_key:
+        logger.warning("RESEND_API_KEY not set - printing admin message to console instead")
+        _safe_print(f"ADMIN MESSAGE to {to_email}: {subject}")
+        return
+    resp = requests.post("https://api.resend.com/emails", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                         json=_email_payload([to_email], subject, html_content, text_content), timeout=10)
+    if not resp.ok:
+        logger.error(f"Resend API error {resp.status_code}: {resp.text}")
+        resp.raise_for_status()

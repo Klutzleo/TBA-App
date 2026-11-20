@@ -48,6 +48,10 @@
     .msg.err { color: var(--red); }
     .evidence { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
     .note-warn { color: var(--orange); font-size: 0.8rem; margin-top: 6px; }
+    input[type=text], select { width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+                               border-radius: 6px; padding: 8px; font: inherit; font-size: 0.85rem; margin-top: 6px; }
+    label.row { display: flex; gap: 8px; align-items: center; font-size: 0.85rem; margin-top: 6px; }
+    .pick { display: block; width: 100%; text-align: left; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -58,6 +62,7 @@
     <button class="tab active" data-view="active" data-kind="player">Player reports</button>
     <button class="tab" data-view="active" data-kind="bug">Bug reports</button>
     <button class="tab" data-view="done" data-kind="all">Closed</button>
+    <button class="tab" data-view="message">Message</button>
     <button class="tab" data-view="audit">Audit log</button>
     <a class="tab" href="/admin-reports.html">Banner reports</a>
   </div>
@@ -192,7 +197,108 @@
     return card;
   }
 
+  // ---- Message tab: send a bell, push and/or email to one player or a whole campaign
+  async function renderMessageForm() {
+    const target = { type: null, id: null, label: null };
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('h2', { text: 'Message a player or a campaign' }));
+    card.appendChild(el('div', { class: 'meta', text: 'Goes only to active accounts. A campaign means its current members. Every send is logged.' }));
+
+    const search = el('input', { type: 'text', placeholder: 'Search a username or a campaign name (2+ letters)', maxLength: 50 });
+    const results = el('div');
+    const toLine = el('div', { class: 'meta', text: 'To: nobody chosen yet' });
+    card.append(search, results, toLine);
+    let timer = null;
+    search.oninput = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (search.value.trim().length < 2) { results.replaceChildren(); return; }
+        const r = await fetchWithAuth('/api/admin/lookup?q=' + encodeURIComponent(search.value.trim()));
+        if (!r || !r.ok) return;
+        const d = await r.json();
+        const row = (type, id, label) => {
+          const b = el('button', { class: 'act pick', text: (type === 'user' ? 'Player: ' : 'Campaign: ') + label });
+          b.onclick = () => { target.type = type; target.id = id; target.label = label; toLine.textContent = 'To: ' + (type === 'user' ? 'player ' : 'everyone in ') + label; results.replaceChildren(); };
+          return b;
+        };
+        results.replaceChildren(...d.users.filter(u => u.active).map(u => row('user', u.id, u.username)), ...d.campaigns.map(c => row('campaign', c.id, c.name)));
+      }, 250);
+    };
+
+    const tpl = el('select');
+    tpl.appendChild(el('option', { value: '', text: 'Start from a template (optional)' }));
+    const subject = el('input', { type: 'text', placeholder: 'Subject', maxLength: 100 });
+    const body = el('textarea', { rows: 5, maxLength: 1000, placeholder: 'Message' });
+    let templates = [];
+    const tr = await fetchWithAuth('/api/admin/templates');
+    if (tr && tr.ok) {
+      templates = (await tr.json()).templates;
+      templates.forEach(t => tpl.appendChild(el('option', { value: t.id, text: t.name })));
+    }
+    tpl.onchange = () => { const t = templates.find(x => x.id === tpl.value); if (t) { subject.value = t.subject; body.value = t.body; } };
+    card.append(tpl, subject, body);
+
+    const chans = {};
+    const chanRow = el('div');
+    [['bell', 'In-app bell', true], ['push', 'Push notification', false], ['email', 'Email', false]].forEach(([k, label, on]) => {
+      const cb = el('input', { type: 'checkbox', checked: on });
+      chans[k] = cb;
+      const l = el('label', { class: 'row' }); l.appendChild(cb); l.appendChild(document.createTextNode(label));
+      chanRow.appendChild(l);
+    });
+    card.appendChild(chanRow);
+
+    const status = el('div', { class: 'meta' });
+    const payload = (dry) => ({ target: target.type, target_id: target.id, subject: subject.value.trim(), body: body.value.trim(),
+                                channels: Object.keys(chans).filter(k => chans[k].checked), dry_run: dry });
+    const ready = () => {
+      if (!target.id) { status.textContent = 'Choose who to message first.'; return false; }
+      if (subject.value.trim().length < 3 || body.value.trim().length < 3) { status.textContent = 'Add a subject and a message.'; return false; }
+      if (!Object.values(chans).some(c => c.checked)) { status.textContent = 'Pick at least one way to send it.'; return false; }
+      return true;
+    };
+    const post = async (dry) => {
+      const r = await fetchWithAuth('/api/admin/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload(dry)) });
+      if (!r) return null;
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { status.textContent = typeof d.detail === 'string' ? d.detail : 'Could not send (' + r.status + ').'; return null; }
+      return d;
+    };
+    const preview = el('button', { class: 'act', text: 'Preview recipients' });
+    preview.onclick = async () => {
+      if (!ready()) return;
+      const d = await post(true);
+      if (d) status.textContent = d.recipients + ' recipient(s): ' + d.usernames.join(', ') + (d.recipients > d.usernames.length ? ' ...' : '');
+    };
+    const send = el('button', { class: 'act good', text: 'Send' });
+    send.onclick = async () => {
+      if (!ready()) return;
+      const pre = await post(true);
+      if (!pre) return;
+      if (!pre.recipients) { status.textContent = 'No one to send to.'; return; }
+      if (!confirm('Send "' + subject.value.trim() + '" to ' + pre.recipients + ' person(s) by ' + payload(true).channels.join(' + ') + '?')) return;
+      send.disabled = true;
+      const d = await post(false);
+      send.disabled = false;
+      if (d) status.textContent = 'Sent to ' + d.recipients + ' person(s).';
+    };
+    const saveTpl = el('button', { class: 'act', text: 'Save as template' });
+    saveTpl.onclick = async () => {
+      if (subject.value.trim().length < 3 || body.value.trim().length < 3) { status.textContent = 'Write the subject and message first.'; return; }
+      const name = prompt('Name this template:');
+      if (!name || name.trim().length < 2) return;
+      const r = await fetchWithAuth('/api/admin/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), subject: subject.value.trim(), body: body.value.trim() }) });
+      status.textContent = r && r.ok ? 'Template saved.' : 'Could not save the template.';
+      if (r && r.ok) { const t = await (await fetchWithAuth('/api/admin/templates')).json(); templates = t.templates; tpl.replaceChildren(el('option', { value: '', text: 'Start from a template (optional)' }), ...templates.map(x => el('option', { value: x.id, text: x.name }))); }
+    };
+    card.appendChild(el('div', { class: 'actions' }, preview, send, saveTpl));
+    card.appendChild(status);
+    list.replaceChildren(card);
+  }
+
   async function load() {
+    if (view === 'message') return renderMessageForm();
     show('Loading...');
     if (view === 'audit') {
       const data = await api('/api/admin/audit?limit=200');
