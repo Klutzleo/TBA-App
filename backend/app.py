@@ -391,6 +391,8 @@ try:
     application.include_router(messages_router, tags=["Admin"])
     from routes.admin_security import security_router
     application.include_router(security_router, tags=["Admin"])
+    from routes.admin_status import status_router
+    application.include_router(status_router, tags=["Admin"])
     logger.info("✅ Registered reports and admin routers")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register reports routers: {e}")

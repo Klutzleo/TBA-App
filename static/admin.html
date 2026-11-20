@@ -48,6 +48,8 @@
     .msg.err { color: var(--red); }
     .evidence { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
     .note-warn { color: var(--orange); font-size: 0.8rem; margin-top: 6px; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: var(--text-dim); }
+    .dot.good { background: var(--green); } .dot.bad { background: var(--red); } .dot.running { background: var(--gold); } .dot.unknown { background: var(--orange); }
     input[type=text], select { width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
                                border-radius: 6px; padding: 8px; font: inherit; font-size: 0.85rem; margin-top: 6px; }
     label.row { display: flex; gap: 8px; align-items: center; font-size: 0.85rem; margin-top: 6px; }
@@ -64,6 +66,7 @@
     <button class="tab" data-view="done" data-kind="all">Closed</button>
     <button class="tab" data-view="message">Message</button>
     <button class="tab" data-view="security">Security</button>
+    <button class="tab" data-view="status">Status</button>
     <button class="tab" data-view="audit">Audit log</button>
     <a class="tab" href="/admin-reports.html">Banner reports</a>
   </div>
@@ -333,7 +336,56 @@
     list.replaceChildren(top, errs, recent);
   }
 
+  // ---- Status tab: is everything running, and how is each campaign doing
+  async function renderStatus() {
+    show('Loading...');
+    const d = await api('/api/admin/status');
+    if (!d) return;
+    const dotLine = (state, label, detail) => {
+      const l = el('div', { class: 'line' });
+      l.appendChild(el('span', { class: 'dot ' + state }));
+      l.appendChild(el('b', { text: label + ': ' }));
+      l.appendChild(document.createTextNode(detail));
+      return l;
+    };
+    const sys = el('div', { class: 'card' });
+    sys.appendChild(el('h2', { text: 'System' }));
+    sys.appendChild(dotLine(d.database.ok ? 'good' : 'bad', 'Database', 'answering in ' + d.database.ping_ms + ' ms, ' + d.database.accounts + ' accounts (' + d.database.suspended_accounts + ' suspended)'));
+    sys.appendChild(dotLine('good', 'Version', (d.version.commit || 'unknown') + (d.version.message ? ' - ' + d.version.message : '') + ' (up since ' + when(d.version.started_at) + ')'));
+    if (d.database.latest_migration) sys.appendChild(dotLine('good', 'Latest migration', d.database.latest_migration.file + ' on ' + when(d.database.latest_migration.at)));
+    d.checks.forEach(c => sys.appendChild(dotLine(c.state, c.name, c.detail + (c.at ? ' (' + when(c.at) + ')' : ''))));
+    sys.appendChild(dotLine(d.config.email_configured ? 'good' : 'bad', 'Email', d.config.email_configured ? 'configured, sending from ' + d.config.from_email : 'NOT configured'));
+    sys.appendChild(dotLine(d.config.human_check_on ? 'good' : 'bad', 'Signup human check', d.config.human_check_on ? 'on' : 'OFF'));
+    sys.appendChild(dotLine(d.config.push_configured ? 'good' : 'unknown', 'Push notifications', d.config.push_configured ? 'configured' : 'not configured'));
+    sys.appendChild(dotLine(d.config.moderation_email_set ? 'good' : 'unknown', 'Report emails', d.config.moderation_email_set ? 'go to the moderation inbox' : 'go to the admin account email'));
+
+    const act = el('div', { class: 'card' });
+    act.appendChild(el('h2', { text: 'Right now and the last 24 hours' }));
+    act.appendChild(meta('Players online', d.online_now));
+    act.appendChild(meta('Reports waiting', d.open_reports));
+    act.appendChild(dotLine(d.last_24h.server_errors ? 'bad' : 'good', 'Server errors', d.last_24h.server_errors + (d.last_24h.last_server_error_at ? ' (last ' + when(d.last_24h.last_server_error_at) + ')' : '')));
+    act.appendChild(meta('Failed logins', d.last_24h.failed_logins));
+    act.appendChild(meta('Blocked signups', d.last_24h.blocked_signups));
+    act.appendChild(meta('Rate-limit hits', d.last_24h.rate_limited));
+
+    const camps = el('div', { class: 'card' });
+    camps.appendChild(el('h2', { text: 'Campaigns' }));
+    if (!d.campaigns.length) camps.appendChild(el('div', { class: 'meta', text: 'No active campaigns.' }));
+    d.campaigns.forEach(c => {
+      const row = el('div', { class: 'quote' });
+      row.appendChild(el('b', { text: c.name }));
+      const bits = [c.members + ' members', c.online_now + ' online', c.last_message_at ? 'last message ' + when(c.last_message_at) : 'no messages yet'];
+      if (c.active_encounter) bits.push('fight in progress');
+      if (c.pending_characters) bits.push(c.pending_characters + ' character(s) waiting for approval');
+      if (c.open_reports) bits.push(c.open_reports + ' open report(s)');
+      row.appendChild(document.createTextNode('\n' + bits.join(' | ')));
+      camps.appendChild(row);
+    });
+    list.replaceChildren(sys, act, camps);
+  }
+
   async function load() {
+    if (view === 'status') return renderStatus();
     if (view === 'security') return renderSecurity();
     if (view === 'message') return renderMessageForm();
     show('Loading...');
