@@ -145,3 +145,9 @@ def test_status_is_admin_only(w):
     from routes.moderation import require_admin
     with pytest.raises(HTTPException):
         require_admin(w["u"]["p1"])
+
+
+def test_version_shows_only_the_first_line_of_the_commit_message(monkeypatch, w):
+    _github(monkeypatch, FakeResp(), FakeResp(), FakeResp())
+    monkeypatch.setenv("RAILWAY_GIT_COMMIT_MESSAGE", "fix: a thing\n\nA long body.\n\nCo-Authored-By: Someone <x@example.com>")
+    assert _status(w)["version"]["message"] == "fix: a thing"

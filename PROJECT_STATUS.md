@@ -89,7 +89,7 @@ a drop.
 
 ## Next up
 **Do these first (small, only Jason can):**
-- [ ] After **10:17 UTC on 2026-11-20** (about 2:17 a.m. Pacific): open Admin > Status and confirm the Nightly backup is newer than that. It is the first unattended run; the one shown before it was a manual test.
+- [ ] **BACKUPS ARE NOT AUTOMATIC YET (found 2026-11-20 17:25 UTC).** GitHub did not run the nightly backup scheduled for 10:17 UTC; the only backup runs ever are three manual tests on 2026-11-19. GitHub also runs the 10-minute uptime workflow only about every 8 hours, so scheduled workflows on this repo cannot be trusted. The Status tab still shows the backup green because the manual run is under 36 hours old; it will turn red on its own after that. Fix options, Jason to choose: (C, recommended) the app itself checks hourly whether the last successful backup is older than about 26 hours and, if so, starts the existing workflow through GitHub's `workflow_dispatch` API, which needs one fine-grained GitHub token (this repo only, Actions read and write, 1 year) that Jason creates and enters in Railway as `GITHUB_DISPATCH_TOKEN`; (A) a free external cron (cron-job.org) calling the same API with that token; (D) a Railway cron service that runs pg_dump itself (most independent of GitHub, but moves the R2 and passphrase secrets into Railway). Until one is in place, run the backup by hand: GitHub > Actions > Nightly database backup > Run workflow.
 - [ ] Confirm UptimeRobot shows the monitor "Up" and that the Gmail alert contact is verified.
 - [ ] Click through the new screens once: send yourself a bug report (sidebar > Report a bug), a player report from a second account, and a bell message from Admin > Message, then try email. These were tested in code and against a real server, not in a browser.
 - [ ] Save `BACKUP_PASSPHRASE` in a password manager (without it a backup cannot be opened). Check GitHub Settings > Notifications > Actions so failure emails reach you.
@@ -138,6 +138,6 @@ Findings worth remembering:
 - 53 of 81 membership lookups ignored `left_at`, so someone who left could still call campaign APIs. Fixed at one choke point.
 - A test caught that an admin search for `%` listed everyone; fixed before it shipped.
 
-Not done: browser click-through of the report, inbox and message screens; no real email or push was sent from the new admin features (code paths were tested with stand-ins); the first unattended nightly backup had not run yet.
+Found the next morning (2026-11-20): the scheduled nightly backup never ran (see Next up). Not done: browser click-through of the report, inbox and message screens; no real email or push was sent from the new admin features (code paths were tested with stand-ins); the first unattended nightly backup had not run yet.
 
 Older sessions (Sept to Nov 2026, newest first) are in `docs/status-history.md`.

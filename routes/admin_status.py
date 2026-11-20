@@ -111,7 +111,7 @@ def system_status(admin: User = Depends(require_admin), db: Session = Depends(ge
     rows.sort(key=lambda r: r["last_message_at"] or "", reverse=True)
 
     return {
-        "version": {"commit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7] or None, "message": (os.getenv("RAILWAY_GIT_COMMIT_MESSAGE") or "")[:120] or None,
+        "version": {"commit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7] or None, "message": ((os.getenv("RAILWAY_GIT_COMMIT_MESSAGE") or "").strip().splitlines() or [""])[0][:120] or None,
                     "deployment": (os.getenv("RAILWAY_DEPLOYMENT_ID") or "")[:8] or None, "environment": os.getenv("RAILWAY_ENVIRONMENT_NAME"),
                     "started_at": _iso(_STARTED)},
         "database": {"ok": True, "ping_ms": ping_ms, "latest_migration": latest, "accounts": db.query(func.count(User.id)).scalar(),
