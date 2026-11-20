@@ -80,9 +80,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Notification digest startup warning: {e}")
 
+    try:
+        from backend import backup_watchdog
+        backup_watchdog.start_workers()
+    except Exception as e:
+        logger.warning(f"⚠️ Backup watchdog startup warning: {e}")
+
     yield
     # Shutdown
     logger.info("🛑 FastAPI TBA-App shutting down")
+    try:
+        from backend import backup_watchdog
+        await backup_watchdog.stop_workers()
+    except Exception as e:
+        logger.warning(f"⚠️ Backup watchdog shutdown warning: {e}")
+
     try:
         from backend import discord_mirror
         await discord_mirror.stop_workers()

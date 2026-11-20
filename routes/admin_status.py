@@ -71,6 +71,11 @@ def _github_checks() -> list:
     return out
 
 
+def _watchdog() -> dict:
+    from backend import backup_watchdog
+    return backup_watchdog.status()
+
+
 def _live_counts() -> dict:
     try:
         from routes.campaign_websocket import manager
@@ -117,6 +122,7 @@ def system_status(admin: User = Depends(require_admin), db: Session = Depends(ge
         "database": {"ok": True, "ping_ms": ping_ms, "latest_migration": latest, "accounts": db.query(func.count(User.id)).scalar(),
                      "suspended_accounts": db.query(func.count(User.id)).filter(User.is_active == False).scalar()},  # noqa: E712
         "checks": _github_checks(),
+        "watchdog": _watchdog(),
         "config": {"email_configured": bool(os.getenv("RESEND_API_KEY")), "from_email": (os.getenv("FROM_EMAIL") or "").split("@")[-1] or None,
                    "human_check_on": bool(os.getenv("TURNSTILE_SECRET_KEY") and os.getenv("TURNSTILE_SITE_KEY")),
                    "moderation_email_set": bool(os.getenv("MODERATION_EMAIL")), "push_configured": bool(os.getenv("VAPID_PRIVATE_KEY") or os.getenv("VAPID_PUBLIC_KEY"))},

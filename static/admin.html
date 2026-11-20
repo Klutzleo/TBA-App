@@ -359,6 +359,12 @@
     sys.appendChild(dotLine('good', 'Version', (d.version.commit || 'unknown') + (d.version.message ? ' - ' + d.version.message : '') + ' (up since ' + when(d.version.started_at) + ')'));
     if (d.database.latest_migration) sys.appendChild(dotLine('good', 'Latest migration', d.database.latest_migration.file + ' on ' + when(d.database.latest_migration.at)));
     d.checks.forEach(c => sys.appendChild(dotLine(c.state, c.name, c.detail + (c.at ? ' (' + when(c.at) + ')' : ''))));
+    const wd = d.watchdog || {};
+    const started = Object.entries(wd.last_started || {}).map(([f, t]) => f.replace('.yml', '') + ' ' + when(t)).join(', ');
+    sys.appendChild(wd.enabled
+      ? dotLine(wd.last_error ? 'bad' : 'good', 'Backup watchdog', 'on' + (wd.last_check ? ', last checked ' + when(wd.last_check) : ', first check shortly after the server starts')
+        + (started ? ', last started: ' + started : '') + (wd.last_error ? '. Problem: ' + wd.last_error : ''))
+      : dotLine('bad', 'Backup watchdog', 'OFF. GitHub skips scheduled runs, so backups will not run on their own. Set GITHUB_DISPATCH_TOKEN in Railway.'));
     sys.appendChild(dotLine(d.config.email_configured ? 'good' : 'bad', 'Email', d.config.email_configured ? 'configured, sending from ' + d.config.from_email : 'NOT configured'));
     sys.appendChild(dotLine(d.config.human_check_on ? 'good' : 'bad', 'Signup human check', d.config.human_check_on ? 'on' : 'OFF'));
     sys.appendChild(dotLine(d.config.push_configured ? 'good' : 'unknown', 'Push notifications', d.config.push_configured ? 'configured' : 'not configured'));
