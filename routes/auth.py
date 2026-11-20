@@ -20,6 +20,7 @@ from backend.models import User, PasswordResetToken, pwd_hasher
 from backend.auth.jwt import create_access_token, get_current_user
 from backend.email_service import send_password_reset_email
 from backend.signup_guard import is_disposable_email, verify_turnstile
+from backend.security_events import record_event
 
 logger = logging.getLogger(__name__)
 
@@ -152,16 +153,19 @@ async def register(
 
     # Signup protection (backend/signup_guard.py). The honeypot answer is deliberately the same vague message as a duplicate email.
     if data.website:
+        record_event("signup_blocked", request, reason="honeypot")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unable to create account. Please check your information and try again."
         )
     if is_disposable_email(email_lower):
+        record_event("signup_blocked", request, reason="disposable_email")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Please use a permanent email address. Temporary email services aren't supported."
         )
     if not await verify_turnstile(data.turnstile_token, request.client.host if request.client else None):
+        record_event("signup_blocked", request, reason="human_check")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The human check didn't pass. Please reload the page and try again."
@@ -248,6 +252,7 @@ async def login(
         password_ok = False
 
     if not user or not password_ok:
+        record_event("login_failed", request, user_id=user.id if user else None, account_exists=bool(user))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -255,6 +260,7 @@ async def login(
 
     # Check if account is active
     if not user.is_active:
+        record_event("login_suspended", request, user_id=user.id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account is suspended. If you think that is a mistake, contact the site admin."

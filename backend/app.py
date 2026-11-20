@@ -106,7 +106,29 @@ application = FastAPI(
 
 # Add rate limiter to app state
 application.state.limiter = limiter
-application.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def _rate_limited(request, exc):
+    """slowapi's normal 429, plus a security event so the admin can see who is hammering what."""
+    from backend.security_events import record_event
+    record_event("rate_limited", request, limit=str(getattr(exc, "detail", ""))[:80])
+    return _rate_limit_exceeded_handler(request, exc)
+
+
+application.add_exception_handler(RateLimitExceeded, _rate_limited)
+
+
+async def _unhandled_error(request, exc):
+    """Any exception nothing else handled: keep a safe record for the admin, log it with the request id, and answer with a plain 500."""
+    from fastapi.responses import JSONResponse
+    from backend.security_events import describe_exception, record_event
+    rid = getattr(request.state, "request_id", None)
+    logger.error(f"Unhandled {type(exc).__name__} on {request.method} {request.url.path} request_id={rid}", exc_info=exc)
+    record_event("server_error", request, method=request.method, request_id=rid, **describe_exception(exc))
+    return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
+
+
+application.add_exception_handler(Exception, _unhandled_error)
 
 
 # Add CORS middleware
@@ -367,6 +389,8 @@ try:
     application.include_router(admin_router, tags=["Admin"])
     from routes.admin_messages import messages_router
     application.include_router(messages_router, tags=["Admin"])
+    from routes.admin_security import security_router
+    application.include_router(security_router, tags=["Admin"])
     logger.info("✅ Registered reports and admin routers")
 except Exception as e:
     logger.warning(f"⚠️ Failed to register reports routers: {e}")

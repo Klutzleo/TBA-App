@@ -63,6 +63,7 @@
     <button class="tab" data-view="active" data-kind="bug">Bug reports</button>
     <button class="tab" data-view="done" data-kind="all">Closed</button>
     <button class="tab" data-view="message">Message</button>
+    <button class="tab" data-view="security">Security</button>
     <button class="tab" data-view="audit">Audit log</button>
     <a class="tab" href="/admin-reports.html">Banner reports</a>
   </div>
@@ -297,7 +298,43 @@
     list.replaceChildren(card);
   }
 
+  // ---- Security tab: counts, busiest sources, and the server-error feed
+  async function renderSecurity() {
+    show('Loading...');
+    const hours = 24;
+    const [sum, err] = await Promise.all([api('/api/admin/security/summary?hours=' + hours), api('/api/admin/security/errors?hours=72')]);
+    if (!sum || !err) return;
+    const names = { signup_blocked: 'Blocked signups', login_failed: 'Failed logins', login_suspended: 'Suspended logins', rate_limited: 'Rate-limit hits', server_error: 'Server errors' };
+    const top = el('div', { class: 'card' });
+    top.appendChild(el('h2', { text: 'Last ' + hours + ' hours' }));
+    Object.keys(names).forEach(k => top.appendChild(meta(names[k], sum.counts[k] || 0)));
+    const reasons = Object.entries(sum.signup_block_reasons || {});
+    if (reasons.length) top.appendChild(meta('Signups blocked because', reasons.map(([r, n]) => r.replace(/_/g, ' ') + ' ' + n).join(', ')));
+    if (sum.busiest_sources.length) {
+      top.appendChild(el('div', { class: 'meta', text: 'Busiest sources (a short code, not an address). A high count from one code is worth a look:' }));
+      sum.busiest_sources.forEach(b => top.appendChild(el('div', { class: 'line', text: b.source + '  ' + b.kind.replace(/_/g, ' ') + '  x' + b.count })));
+    }
+
+    const errs = el('div', { class: 'card' });
+    errs.appendChild(el('h2', { text: 'Server errors (last 72 hours): ' + err.total }));
+    if (!err.total) errs.appendChild(el('div', { class: 'meta', text: 'None. All quiet.' }));
+    err.groups.forEach(g => {
+      const d = el('div', { class: 'quote' });
+      d.appendChild(el('b', { text: g.error + '  x' + g.count }));
+      d.appendChild(document.createTextNode('\n' + (g.where || '') + '\n' + (g.path || '') + (g.message ? '\n' + g.message : '') + '\nlast: ' + when(g.last_at)));
+      errs.appendChild(d);
+    });
+
+    const recent = el('div', { class: 'card' });
+    recent.appendChild(el('h2', { text: 'Latest events' }));
+    if (!sum.recent.length) recent.appendChild(el('div', { class: 'meta', text: 'Nothing yet.' }));
+    sum.recent.forEach(e => recent.appendChild(el('div', { class: 'line',
+      text: when(e.at) + '  ' + (names[e.kind] || e.kind) + '  ' + (e.path || '') + (e.detail && e.detail.reason ? '  (' + e.detail.reason.replace(/_/g, ' ') + ')' : '') + (e.source ? '  [' + e.source + ']' : '') })));
+    list.replaceChildren(top, errs, recent);
+  }
+
   async function load() {
+    if (view === 'security') return renderSecurity();
     if (view === 'message') return renderMessageForm();
     show('Loading...');
     if (view === 'audit') {

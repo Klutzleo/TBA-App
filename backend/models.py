@@ -1487,3 +1487,16 @@ class AdminTemplate(Base):
     body = Column(String(1000), nullable=False)
     created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SecurityEvent(Base):
+    """One blocked signup, failed login, rate-limit hit or unhandled server error (admin center, phase E). No raw IPs, emails or request bodies."""
+    __tablename__ = "security_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kind = Column(String(20), nullable=False, index=True)
+    ip_hash = Column(String(16), nullable=True, index=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True)
+    path = Column(String(200), nullable=True)
+    detail = Column(JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
