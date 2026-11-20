@@ -1375,6 +1375,10 @@ def get_campaign_messages(
         .filter(Message.campaign_id == campaign_id)\
         .filter(Message.deleted_at == None)
 
+    # Whispers are private to their sender and recipients
+    from backend.whispers import hide_foreign_whispers
+    query = hide_foreign_whispers(query, current_user.id, str(campaign.story_weaver_id) == str(current_user.id))
+
     if tab == 'ooc':
         query = query.filter(func.lower(Message.mode) == 'ooc')
     elif tab == 'story':

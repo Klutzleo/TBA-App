@@ -1430,3 +1430,13 @@ def _only_active_members_by_default(execute_state):
     if execute_state.is_select and not execute_state.execution_options.get("include_left_members", False):
         execute_state.statement = execute_state.statement.options(
             _with_loader_criteria(CampaignMembership, lambda cls: cls.left_at.is_(None), include_aliases=True))
+
+
+class MessageRecipient(Base):
+    """Who a private message (a whisper) was sent to. The sender is on the message itself. A whisper with no rows here is visible to its sender only."""
+    __tablename__ = "message_recipients"
+    __table_args__ = (UniqueConstraint("message_id", "user_id", name="uq_message_recipient"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)

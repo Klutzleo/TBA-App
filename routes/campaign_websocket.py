@@ -175,6 +175,16 @@ class CampaignConnectionManager:
 
         return False
     
+    async def send_to_users(self, campaign_id: UUID, user_ids, message: dict):
+        """Send to every connection of the given users only (private messages). Never touches the Discord mirror."""
+        wanted = {str(u) for u in user_ids}
+        for websocket, conn_user_id, display_name, username in list(self.active_connections.get(campaign_id, [])):
+            if str(conn_user_id) in wanted:
+                try:
+                    await websocket.send_json(message)
+                except Exception as e:
+                    logger.warning(f"Failed to send private message to {display_name}: {e}")
+
     def get_connected_users(self, campaign_id: UUID) -> List[tuple[UUID, str]]:
         """Get list of (user_id, display_name) for all connected users."""
         if campaign_id not in self.active_connections:
@@ -807,6 +817,20 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
             "timestamp": datetime.utcnow().isoformat()
         }
 
+    # Whispers are private: work out who they reach before anything is saved or sent
+    whisper_recipients = set()
+    if broadcast_type == "chat_whisper":
+        from backend.whispers import resolve_whisper_targets
+        whisper_recipients, _unmatched = resolve_whisper_targets(db, campaign_id, whisper_targets)
+        whisper_recipients.discard(user_id if not isinstance(user_id, str) else UUID(user_id))
+        if not whisper_recipients:
+            await manager.send_to_users(campaign_id, [user_id], {
+                "type": "system",
+                "text": "Your whisper was not sent: no one in this campaign matches " + ", ".join(str(t) for t in whisper_targets) + ".",
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+            return
+
     # Save ALL messages to database
     try:
         message_record = Message(
@@ -818,6 +842,10 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
             content=text
         )
         db.add(message_record)
+        if whisper_recipients:
+            db.flush()
+            from backend.whispers import save_recipients
+            save_recipients(db, message_record.id, whisper_recipients)
         db.commit()
         # Add message_id and sender_id so clients can edit/delete
         broadcast_data["message_id"] = str(message_record.id)
@@ -825,6 +853,11 @@ async def handle_legacy_message(campaign_id: UUID, data: dict, user_id: str, dis
     except Exception as e:
         logger.error(f"Failed to save message to database: {e}")
         db.rollback()
+
+    if broadcast_type == "chat_whisper":
+        # Only the sender and the people it was addressed to ever receive it
+        await manager.send_to_users(campaign_id, {user_id, *whisper_recipients}, broadcast_data)
+        return
 
     # Broadcast to all connected clients
     await manager.broadcast(campaign_id, broadcast_data)
